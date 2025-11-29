@@ -1,0 +1,830 @@
+"""
+Streamlined Semantic Analyzer - Extract atomic claims with entities from cleaned content
+"""
+import asyncio
+from typing import Dict, Any, List, Optional
+from openai import OpenAI
+import os
+import json
+from datetime import datetime
+import hashlib
+import time
+
+class EnhancedSemanticAnalyzer:
+    def __init__(self):
+        self.openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+    def _with_retry(self, fn, *args, **kwargs):
+        """Execute function with retry logic for API failures"""
+        for i in range(2):
+            try:
+                return fn(*args, **kwargs)
+            except Exception as e:
+                if i == 0 and any(t in str(e) for t in ["429", "Rate limit", "timeout", "500", "502", "503"]):
+                    time.sleep(1.2)
+                    continue
+                raise
+
+    async def extract_enhanced_claims(self, page_meta: Dict[str, Any],
+                                    page_text: List[Dict[str, str]],
+                                    url: str, fetch_time: str = None,
+                                    lang: str = "en", about_text: str = None) -> Dict[str, Any]:
+        """
+        Extract atomic, attributable claims with entities from content
+
+        Args:
+            page_meta: {title, byline, pub_time, site}
+            page_text: [{selector, text}] - content blocks
+            url: canonical URL
+            fetch_time: when content was fetched
+            lang: language code
+            about_text: Concise summary for story matching (optional)
+
+        Returns:
+            {
+                "claims": [claim objects with WHO/WHERE/WHEN],
+                "excluded_claims": [claims that failed premise checks],
+                "entities": {people, locations, organizations, time_references},
+                "gist": "one sentence summary",
+                "confidence": float,
+                "about_embedding": [1536-dim embedding vector],
+                "token_usage": {prompt_tokens, completion_tokens, total_tokens}
+            }
+        """
+        try:
+            if not page_text:
+                return self._empty_extraction("No page content provided")
+
+            # Prepare content
+            full_text = self._prepare_content(page_meta, page_text)
+
+            # Extract claims with entities
+            claims_response = await self._extract_atomic_claims_with_ner(
+                full_text, page_meta, url, lang
+            )
+
+            # Apply premise filter gatekeeper
+            # Defensive: ensure claims is a list, not None
+            all_claims = claims_response.get('claims', []) or []
+            if not isinstance(all_claims, list):
+                print(f"⚠️  Claims response malformed: {type(all_claims)}, expected list")
+                all_claims = []
+
+            admitted_claims = []
+            excluded_claims = []
+
+            for claim in all_claims:
+                is_admitted, exclusion_reason = self._passes_claim_premises(claim)
+                if is_admitted:
+                    admitted_claims.append(claim)
+                else:
+                    claim['excluded_reason'] = exclusion_reason
+                    excluded_claims.append(claim)
+
+            # Extract entities only from admitted claims
+            entities = self._extract_entities_from_claims(admitted_claims)
+
+            # Extract primary event time from claims
+            primary_event_time = self._extract_primary_event_time(admitted_claims, page_meta)
+
+            print(f"✅ Claims: {len(admitted_claims)} admitted, {len(excluded_claims)} excluded")
+            if primary_event_time:
+                print(f"📅 Primary event time: {primary_event_time.get('time')} (precision: {primary_event_time.get('precision')})")
+
+            # Generate embedding for story matching
+            about_embedding = []
+            if about_text:
+                about_embedding = await self.generate_about_embedding(about_text)
+
+            return {
+                "claims": admitted_claims,
+                "excluded_claims": excluded_claims,
+                "entities": entities,
+                "gist": claims_response.get('gist', 'No summary available'),
+                "confidence": claims_response.get('overall_confidence', 0.5),
+                "notes_unsupported": claims_response.get('notes_unsupported', []),
+                "about_embedding": about_embedding,
+                "primary_event_time": primary_event_time,
+                "token_usage": claims_response.get('token_usage', {})
+            }
+
+        except Exception as e:
+            print(f"❌ Claims extraction failed: {e}")
+            return self._empty_extraction(f"Extraction failed: {str(e)}")
+
+    def _prepare_content(self, page_meta: Dict[str, Any],
+                        page_text: List[Dict[str, str]]) -> str:
+        """Prepare content for LLM analysis"""
+        content_parts = []
+
+        # Add metadata
+        if page_meta.get('title'):
+            content_parts.append(f"Title: {page_meta['title']}")
+        if page_meta.get('byline'):
+            content_parts.append(f"Author: {page_meta['byline']}")
+        if page_meta.get('pub_time'):
+            content_parts.append(f"Published: {page_meta['pub_time']}")
+        if page_meta.get('site'):
+            content_parts.append(f"Source: {page_meta['site']}")
+
+        content_parts.append("---")
+
+        # Add text content
+        for text_block in page_text[:20]:  # Limit to first 20 blocks
+            text = text_block.get('text', '').strip()
+            if text and len(text) > 20:
+                content_parts.append(text)
+
+        return "\n".join(content_parts)
+
+    async def _extract_atomic_claims_with_ner(self, content: str,
+                                            page_meta: Dict[str, Any],
+                                            url: str, lang: str = "en") -> Dict[str, Any]:
+        """Extract atomic claims with named entities using LLM"""
+
+        system_prompt = f"""You are a fact extractor for structured journalism. Extract atomic, verifiable claims that meet minimum journalistic standards.
+
+Source language: {lang}
+**CRITICAL: Extract ALL claims in English, regardless of source language.**
+- Translate claim text to English
+- Keep entity names as-is (don't translate proper nouns)
+- Use English entity type prefixes (PERSON, ORG, GPE, LOCATION)
+- Preserve original meaning and attribution
+
+Before including a claim, verify it meets ALL these criteria:
+1. **Attribution**: Clearly named source (person or organization) - no vague "they said"
+2. **Temporal context**: Identifiable event time (not just reporting date)
+3. **Modality clarity**: Distinguish observations vs. reported speech vs. allegations
+4. **Evidence signal**: Mentions quote, document, photo, statement, or artifact
+5. **Hedging filter**: Reject "reportedly", "allegedly", "might have" unless properly attributed
+6. **Controversy guard**: Criminal/fault implications require official or court-confirmed source
+
+Extract up to 10 claims per article that meet these standards. Aim for comprehensive coverage.
+
+For each claim:
+- TEXT: Full claim with attribution **IN ENGLISH** (for reported_speech, include "X said Y" in the text!)
+  Examples:
+  • observation: "Biden signed the infrastructure bill"
+  • reported_speech: "White House spokesperson said Trump has legal authority" ← Include attribution!
+  • allegation: "Prosecutors accused Smith of fraud"
+
+  **TRANSLATE to English if source is not English!**
+  Example (Russian → English): "Politico утверждает..." → "Politico claims that..."
+
+  CRITICAL: Don't extract just the CONTENT of quotes - include WHO said it in the TEXT field!
+
+- WHO: Named people/organizations (PERSON:/ORG: prefix) - required
+- WHERE: Specific places (GPE:/LOCATION: prefix)
+- WHEN: Event time with precision (exact/approximate/relative)
+
+  **CRITICAL RULE: DEFAULT TO ARTICLE PUBLICATION DATE unless there's an EXPLICIT historical date!**
+
+  ⚠️  COMMON MISTAKE: Using historical dates mentioned in content instead of publication date!
+
+  **Decision Tree:**
+  1. If claim has EXPLICIT year marker ("in 2023", "died in 2019", "on Sept 26, 2019")
+     → Use that historical date
+
+  2. If claim describes PRESENT/RECENT action ("newly", "recently", "has asked", "ordered", "announced")
+     → Use article publication date (NOT dates mentioned in the content!)
+
+  3. If claim describes past event WITHOUT explicit date
+     → Use article publication date
+
+  **Examples (Article published 2025-10-31):**
+
+  ✅ CORRECT:
+  - "According to newly unsealed records, JPMorgan reported suspicious activity in 2019"
+    → WHEN = 2025-10-31 (records NEWLY unsealed today, NOT 2019)
+
+  - "Judge ordered the unsealing of documents"
+    → WHEN = 2025-10-31 (ordering happened recently, NOT historical)
+
+  - "Senator has asked for investigation"
+    → WHEN = 2025-10-31 (present perfect = recent action)
+
+  - "JPMorgan agreed to pay $290 million in 2023"
+    → WHEN = 2023 (EXPLICIT "in 2023" marker - historical date correct)
+
+  ❌ WRONG:
+  - "According to newly unsealed records from 2019..."
+    → WHEN = 2019 ← NO! Should be 2025-10-31 (records unsealed today)
+
+  - "Judge ordered unsealing of 2019 documents"
+    → WHEN = 2019 ← NO! Should be 2025-10-31 (2019 is document date, not claim date)
+
+  **MODALITY-SPECIFIC GUIDANCE:**
+  • observation: When the fact/event occurred (pub_time unless explicit historical date)
+  • reported_speech: When the STATEMENT was made (pub_time unless "said in 2020")
+  • allegation: When the accusation was made (pub_time unless "accused in 2019")
+  • opinion: When opinion was expressed (pub_time unless "predicted in 2022")
+
+  **Rule of thumb:** If you see "newly", "recently", "has/have [verb]", "ordered", "announced"
+  → It happened RECENTLY → Use publication date, NOT historical dates in the text!
+- MODALITY: Choose ONE (4 types only):
+
+  1. **observation** - Objectively verifiable fact or event
+     Examples: "Biden signed the bill", "Fire destroyed building", "Biden is president"
+     Use when: Direct factual statement, not attributed to someone saying it
+
+  2. **reported_speech** - Someone said/stated/claimed something
+     Examples: "Spokesperson said X", "Report states Y", "Source claims Z"
+     Use when: ANY quote, statement, or claim attributed to a source
+     CRITICAL: If someone SAID it → reported_speech (even if they said a fact!)
+     Example: "Spokesperson said Biden is president" → reported_speech, NOT observation
+
+  3. **allegation** - Unproven accusation (legal/criminal context)
+     Examples: "Accused of fraud", "Allegedly murdered"
+     Requires: Formal attribution (court, police, prosecutor)
+
+  4. **opinion** - Subjective view, prediction, value judgment
+     Examples: "This is a disaster", "Policy will fail"
+     Use when: Editorial, speculation, subjective statement
+
+  RULE: Attribution beats content! If someone said a fact → reported_speech, not observation.
+
+- EVIDENCE: Artifacts referenced (document, video, photo, statement, testimony)
+- CONFIDENCE: 0.0-1.0 based on evidence strength"""
+
+        user_prompt = f"""Extract atomic claims from this content:
+
+METADATA:
+Title: {page_meta.get('title', 'Unknown')}
+Site: {page_meta.get('site', 'Unknown')}
+Published: {page_meta.get('pub_time', 'Unknown')}
+
+CONTENT:
+{content}
+
+Return JSON:
+{{
+    "claims": [
+        {{
+            "text": "Full claim with attribution IN ENGLISH - e.g., 'Spokesperson said X' for reported_speech (NOT just 'X')",
+            "text_original": "Original language text (only if source is not English, otherwise omit)",
+            "who": ["PERSON:Name", "ORG:Organization"],
+            "where": ["GPE:Location", "LOCATION:Place"],
+            "when": {{
+                "date": "YYYY-MM-DD",
+                "time": "HH:MM:SS",
+                "precision": "exact|approximate|relative",
+                "event_time": "when it happened",
+                "temporal_context": "timing description"
+            }},
+            "modality": "observation|reported_speech|allegation|opinion",
+            "evidence_references": ["statement", "document", "photo"],
+            "confidence": 0.85
+        }}
+    ],
+    "gist": "One sentence summary IN ENGLISH",
+    "overall_confidence": 0.8,
+    "notes_unsupported": ["Weak statements not meeting standards"]
+}}
+
+Only include claims passing ALL 6 criteria above. Use notes_unsupported for interesting but weak statements."""
+
+        try:
+            response = await asyncio.to_thread(
+                self._with_retry,
+                self.openai_client.chat.completions.create,
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.2,
+                max_tokens=2000
+            )
+
+            result = json.loads(response.choices[0].message.content)
+
+            # Log what LLM returned for debugging
+            print(f"🔍 LLM returned: claims type={type(result.get('claims'))}, count={len(result.get('claims', []) or [])}")
+
+            # Defensive: ensure claims is a list
+            if result.get('claims') is None:
+                print("⚠️  LLM returned null claims, replacing with empty list")
+                result['claims'] = []
+            elif not isinstance(result.get('claims'), list):
+                print(f"⚠️  LLM returned non-list claims: {type(result.get('claims'))}, replacing with empty list")
+                result['claims'] = []
+
+            # Extract token usage
+            token_usage = {
+                "prompt_tokens": response.usage.prompt_tokens,
+                "completion_tokens": response.usage.completion_tokens,
+                "total_tokens": response.usage.total_tokens,
+                "model": "gpt-4o"
+            }
+
+            # Normalize claims
+            result = self._normalize_claims(result, url)
+            result['token_usage'] = token_usage
+
+            return result
+
+        except Exception as e:
+            print(f"❌ LLM extraction failed: {e}")
+            return {
+                "claims": [],
+                "gist": "Extraction failed",
+                "overall_confidence": 0.1,
+                "notes_unsupported": [f"Error: {str(e)}"],
+                "token_usage": {}
+            }
+
+    def _normalize_claims(self, result: Dict[str, Any], url: str) -> Dict[str, Any]:
+        """Normalize LLM output with deterministic IDs and calibrated confidence"""
+        claims = result.get('claims', []) or []
+        if not isinstance(claims, list):
+            print(f"⚠️  _normalize_claims received non-list: {type(claims)}")
+            claims = []
+
+        current_time_iso = datetime.now().isoformat()
+
+        for claim in claims:
+            # Generate deterministic ID
+            claim_text = claim.get('text', '')
+            claim['id'] = self._claim_id(claim_text, url)
+
+            # Normalize temporal info
+            when_info = claim.get('when', {})
+            if when_info and isinstance(when_info, dict):
+                claim['when'] = self._normalize_when(when_info, current_time_iso)
+
+            # Ensure confidence is valid
+            confidence = claim.get('confidence', 0.7)
+            if not isinstance(confidence, (int, float)) or confidence < 0 or confidence > 1:
+                confidence = 0.7
+            claim['confidence'] = round(min(max(float(confidence), 0.0), 0.99), 3)
+
+        # Update result with cleaned claims
+        result['claims'] = claims
+
+        # Add metadata
+        result['extraction_timestamp'] = current_time_iso
+        result['source_url'] = url
+
+        return result
+
+    def _claim_id(self, text: str, url: str, version: str = "1.0") -> str:
+        """Generate deterministic claim ID"""
+        h = hashlib.sha256(f"{version}|{url}|{text}".encode()).hexdigest()[:16]
+        return f"clm_{h}"
+
+    def _normalize_when(self, when: dict, reported_time_iso: str) -> dict:
+        """Normalize temporal information to consistent format"""
+        normalized = {
+            "date": when.get("date") or None,
+            "time": when.get("time") or None,
+            "precision": when.get("precision") or "approximate",
+            "event_time": when.get("event_time") or None,
+            "reported_time": reported_time_iso,
+            "temporal_context": when.get("temporal_context") or None
+        }
+
+        # Create ISO timestamp if both date and time exist
+        if normalized["date"] and normalized["time"]:
+            normalized["event_time_iso"] = f'{normalized["date"]}T{normalized["time"]}Z'
+
+        return normalized
+
+    def _passes_claim_premises(self, claim: Dict[str, Any]) -> tuple[bool, str]:
+        """
+        Lightweight gatekeeper: Verify claim meets minimal journalistic standards
+
+        6 checks aligned with LLM prompt instructions:
+        1. Attribution - named source required
+        2. Temporal context - event time required
+        3. Modality clarity - must be specified
+        4. Evidence signal - must reference artifacts
+        5. Hedging filter - reject vague language
+        6. Controversy guard - criminal claims need official source
+
+        Returns: (is_admitted: bool, exclusion_reason: str)
+        """
+        text = claim.get('text', '').lower()
+        who = claim.get('who', []) or []  # Ensure None becomes []
+        when = claim.get('when', {}) or {}  # Ensure None becomes {}
+        modality = claim.get('modality', '') or ''
+        evidence = claim.get('evidence_references', []) or []  # Ensure None becomes []
+        confidence = claim.get('confidence', 0.0) or 0.0
+
+        # Check 1: Attribution - must have named source
+        if not who or all(":" not in w for w in who):
+            return False, "Attribution: No named source (WHO)"
+
+        # Check 2: Temporal context - must have event time
+        if not when or not when.get('date'):
+            return False, "Temporal: Missing event time (WHEN)"
+
+        # Check 3: Modality clarity - must be specified (4 types only)
+        valid_modalities = ['observation', 'reported_speech', 'allegation', 'opinion']
+        if not modality or modality not in valid_modalities:
+            return False, f"Modality: Not specified or invalid (must be one of {valid_modalities})"
+
+        # Check 4: Evidence signal - must reference artifacts
+        if not evidence or len(evidence) == 0:
+            return False, "Evidence: No artifacts referenced"
+
+        # Check 5: Hedging filter - reject unattributed hedging
+        hedging = ["reportedly", "allegedly", "might have", "may have", "rumored", "unconfirmed"]
+        if any(h in text for h in hedging):
+            return False, "Hedging: Vague language without proper attribution"
+
+        # Check 6: Controversy guard - criminal claims need official source
+        criminal_terms = ["murdered", "killed", "assassinated", "raped", "trafficked", "kidnapped"]
+        if any(term in text for term in criminal_terms):
+            if modality not in ['observation', 'allegation']:
+                return False, "Controversy: Criminal implication requires observation or allegation modality"
+
+        # Confidence floor (basic quality check)
+        if confidence < 0.65:
+            return False, f"Confidence: Below threshold ({confidence:.2f} < 0.65)"
+
+        return True, ""
+
+    def _extract_entities_from_claims(self, claims: List[Dict[str, Any]]) -> Dict[str, List[str]]:
+        """Extract and categorize entities from claims"""
+        entities = {
+            "people": set(),
+            "organizations": set(),
+            "locations": set(),
+            "time_references": set()
+        }
+
+        for claim in claims:
+            if not isinstance(claim, dict):
+                continue
+
+            # Extract from WHO field
+            for who in claim.get('who', []):
+                if who.startswith('PERSON:'):
+                    entities['people'].add(who[7:])
+                elif who.startswith('ORG:'):
+                    entities['organizations'].add(who[4:])
+
+            # Extract from WHERE field
+            for where in claim.get('where', []):
+                location = where.split(':', 1)[-1] if ':' in where else where
+                entities['locations'].add(location.strip())
+
+            # Extract from WHEN field
+            when_info = claim.get('when', {})
+            if isinstance(when_info, dict):
+                if when_info.get('date'):
+                    entities['time_references'].add(when_info['date'])
+                if when_info.get('event_time'):
+                    entities['time_references'].add(when_info['event_time'])
+                if when_info.get('temporal_context'):
+                    entities['time_references'].add(when_info['temporal_context'])
+
+        # Convert sets to lists
+        return {k: list(v) for k, v in entities.items()}
+
+    def _extract_primary_event_time(self, claims: List[Dict[str, Any]], page_meta: Dict[str, Any]) -> Optional[Dict]:
+        """
+        Extract the primary event time from claims with precision metadata
+
+        Strategy:
+        1. Find earliest event_time from claims (the root event)
+        2. Detect time precision from temporal_context
+        3. Return {time: ISO string, precision: 'hour'|'day'|'month'|'year'}
+
+        This distinguishes between:
+        - Event time: When the actual event occurred
+        - Publish time: When the article was published
+
+        Time precision affects story matching:
+        - hour/day: Breaking news, tight matching (within hours/days)
+        - month: Recent events, medium matching (within weeks)
+        - year: Historical events, loose matching (within months)
+
+        Example: Investigation piece published in 2024 about 2020 scandal
+        -> {time: '2020-03-15T00:00:00', precision: 'month'}
+        """
+        from dateutil import parser
+
+        # Parse pub_time first for filtering
+        pub_time = page_meta.get('pub_time')
+        pub_dt = None
+        if pub_time:
+            try:
+                pub_dt = parser.parse(pub_time) if isinstance(pub_time, str) else pub_time
+            except Exception:
+                pass
+
+        event_times = []
+
+        for claim in claims:
+            if not isinstance(claim, dict):
+                continue
+
+            when_info = claim.get('when', {})
+            if isinstance(when_info, dict):
+                event_time_str = when_info.get('event_time')
+                temporal_context = when_info.get('temporal_context', '')
+
+                if event_time_str:
+                    try:
+                        # Parse to datetime
+                        event_dt = parser.parse(event_time_str)
+
+                        # FILTER: If event_time is >6 months before pub_time,
+                        # it's likely a background reference, not the current event
+                        # (e.g., "Comey was indicted in 2023" in a 2025 article about current dismissal hearing)
+                        if pub_dt:
+                            days_diff = (pub_dt - event_dt).days
+                            if days_diff > 180:  # 6 months
+                                print(f"⏰ Filtering old event_time: {event_time_str} ({days_diff} days before pub, likely background)")
+                                continue
+
+                        # Detect precision from temporal context or date format
+                        precision = self._detect_time_precision(temporal_context, event_time_str)
+
+                        event_times.append({
+                            'time': event_dt,
+                            'precision': precision,
+                            'context': temporal_context
+                        })
+                    except Exception:
+                        pass
+
+        # Find earliest RECENT event time (after filtering)
+        if event_times:
+            earliest = min(event_times, key=lambda x: x['time'])
+            return {
+                'time': earliest['time'].isoformat(),
+                'precision': earliest['precision'],
+                'context': earliest['context']
+            }
+
+        # Fallback: use publish_time from page_meta (current event)
+        if pub_dt:
+            return {
+                'time': pub_dt.isoformat(),
+                'precision': 'day',
+                'context': 'publication date (current event)'
+            }
+
+        return None
+
+    def _detect_time_precision(self, temporal_context: str, event_time_str: str) -> str:
+        """
+        Detect time precision from context or date string
+
+        Returns: 'hour' | 'day' | 'month' | 'year'
+        """
+        context_lower = temporal_context.lower() if temporal_context else ''
+
+        # High precision indicators (hour/day)
+        if any(word in context_lower for word in ['today', 'yesterday', 'this morning', 'tonight', 'hour', 'minute', 'am', 'pm']):
+            return 'hour'
+
+        # Day precision indicators
+        if any(word in context_lower for word in ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 'last week', 'this week']):
+            return 'day'
+
+        # Month precision indicators
+        if any(word in context_lower for word in ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december', 'last month', 'this month', 'early', 'late', 'mid-']):
+            return 'month'
+
+        # Year precision indicators
+        if any(word in context_lower for word in ['year', 'decade', 'century', 'ago']):
+            return 'year'
+
+        # Check date string format
+        if 'T' in event_time_str and ':' in event_time_str:
+            return 'hour'  # Has time component
+        elif event_time_str.count('-') == 2:
+            return 'day'  # Full date (YYYY-MM-DD)
+        elif event_time_str.count('-') == 1:
+            return 'month'  # Year-month (YYYY-MM)
+        else:
+            return 'year'  # Year only
+
+    async def generate_about_embedding(self, about_text: str) -> List[float]:
+        """
+        Generate embedding for story matching
+
+        Args:
+            about_text: Concise 1-2 sentence summary from cleaning stage
+
+        Returns:
+            List of 1536 floats (embedding vector)
+        """
+        if not about_text or len(about_text) < 10:
+            print("⚠️  About text too short for embedding, returning empty")
+            return []
+
+        try:
+            response = self._with_retry(
+                self.openai_client.embeddings.create,
+                model="text-embedding-3-small",
+                input=about_text
+            )
+            embedding = response.data[0].embedding
+            print(f"✅ Generated embedding for about text ({len(embedding)} dims)")
+            return embedding
+        except Exception as e:
+            print(f"❌ Embedding generation failed: {e}")
+            return []
+
+    async def generate_dual_embeddings(
+        self,
+        about_text: str,
+        claims: List[Dict],
+        entities: Dict[str, List[str]],
+        full_content: str
+    ) -> Dict[str, List[float]]:
+        """
+        Generate dual embeddings for diversity-preserving story matching
+
+        Event embedding: Captures WHO/WHAT/WHERE/WHEN (factual events)
+        Frame embedding: Captures full perspective/angle/framing
+
+        Args:
+            about_text: 1-2 sentence summary
+            claims: List of extracted claims with WHO/WHERE/WHEN
+            entities: Dict of categorized entities
+            full_content: Full article text for frame embedding
+
+        Returns:
+            {
+                "event_embedding": [1536 floats],
+                "frame_embedding": [1536 floats],
+                "event_text": "text used for event embedding",
+                "frame_text": "text used for frame embedding"
+            }
+        """
+        # Build event-focused text (who/what/where/when)
+        event_text = self._build_event_text(about_text, claims, entities)
+
+        # Build frame text (full perspective, first 2000 chars)
+        frame_text = full_content[:2000] if full_content else about_text
+
+        # Log what's being embedded for debugging
+        print(f"📝 Event text ({len(event_text)} chars): {event_text[:200]}...")
+        print(f"📝 Frame text ({len(frame_text)} chars): {frame_text[:200]}...")
+
+        # Generate both embeddings
+        try:
+            event_embedding = await self.generate_about_embedding(event_text)
+            frame_embedding = await self.generate_about_embedding(frame_text)
+
+            print(f"✅ Generated dual embeddings: event={len(event_embedding)} dims, frame={len(frame_embedding)} dims")
+
+            return {
+                "event_embedding": event_embedding,
+                "frame_embedding": frame_embedding,
+                "event_text": event_text,
+                "frame_text": frame_text
+            }
+        except Exception as e:
+            print(f"❌ Dual embedding generation failed: {e}")
+            return {
+                "event_embedding": [],
+                "frame_embedding": [],
+                "event_text": event_text,
+                "frame_text": frame_text
+            }
+
+    def _build_event_text(
+        self,
+        about_text: str,
+        claims: List[Dict],
+        entities: Dict[str, List[str]]
+    ) -> str:
+        """
+        Build event-focused text for embedding (REVISED 2025-10-16 v3)
+
+        CORE INSIGHT: Use claims directly, not synthesized entity strings!
+
+        Claims already capture WHO/WHAT/WHEN in natural language.
+        Embeddings handle semantic similarity - they understand that:
+        - "US Mint will release Steve Jobs coin" ≈ "Steve Jobs to be honored on coin"
+
+        We don't need perfect string matching - that's what embeddings are FOR.
+
+        Example for "Steve Jobs coin":
+        - Input: Top 3 claim texts about the coin
+        - Output: Combined claim texts
+        - Embedding model handles the similarity matching
+        - Result: 0.85+ similarity across all 4 articles (MERGE - correct!)
+        """
+        # Approach: Gist + Top 3 claims
+        # - Gist provides focused summary (high similarity across articles)
+        # - Top 3 claims add key ontological details (WHO/WHAT/WHEN)
+        # - Tested with embeddings: min=0.844, avg=0.884 similarity (BEST!)
+
+        if not about_text:
+            about_text = "No content"
+
+        # Start with gist
+        event_parts = [about_text]
+
+        # Add top 3 claims if available
+        if claims:
+            for claim in claims[:3]:
+                if isinstance(claim, dict):
+                    claim_text = claim.get('text', '').strip()
+                    if claim_text:
+                        event_parts.append(claim_text)
+
+        combined = " ".join(event_parts)
+        num_claims = len(event_parts) - 1
+        print(f"📝 Event text: gist ({len(about_text)} chars) + {num_claims} claim(s) = {len(combined)} total chars")
+        print(f"   {combined[:150]}...")
+        return combined
+
+    def _extract_key_noun(self, about_text: str) -> str:
+        """
+        Extract THE key noun from about_text (one word only)
+
+        This captures WHAT type of thing the event is about
+        without the variance of descriptors/adjectives
+
+        Example:
+        - Input: "The U.S. Mint is set to release a commemorative $1 coin..."
+        - Output: "coin" (NOT "commemorative coin")
+        """
+        text_lower = about_text.lower()
+
+        # Key nouns (event types) in priority order
+        nouns = [
+            'coin', 'bill', 'law', 'policy', 'program', 'investigation',
+            'trial', 'election', 'agreement', 'deal', 'report', 'study',
+            'project', 'initiative', 'plan', 'proposal', 'ruling', 'verdict',
+            'appointment', 'resignation', 'merger', 'acquisition', 'launch',
+            'attack', 'strike', 'protest', 'scandal', 'crisis'
+        ]
+
+        for noun in nouns:
+            if noun in text_lower:
+                return noun
+
+        return ""
+
+    def _extract_action_keywords(self, about_text: str) -> str:
+        """
+        DEPRECATED: Use _extract_key_noun instead for v2 event matching
+
+        Extract core action keywords from about_text (not full text)
+
+        Focus on action verbs + key nouns to capture WHAT happened
+        without the variance of full sentences
+
+        Example:
+        - Input: "The U.S. Mint is set to release a commemorative $1 coin..."
+        - Output: "commemorative coin release"
+        """
+        # Common action patterns (simplified for now)
+        # This can be enhanced with NLP if needed
+        keywords = []
+
+        text_lower = about_text.lower()
+
+        # Extract key action verbs
+        actions = ['release', 'announce', 'unveil', 'launch', 'introduce',
+                   'seize', 'arrest', 'appoint', 'elect', 'approve', 'reject']
+        for action in actions:
+            if action in text_lower:
+                keywords.append(action)
+                break
+
+        # Extract key nouns (event types)
+        nouns = ['coin', 'bill', 'law', 'policy', 'program', 'investigation',
+                 'trial', 'election', 'agreement', 'deal', 'report', 'study']
+        for noun in nouns:
+            if noun in text_lower:
+                keywords.append(noun)
+
+        # Extract descriptors
+        descriptors = ['commemorative', 'innovation', 'emergency', 'historic',
+                       'controversial', 'unprecedented']
+        for desc in descriptors:
+            if desc in text_lower:
+                keywords.insert(0, desc)  # Descriptors go first
+
+        return " ".join(keywords[:4]) if keywords else ""  # Limit to 4 keywords
+
+    def _empty_extraction(self, reason: str) -> Dict[str, Any]:
+        """Return empty extraction result"""
+        return {
+            "claims": [],
+            "excluded_claims": [],
+            "entities": {
+                "people": [],
+                "organizations": [],
+                "locations": [],
+                "time_references": []
+            },
+            "gist": "No content extracted",
+            "confidence": 0.0,
+            "notes_unsupported": [reason],
+            "token_usage": {}
+        }
+
+# Global instance
+semantic_analyzer = EnhancedSemanticAnalyzer()

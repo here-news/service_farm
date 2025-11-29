@@ -1,0 +1,92 @@
+# Google News URL Extraction Summary
+
+## The Problem
+Google News uses redirect URLs like:
+```
+https://news.google.com/articles/CBMilAFBVV95cUxPd1JKVE5kRjdRSzUyTUwyMVB3...
+```
+
+These redirect to real publisher URLs (politico.com, nytimes.com, etc.), but **Google actively blocks automated URL extraction** with:
+- CAPTCHA challenges
+- Bot detection
+- Rate limiting
+- IP blocking
+
+## What We Tried
+✗ Simple HTTP requests → Blocked
+✗ Selenium with browser automation → CAPTCHA
+✗ Undetected-chromedriver → Still blocked
+✗ Maximum stealth settings → Still CAPTCHA
+
+**Result:** Google's bot detection is too sophisticated for automated extraction.
+
+## Recommended Solution
+
+### Use Google News URLs directly in your extraction pipeline
+
+**How it works:**
+1. Pass Google News URLs to your `/artifacts/draft` endpoint
+2. When your extraction worker fetches content, it automatically follows the redirect
+3. You get both the real publisher URL AND the content in one operation
+
+**Benefits:**
+- ✓ No pre-processing needed
+- ✓ Extraction happens naturally during content fetch
+- ✓ Works with existing trafilatura/newspaper3k tools
+- ✓ More reliable than trying to outsmart Google
+
+## Files Available
+
+### Data Files
+- **`feed_urls.json`** - 100 articles with timestamps, titles, and Google News URLs
+- **`feed_urls.txt`** - Simple list of URLs
+
+### Import Scripts
+- **`bulk_import_articles.py`** - Import articles into your system via API
+  ```bash
+  python3 bulk_import_articles.py 10  # Import first 10
+  python3 bulk_import_articles.py 100 # Import all
+  ```
+
+### Reference Scripts (for documentation)
+- `extract_publisher_urls.py` - Basic HTTP approach (blocked)
+- `extract_urls_undetected.py` - Undetected chromedriver (blocked)
+- `extract_maximum_stealth.py` - Maximum stealth (blocked)
+
+## Alternative Options (if you really need pre-resolved URLs)
+
+### 1. Manual Resolution
+For critical articles, manually click through and save URLs.
+
+### 2. Paid Services
+Services like ScraperAPI or Bright Data can resolve these ($$).
+
+### 3. Residential Proxies
+Use rotating residential IPs to avoid detection (complex + $$).
+
+### 4. Third-Party APIs
+Some news aggregation APIs provide direct publisher URLs ($$).
+
+## Next Steps
+
+### Quick Start:
+```bash
+# Check your data
+cat feed_urls.json | python3 -c "import json,sys; d=json.load(sys.stdin); print(f'{len(d)} articles ready')"
+
+# Test import (requires your backend running)
+source backend/venv/bin/activate
+python3 bulk_import_articles.py 5
+```
+
+### Integration:
+Your extraction worker already handles redirects. Just feed it the Google News URLs and it will:
+1. Follow the redirect to get the real URL
+2. Extract the content
+3. Store both URL and content in your database
+
+**The publisher URL will be in the `canonical_url` field after extraction.**
+
+## Conclusion
+
+Don't fight Google's bot detection. Let your content extractor handle the redirects naturally during the fetch operation. It's simpler, more reliable, and works with your existing pipeline.

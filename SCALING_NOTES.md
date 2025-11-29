@@ -1,0 +1,226 @@
+# Connection Pooling and Scaling Considerations
+
+## Current Architecture (Demo)
+
+### Connection Distribution
+- **Backend**: 1 shared pool, max 10 connections
+- **Extraction Worker**: 1 pool per container, max 3 connections
+- **Semantic Worker**: 1 pool per container, max 3 connections  
+- **Event Worker**: 1 pool per container, max 3 connections
+
+### Scaling Math
+```
+Workers scaled to N instances each:
+- N extraction workers × 3 = 3N connections
+- N semantic workers × 3 = 3N connections
+- N event workers × 3 = 3N connections
+- 1 backend × 10 = 10 connections
+
+Total = 9N + 10 connections
+```
+
+**Example**: Scale each worker to 5 instances
+- Total: 9(5) + 10 = **55 connections**
+- PostgreSQL default max: **100 connections**
+- Remaining headroom: 45 connections
+
+**Problem**: At ~10 instances per worker type, you hit the PostgreSQL limit.
+
+## Issue: Connection Pool Per Worker Container
+
+Each worker container creates its own connection pool:
+```python
+# worker_extraction.py (and others)
+pool = await asyncpg.create_pool(
+    host='demo-postgres',
+    min_size=1,
+    max_size=3
+)
+```
+
+This means:
+- ❌ No connection sharing between worker containers
+- ❌ Idle connections held per worker
+- ❌ Linear growth: more workers = more connections
+- ❌ Hits PostgreSQL connection limit quickly
+
+## Production Solutions
+
+### Option 1: PgBouncer (Recommended)
+
+Use a connection pooler between workers and PostgreSQL:
+
+```yaml
+# docker-compose.yml
+services:
+  pgbouncer:
+    image: pgbouncer/pgbouncer:latest
+    environment:
+      - DATABASES_HOST=demo-postgres
+      - DATABASES_PORT=5432
+      - DATABASES_DBNAME=demo_phi_here
+      - POOL_MODE=transaction  # or 'session'
+      - MAX_CLIENT_CONN=1000
+      - DEFAULT_POOL_SIZE=25
+```
+
+**How it works:**
+- Workers connect to PgBouncer (not PostgreSQL directly)
+- PgBouncer maintains a small pool of real PostgreSQL connections (e.g., 25)
+- 100+ workers can share those 25 connections
+- Connections multiplexed per transaction or session
+
+**Benefits:**
+- ✅ Scale to 100+ workers with only 25 PostgreSQL connections
+- ✅ Connection pooling handled centrally
+- ✅ No code changes required (just change connection host)
+- ✅ Better resource utilization
+
+### Option 2: Reduce Worker Pool Sizes
+
+For moderate scaling (< 10 workers each):
+
+```python
+# Workers only need 1-2 connections each
+pool = await asyncpg.create_pool(
+    host='demo-postgres',
+    min_size=1,
+    max_size=2  # Reduced from 3
+)
+```
+
+This gives you ~15 instances per worker type before hitting limits.
+
+### Option 3: Connection-Per-Query (No Pooling)
+
+For truly stateless workers:
+
+```python
+# No pool, just acquire connections as needed
+async def process_job(job):
+    conn = await asyncpg.connect(
+        host='demo-postgres',
+        user='demo_user',
+        password='demo_pass',
+        database='demo_phi_here'
+    )
+    try:
+        # Do work
+        await conn.execute(...)
+    finally:
+        await conn.close()
+```
+
+**Trade-off:**
+- ✅ No idle connections
+- ❌ Connection overhead on every query
+- ❌ Slower (connection handshake each time)
+
+### Option 4: Shared External Pool Service
+
+Create a dedicated connection pool service:
+
+```python
+# pool_service.py
+class PoolService:
+    def __init__(self):
+        self.pool = None
+    
+    async def get_pool(self):
+        if not self.pool:
+            self.pool = await asyncpg.create_pool(...)
+        return self.pool
+
+# Expose via HTTP or gRPC
+# Workers call pool service for connections
+```
+
+**Trade-off:**
+- ✅ Centralized connection management
+- ❌ Additional service complexity
+- ❌ Network hop for connections
+
+## Recommendation for Production
+
+**Use PgBouncer** for the following reasons:
+
+1. **Proven solution**: Industry standard for PostgreSQL connection pooling
+2. **Zero code changes**: Just point workers at PgBouncer instead of PostgreSQL
+3. **Handles 100+ workers easily**: With only 20-30 real PostgreSQL connections
+4. **Transaction pooling**: Perfect for worker pattern (one transaction per job)
+5. **Monitoring**: PgBouncer provides connection stats
+
+### Implementation Example
+
+```yaml
+# docker-compose.production.yml
+services:
+  pgbouncer:
+    image: pgbouncer/pgbouncer:latest
+    environment:
+      - DATABASES_HOST=postgres
+      - DATABASES_PORT=5432
+      - DATABASES_USER=demo_user
+      - DATABASES_PASSWORD=demo_pass
+      - DATABASES_DBNAME=demo_phi_here
+      - POOL_MODE=transaction
+      - MAX_CLIENT_CONN=500
+      - DEFAULT_POOL_SIZE=25
+    ports:
+      - "6432:6432"
+  
+  demo-worker-extraction:
+    environment:
+      - DB_HOST=pgbouncer  # Changed from demo-postgres
+      - DB_PORT=6432        # PgBouncer port
+```
+
+**Result:**
+- 500 workers can connect to PgBouncer
+- PgBouncer uses only 25 PostgreSQL connections
+- PostgreSQL never sees more than 25 connections
+
+## Monitoring Connection Usage
+
+### Check Current Connections
+
+```bash
+# Inside PostgreSQL
+docker exec -it demo-postgres psql -U demo_user -d demo_phi_here -c \
+  "SELECT count(*) as total_connections FROM pg_stat_activity;"
+
+# By application
+docker exec -it demo-postgres psql -U demo_user -d demo_phi_here -c \
+  "SELECT application_name, count(*) FROM pg_stat_activity GROUP BY application_name;"
+
+# Idle vs active
+docker exec -it demo-postgres psql -U demo_user -d demo_phi_here -c \
+  "SELECT state, count(*) FROM pg_stat_activity GROUP BY state;"
+```
+
+### Set PostgreSQL Max Connections
+
+```bash
+# In PostgreSQL config or via environment
+# docker-compose.yml
+services:
+  demo-postgres:
+    environment:
+      - POSTGRES_MAX_CONNECTIONS=200  # Increase from default 100
+```
+
+## Current Demo Status
+
+**Fixed Issues:**
+- ✅ Backend now uses single shared pool (not creating new pools per request)
+- ✅ Increased backend max connections to 10
+- ✅ Proper connection lifecycle with `async with pool.acquire()`
+
+**Remaining Limitations:**
+- ⚠️ Each worker container has own pool (no sharing)
+- ⚠️ Can scale to ~10 instances per worker type before issues
+- ⚠️ No central connection pooling
+
+**For Demo:** Current setup is fine (handles 5-10 workers per type)
+
+**For Production:** Add PgBouncer before scaling to 20+ workers
