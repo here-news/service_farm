@@ -598,7 +598,7 @@ BEGIN
             e.id AS entity_id,
             e.canonical_name,
             0 AS depth,
-            1.0 AS path_confidence
+            1.0::float AS path_confidence
         FROM core.entities e
         WHERE e.id = p_entity_id
 
@@ -609,7 +609,7 @@ BEGIN
             e.id AS entity_id,
             e.canonical_name,
             en.depth + 1 AS depth,
-            en.path_confidence * eg.confidence AS path_confidence
+            (en.path_confidence * eg.confidence)::float AS path_confidence
         FROM core.entities e
         JOIN core.edges eg ON eg.to_entity_id = e.id
         JOIN entity_network en ON eg.from_entity_id = en.entity_id
