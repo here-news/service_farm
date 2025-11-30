@@ -32,6 +32,17 @@ services:
       timeout: 3s
       retries: 5
 
+  # Frontend (Demo + Test UI)
+  frontend:
+    image: python:3.11-slim
+    container_name: herenews-frontend
+    working_dir: /app
+    volumes:
+      - ./frontend:/app
+    ports:
+      - "8080:8080"
+    command: python3 -m http.server 8080
+
   # FastAPI backend
   api:
     build:
@@ -153,7 +164,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: python worker_semantic.py
+    command: python run_semantic_worker.py
 
   worker-semantic-2:
     build:
@@ -176,7 +187,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: python worker_semantic.py
+    command: python run_semantic_worker.py
 
   # Event Worker (1 instance)
   worker-event:

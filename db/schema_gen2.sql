@@ -40,8 +40,11 @@ CREATE TABLE core.pages (
 
     -- Content
     title TEXT,
+    description TEXT,
     content_text TEXT,
     byline TEXT,
+    author TEXT,
+    thumbnail_url TEXT,
     site_name TEXT,
     domain TEXT,
 
@@ -49,14 +52,17 @@ CREATE TABLE core.pages (
     language VARCHAR(10) DEFAULT 'en',
     language_confidence FLOAT DEFAULT 0.0,
 
+    -- Metadata quality
+    metadata_confidence FLOAT DEFAULT 0.0,  -- 0.0-1.0 based on completeness of title/description/author/thumbnail
+
     -- Metadata
     word_count INT DEFAULT 0,
     pub_time TIMESTAMPTZ,
 
     -- Status (hot column, indexed)
     status VARCHAR(50) DEFAULT 'stub',
-    -- Possible values: stub, extracting, extracted, entities_extracted,
-    --                  claims_extracted, events_formed, complete, failed
+    -- Possible values: stub, preview, extracted, semantic_complete,
+    --                  failed, semantic_failed, event_complete
 
     -- Processing stage (for debugging)
     current_stage VARCHAR(100),

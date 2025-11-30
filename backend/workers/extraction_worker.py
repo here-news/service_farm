@@ -150,20 +150,50 @@ class ExtractionWorker(BaseWorker):
             # Step 4: Extract publication date (from HTML metadata)
             pub_time = self._extract_pub_time(html)
 
-            # Step 5: Update database
+            # Step 5: Update database with extracted metadata
             word_count = len(extracted.split())
 
+            # Get metadata from extraction result
+            title = result.title
+            description = result.description
+            author = ', '.join(result.authors) if result.authors else None  # Join multiple authors
+            thumbnail_url = result.top_image  # Use top_image as thumbnail
+
             async with self.pool.acquire() as conn:
+                # First, get existing metadata to preserve iframely data
+                existing = await conn.fetchrow("""
+                    SELECT title, description, author, thumbnail_url
+                    FROM core.pages WHERE id = $1
+                """, page_id)
+
+                # Use COALESCE to prefer new data, fallback to existing (from iframely)
+                final_title = title or existing['title']
+                final_description = description or existing['description']
+                final_author = author or existing['author']
+                final_thumbnail = thumbnail_url or existing['thumbnail_url']
+
+                # Calculate metadata confidence (0.0-1.0)
+                # 1.0 = all fields present, 0.5 = half present, etc.
+                metadata_fields = [final_title, final_description, final_author, final_thumbnail]
+                metadata_confidence = sum(1 for f in metadata_fields if f) / len(metadata_fields)
+
                 await conn.execute("""
                     UPDATE core.pages
                     SET
+                        content_text = $2,
+                        title = $3,
+                        description = $4,
+                        author = $5,
+                        thumbnail_url = $6,
+                        metadata_confidence = $7,
                         status = 'extracted',
-                        language = $2,
-                        word_count = $3,
-                        pub_time = $4,
+                        language = $8,
+                        word_count = $9,
+                        pub_time = $10,
                         updated_at = NOW()
                     WHERE id = $1
-                """, page_id, detected_lang, word_count, pub_time)
+                """, page_id, extracted, final_title, final_description, final_author,
+                     final_thumbnail, metadata_confidence, detected_lang, word_count, pub_time)
 
                 # Store extracted content in a separate table (optional)
                 # For now, we'll just log success

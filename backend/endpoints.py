@@ -195,7 +195,8 @@ async def submit_artifact(url: str):
             SELECT
                 id, url, canonical_url, title, description,
                 author, thumbnail_url, status, language,
-                word_count, pub_time, created_at, updated_at
+                word_count, pub_time, metadata_confidence,
+                created_at, updated_at
             FROM core.pages
             WHERE canonical_url = $1
         """, canonical_url)
@@ -215,13 +216,24 @@ async def submit_artifact(url: str):
                 WHERE page_id = $1
             """, existing['id'])
 
-            # Commission background update if needed (status='failed')
+            # Commission background update if needed
+            commissioned = False
             if existing['status'] == 'failed':
+                # Extraction failed - retry extraction
                 await queue.enqueue('queue:extraction:high', {
                     'page_id': str(existing['id']),
                     'url': url,
                     'retry_count': 0
                 })
+                commissioned = True
+            elif existing['status'] == 'semantic_failed':
+                # Semantic failed - retry semantic (extraction was OK)
+                await queue.enqueue('queue:semantic:high', {
+                    'page_id': str(existing['id']),
+                    'url': url,
+                    'retry_count': 0
+                })
+                commissioned = True
 
             return {
                 "page_id": str(existing['id']),
@@ -237,9 +249,10 @@ async def submit_artifact(url: str):
                 "entity_count": entity_count,
                 "claim_count": claim_count,
                 "pub_time": existing['pub_time'].isoformat() if existing['pub_time'] else None,
+                "metadata_confidence": existing['metadata_confidence'] or 0.0,
                 "created_at": existing['created_at'].isoformat(),
                 "updated_at": existing['updated_at'].isoformat() if existing['updated_at'] else None,
-                "_commissioned": existing['status'] == 'failed'  # Did we re-enqueue?
+                "_commissioned": commissioned  # Did we re-enqueue?
             }
 
         # SCENARIO B: New URL - create stub with iframely instant metadata
@@ -335,7 +348,7 @@ async def submit_artifact(url: str):
 
 
 @router.get("/url/{page_id}")
-async def get_page_status(page_id: str):
+async def get_page_status(page_id: str, include_data: bool = True):
     """
     Get current status of a page
 
@@ -343,6 +356,9 @@ async def get_page_status(page_id: str):
     - Returns: { page_id, status, word_count?, entity_count?, ... }
     - Question: How much data to return? Full content? Just metadata?
     - Question: Include related entities/events in response?
+
+    **Parameters:**
+    - include_data: If true, includes claims and entities in response (default: true)
     """
     pool, _ = await init_services()
 
@@ -365,6 +381,7 @@ async def get_page_status(page_id: str):
                 language,
                 word_count,
                 pub_time,
+                metadata_confidence,
                 created_at,
                 updated_at
             FROM core.pages
@@ -388,7 +405,7 @@ async def get_page_status(page_id: str):
             WHERE page_id = $1
         """, page_uuid)
 
-        return {
+        result = {
             "page_id": str(page['id']),
             "url": page['url'],
             "canonical_url": page['canonical_url'],
@@ -402,9 +419,36 @@ async def get_page_status(page_id: str):
             "entity_count": entity_count,
             "claim_count": claim_count,
             "pub_time": page['pub_time'].isoformat() if page['pub_time'] else None,
+            "metadata_confidence": page['metadata_confidence'] or 0.0,
             "created_at": page['created_at'].isoformat(),
             "updated_at": page['updated_at'].isoformat() if page['updated_at'] else None
         }
+
+        # Include full claims and entities data if requested and semantic_complete
+        if include_data and page['status'] == 'semantic_complete':
+            # Get entities
+            entities = await conn.fetch("""
+                SELECT e.id, e.canonical_name, e.entity_type, e.semantic_confidence,
+                       e.mention_count, e.profile_summary, e.wikidata_qid,
+                       e.first_seen, e.last_seen, pe.mention_count as page_mentions
+                FROM core.entities e
+                JOIN core.page_entities pe ON e.id = pe.entity_id
+                WHERE pe.page_id = $1
+                ORDER BY pe.mention_count DESC, e.semantic_confidence DESC
+            """, page_uuid)
+
+            # Get claims
+            claims = await conn.fetch("""
+                SELECT id, text, event_time, confidence, modality, metadata, created_at
+                FROM core.claims
+                WHERE page_id = $1
+                ORDER BY confidence DESC
+            """, page_uuid)
+
+            result['entities'] = [dict(e) for e in entities]
+            result['claims'] = [dict(c) for c in claims]
+
+        return result
 
 
 @router.get("/queue/stats")
@@ -422,3 +466,51 @@ async def get_queue_stats():
         "event": await queue.queue_length('queue:event:high'),
         "enrichment": await queue.queue_length('queue:enrichment:high')
     }
+
+
+@router.get("/claims")
+async def get_claims(page_id: str):
+    """Get all claims for a page"""
+    pool, _ = await init_services()
+
+    try:
+        page_uuid = uuid.UUID(page_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid page_id format")
+
+    async with pool.acquire() as conn:
+        claims = await conn.fetch("""
+            SELECT id, text, event_time, confidence, modality, metadata, created_at
+            FROM core.claims
+            WHERE page_id = $1
+            ORDER BY confidence DESC
+        """, page_uuid)
+
+        return {
+            "claims": [dict(claim) for claim in claims]
+        }
+
+
+@router.get("/entities")
+async def get_entities(page_id: str):
+    """Get all entities mentioned in a page"""
+    pool, _ = await init_services()
+
+    try:
+        page_uuid = uuid.UUID(page_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid page_id format")
+
+    async with pool.acquire() as conn:
+        entities = await conn.fetch("""
+            SELECT DISTINCT e.id, e.canonical_name, e.entity_type, e.confidence,
+                   e.mention_count, e.first_seen, e.last_seen
+            FROM core.entities e
+            JOIN core.page_entities pe ON e.id = pe.entity_id
+            WHERE pe.page_id = $1
+            ORDER BY pe.mention_count DESC, e.confidence DESC
+        """, page_uuid)
+
+        return {
+            "entities": [dict(entity) for entity in entities]
+        }

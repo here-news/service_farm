@@ -28,6 +28,10 @@ class ExtractionResult:
     word_count: int
     method_used: str
     error_message: Optional[str] = None
+    # Metadata extraction
+    title: Optional[str] = None
+    description: Optional[str] = None
+    authors: Optional[list] = None
     # Image extraction (from newspaper3k)
     top_image: Optional[str] = None  # Main article image
     images: Optional[list] = None    # All images found
@@ -140,14 +144,14 @@ class MultiMethodExtractor:
 
     def _try_newspaper(self, url: str, html: str) -> ExtractionResult:
         """
-        Try Newspaper3k extraction with image extraction
+        Try Newspaper3k extraction with metadata and images
 
         Args:
             url: Article URL
             html: HTML content
 
         Returns:
-            ExtractionResult with images
+            ExtractionResult with metadata and images
         """
         try:
             article = Article(url)
@@ -158,6 +162,11 @@ class MultiMethodExtractor:
             if text and len(text.strip()) >= self.min_words:
                 word_count = len(text.split())
 
+                # Extract metadata
+                title = article.title if article.title else None
+                description = article.meta_description if article.meta_description else None
+                authors = list(article.authors) if article.authors else []
+
                 # Extract images
                 top_image = article.top_image if article.top_image else None
                 images = list(article.images) if article.images else []
@@ -167,6 +176,9 @@ class MultiMethodExtractor:
                     content=text,
                     word_count=word_count,
                     method_used="newspaper3k",
+                    title=title,
+                    description=description,
+                    authors=authors,
                     top_image=top_image,
                     images=images
                 )

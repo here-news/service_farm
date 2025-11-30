@@ -1,0 +1,329 @@
+# Semantic Worker Design - Gen2
+
+**Status:** Design phase - Testing and validation required
+**Date:** 2025-11-30
+
+---
+
+## Overview
+
+The semantic worker extracts structured knowledge from articles:
+- **Entities** (people, organizations, locations) with canonical IDs
+- **Claims** (factual statements with WHO/WHAT/WHEN/WHERE)
+- **Embeddings** (semantic vectors for similarity search)
+- **Metadata entities** (authors, sources as first-class entities)
+
+---
+
+## Design Principles
+
+### 1. **Careful and Incremental**
+- Build one component at a time
+- Test thoroughly at each step
+- Validate with real articles before moving forward
+- Compare with Gen1/Demo results for quality assurance
+
+### 2. **Claims-Based Entity Extraction (Demo's approach)**
+- Extract entities FROM claims only (not from raw text)
+- Every content entity must be tied to a validated claim
+- No orphan entities in the database
+- Metadata entities (author, source) treated separately as first-class entities
+- Proven approach: Demo showed high precision with this method
+
+### 3. **Emerging Entity Support**
+- Generate canonical_ids for ALL entities (even without Wikidata)
+- Our database is source of truth for new/emerging entities
+- Wikidata is enrichment, not requirement
+
+### 4. **Quality Over Speed**
+- LLM-only for now (can add spaCy fallback later if needed)
+- Strict entity validation (reject "UN", "AL" type fragments)
+- High confidence threshold (0.65+)
+
+---
+
+## Architecture
+
+```
+SemanticWorker receives page with extracted content:
+  ↓
+1. Extract claims (GPT-4o with 6 premise checks)
+   - Extract factual statements from content
+   - Apply validation: attribution, temporal, modality, evidence, hedging, controversy
+   - Filter out historical references (6-month window)
+   - Each claim includes: text, who, what, where, when, modality
+  ↓
+2. Extract entities FROM claims (Demo's approach)
+   - Parse claim.who/claim.where fields
+   - Extract entity mentions with context
+   - Entity types: PERSON, ORGANIZATION, LOCATION, etc.
+  ↓
+3. Consolidate coreferences (LLM)
+   - Merge variants: "Trump", "Donald Trump", "the president"
+   - Group by entity type first
+   - LLM identifies same real-world entity
+  ↓
+4. Deduplicate entities (fuzzy matching)
+   - 85% similarity threshold
+   - Surname matching for PERSON
+   - Substring matching (4+ chars)
+  ↓
+5. Validate entities (strict filtering)
+   - Reject short fragments (< 3 chars unless known acronym)
+   - Reject generic terms ("UN", "AL" type noise)
+   - High confidence threshold (0.65+)
+  ↓
+6. Try Wikidata linking (non-blocking)
+   - Lookup canonical name
+   - Get QID, description, thumbnail
+   - If fails: continue anyway (emerging entity)
+  ↓
+7. Assign canonical_ids
+   - Generate 8-char hash from canonical_name
+   - ALWAYS assign (even without Wikidata)
+   - Use for consistent entity tracking across system
+  ↓
+8. Link entities back to claims
+   - Create claim_entities relationships
+   - Store entity roles in claims (who did what)
+  ↓
+9. Resolve metadata entities (separate from content)
+   - Author: resolve as PERSON entity
+   - Source: resolve as ORGANIZATION/MEDIA_OUTLET entity
+   - Store in page_entities (not claim_entities)
+  ↓
+10. Generate artifact embedding
+    - Combine: title + description + top 5 claim texts
+    - Use text-embedding-3-small (1536 dims)
+    - Store in pgvector for similarity search
+  ↓
+11. Store in PostgreSQL
+    - claims table
+    - entities table
+    - claim_entities (content entities)
+    - page_entities (metadata entities)
+    - pages.embedding (pgvector)
+  ↓
+12. Commission event worker
+```
+
+---
+
+## Testing Strategy
+
+### Phase 1: Entity Extraction
+**Goal:** Validate entity extraction quality
+
+**Test articles:**
+1. Simple news (BBC, Reuters) - standard entities
+2. Complex politics (Washington Post) - many coreferences
+3. Business news (Bloomberg) - company names, acronyms
+4. Local news - emerging entities (no Wikidata)
+
+**Validation criteria:**
+- [ ] No "UN", "AL" type fragments
+- [ ] Coreferences resolved ("Biden" = "Joe Biden")
+- [ ] Emerging entities get canonical_ids
+- [ ] Wikidata links work when available
+
+**Compare with:**
+- Gen1 entity output (should be similar quality)
+- Manual annotation (gold standard)
+
+### Phase 2: Claims Extraction
+**Goal:** Validate claims quality and entity linking
+
+**Test articles:**
+1. Event-based news (specific date/time)
+2. Opinion pieces (modality classification)
+3. Press releases (reported_speech)
+4. Multiple entities per claim
+
+**Validation criteria:**
+- [ ] 6 premise checks working
+- [ ] Entities linked to claims correctly
+- [ ] No historical dates (6-month filter working)
+- [ ] Modality classification accurate
+
+**Compare with:**
+- Gen1/Demo claim output
+- Manual fact-checking
+
+### Phase 3: Embeddings
+**Goal:** Validate similarity search quality
+
+**Test:**
+1. Submit 10 articles on same event
+2. Generate embeddings for each
+3. Query similarity for each article
+4. Verify related articles cluster together
+
+**Validation criteria:**
+- [ ] Similar articles have >0.8 similarity
+- [ ] Unrelated articles have <0.5 similarity
+- [ ] Embedding search faster than full-text search
+
+### Phase 4: End-to-End Integration
+**Goal:** Validate complete pipeline
+
+**Test:**
+1. Submit 20+ diverse articles
+2. Monitor worker processing
+3. Check database for completeness
+4. Verify no missing data or errors
+
+**Validation criteria:**
+- [ ] All pages processed successfully
+- [ ] No orphan entities
+- [ ] No orphan claims
+- [ ] Embeddings generated for all
+- [ ] Metadata entities created
+
+---
+
+## Open Questions (To Resolve During Testing)
+
+### 1. **Entity Validation Rules**
+- Minimum character length? (3 chars? 2 for known acronyms?)
+- Whitelist of valid acronyms? (UN, EU, US, UK, WHO, FBI, CIA...)
+- How to handle nicknames? ("AOC" for "Alexandria Ocasio-Cortez")
+
+### 2. **Coreference Resolution**
+- When to trust LLM consolidation vs. fuzzy matching?
+- How to handle ambiguous cases? ("John Smith" - which one?)
+- Should we keep separate variants or always merge?
+
+### 3. **Wikidata Strategy**
+- Retry on failure?
+- Cache results (Redis)?
+- How often to refresh (entities evolve)?
+- What to do with multiple QIDs (disambiguation)?
+
+### 4. **Embedding Strategy**
+- How many claims to include? (top 3? top 5? all?)
+- Should we weight claims by confidence?
+- Include entities in embedding text?
+
+### 5. **Metadata Entities**
+- Should authors link to organizations? ("Max Hunder" → "Reuters")
+- How to resolve source type? (LLM? domain lookup? manual list?)
+- Store author/source relationships?
+
+### 6. **Performance**
+- Acceptable latency per page? (< 10 seconds?)
+- Batch processing for efficiency?
+- When to add spaCy fallback?
+
+---
+
+## Success Metrics
+
+### Quality Metrics
+- **Entity precision**: >90% (no junk entities)
+- **Entity recall**: >85% (catch important entities)
+- **Coreference accuracy**: >80% (correctly merge variants)
+- **Claim validation**: >95% (6 premise checks working)
+- **Wikidata coverage**: >60% (for known entities)
+
+### Performance Metrics
+- **Processing latency**: <15 seconds per page
+- **Cost per page**: <$0.02 (LLM calls)
+- **Success rate**: >95% (no worker failures)
+
+### Data Integrity Metrics
+- **Zero orphan entities**: All entities linked to claims
+- **Zero orphan claims**: All claims linked to pages
+- **100% embedding coverage**: All pages have embeddings
+
+---
+
+## Implementation Plan
+
+### Step 1: Port Semantic Analyzer (Week 1)
+- [ ] Copy Gen1 semantic_analyzer.py
+- [ ] Adapt to Gen2 schemas
+- [ ] Test claims extraction only (no entities yet)
+- [ ] Validate 6 premise checks
+- [ ] Test with 5-10 articles
+
+### Step 2: Add Entity Extraction (Week 2)
+- [ ] Implement LLM-based entity extraction
+- [ ] Add entity validation rules
+- [ ] Test with diverse articles
+- [ ] Compare with Gen1 output
+- [ ] Refine validation rules based on results
+
+### Step 3: Add Coreference Resolution (Week 2)
+- [ ] Port Gen1 consolidation logic
+- [ ] Test with articles with many pronouns
+- [ ] Validate merge decisions
+- [ ] Handle edge cases
+
+### Step 4: Add Deduplication + Wikidata (Week 3)
+- [ ] Port Gen1 fuzzy matching
+- [ ] Implement Wikidata lookup (async)
+- [ ] Handle lookup failures gracefully
+- [ ] Test with emerging entities
+
+### Step 5: Add Embeddings (Week 3)
+- [ ] Generate embeddings from claims
+- [ ] Store in pgvector
+- [ ] Test similarity search
+- [ ] Benchmark performance
+
+### Step 6: Add Metadata Entities (Week 4)
+- [ ] Resolve author entities
+- [ ] Resolve source entities
+- [ ] Store relationships
+- [ ] Test with various sources
+
+### Step 7: End-to-End Testing (Week 4)
+- [ ] Process 100+ diverse articles
+- [ ] Measure quality metrics
+- [ ] Identify and fix issues
+- [ ] Performance tuning
+
+---
+
+## Risk Mitigation
+
+### Risk 1: Low Entity Quality
+**Mitigation:**
+- Start with strict validation rules
+- Manual review of first 50 entities
+- Add spaCy fallback if LLM fails too often
+
+### Risk 2: High LLM Costs
+**Mitigation:**
+- Use GPT-4o-mini (10x cheaper than GPT-4o)
+- Batch processing when possible
+- Cache Wikidata lookups
+- Monitor cost per page
+
+### Risk 3: Processing Failures
+**Mitigation:**
+- Graceful degradation (continue on errors)
+- Retry logic with exponential backoff
+- Mark pages as "semantic_failed" for manual review
+
+### Risk 4: Database Performance
+**Mitigation:**
+- Index all foreign keys
+- pgvector index for embeddings
+- Monitor query performance
+- Consider partitioning for large datasets
+
+---
+
+## Next Steps
+
+1. **Review this design doc** - Get feedback on architecture
+2. **Set up test articles** - Curate diverse test set (20+ articles)
+3. **Port semantic_analyzer.py** - Start with claims extraction only
+4. **Validate incrementally** - Test each component thoroughly
+5. **Iterate based on results** - Adjust design as we learn
+
+---
+
+**Last Updated:** 2025-11-30
+**Status:** Awaiting approval to proceed with implementation
