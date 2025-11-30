@@ -24,6 +24,7 @@ import trafilatura
 from langdetect import detect
 from services.job_queue import JobQueue
 from services.worker_base import BaseWorker
+from services.multi_extractor import MultiMethodExtractor
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,7 @@ class ExtractionWorker(BaseWorker):
             queue_name="queue:extraction:high"
         )
         self.worker_id = worker_id
+        self.multi_extractor = MultiMethodExtractor(min_words=100)
 
     async def get_state(self, job: dict) -> dict:
         """
@@ -129,17 +131,15 @@ class ExtractionWorker(BaseWorker):
                 await self._mark_failed(page_id, "Failed to fetch HTML")
                 return
 
-            # Step 2: Extract text with trafilatura
-            extracted = trafilatura.extract(
-                html,
-                include_comments=False,
-                include_tables=False,
-                no_fallback=False
-            )
+            # Step 2: Extract text with multi-method extraction
+            result = await self.multi_extractor.extract(url, html)
 
-            if not extracted or len(extracted.strip()) < 100:
-                await self._mark_failed(page_id, "Extracted text too short")
+            if not result.success:
+                await self._mark_failed(page_id, f"All extraction methods failed: {result.error_message}")
                 return
+
+            extracted = result.content
+            logger.info(f"[{self.worker_name}] Used {result.method_used} for {url}")
 
             # Step 3: Detect language
             try:

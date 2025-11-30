@@ -6,6 +6,8 @@ trafilatura==1.6.2
 langdetect==1.0.9
 openai>=1.12.0
 httpx==0.25.2
-# playwright==1.40.0  # Only needed for workers, not API
-# beautifulsoup4==4.12.2
-# lxml==4.9.3
+beautifulsoup4==4.12.2
+lxml==4.9.3
+newspaper3k==0.2.8
+readability-lxml==0.8.1
+playwright==1.40.0
