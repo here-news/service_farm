@@ -3,9 +3,9 @@ HereNews Service Farm - FastAPI Backend
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from endpoints import router as demo_router
-from endpoints_gen2 import router as gen2_router
+from endpoints import router as artifacts_router
 from endpoints_rogue import router as rogue_router
+from endpoints_legacy import router as legacy_router
 
 app = FastAPI(
     title="HereNews Service Farm",
@@ -22,14 +22,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Gen2 endpoints (production)
-app.include_router(gen2_router, prefix="/api/v2", tags=["Gen2"])
-
-# Rogue URL extraction (browser extension)
+# Main API v2 endpoints
+app.include_router(artifacts_router, prefix="/api/v2", tags=["Artifacts"])
 app.include_router(rogue_router, prefix="/api/v2", tags=["Rogue Extraction"])
 
-# Demo endpoints (legacy, for comparison)
-app.include_router(demo_router, prefix="/api/demo", tags=["Demo"])
+# Legacy demo endpoints (archived)
+app.include_router(legacy_router, prefix="/api/demo", tags=["Legacy Demo"])
 
 @app.get("/")
 async def root():
@@ -38,9 +36,10 @@ async def root():
         "version": "2.0.0",
         "architecture": "Queue-driven workers with autonomous decision-making",
         "endpoints": {
-            "submit_url": "POST /api/v2/url?url=...",
-            "get_status": "GET /api/v2/url/{page_id}",
+            "submit_artifact": "POST /api/v2/artifacts?url=...",
+            "get_artifact": "GET /api/v2/artifacts/{artifact_id}",
             "queue_stats": "GET /api/v2/queue/stats",
+            "rogue_tasks": "GET /api/v2/rogue/tasks",
             "demo_legacy": "POST /api/demo/artifacts/draft?url=..."
         },
         "workers": {

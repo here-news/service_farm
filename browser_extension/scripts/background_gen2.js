@@ -115,11 +115,14 @@ async function processTask(task) {
       setTimeout(() => reject(new Error('Timeout waiting for extraction')), MAX_PROCESSING_TIME_MS);
     });
 
-    const extractionPromise = new Promise((resolve) => {
+    const extractionPromise = new Promise((resolve, reject) => {
       chrome.runtime.onMessage.addListener(function listener(message, sender) {
-        if (message.type === 'EXTRACTION_COMPLETE' && sender.tab?.id === currentTabId) {
+        if (message.type === 'METADATA_EXTRACTED' && sender.tab?.id === currentTabId) {
           chrome.runtime.onMessage.removeListener(listener);
           resolve(message.metadata);
+        } else if (message.type === 'METADATA_EXTRACTION_ERROR' && sender.tab?.id === currentTabId) {
+          chrome.runtime.onMessage.removeListener(listener);
+          reject(new Error(message.error));
         }
       });
     });

@@ -10,6 +10,7 @@ Architecture:
 4. System uses extracted metadata for preview
 """
 import uuid
+import json
 from typing import Optional
 from datetime import datetime, timedelta
 from fastapi import APIRouter, HTTPException
@@ -144,14 +145,14 @@ async def complete_rogue_task(task_id: str, metadata: RogueTaskMetadata):
         if task['status'] not in ['pending', 'processing']:
             raise HTTPException(status_code=400, detail=f"Task already {task['status']}")
 
-        # Update task with metadata
+        # Update task with metadata (convert to JSON for JSONB column)
         await conn.execute("""
             UPDATE core.rogue_extraction_tasks
             SET status = 'completed',
                 metadata = $2,
                 completed_at = NOW()
             WHERE id = $1
-        """, task_uuid, metadata.dict())
+        """, task_uuid, json.dumps(metadata.dict()))
 
         # Update page with extracted data
         page_id = task['page_id']
