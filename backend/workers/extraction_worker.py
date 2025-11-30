@@ -242,22 +242,47 @@ class ExtractionWorker(BaseWorker):
 
     async def _mark_failed(self, page_id: uuid.UUID, reason: str):
         """
-        Mark page extraction as failed
+        Mark page extraction as failed and create rogue extraction task
+
+        For URLs that block scrapers (401/403), create a task for browser extension
 
         Args:
             page_id: Page UUID
             reason: Failure reason
         """
         async with self.pool.acquire() as conn:
+            # Get page URL
+            page = await conn.fetchrow("""
+                SELECT url, status FROM core.pages WHERE id = $1
+            """, page_id)
+
+            if not page:
+                logger.error(f"[{self.worker_name}] Page {page_id} not found")
+                return
+
+            # Mark page as failed
             await conn.execute("""
                 UPDATE core.pages
-                SET
-                    status = 'failed',
-                    updated_at = NOW()
+                SET status = 'failed', updated_at = NOW()
                 WHERE id = $1
             """, page_id)
 
-        logger.warning(f"[{self.worker_name}] ❌ Marked {page_id} as failed: {reason}")
+            # Check if this is a scraper-blocking issue (401/403 or fetch failure)
+            is_rogue = any(code in reason for code in ['401', '403', 'Failed to fetch'])
+
+            if is_rogue:
+                # Create rogue extraction task for browser extension
+                await conn.execute("""
+                    INSERT INTO core.rogue_extraction_tasks (page_id, url, status, created_at)
+                    VALUES ($1, $2, 'pending', NOW())
+                    ON CONFLICT DO NOTHING
+                """, page_id, page['url'])
+
+                logger.info(
+                    f"[{self.worker_name}] 🔴 Created rogue task for {page['url']} (browser extension will handle)"
+                )
+            else:
+                logger.warning(f"[{self.worker_name}] ❌ Marked {page_id} as failed: {reason}")
 
     async def handle_error(self, job: dict, error: Exception):
         """

@@ -4,7 +4,7 @@
  */
 
 // Configuration - UPDATE THIS WITH YOUR SERVICE-FARM URL
-const SERVICE_FARM_URL = 'http://localhost:8080'; // Update for production
+const SERVICE_FARM_URL = 'http://localhost:8000'; // Gen2 API (port 8000)
 
 // DOM elements
 const pendingCountEl = document.getElementById('pendingCount');
@@ -59,7 +59,7 @@ async function updateStatus() {
 async function updateTaskCounts() {
   try {
     // Use service-farm API to get stats
-    const response = await fetch(`${SERVICE_FARM_URL}/api/rogue/stats`);
+    const response = await fetch(`${SERVICE_FARM_URL}/api/v2/rogue/stats`);
 
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
@@ -67,8 +67,8 @@ async function updateTaskCounts() {
 
     const stats = await response.json();
 
-    pendingCountEl.textContent = stats.pending || 0;
-    completedCountEl.textContent = stats.completed || 0;
+    pendingCountEl.textContent = stats.by_status?.pending || 0;
+    completedCountEl.textContent = stats.by_status?.completed || 0;
 
   } catch (error) {
     console.error('Failed to get task counts:', error);
@@ -81,66 +81,10 @@ async function updateTaskCounts() {
  * Update recent tasks list from PostgreSQL (via API)
  */
 async function updateRecentTasks() {
-  try {
-    // Use service-farm API to get recent completed tasks
-    const response = await fetch(`${SERVICE_FARM_URL}/api/rogue/recent?limit=5`);
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-
-    const completedTasks = await response.json();
-
-    if (completedTasks.length === 0) {
-      recentTasksListEl.innerHTML = '<div style="padding: 8px; color: #999;">No completed tasks yet</div>';
-      return;
-    }
-
-    // Build HTML for recent tasks
-    const tasksHtml = completedTasks.map(task => {
-      const urlShort = task.url.length > 50 ? task.url.substring(0, 50) + '...' : task.url;
-      const timeAgo = task.completed_at ? formatTimeAgo(new Date(task.completed_at)) : 'Unknown time';
-      const wordCountClass = task.word_count >= 200 ? 'active' : 'inactive';
-
-      return `
-        <div class="status-row task-row-clickable" data-task-id="${task.task_id}" style="cursor: pointer;" title="Click to copy task ID: ${task.task_id}">
-          <div style="flex: 1; min-width: 0;">
-            <div style="font-size: 11px; color: #333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${task.url}">${urlShort}</div>
-            <div style="font-size: 10px; color: #999; margin-top: 2px;">${timeAgo}</div>
-          </div>
-          <div class="status-value ${wordCountClass}" style="font-size: 12px; margin-left: 10px;">
-            ${task.word_count} words
-          </div>
-        </div>
-      `;
-    }).join('');
-
-    recentTasksListEl.innerHTML = tasksHtml;
-
-    // Add click handlers to copy task ID
-    document.querySelectorAll('.task-row-clickable').forEach(row => {
-      row.addEventListener('click', async function() {
-        const taskId = this.getAttribute('data-task-id');
-        try {
-          await navigator.clipboard.writeText(taskId);
-
-          // Visual feedback
-          const originalBg = this.style.backgroundColor;
-          this.style.backgroundColor = '#d4edda';
-          setTimeout(() => {
-            this.style.backgroundColor = originalBg;
-          }, 300);
-
-          console.log('Copied task ID:', taskId);
-        } catch (err) {
-          console.error('Failed to copy task ID:', err);
-        }
-      });
-    });
-
-  } catch (error) {
-    console.error('Failed to get recent tasks:', error);
-    recentTasksListEl.innerHTML = '<div style="padding: 8px; color: #999;">Error loading tasks</div>';
+  // TODO: Implement /api/v2/rogue/recent endpoint for recent tasks
+  // For now, just show a simple message
+  if (recentTasksListEl) {
+    recentTasksListEl.innerHTML = '<div style="padding: 8px; color: #999; font-size: 11px;">Recent tasks view coming soon</div>';
   }
 }
 

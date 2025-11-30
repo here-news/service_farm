@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from endpoints import router as demo_router
 from endpoints_gen2 import router as gen2_router
+from endpoints_rogue import router as rogue_router
 
 app = FastAPI(
     title="HereNews Service Farm",
@@ -23,6 +24,9 @@ app.add_middleware(
 
 # Gen2 endpoints (production)
 app.include_router(gen2_router, prefix="/api/v2", tags=["Gen2"])
+
+# Rogue URL extraction (browser extension)
+app.include_router(rogue_router, prefix="/api/v2", tags=["Rogue Extraction"])
 
 # Demo endpoints (legacy, for comparison)
 app.include_router(demo_router, prefix="/api/demo", tags=["Demo"])

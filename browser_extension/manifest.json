@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "HERE News - Rogue URL Extractor (PostgreSQL)",
-  "version": "2.0.2",
+  "name": "HERE News - Rogue URL Extractor (Gen2)",
+  "version": "2.1.0",
   "description": "Extract full article text from blocked news sites using your real browser (PostgreSQL polling, mobile UA)",
   "permissions": [
     "tabs",
@@ -16,7 +16,7 @@
     "http://*/*"
   ],
   "background": {
-    "service_worker": "scripts/background_postgres.js"
+    "service_worker": "scripts/background_gen2.js"
   },
   "action": {
     "default_popup": "popup.html",
