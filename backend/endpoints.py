@@ -405,6 +405,33 @@ async def get_page_status(page_id: str, include_data: bool = True):
             WHERE page_id = $1
         """, page_uuid)
 
+        # Calculate semantic confidence (0.0-1.0) based on semantic analysis quality
+        # This tells the user how reliable the semantic data (claims/entities) is
+        word_count = page['word_count'] or 0
+        status = page['status']
+
+        if status == 'semantic_complete':
+            # Full semantic analysis succeeded
+            # Confidence scales with content quality
+            if word_count >= 300 and claim_count >= 3 and entity_count >= 3:
+                semantic_confidence = 1.0  # High quality article with rich semantic data
+            elif word_count >= 150 and claim_count >= 1:
+                semantic_confidence = 0.7  # Decent article
+            else:
+                semantic_confidence = 0.5  # Semantic complete but low quality
+        elif status in ['extracted', 'preview'] and word_count >= 100:
+            # Extraction succeeded but semantic pending/not started
+            semantic_confidence = 0.3  # Has potential
+        elif status == 'semantic_failed' and word_count < 100:
+            # Insufficient content - paywall/teaser
+            semantic_confidence = 0.0
+        elif status == 'semantic_failed':
+            # Semantic failed for other reasons (no claims, etc.)
+            semantic_confidence = 0.1
+        else:
+            # Stub, preview with low word count, or failed
+            semantic_confidence = 0.0
+
         result = {
             "page_id": str(page['id']),
             "url": page['url'],
@@ -420,6 +447,7 @@ async def get_page_status(page_id: str, include_data: bool = True):
             "claim_count": claim_count,
             "pub_time": page['pub_time'].isoformat() if page['pub_time'] else None,
             "metadata_confidence": page['metadata_confidence'] or 0.0,
+            "semantic_confidence": semantic_confidence,  # NEW: semantic analysis quality (0.0=no semantic data, 1.0=rich semantic data)
             "created_at": page['created_at'].isoformat(),
             "updated_at": page['updated_at'].isoformat() if page['updated_at'] else None
         }

@@ -195,14 +195,26 @@ class ExtractionWorker(BaseWorker):
                 """, page_id, extracted, final_title, final_description, final_author,
                      final_thumbnail, metadata_confidence, detected_lang, word_count, pub_time)
 
-                # Store extracted content in a separate table (optional)
-                # For now, we'll just log success
+                # Check if word count is suspiciously low (likely paywall/teaser)
+                if word_count < 100:
+                    logger.warning(
+                        f"[{self.worker_name}] ⚠️ Low word count ({word_count} words) - creating rogue task"
+                    )
+                    await conn.execute("""
+                        INSERT INTO core.rogue_extraction_tasks (page_id, url, status, created_at)
+                        VALUES ($1, $2, 'pending', NOW())
+                        ON CONFLICT DO NOTHING
+                    """, page_id, url)
+                    logger.info(
+                        f"[{self.worker_name}] 🔴 Created rogue task for {url} (low word count - likely paywall)"
+                    )
+
                 logger.info(
                     f"[{self.worker_name}] ✅ Extracted {word_count} words "
                     f"(lang={detected_lang}) from {url}"
                 )
 
-            # Step 6: Commission semantic analysis worker
+            # Step 6: Commission semantic analysis worker (even for low word count - let semantic decide)
             await self.job_queue.enqueue('queue:semantic:high', {
                 'page_id': str(page_id),
                 'url': url,

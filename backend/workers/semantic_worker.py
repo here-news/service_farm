@@ -620,7 +620,12 @@ Only return the description, nothing else."""
     async def _mark_semantic_failed(
         self, conn: asyncpg.Connection, page_id: uuid.UUID, reason: str
     ):
-        """Mark page as semantic processing failed"""
+        """
+        Mark page as semantic processing failed
+
+        For "Insufficient content" failures, create rogue extraction task
+        (likely paywall/anti-scraping - needs browser extraction)
+        """
         await conn.execute("""
             UPDATE core.pages
             SET status = 'semantic_failed',
@@ -628,6 +633,23 @@ Only return the description, nothing else."""
                 updated_at = NOW()
             WHERE id = $1
         """, page_id, reason)
+
+        # Create rogue task for insufficient content (likely paywall)
+        if "Insufficient content" in reason:
+            page = await conn.fetchrow("""
+                SELECT url FROM core.pages WHERE id = $1
+            """, page_id)
+
+            if page:
+                await conn.execute("""
+                    INSERT INTO core.rogue_extraction_tasks (page_id, url, status, created_at)
+                    VALUES ($1, $2, 'pending', NOW())
+                    ON CONFLICT DO NOTHING
+                """, page_id, page['url'])
+
+                logger.info(
+                    f"🔴 Created rogue task for {page['url']} (insufficient content - likely paywall)"
+                )
 
 
 async def run_semantic_worker():
