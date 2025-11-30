@@ -71,7 +71,7 @@ services:
       POSTGRES_USER: herenews_user
       POSTGRES_PASSWORD: herenews_pass
       REDIS_URL: redis://redis:6379
-      WORKER_NAME: extraction-1
+      WORKER_ID: "1"
     volumes:
       - ./backend:/app
     depends_on:
@@ -79,7 +79,9 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: python worker_extraction.py
+      api:
+        condition: service_started
+    command: python run_extraction_worker.py
 
   worker-extraction-2:
     build:
@@ -93,7 +95,7 @@ services:
       POSTGRES_USER: herenews_user
       POSTGRES_PASSWORD: herenews_pass
       REDIS_URL: redis://redis:6379
-      WORKER_NAME: extraction-2
+      WORKER_ID: "2"
     volumes:
       - ./backend:/app
     depends_on:
@@ -101,7 +103,9 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: python worker_extraction.py
+      api:
+        condition: service_started
+    command: python run_extraction_worker.py
 
   worker-extraction-3:
     build:
@@ -115,7 +119,7 @@ services:
       POSTGRES_USER: herenews_user
       POSTGRES_PASSWORD: herenews_pass
       REDIS_URL: redis://redis:6379
-      WORKER_NAME: extraction-3
+      WORKER_ID: "3"
     volumes:
       - ./backend:/app
     depends_on:
@@ -123,7 +127,9 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: python worker_extraction.py
+      api:
+        condition: service_started
+    command: python run_extraction_worker.py
 
   # Semantic Worker (2 instances)
   worker-semantic-1:
