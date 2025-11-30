@@ -173,7 +173,14 @@ For each claim:
 
   CRITICAL: Don't extract just the CONTENT of quotes - include WHO said it in the TEXT field!
 
-- WHO: Named people/organizations (PERSON:/ORG: prefix) - required
+- WHO: SPECIFIC named people/organizations (PERSON:/ORG: prefix) - required
+  ⚠️  Use FULL SPECIFIC names, NOT generic terms!
+  ✅ CORRECT: "ORG:Israel Defense Forces", "ORG:U.S. Department of Defense", "PERSON:John Smith"
+  ❌ WRONG: "ORG:Military", "ORG:Government", "ORG:Officials", "ORG:Police", "ORG:Army"
+
+  **If you see generic reference like "the military" or "officials", resolve to specific entity from context**
+  Example: "The military confirmed..." in Israeli article → "ORG:Israel Defense Forces"
+
 - WHERE: Specific places (GPE:/LOCATION: prefix)
 - WHEN: Event time with precision (exact/approximate/relative)
 
