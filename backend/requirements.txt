@@ -5,3 +5,7 @@ redis==5.0.1
 trafilatura==1.6.2
 langdetect==1.0.9
 openai>=1.12.0
+httpx==0.25.2
+# playwright==1.40.0  # Only needed for workers, not API
+# beautifulsoup4==4.12.2
+# lxml==4.9.3

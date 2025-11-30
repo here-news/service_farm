@@ -1,0 +1,631 @@
+# Architecture Diagrams: Breathing Knowledge Base
+
+**Purpose**: Visual representation of the architecture described in [ARCHITECTURE.md](../ARCHITECTURE.md)
+
+**Format**: Mermaid (renders natively in GitHub/markdown)
+
+---
+
+## Diagram 1: Overall System Architecture
+
+```mermaid
+graph TB
+    subgraph "Client Layer"
+        WEB[Web App]
+        MOBILE[Mobile App]
+        API_CLIENT[API Clients]
+    end
+
+    subgraph "API Layer (Instant Tier < 500ms)"
+        API[FastAPI Gateway]
+        INSTANT[Instant Workers]
+
+        API --> INSTANT
+        INSTANT --> NORM[Artifact Normalizer]
+        INSTANT --> LANG[Language Detector]
+        INSTANT --> MATCH[Fast Entity Matcher]
+        INSTANT --> STUB[Stub Creator]
+    end
+
+    subgraph "Storage Layer (Single Source of Truth)"
+        PG[(PostgreSQL<br/>Artifacts, Content,<br/>Entities, Events)]
+        NEO[(Neo4j<br/>Graph Edges<br/>+ Confidence)]
+        REDIS[(Redis<br/>Cache + Queues)]
+    end
+
+    subgraph "Lazy Tier (Async Workers)"
+        Q[Priority Queues]
+
+        subgraph "Tier 1: Content (2-10s)"
+            URL_EXT[URL Extractor]
+            IMG_EXT[Image Extractor]
+            VID_EXT[Video Extractor]
+        end
+
+        subgraph "Tier 2: Entities (3-15s)"
+            NER[NER Pipeline]
+            FUZZY[Fuzzy Matcher]
+            CROSS[Cross-Lang Linker]
+        end
+
+        subgraph "Tier 3: Claims (5-20s)"
+            CLAIM[Claim Extractor]
+            FACT[Fact Checker]
+        end
+
+        subgraph "Tier 4: Events (10-30s)"
+            CLUSTER[Event Clusterer]
+            MERGE[Cross-Lang Merger]
+        end
+
+        subgraph "Tier 5: Enrichment (mins-hrs)"
+            WD[Wikidata Enricher]
+            ALIAS[Alias Discoverer]
+            CONF[Confidence Recomputer]
+            RESOLVE[Conflict Resolver]
+        end
+    end
+
+    %% Connections
+    WEB --> API
+    MOBILE --> API
+    API_CLIENT --> API
+
+    API --> PG
+    API --> REDIS
+    INSTANT --> PG
+    INSTANT --> REDIS
+
+    REDIS --> Q
+    Q --> URL_EXT
+    Q --> IMG_EXT
+    Q --> NER
+    Q --> CLAIM
+    Q --> CLUSTER
+    Q --> WD
+    Q --> CONF
+    Q --> RESOLVE
+
+    URL_EXT --> PG
+    NER --> PG
+    NER --> NEO
+    CLUSTER --> PG
+    CLUSTER --> NEO
+    CONF --> NEO
+    RESOLVE --> NEO
+
+    style API fill:#4CAF50
+    style INSTANT fill:#8BC34A
+    style PG fill:#2196F3
+    style NEO fill:#FF9800
+    style REDIS fill:#F44336
+    style Q fill:#9C27B0
+```
+
+---
+
+## Diagram 2: URL Submission Flow (Resource-First Pattern)
+
+```mermaid
+sequenceDiagram
+    autonumber
+
+    actor User
+    participant FE as Frontend
+    participant API as POST /artifacts
+    participant Instant as Instant Workers
+    participant PG as PostgreSQL
+    participant Redis as Redis Queue
+    participant Lazy as Lazy Workers
+
+    rect rgb(200, 255, 200)
+        Note over User,Lazy: INSTANT TIER (< 100ms)
+
+        User->>FE: Submit URL
+        FE->>API: POST /artifacts {url}
+
+        API->>Instant: normalize_url()
+        Instant->>PG: SELECT WHERE canonical_url = ?
+
+        alt URL exists
+            PG-->>Instant: artifact (existing)
+            Instant-->>API: 200 OK {artifact, status: "extracted"}
+            API-->>FE: Full resource (idempotent)
+        else New URL
+            Instant->>PG: INSERT artifact (stub)
+            PG-->>Instant: artifact_id
+            Instant->>Instant: detect_language(domain)
+            Instant->>PG: UPDATE language
+            Instant->>Redis: LPUSH high_priority {extract_url}
+            Instant-->>API: artifact stub
+            API-->>FE: 202 Accepted {artifact_id, status: "stub"}
+        end
+
+        FE-->>User: Display stub (title unknown)
+    end
+
+    rect rgb(255, 230, 200)
+        Note over User,Lazy: LAZY TIER (async, 2-30s)
+
+        Redis->>Lazy: POP {extract_url, artifact_id}
+        Lazy->>PG: UPDATE status = "processing"
+        Lazy->>Lazy: trafilatura_extract()
+
+        alt Success
+            Lazy->>PG: INSERT content (title, text)
+            Lazy->>PG: UPDATE artifact (content_id, status="extracted")
+            Lazy->>Redis: LPUSH normal {extract_entities}
+        else Failed (404, paywall)
+            Lazy->>PG: UPDATE artifact (status="failed", error)
+        end
+    end
+
+    rect rgb(200, 230, 255)
+        Note over User,Lazy: USER POLLS (T+3s)
+
+        User->>FE: Refresh page
+        FE->>API: GET /artifacts/{id}
+        API->>PG: SELECT artifact + content
+        PG-->>API: {status: "extracted", title: "..."}
+        API-->>FE: 200 OK {enriched}
+        FE-->>User: Display title + content
+    end
+```
+
+---
+
+## Diagram 3: Entity Extraction Flow (Multi-Language)
+
+```mermaid
+sequenceDiagram
+    autonumber
+
+    participant Redis as Redis Queue
+    participant Worker as Entity Worker
+    participant NER as NER Pipeline
+    participant Fuzzy as Fuzzy Matcher
+    participant PG as PostgreSQL
+    participant WD as Wikidata API
+    participant Neo as Neo4j
+
+    Redis->>Worker: POP {extract_entities, content_id}
+    Worker->>PG: SELECT content
+    PG-->>Worker: {language: "zh", text: "香港火灾..."}
+
+    rect rgb(255, 245, 200)
+        Note over Worker,NER: NER Extraction (language-specific)
+
+        Worker->>NER: extract(text, language="zh")
+        NER->>NER: spaCy zh_core_web_sm
+        NER->>NER: LLM GPT-4o-mini
+        NER-->>Worker: mentions[] (30 entities)
+    end
+
+    loop For each mention
+        Worker->>Fuzzy: find_canonical(mention, language)
+
+        alt Exact match in cache
+            Fuzzy->>PG: SELECT WHERE mention IN names_by_language[zh]
+            PG-->>Fuzzy: entity_id
+            Fuzzy-->>Worker: Matched (confidence: 0.98)
+
+        else Try Wikidata
+            Fuzzy->>WD: search(mention, language="zh")
+            WD-->>Fuzzy: Q8646 (Hong Kong)
+
+            Fuzzy->>PG: SELECT WHERE wikidata_qid = Q8646
+
+            alt QID exists
+                PG-->>Fuzzy: entity_id (existing)
+                Fuzzy->>PG: ADD mention to names_by_language[zh]
+                Fuzzy-->>Worker: Matched (confidence: 0.95)
+
+            else New entity
+                rect rgb(200, 255, 200)
+                    Note over Fuzzy,PG: Gating Check
+
+                    Fuzzy->>Fuzzy: should_create_entity()?
+                    Note over Fuzzy: Criteria: Wikidata match ✓
+
+                    Fuzzy->>PG: INSERT entity (qid, canonical_name)
+                    PG-->>Fuzzy: entity_id (new)
+                    Fuzzy->>Redis: LPUSH low {enrich_entity}
+                    Fuzzy-->>Worker: Created (confidence: 0.85)
+                end
+            end
+        end
+
+        Worker->>Neo: CREATE (:Content)-[:MENTIONS {conf, lang}]->(:Entity)
+        Worker->>PG: UPDATE entity mentions_count++
+    end
+
+    Worker->>PG: UPDATE content status = "entities_extracted"
+    Worker->>Redis: LPUSH normal {extract_claims}
+```
+
+---
+
+## Diagram 4: Event Clustering (Cross-Language)
+
+```mermaid
+sequenceDiagram
+    autonumber
+
+    participant Claim as Claim Worker
+    participant LLM as LLM (GPT-4o-mini)
+    participant PG as PostgreSQL
+    participant Cluster as Event Clusterer
+    participant Neo as Neo4j
+    participant Merge as Cross-Lang Merger
+
+    rect rgb(255, 240, 200)
+        Note over Claim,Neo: PHASE 1: Claim Extraction
+
+        Claim->>PG: SELECT content + entities
+        PG-->>Claim: {language: "en", text, entities}
+
+        Claim->>LLM: extract_claims(content, entities)
+        LLM-->>Claim: claims[] (15 atomic facts)
+
+        loop For each claim
+            Claim->>PG: INSERT claim (text, event_time, confidence)
+            Claim->>Neo: CREATE (:Content)-[:HAS_CLAIM]->(:Claim)
+            Claim->>Neo: CREATE (:Claim)-[:MENTIONS]->(:Entity)
+        end
+
+        Claim->>Redis: LPUSH normal {cluster_events}
+    end
+
+    rect rgb(200, 240, 255)
+        Note over Claim,Merge: PHASE 2: Event Clustering
+
+        Cluster->>Neo: MATCH claims with shared entities + temporal proximity
+        Neo-->>Cluster: claim_clusters[] (3 clusters)
+
+        loop For each cluster
+            Cluster->>Cluster: calculate_confidence(cluster)
+
+            alt Confidence > 0.75
+                alt Event exists
+                    Cluster->>PG: SELECT event WHERE matches cluster
+                    PG-->>Cluster: event_id
+                    Cluster->>PG: UPDATE event (add claims, recalc confidence)
+
+                else New event
+                    Cluster->>LLM: synthesize(claims, entities, languages)
+                    LLM-->>Cluster: {title, summary, event_time}
+
+                    Cluster->>PG: INSERT event
+                    PG-->>Cluster: event_id
+                    Cluster->>Neo: CREATE (:Event)-[:CONTAINS_CLAIM]->(:Claim)
+                end
+
+            else Low confidence
+                Cluster->>Cluster: log_noise_cluster()
+            end
+        end
+    end
+
+    rect rgb(255, 230, 255)
+        Note over Cluster,Merge: PHASE 3: Cross-Language Merging
+
+        Note over Merge: Hourly background job
+
+        Merge->>Neo: MATCH events with shared entities + time overlap
+        Neo-->>Merge: [evt_en, evt_zh] (same entities, same time)
+
+        Merge->>LLM: are_same_event(evt_en.title, evt_zh.title)
+        LLM-->>Merge: {same: true, confidence: 0.94}
+
+        alt Confident match
+            Merge->>PG: MERGE evt_zh INTO evt_en
+            Merge->>PG: UPDATE evt_en.languages += "zh"
+            Merge->>PG: UPDATE evt_zh status = "merged_into"
+            Merge->>Neo: UPDATE relationships
+
+        else Low confidence
+            Merge->>Neo: CREATE (:Event)-[:POSSIBLY_SAME]->(:Event)
+            Note over Merge: Flag for human review
+        end
+    end
+```
+
+---
+
+## Diagram 5: Conflict Resolution (Weighted Voting)
+
+```mermaid
+sequenceDiagram
+    autonumber
+
+    actor Crowd as 2000 Users
+    participant API as POST /disputes
+    participant PG as PostgreSQL
+    participant Neo as Neo4j
+    participant Worker as Resolution Worker
+
+    rect rgb(255, 200, 200)
+        Note over Crowd,Neo: PHASE 1: Dispute Accumulation
+
+        loop 2000 users
+            Crowd->>API: POST /entities/{id}/disputes<br/>{claim: "Louvre in Berlin", stake: 1.0}
+            API->>Neo: CREATE (:User)-[:DISPUTES {stake}]->(:Claim)
+            API->>PG: INSERT dispute record
+        end
+
+        Note over Neo: 2000 DISPUTES edges created
+    end
+
+    rect rgb(255, 230, 200)
+        Note over Crowd,Worker: PHASE 2: Threshold Trigger
+
+        Neo->>Worker: Dispute weight > threshold (alert)
+        Worker->>Neo: MATCH all location claims for entity
+        Neo-->>Worker: claims[] (Paris, Berlin)
+
+        Worker->>Worker: compute_weighted_vote()
+
+        Note over Worker: Paris claim:<br/>50 sources × tier1 (0.95) × stake (1.0) × multiplier (3.0)<br/>= 142.5
+
+        Note over Worker: Berlin claim:<br/>2000 sources × tier3 (0.65) × stake (0.5) × multiplier (0.3)<br/>= 195.0 raw<br/>But: Low confidence edges (0.60 avg)<br/>= 117.0 adjusted
+
+        Note over Worker: Paris wins: 142.5 > 117.0<br/>(Quality beats quantity)
+    end
+
+    rect rgb(200, 255, 200)
+        Note over Worker,Neo: PHASE 3: Resolution
+
+        alt Paris wins
+            Worker->>PG: UPDATE entity location = Paris, confidence = 0.88
+            Worker->>Neo: UPDATE Berlin edges (status: "resolved_incorrect")
+            Worker->>API: Notify disputers (Paris confirmed)
+
+        else Too close to call (< 20% margin)
+            Worker->>PG: UPDATE entity location_status = "disputed"
+            Worker->>API: Escalate to human review
+        end
+    end
+
+    rect rgb(230, 230, 255)
+        Note over Worker,Neo: PHASE 4: Confidence Recomputation
+
+        Worker->>Neo: Recompute structural_confidence(entity)
+        Note over Worker: During dispute: conf dropped to 0.72<br/>After resolution: conf restored to 0.88
+
+        Worker->>PG: UPDATE entity confidence = 0.88
+        Worker->>Neo: UPDATE edge weights (decay applied)
+    end
+```
+
+---
+
+## Diagram 6: Entity Confidence Evolution (State Machine)
+
+```mermaid
+stateDiagram-v2
+    [*] --> Stub: Entity created<br/>(NER extraction)
+
+    Stub --> Partial: Wikidata match found<br/>(+0.15 semantic conf)
+
+    Partial --> Enriched: Multi-language names added<br/>Wikipedia data fetched<br/>(+0.20 structural conf)
+
+    Enriched --> Validated: Human verification<br/>or 50+ mentions<br/>(+0.10 conf)
+
+    Validated --> Canonical: Merged duplicates<br/>High graph centrality<br/>(confidence > 0.95)
+
+    Canonical --> Validated: Dispute filed<br/>(-0.15 penalty)
+
+    Validated --> Enriched: Temporal decay<br/>No mentions in 60 days<br/>(-0.10 structural conf)
+
+    Enriched --> Partial: Edge decay<br/>Old evidence<br/>(-0.15 conf)
+
+    Partial --> Stub: No activity in 6 months<br/>Low structural conf<br/>(-0.30 conf)
+
+    Stub --> [*]: Auto-pruned<br/>(confidence < 0.30)
+
+    note right of Stub
+        Confidence: 0.40-0.60
+        - NER baseline
+        - Single mention
+        - No external validation
+    end note
+
+    note right of Partial
+        Confidence: 0.60-0.75
+        - Wikidata match
+        - 3-10 mentions
+        - Some cross-lang names
+    end note
+
+    note right of Enriched
+        Confidence: 0.75-0.90
+        - Multi-language
+        - Wikipedia data
+        - 10-50 mentions
+        - High edge consistency
+    end note
+
+    note right of Validated
+        Confidence: 0.90-0.95
+        - Human verified
+        - 50+ mentions
+        - Multiple languages
+        - No contradictions
+    end note
+
+    note right of Canonical
+        Confidence: 0.95-1.00
+        - Authoritative
+        - Merged duplicates
+        - Central in graph
+        - Long temporal span
+    end note
+```
+
+---
+
+## Diagram 7: Worker Priority & Dependencies
+
+```mermaid
+graph TB
+    subgraph "Critical (< 5s)"
+        C1[URL Extraction<br/>User just submitted]
+    end
+
+    subgraph "High (< 30s)"
+        H1[Entity Extraction<br/>User viewing page]
+        H2[Wikidata Lookup<br/>User searching entity]
+    end
+
+    subgraph "Normal (< 5min)"
+        N1[Claim Extraction]
+        N2[Event Clustering]
+        N3[Entity Enrichment]
+    end
+
+    subgraph "Low (< 1hr)"
+        L1[Alias Discovery]
+        L2[Wikipedia Fetch]
+        L3[Confidence Recomputation]
+    end
+
+    subgraph "Batch (nightly/weekly)"
+        B1[Duplicate Detection]
+        B2[Temporal Decay Processing]
+        B3[Graph Health Analysis]
+    end
+
+    %% Dependencies
+    C1 --> H1
+    H1 --> N1
+    N1 --> N2
+    H1 --> N3
+    N3 --> L1
+    N3 --> L2
+
+    N2 --> L3
+    L3 --> B1
+
+    %% Triggers
+    B1 -.->|Triggers if duplicates found| N3
+    B2 -.->|Triggers if conf < threshold| L3
+
+    style C1 fill:#f44336
+    style H1 fill:#ff9800
+    style H2 fill:#ff9800
+    style N1 fill:#4caf50
+    style N2 fill:#4caf50
+    style N3 fill:#4caf50
+    style L1 fill:#2196f3
+    style L2 fill:#2196f3
+    style L3 fill:#2196f3
+    style B1 fill:#9c27b0
+    style B2 fill:#9c27b0
+    style B3 fill:#9c27b0
+```
+
+---
+
+## Diagram 8: Data Model (Simplified)
+
+```mermaid
+erDiagram
+    ARTIFACT ||--o{ CONTENT : "extracts to"
+    CONTENT ||--o{ ENTITY : "mentions"
+    CONTENT ||--o{ CLAIM : "contains"
+    ENTITY ||--o{ EVENT : "participates in"
+    CLAIM ||--o{ EVENT : "belongs to"
+    EVENT }o--o{ EVENT : "relates to"
+
+    ARTIFACT {
+        uuid id PK
+        string artifact_type
+        string source_uri
+        string canonical_url
+        string status
+        string language
+        jsonb metadata
+        timestamp created_at
+    }
+
+    CONTENT {
+        uuid id PK
+        uuid artifact_id FK
+        string title
+        text content_text
+        string language
+        float language_confidence
+        int word_count
+        string status
+        timestamp published_at
+    }
+
+    ENTITY {
+        uuid id PK
+        string canonical_name
+        string entity_type
+        float semantic_confidence
+        float structural_confidence
+        jsonb names_by_language
+        string wikidata_qid
+        int mentions_count
+        string status
+    }
+
+    CLAIM {
+        uuid id PK
+        uuid content_id FK
+        text text
+        timestamp event_time
+        float confidence
+        string modality
+    }
+
+    EVENT {
+        uuid id PK
+        string title
+        text summary
+        timestamp event_time
+        float confidence
+        float coherence_score
+        jsonb languages
+        int claims_count
+        string status
+    }
+
+    EDGE {
+        uuid id PK
+        string edge_type
+        uuid from_id
+        uuid to_id
+        float confidence
+        int evidence_count
+        float decay_rate
+        timestamp first_seen
+        timestamp last_seen
+    }
+```
+
+---
+
+## How to Use These Diagrams
+
+### For Documentation
+- Copy Mermaid code blocks into GitHub issues, PRs, or docs
+- They render automatically in GitHub markdown
+
+### For Presentations
+- Use GitHub's rendered view
+- Or export to PNG/SVG via [Mermaid Live Editor](https://mermaid.live/)
+
+### For Editing
+- [Mermaid Live Editor](https://mermaid.live/) - Real-time preview
+- VS Code + Mermaid extension
+- Or edit directly in markdown
+
+### For Complex Diagrams
+If you need more visual control (colors, grouping, annotations):
+- Use [draw.io](https://app.diagrams.net/)
+- Import Mermaid as starting point
+- Export as `.drawio` or `.svg`
+

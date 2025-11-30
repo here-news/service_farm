@@ -1,0 +1,910 @@
+# Universal Event Data Structure Specification
+
+## Design Principles
+
+Based on our experiments, the event structure must support:
+
+1. **Multi-Scale Recursion**: Events contain events (micro → meso → macro)
+2. **Real-World Projection**: Maps to how humans understand events
+3. **Graph Traversal**: Efficient Neo4j queries
+4. **API Serialization**: Clean REST/GraphQL responses
+5. **Quality Metrics**: Epistemic and information quality
+6. **Temporal Precision**: From milliseconds to years
+7. **Provenance**: Full audit trail
+8. **Evolution**: Events grow, split, merge over time
+
+## Core Event Structure
+
+```typescript
+interface Event {
+  // === IDENTITY ===
+  event_id: string;                    // UUID v4
+  version: number;                     // For event evolution tracking
+  event_type: EventType;               // EventType enum
+
+  // === HUMAN-READABLE ===
+  title: string;                       // Auto-generated or manual
+  summary?: string;                    // 1-2 sentence description
+  narrative?: string;                  // Full event narrative
+
+  // === TEMPORAL (Multi-Scale) ===
+  temporal: TemporalBounds;
+
+  // === SCALE (Recursive) ===
+  scale: EventScale;
+
+  // === PARTICIPANTS ===
+  participants: Participant[];         // Who/what involved
+
+  // === EVIDENCE (Recursive) ===
+  evidence: Evidence;
+
+  // === QUALITY METRICS ===
+  quality: QualityMetrics;
+
+  // === RELATIONSHIPS (Graph) ===
+  relationships: Relationships;
+
+  // === PROVENANCE ===
+  provenance: Provenance;
+
+  // === METADATA ===
+  metadata: EventMetadata;
+}
+```
+
+## 1. Temporal Bounds (Multi-Scale)
+
+```typescript
+interface TemporalBounds {
+  // Core temporal range
+  start: DateTime;                     // ISO 8601
+  end?: DateTime;                      // null = ongoing
+
+  // Precision indicator
+  precision: TemporalPrecision;        // How precise is the timing?
+
+  // Computed properties
+  duration_seconds: number;            // end - start
+  is_ongoing: boolean;                 // end == null
+  is_instantaneous: boolean;           // duration < threshold
+
+  // Multi-scale support
+  granularity: TimeGranularity;        // millisecond | second | minute | hour | day | week | month | year
+
+  // Temporal phases (for complex events)
+  phases?: TemporalPhase[];            // Optional sub-phases
+}
+
+enum TemporalPrecision {
+  EXACT = "exact",           // ±seconds (e.g., "7:45 AM")
+  HOUR = "hour",             // ±minutes (e.g., "morning")
+  DAY = "day",               // ±hours (e.g., "October 10")
+  WEEK = "week",             // ±days (e.g., "early October")
+  MONTH = "month",           // ±weeks (e.g., "October 2025")
+  YEAR = "year",             // ±months (e.g., "2025")
+  APPROXIMATE = "approximate" // Uncertain timing
+}
+
+enum TimeGranularity {
+  MILLISECOND = "millisecond",  // High-frequency trading, sports
+  SECOND = "second",            // Breaking news, live events
+  MINUTE = "minute",            // Speeches, meetings
+  HOUR = "hour",                // Accidents, announcements
+  DAY = "day",                  // Default for news events
+  WEEK = "week",                // Investigations, campaigns
+  MONTH = "month",              // Political narratives
+  YEAR = "year"                 // Historical events
+}
+
+interface TemporalPhase {
+  phase_id: string;
+  label: string;                 // "Initial Blast", "Investigation", "Resolution"
+  start: DateTime;
+  end?: DateTime;
+  precision: TemporalPrecision;
+}
+```
+
+## 2. Event Scale (Recursive)
+
+```typescript
+interface EventScale {
+  // Scale classification
+  scale_type: ScaleType;
+
+  // Compositional metrics
+  claim_count: number;           // Atomic claims
+  sub_event_count: number;       // Child events
+  participant_count: number;     // Unique entities
+  source_count: number;          // Unique sources
+
+  // Hierarchical position
+  depth: number;                 // 0 = atomic, 1 = meso, 2 = macro, etc.
+  breadth: number;               // Number of sibling events
+
+  // Aggregation strength
+  coherence: number;             // 0-1: How tightly bound?
+  granularity_score: number;     // 0-1: How detailed?
+}
+
+enum ScaleType {
+  // Bottom-up scales (from our experiments)
+  ATOMIC = "atomic",             // Single claim (1 claim)
+  MICRO = "micro",               // 2-4 claims, <1 day
+  MESO = "meso",                 // 5-15 claims, 1-7 days (VALIDATED)
+  MACRO = "macro",               // 15+ claims or multiple meso events, weeks
+  MEGA = "mega",                 // Story arcs, months/years
+
+  // Top-down scales (real-world projection)
+  INCIDENT = "incident",         // Single occurrence (explosion, announcement)
+  EPISODE = "episode",           // Related incidents (investigation)
+  NARRATIVE = "narrative",       // Story arc (scandal, conflict)
+  SAGA = "saga"                  // Long-term story (political career)
+}
+```
+
+## 3. Participants (Entity Links)
+
+```typescript
+interface Participant {
+  // Entity reference
+  entity_id: string;
+  entity_type: EntityType;       // Person | Organization | Location | Concept
+  name: string;
+
+  // Role in event
+  role: ParticipantRole;
+
+  // Participation strength
+  mention_count: number;         // How many times mentioned
+  centrality: number;            // 0-1: How central to event?
+  confidence: number;            // 0-1: How confident in participation?
+
+  // Temporal participation
+  first_mention: DateTime;
+  last_mention: DateTime;
+
+  // Sub-structure
+  sub_entities?: Participant[];  // For organizations with members
+}
+
+enum EntityType {
+  PERSON = "person",
+  ORGANIZATION = "organization",
+  LOCATION = "location",
+  CONCEPT = "concept",
+  EVENT = "event"                // Events can be entities in other events
+}
+
+enum ParticipantRole {
+  // Core roles
+  SUBJECT = "subject",           // Main actor (explosion: "Accurate Energetic Systems")
+  AGENT = "agent",               // Active participant (investigation: "Tennessee Bureau")
+  PATIENT = "patient",           // Affected party (casualties)
+  LOCATION = "location",         // Where it happened
+  OBSERVER = "observer",         // Witness, reporter
+
+  // Complex roles
+  BENEFICIARY = "beneficiary",   // Who benefits
+  VICTIM = "victim",             // Who is harmed
+  AUTHORITY = "authority",       // Governing entity
+
+  // Meta roles
+  SOURCE = "source",             // Information source
+  RELATED = "related"            // Related but unclear role
+}
+```
+
+## 4. Evidence (Recursive)
+
+```typescript
+interface Evidence {
+  // Direct evidence (atomic)
+  claims: Claim[];
+
+  // Recursive evidence (composite)
+  sub_events: EventReference[];   // Child events as evidence
+
+  // External evidence
+  sources: Source[];
+
+  // Computed aggregates
+  total_claims: number;           // Including sub-events
+  total_sources: number;
+  evidence_depth: number;         // Levels of recursion
+}
+
+interface Claim {
+  claim_id: string;
+  text: string;
+
+  // Temporal context
+  event_time?: DateTime;          // When fact occurred
+  created_at: DateTime;           // When claim was recorded
+
+  // Quality
+  confidence: number;             // 0-1
+  modality: Modality;
+  evidence_type: EvidenceType;
+
+  // Provenance
+  source_id: string;
+  page_id: string;
+
+  // Entities mentioned
+  entities: string[];             // entity_ids
+}
+
+enum Modality {
+  CONFIRMED = "confirmed",        // Weight: 1.0
+  REPORTED = "reported",          // Weight: 0.8
+  REPORTED_SPEECH = "reported_speech", // Weight: 0.7
+  ALLEGED = "alleged",            // Weight: 0.5
+  DENIED = "denied",              // Weight: 0.0
+  PREDICTION = "prediction"       // Weight: 0.3
+}
+
+enum EvidenceType {
+  DIRECT_QUOTE = "direct_quote",         // Weight: 1.0
+  OFFICIAL_STATEMENT = "official_statement", // Weight: 0.9
+  EYEWITNESS = "eyewitness",            // Weight: 0.7
+  REPORTED_SPEECH = "reported_speech",   // Weight: 0.6
+  INFERENCE = "inference",               // Weight: 0.4
+  SPECULATION = "speculation"            // Weight: 0.2
+}
+
+interface EventReference {
+  event_id: string;
+  relationship_type: EventRelationType;
+  confidence: number;             // 0-1
+}
+
+interface Source {
+  source_id: string;
+  url: string;
+  domain: string;
+  title?: string;
+
+  // Temporal
+  pub_time?: DateTime;
+  accessed_at: DateTime;
+
+  // Quality
+  quality_score: number;          // 0-1 (from source taxonomy)
+  credibility_tier: number;       // 1-4
+
+  // Content stats
+  claim_count: number;            // Claims from this source
+  word_count?: number;
+}
+```
+
+## 5. Quality Metrics
+
+```typescript
+interface QualityMetrics {
+  // === EPISTEMIC QUALITY (Knowledge) ===
+
+  // Confidence: How certain are we this happened?
+  confidence: number;             // 0-1, weighted from claims
+  confidence_distribution: {
+    high: number;                 // 0.8-1.0
+    medium: number;               // 0.5-0.8
+    low: number;                  // 0.0-0.5
+  };
+
+  // Credibility: How trustworthy are sources?
+  credibility: number;            // 0-1, weighted from sources
+  source_quality_distribution: {
+    tier_1: number;               // Major news
+    tier_2: number;               // Regional/specialist
+    tier_3: number;               // Blogs/opinion
+    tier_4: number;               // Social/UGC
+  };
+
+  // Coherence: How consistent are claims?
+  coherence: number;              // 0-1, 1.0 - (contradictions / pairs)
+  contradiction_count: number;
+
+  // Coverage: How many independent sources?
+  coverage: number;               // Unique source count
+  source_diversity: number;       // Entropy of source distribution
+
+  // === INFORMATION QUALITY (Completeness) ===
+
+  // Completeness: How much information?
+  completeness: number;           // 0-1
+  information_density: number;    // Claims per day
+
+  // Temporal quality
+  temporal_precision: number;     // 0-1, from TemporalPrecision
+  temporal_coverage: number;      // % of event duration with claims
+
+  // Entity richness
+  entity_diversity: number;       // Unique entities / expected
+  entity_role_coverage: number;   // % of key roles filled
+
+  // === COMPOSITE SCORES ===
+
+  // Overall quality (weighted combination)
+  overall_quality: number;        // 0-1
+
+  // Production readiness
+  is_production_ready: boolean;   // All thresholds met?
+  quality_issues: string[];       // What's missing?
+}
+```
+
+## 6. Relationships (Graph Structure)
+
+```typescript
+interface Relationships {
+  // === TEMPORAL RELATIONSHIPS ===
+  before: EventReference[];       // This event happened before...
+  after: EventReference[];        // This event happened after...
+  during: EventReference[];       // This event happened during...
+  overlaps: EventReference[];     // Events overlap in time
+
+  // === HIERARCHICAL RELATIONSHIPS ===
+  parent?: EventReference;        // This is PHASE_OF parent
+  children: EventReference[];     // Sub-events (PHASE_OF this)
+
+  // Super-event (story/narrative)
+  part_of?: EventReference[];     // This event is part of larger story
+  contains: EventReference[];     // This story contains events
+
+  // === CAUSAL RELATIONSHIPS ===
+  caused_by?: EventReference[];   // Causes (backward)
+  causes: EventReference[];       // Effects (forward)
+  enabled_by?: EventReference[];  // Preconditions
+  enables: EventReference[];      // What this makes possible
+
+  // === SEMANTIC RELATIONSHIPS ===
+  similar_to: EventReference[];   // Similar events
+  related_to: EventReference[];   // Related but not causal
+  contradicts?: EventReference[]; // Conflicting accounts
+
+  // === ENTITY RELATIONSHIPS ===
+  shares_entities_with: {         // Events with overlapping participants
+    event_id: string;
+    shared_entity_count: number;
+    shared_entities: string[];
+  }[];
+
+  // === COMPUTED METRICS ===
+  relationship_count: number;     // Total relationships
+  centrality: number;             // Graph centrality score
+  cluster_id?: string;            // If part of detected cluster
+}
+
+enum EventRelationType {
+  // Temporal
+  BEFORE = "before",
+  AFTER = "after",
+  DURING = "during",
+  OVERLAPS = "overlaps",
+
+  // Hierarchical
+  PHASE_OF = "phase_of",
+  PART_OF = "part_of",
+  SUB_EVENT = "sub_event",
+
+  // Causal
+  CAUSED_BY = "caused_by",
+  ENABLES = "enables",
+
+  // Semantic
+  SIMILAR_TO = "similar_to",
+  RELATED_TO = "related_to"
+}
+```
+
+## 7. Provenance
+
+```typescript
+interface Provenance {
+  // Creation
+  created_at: DateTime;
+  created_by: CreationMethod;
+  extractor_version: string;
+
+  // Updates
+  last_updated: DateTime;
+  update_count: number;
+  update_history?: Update[];
+
+  // Clustering (if emergent)
+  clustering_params?: ClusteringParams;
+  cluster_generation: number;      // Which clustering run
+
+  // Validation
+  validated_by?: string;           // User/system that validated
+  validation_time?: DateTime;
+  validation_status: ValidationStatus;
+
+  // Lineage
+  derived_from?: string[];         // Parent event IDs if merged/split
+  merged_into?: string;            // If this event was merged
+  split_into?: string[];           // If this event was split
+}
+
+enum CreationMethod {
+  MANUAL = "manual",               // Human-created
+  CLUSTERING = "clustering",       // Emergent from claims
+  EXTRACTION = "extraction",       // LLM extraction from page
+  IMPORT = "import",               // External import
+  MERGE = "merge",                 // Merged from multiple events
+  SPLIT = "split"                  // Split from larger event
+}
+
+enum ValidationStatus {
+  UNVALIDATED = "unvalidated",
+  PENDING = "pending",
+  VALIDATED = "validated",
+  REJECTED = "rejected",
+  NEEDS_REVIEW = "needs_review"
+}
+
+interface ClusteringParams {
+  temporal_window_days: number;
+  min_entity_overlap: number;
+  min_claims: number;
+  algorithm: string;               // "temporal_entity_clustering_v1"
+}
+
+interface Update {
+  timestamp: DateTime;
+  update_type: UpdateType;
+  fields_changed: string[];
+  reason?: string;
+}
+
+enum UpdateType {
+  CLAIM_ADDED = "claim_added",
+  CLAIM_REMOVED = "claim_removed",
+  ENTITY_ADDED = "entity_added",
+  RELATIONSHIP_ADDED = "relationship_added",
+  QUALITY_RECALCULATED = "quality_recalculated",
+  MERGED = "merged",
+  SPLIT = "split"
+}
+```
+
+## 8. Metadata
+
+```typescript
+interface EventMetadata {
+  // Classification
+  tags: string[];                  // User/system tags
+  categories: Category[];          // Taxonomic categories
+
+  // Geographic
+  locations: GeoLocation[];
+  primary_location?: GeoLocation;
+
+  // Language
+  language: string;                // ISO 639-1
+
+  // Visibility
+  visibility: Visibility;
+  access_level: AccessLevel;
+
+  // Usage stats
+  view_count?: number;
+  reference_count?: number;        // How many events reference this
+
+  // Custom fields
+  custom: Record<string, any>;     // Extensible
+}
+
+enum Category {
+  // From our experiments
+  DISASTER = "disaster",
+  LEGAL_CRIME = "legal_crime",
+  SCIENCE_TECH = "science_tech",
+  POLITICS = "politics",
+  CULTURE = "culture",
+  ECONOMY = "economy",
+  HEALTH = "health",
+  ENVIRONMENT = "environment",
+  SPORTS = "sports",
+  OTHER = "other"
+}
+
+enum Visibility {
+  PUBLIC = "public",
+  INTERNAL = "internal",
+  PRIVATE = "private"
+}
+
+enum AccessLevel {
+  READ_ONLY = "read_only",
+  COMMENT = "comment",
+  EDIT = "edit",
+  ADMIN = "admin"
+}
+
+interface GeoLocation {
+  location_id: string;
+  name: string;
+  latitude?: number;
+  longitude?: number;
+  geo_level: GeoLevel;             // Country, state, city, etc.
+}
+
+enum GeoLevel {
+  GLOBAL = "global",
+  CONTINENT = "continent",
+  COUNTRY = "country",
+  STATE = "state",
+  CITY = "city",
+  NEIGHBORHOOD = "neighborhood",
+  POINT = "point"
+}
+```
+
+## Complete Example: Multi-Scale Tennessee Event
+
+```json
+{
+  "event_id": "evt_tennessee_macro_001",
+  "version": 3,
+  "event_type": "MACRO",
+
+  "title": "Tennessee Explosives Plant Incident",
+  "summary": "Explosion at Accurate Energetic Systems plant in Humphreys County, Tennessee, followed by multi-agency investigation.",
+
+  "temporal": {
+    "start": "2025-10-10T07:45:00Z",
+    "end": "2025-10-15T23:59:59Z",
+    "precision": "EXACT",
+    "duration_seconds": 518400,
+    "is_ongoing": false,
+    "is_instantaneous": false,
+    "granularity": "DAY",
+    "phases": [
+      {
+        "phase_id": "phase_1_blast",
+        "label": "Initial Blast",
+        "start": "2025-10-10T07:45:00Z",
+        "end": "2025-10-10T09:00:00Z",
+        "precision": "EXACT"
+      },
+      {
+        "phase_id": "phase_2_investigation",
+        "label": "Investigation",
+        "start": "2025-10-10T10:00:00Z",
+        "end": "2025-10-15T23:59:59Z",
+        "precision": "DAY"
+      }
+    ]
+  },
+
+  "scale": {
+    "scale_type": "MACRO",
+    "claim_count": 23,
+    "sub_event_count": 2,
+    "participant_count": 6,
+    "source_count": 8,
+    "depth": 1,
+    "breadth": 0,
+    "coherence": 0.95,
+    "granularity_score": 0.82
+  },
+
+  "participants": [
+    {
+      "entity_id": "ent_tennessee",
+      "entity_type": "LOCATION",
+      "name": "Tennessee",
+      "role": "LOCATION",
+      "mention_count": 23,
+      "centrality": 0.95,
+      "confidence": 1.0,
+      "first_mention": "2025-10-10T07:45:00Z",
+      "last_mention": "2025-10-15T18:00:00Z"
+    },
+    {
+      "entity_id": "ent_aes",
+      "entity_type": "ORGANIZATION",
+      "name": "Accurate Energetic Systems",
+      "role": "SUBJECT",
+      "mention_count": 12,
+      "centrality": 0.82,
+      "confidence": 1.0,
+      "first_mention": "2025-10-10T07:50:00Z",
+      "last_mention": "2025-10-15T12:00:00Z"
+    },
+    {
+      "entity_id": "ent_chris_davis",
+      "entity_type": "PERSON",
+      "name": "Chris Davis",
+      "role": "AUTHORITY",
+      "mention_count": 7,
+      "centrality": 0.45,
+      "confidence": 1.0,
+      "first_mention": "2025-10-10T09:00:00Z",
+      "last_mention": "2025-10-12T14:00:00Z"
+    }
+  ],
+
+  "evidence": {
+    "claims": [],
+    "sub_events": [
+      {
+        "event_id": "evt_tennessee_blast_001",
+        "relationship_type": "PHASE_OF",
+        "confidence": 1.0
+      },
+      {
+        "event_id": "evt_tennessee_investigation_001",
+        "relationship_type": "PHASE_OF",
+        "confidence": 1.0
+      }
+    ],
+    "sources": [
+      {
+        "source_id": "src_abc_news_001",
+        "url": "https://abcnews.go.com/tennessee-explosion",
+        "domain": "abcnews.go.com",
+        "title": "Tennessee Plant Explosion Leaves 19 Missing",
+        "pub_time": "2025-10-10T08:30:00Z",
+        "accessed_at": "2025-10-10T08:45:00Z",
+        "quality_score": 0.95,
+        "credibility_tier": 1,
+        "claim_count": 8
+      }
+    ],
+    "total_claims": 23,
+    "total_sources": 8,
+    "evidence_depth": 2
+  },
+
+  "quality": {
+    "confidence": 0.92,
+    "confidence_distribution": {
+      "high": 20,
+      "medium": 3,
+      "low": 0
+    },
+    "credibility": 0.87,
+    "source_quality_distribution": {
+      "tier_1": 5,
+      "tier_2": 3,
+      "tier_3": 0,
+      "tier_4": 0
+    },
+    "coherence": 0.95,
+    "contradiction_count": 1,
+    "coverage": 8,
+    "source_diversity": 0.78,
+    "completeness": 0.85,
+    "information_density": 4.6,
+    "temporal_precision": 0.95,
+    "temporal_coverage": 0.82,
+    "entity_diversity": 0.75,
+    "entity_role_coverage": 0.83,
+    "overall_quality": 0.88,
+    "is_production_ready": true,
+    "quality_issues": []
+  },
+
+  "relationships": {
+    "before": [],
+    "after": [],
+    "during": [],
+    "overlaps": [],
+    "parent": null,
+    "children": [
+      {
+        "event_id": "evt_tennessee_blast_001",
+        "relationship_type": "SUB_EVENT",
+        "confidence": 1.0
+      },
+      {
+        "event_id": "evt_tennessee_investigation_001",
+        "relationship_type": "SUB_EVENT",
+        "confidence": 1.0
+      }
+    ],
+    "part_of": [],
+    "contains": [],
+    "caused_by": [],
+    "causes": [
+      {
+        "event_id": "evt_tennessee_investigation_001",
+        "relationship_type": "CAUSED_BY",
+        "confidence": 0.95
+      }
+    ],
+    "enabled_by": [],
+    "enables": [],
+    "similar_to": [
+      {
+        "event_id": "evt_texas_fertilizer_explosion_2013",
+        "relationship_type": "SIMILAR_TO",
+        "confidence": 0.72
+      }
+    ],
+    "related_to": [],
+    "contradicts": [],
+    "shares_entities_with": [
+      {
+        "event_id": "evt_tennessee_investigation_001",
+        "shared_entity_count": 2,
+        "shared_entities": ["ent_tennessee", "ent_humphreys_county"]
+      }
+    ],
+    "relationship_count": 5,
+    "centrality": 0.78,
+    "cluster_id": "cluster_2025_10_disasters"
+  },
+
+  "provenance": {
+    "created_at": "2025-10-10T12:00:00Z",
+    "created_by": "CLUSTERING",
+    "extractor_version": "claim_clustering_v1.0.0",
+    "last_updated": "2025-10-15T20:00:00Z",
+    "update_count": 12,
+    "clustering_params": {
+      "temporal_window_days": 2,
+      "min_entity_overlap": 2,
+      "min_claims": 3,
+      "algorithm": "temporal_entity_clustering_v1"
+    },
+    "cluster_generation": 47,
+    "validated_by": null,
+    "validation_time": null,
+    "validation_status": "UNVALIDATED"
+  },
+
+  "metadata": {
+    "tags": ["explosion", "industrial-accident", "investigation"],
+    "categories": ["DISASTER", "LEGAL_CRIME"],
+    "locations": [
+      {
+        "location_id": "loc_humphreys_county",
+        "name": "Humphreys County, Tennessee",
+        "latitude": 36.0853,
+        "longitude": -87.5947,
+        "geo_level": "CITY"
+      }
+    ],
+    "primary_location": {
+      "location_id": "loc_humphreys_county",
+      "name": "Humphreys County, Tennessee",
+      "latitude": 36.0853,
+      "longitude": -87.5947,
+      "geo_level": "CITY"
+    },
+    "language": "en",
+    "visibility": "PUBLIC",
+    "access_level": "READ_ONLY",
+    "view_count": 1247,
+    "reference_count": 3,
+    "custom": {
+      "severity": "high",
+      "casualty_count": 19,
+      "economic_impact": "significant"
+    }
+  }
+}
+```
+
+## Recursive Usage Examples
+
+### Example 1: Atomic Event (Micro)
+
+```json
+{
+  "event_id": "evt_tennessee_blast_001",
+  "scale": {
+    "scale_type": "MESO",
+    "claim_count": 16,
+    "sub_event_count": 0,
+    "depth": 0
+  },
+  "relationships": {
+    "parent": {
+      "event_id": "evt_tennessee_macro_001",
+      "relationship_type": "PHASE_OF",
+      "confidence": 1.0
+    }
+  }
+}
+```
+
+### Example 2: Story Arc (Mega)
+
+```json
+{
+  "event_id": "evt_industrial_safety_2025",
+  "scale": {
+    "scale_type": "MEGA",
+    "claim_count": 0,
+    "sub_event_count": 15,
+    "depth": 2
+  },
+  "temporal": {
+    "granularity": "MONTH"
+  },
+  "relationships": {
+    "contains": [
+      {"event_id": "evt_tennessee_macro_001"},
+      {"event_id": "evt_texas_chemical_spill_001"},
+      {"event_id": "evt_california_refinery_fire_001"}
+    ]
+  }
+}
+```
+
+## API Response Examples
+
+### GET /events/{event_id}
+
+```json
+{
+  "event": { /* full event object */ },
+  "claims": [ /* all claims */ ],
+  "sub_events": [ /* child events */ ],
+  "related_events": [ /* similar/related */ ]
+}
+```
+
+### GET /events?scale=MESO&min_quality=0.8
+
+```json
+{
+  "events": [
+    { /* event summary */ }
+  ],
+  "total": 156,
+  "page": 1,
+  "filters": {
+    "scale": "MESO",
+    "min_quality": 0.8
+  }
+}
+```
+
+## Neo4j Graph Schema
+
+```cypher
+// Event node
+CREATE (e:Event {
+  event_id: string,
+  version: int,
+  title: string,
+  start: datetime,
+  end: datetime,
+  scale_type: string,
+  quality_score: float,
+  created_at: datetime
+})
+
+// Relationships
+CREATE (e1:Event)-[:PHASE_OF {confidence: 0.95}]->(e2:Event)
+CREATE (e:Event)-[:EVIDENCED_BY {confidence: 0.8}]->(c:Claim)
+CREATE (e:Event)-[:HAS_PARTICIPANT {role: "SUBJECT", centrality: 0.82}]->(ent:Entity)
+CREATE (e1:Event)-[:CAUSED_BY {confidence: 0.9}]->(e2:Event)
+CREATE (e1:Event)-[:BEFORE {days_apart: 5, confidence: 0.7}]->(e2:Event)
+```
+
+## Summary
+
+This structure supports:
+
+✅ **Multi-Scale**: Atomic → Micro → Meso → Macro → Mega
+✅ **Recursive**: Events contain events, evidence references evidence
+✅ **Real-World**: Maps to human understanding (incident, episode, narrative, saga)
+✅ **Quality**: Full epistemic and information metrics
+✅ **Temporal**: Multi-granularity with precision indicators
+✅ **Provenance**: Complete audit trail
+✅ **Graph**: Native Neo4j relationships
+✅ **API**: Clean JSON serialization
+✅ **Evolution**: Supports merging, splitting, updating
+✅ **Validated**: Based on actual experimental data
+
+**Status**: Ready for implementation
+**Next**: Create Neo4j schema migration + API endpoints

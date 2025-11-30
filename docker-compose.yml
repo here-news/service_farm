@@ -1,0 +1,222 @@
+version: '3.8'
+
+services:
+  # PostgreSQL with pgvector
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: herenews-postgres
+    environment:
+      POSTGRES_DB: herenews
+      POSTGRES_USER: herenews_user
+      POSTGRES_PASSWORD: herenews_pass
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./db/schema_gen2.sql:/docker-entrypoint-initdb.d/01_schema.sql
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "herenews_user", "-d", "herenews"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Redis for job queues
+  redis:
+    image: redis:7-alpine
+    container_name: herenews-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # FastAPI backend
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: herenews-api
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: herenews
+      POSTGRES_USER: herenews_user
+      POSTGRES_PASSWORD: herenews_pass
+      REDIS_URL: redis://redis:6379
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      IFRAMELY_API_KEY: ${IFRAMELY_API_KEY}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Extraction Worker (3 instances for parallel processing)
+  worker-extraction-1:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: herenews-worker-extraction-1
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: herenews
+      POSTGRES_USER: herenews_user
+      POSTGRES_PASSWORD: herenews_pass
+      REDIS_URL: redis://redis:6379
+      WORKER_NAME: extraction-1
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: python worker_extraction.py
+
+  worker-extraction-2:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: herenews-worker-extraction-2
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: herenews
+      POSTGRES_USER: herenews_user
+      POSTGRES_PASSWORD: herenews_pass
+      REDIS_URL: redis://redis:6379
+      WORKER_NAME: extraction-2
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: python worker_extraction.py
+
+  worker-extraction-3:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: herenews-worker-extraction-3
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: herenews
+      POSTGRES_USER: herenews_user
+      POSTGRES_PASSWORD: herenews_pass
+      REDIS_URL: redis://redis:6379
+      WORKER_NAME: extraction-3
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: python worker_extraction.py
+
+  # Semantic Worker (2 instances)
+  worker-semantic-1:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: herenews-worker-semantic-1
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: herenews
+      POSTGRES_USER: herenews_user
+      POSTGRES_PASSWORD: herenews_pass
+      REDIS_URL: redis://redis:6379
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      WORKER_NAME: semantic-1
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: python worker_semantic.py
+
+  worker-semantic-2:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: herenews-worker-semantic-2
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: herenews
+      POSTGRES_USER: herenews_user
+      POSTGRES_PASSWORD: herenews_pass
+      REDIS_URL: redis://redis:6379
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      WORKER_NAME: semantic-2
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: python worker_semantic.py
+
+  # Event Worker (1 instance)
+  worker-event:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: herenews-worker-event
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: herenews
+      POSTGRES_USER: herenews_user
+      POSTGRES_PASSWORD: herenews_pass
+      REDIS_URL: redis://redis:6379
+      WORKER_NAME: event-1
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: python worker_event.py
+
+  # Enrichment Worker (1 instance)
+  worker-enrichment:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: herenews-worker-enrichment
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: herenews
+      POSTGRES_USER: herenews_user
+      POSTGRES_PASSWORD: herenews_pass
+      REDIS_URL: redis://redis:6379
+      WORKER_NAME: enrichment-1
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: python worker_entity_enrichment.py
+
+volumes:
+  pg_data:
