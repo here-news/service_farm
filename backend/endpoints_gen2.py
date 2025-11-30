@@ -128,6 +128,14 @@ async def get_iframely_metadata(url: str) -> dict:
 
             if response.status_code == 200:
                 data = response.json()
+
+                # Check if iframely returned an error (e.g., status: 403, 404)
+                # When successful, iframely doesn't include 'status' field
+                # When failed, it returns {status: 403/404, error: "..."}
+                if 'error' in data or (data.get('status') and data.get('status') != 200):
+                    # iframely failed to fetch (403, paywall, etc.)
+                    return None
+
                 meta = data.get('meta', {})
 
                 return {
@@ -179,7 +187,8 @@ async def submit_url(url: str):
         # Check if URL already exists
         existing = await conn.fetchrow("""
             SELECT
-                id, url, canonical_url, title, status, language,
+                id, url, canonical_url, title, description,
+                author, thumbnail_url, status, language,
                 word_count, pub_time, created_at, updated_at
             FROM core.pages
             WHERE canonical_url = $1
@@ -213,6 +222,9 @@ async def submit_url(url: str):
                 "url": existing['url'],
                 "canonical_url": existing['canonical_url'],
                 "title": existing['title'],
+                "description": existing['description'],
+                "author": existing['author'],
+                "thumbnail_url": existing['thumbnail_url'],
                 "status": existing['status'],
                 "language": existing['language'],
                 "word_count": existing['word_count'],
@@ -236,6 +248,7 @@ async def submit_url(url: str):
             description = iframely_meta.get('description')
             language = iframely_meta.get('language', 'en')
             author = iframely_meta.get('author')
+            thumbnail_url = iframely_meta.get('image')
 
             # Use iframely's canonical URL if different (deduplication!)
             canonical_from_iframely = iframely_meta.get('canonical_url')
@@ -256,11 +269,13 @@ async def submit_url(url: str):
             # Insert page with iframely metadata
             await conn.execute("""
                 INSERT INTO core.pages (
-                    id, url, canonical_url, title, language,
+                    id, url, canonical_url, title, description,
+                    author, thumbnail_url, language,
                     status, created_at
                 )
-                VALUES ($1, $2, $3, $4, $5, 'preview', NOW())
-            """, page_id, url, canonical_url, title, language)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'preview', NOW())
+            """, page_id, url, canonical_url, title, description,
+                author, thumbnail_url, language)
 
             status = 'preview'  # Has metadata, pending extraction
 
@@ -281,6 +296,7 @@ async def submit_url(url: str):
             title = None
             description = None
             author = None
+            thumbnail_url = None
             status = 'stub'
 
         # Commission extraction (async, doesn't block response)
@@ -297,6 +313,8 @@ async def submit_url(url: str):
             "canonical_url": canonical_url,
             "title": title,  # From iframely if available
             "description": description,  # From iframely if available
+            "author": author,  # From iframely if available
+            "thumbnail_url": thumbnail_url,  # From iframely if available
             "status": status,  # 'preview' if iframely, 'stub' if not
             "language": language,
             "word_count": None,  # Pending extraction
@@ -334,6 +352,9 @@ async def get_page_status(page_id: str):
                 url,
                 canonical_url,
                 title,
+                description,
+                author,
+                thumbnail_url,
                 status,
                 language,
                 word_count,
@@ -366,6 +387,9 @@ async def get_page_status(page_id: str):
             "url": page['url'],
             "canonical_url": page['canonical_url'],
             "title": page['title'],
+            "description": page['description'],
+            "author": page['author'],
+            "thumbnail_url": page['thumbnail_url'],
             "status": page['status'],
             "language": page['language'],
             "word_count": page['word_count'],
