@@ -264,7 +264,8 @@ class SemanticWorker:
         type_mapping = {
             'PERSON': 'PERSON',
             'ORG': 'ORGANIZATION',
-            'LOCATION': 'LOCATION'
+            'LOCATION': 'LOCATION',
+            'GPE': 'LOCATION'  # Geo-Political Entity (countries, cities, states)
         }
 
         for claim in claims:
