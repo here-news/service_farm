@@ -189,6 +189,56 @@ services:
         condition: service_healthy
     command: python run_semantic_worker.py
 
+  # Playwright Worker (1 instance for JS-heavy content)
+  worker-playwright:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.playwright
+    container_name: herenews-worker-playwright
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: herenews
+      POSTGRES_USER: herenews_user
+      POSTGRES_PASSWORD: herenews_pass
+      REDIS_URL: redis://redis:6379
+      WORKER_ID: "1"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    # Required for Playwright to run Chromium in Docker
+    cap_add:
+      - SYS_ADMIN
+    shm_size: '2gb'
+    command: python run_playwright_worker.py
+
+  # Wikidata Enrichment Worker (1 instance for entity linking)
+  worker-wikidata:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: herenews-worker-wikidata
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: herenews
+      POSTGRES_USER: herenews_user
+      POSTGRES_PASSWORD: herenews_pass
+      REDIS_URL: redis://redis:6379
+      WORKER_ID: "1"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: python run_wikidata_worker.py
+
   # Event Worker (1 instance)
   worker-event:
     build:
@@ -210,7 +260,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: python worker_event.py
+    command: python run_event_worker.py
 
   # Enrichment Worker (1 instance)
   worker-enrichment:

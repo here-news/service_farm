@@ -144,6 +144,9 @@ class SemanticWorker:
                 logger.info(f"💾 Extracted {len(entity_mapping)} unique entities from claims")
 
                 # 6. Link entities to claims
+                # Add _url to claims for deterministic ID matching
+                for claim in claims:
+                    claim['_url'] = page['url']
                 await self._link_entities_to_claims(conn, claims, claim_ids, entity_mapping)
                 logger.info(f"🔗 Linked entities to claims")
 
@@ -155,13 +158,17 @@ class SemanticWorker:
                 await self._generate_entity_descriptions(conn, entity_mapping, claims)
                 logger.info(f"📝 Generated entity descriptions")
 
-                # 8. Generate and store page embedding
+                # 9. Queue Wikidata enrichment for all new entities
+                await self._queue_wikidata_enrichment(conn, entity_mapping, claims)
+                logger.info(f"🔗 Queued Wikidata enrichment for {len(entity_mapping)} entities")
+
+                # 10. Generate and store page embedding
                 await self._generate_page_embedding(
                     conn, page_id, page['title'], gist, claims
                 )
                 logger.info(f"🎯 Generated page embedding")
 
-                # 9. Update page status
+                # 11. Update page status
                 await conn.execute("""
                     UPDATE core.pages
                     SET status = 'semantic_complete',
@@ -170,7 +177,7 @@ class SemanticWorker:
                     WHERE id = $1
                 """, page_id)
 
-                # 10. Commission event worker
+                # 12. Commission event worker
                 await self.job_queue.enqueue('queue:event:high', {
                     'page_id': str(page_id),
                     'url': url,
@@ -582,6 +589,60 @@ Only return the description, nothing else."""
                         WHERE id = $1
                     """, entity_uuid, profile_summary)
 
+    async def _queue_wikidata_enrichment(
+        self, conn: asyncpg.Connection, entity_mapping: Dict[str, uuid.UUID],
+        claims: List[Dict]
+    ):
+        """
+        Queue Wikidata enrichment jobs for entities that need linking
+
+        Only queues entities that:
+        - Don't already have a wikidata_qid
+        - Are linkable types (PERSON, ORGANIZATION, LOCATION, GPE)
+        """
+        # Get entity details for queuing
+        entity_ids = list(entity_mapping.values())
+
+        entities_to_enrich = await conn.fetch("""
+            SELECT id, canonical_name, entity_type, profile_summary, wikidata_qid
+            FROM core.entities
+            WHERE id = ANY($1::uuid[])
+            AND wikidata_qid IS NULL
+            AND entity_type IN ('PERSON', 'ORGANIZATION', 'LOCATION')
+        """, entity_ids)
+
+        # Collect claim contexts for each entity
+        entity_contexts = {}
+        for claim in claims:
+            entities_in_claim = set()
+
+            for who in claim.get('who', []):
+                entities_in_claim.add(who)
+            for where in claim.get('where', []):
+                entities_in_claim.add(where)
+
+            for entity_ref in entities_in_claim:
+                if entity_ref not in entity_contexts:
+                    entity_contexts[entity_ref] = []
+                entity_contexts[entity_ref].append(claim['text'])
+
+        # Queue enrichment jobs
+        for entity in entities_to_enrich:
+            entity_ref = f"{entity['entity_type']}:{entity['canonical_name']}"
+            mentions = entity_contexts.get(entity_ref, [])
+
+            await self.job_queue.enqueue('wikidata_enrichment', {
+                'entity_id': str(entity['id']),
+                'canonical_name': entity['canonical_name'],
+                'entity_type': entity['entity_type'],
+                'context': {
+                    'description': entity['profile_summary'],
+                    'mentions': mentions[:5]  # Include up to 5 claim contexts
+                }
+            })
+
+        logger.debug(f"🔗 Queued {len(entities_to_enrich)} entities for Wikidata enrichment")
+
     async def _generate_page_embedding(
         self, conn: asyncpg.Connection, page_id: uuid.UUID,
         title: str, gist: str, claims: List[Dict]
@@ -623,33 +684,98 @@ Only return the description, nothing else."""
         """
         Mark page as semantic processing failed
 
-        For "Insufficient content" failures, create rogue extraction task
-        (likely paywall/anti-scraping - needs browser extraction)
+        Decision tree for failures:
+        - word_count < 100 → Rogue task (likely paywall/anti-scraping)
+        - word_count >= 100 → Playwright task (JS-heavy content, partial extraction)
         """
-        await conn.execute("""
-            UPDATE core.pages
-            SET status = 'semantic_failed',
-                error_message = $2,
-                updated_at = NOW()
-            WHERE id = $1
-        """, page_id, reason)
+        # Get current page state
+        page = await conn.fetchrow("""
+            SELECT word_count, url FROM core.pages WHERE id = $1
+        """, page_id)
 
-        # Create rogue task for insufficient content (likely paywall)
-        if "Insufficient content" in reason:
-            page = await conn.fetchrow("""
-                SELECT url FROM core.pages WHERE id = $1
-            """, page_id)
+        if not page:
+            logger.error(f"Page {page_id} not found in _mark_semantic_failed")
+            return
 
-            if page:
-                await conn.execute("""
-                    INSERT INTO core.rogue_extraction_tasks (page_id, url, status, created_at)
-                    VALUES ($1, $2, 'pending', NOW())
-                    ON CONFLICT DO NOTHING
-                """, page_id, page['url'])
+        word_count = page['word_count'] or 0
+        url = page['url']
 
-                logger.info(
-                    f"🔴 Created rogue task for {page['url']} (insufficient content - likely paywall)"
-                )
+        # Insufficient content with some text → likely JS-heavy, try Playwright
+        if "Insufficient content" in reason and word_count >= 100:
+            await conn.execute("""
+                UPDATE core.pages
+                SET status = 'playwright_pending',
+                    error_message = $2,
+                    updated_at = NOW()
+                WHERE id = $1
+            """, page_id, f"Semantic failed: {reason} (queuing Playwright extraction)")
+
+            # Queue for Playwright worker
+            await self.job_queue.enqueue('playwright_extraction', {
+                'page_id': str(page_id),
+                'url': url,
+                'reason': 'semantic_insufficient_content'
+            })
+
+            logger.info(
+                f"🎭 Queued Playwright extraction for {url} (word_count={word_count}, reason: {reason})"
+            )
+
+        # Insufficient content with little/no text → likely paywall, try rogue
+        elif "Insufficient content" in reason and word_count < 100:
+            await conn.execute("""
+                UPDATE core.pages
+                SET status = 'semantic_failed',
+                    error_message = $2,
+                    updated_at = NOW()
+                WHERE id = $1
+            """, page_id, reason)
+
+            # Create rogue task (browser extension handles auth/paywalls)
+            await conn.execute("""
+                INSERT INTO core.rogue_extraction_tasks (page_id, url, status, created_at)
+                VALUES ($1, $2, 'pending', NOW())
+                ON CONFLICT DO NOTHING
+            """, page_id, url)
+
+            logger.info(
+                f"🔴 Created rogue task for {url} (word_count={word_count}, likely paywall)"
+            )
+
+        # Other semantic failures (no valid claims, etc.) with decent content → try Playwright
+        elif word_count >= 100:
+            await conn.execute("""
+                UPDATE core.pages
+                SET status = 'playwright_pending',
+                    error_message = $2,
+                    updated_at = NOW()
+                WHERE id = $1
+            """, page_id, f"Semantic failed: {reason} (queuing Playwright extraction)")
+
+            # Queue for Playwright worker
+            await self.job_queue.enqueue('playwright_extraction', {
+                'page_id': str(page_id),
+                'url': url,
+                'reason': reason
+            })
+
+            logger.info(
+                f"🎭 Queued Playwright extraction for {url} (word_count={word_count}, reason: {reason})"
+            )
+
+        # Other failures with low content → dead end
+        else:
+            await conn.execute("""
+                UPDATE core.pages
+                SET status = 'semantic_failed',
+                    error_message = $2,
+                    updated_at = NOW()
+                WHERE id = $1
+            """, page_id, reason)
+
+            logger.warning(
+                f"❌ Semantic failed for {url} (word_count={word_count}, reason: {reason}) - no fallback"
+            )
 
 
 async def run_semantic_worker():
