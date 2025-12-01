@@ -10,6 +10,18 @@
 
   console.log('🔍 HERE News - Content script loaded');
 
+  // Skip running on our own service-farm endpoints (API pages, dashboards)
+  const INTERNAL_HOSTS = [
+    'localhost:8000',
+    '127.0.0.1:8000',
+    'service-farm-here.run.app'
+  ];
+
+  if (INTERNAL_HOSTS.includes(window.location.host)) {
+    console.log('⏭️  Skipping extraction on service-farm host:', window.location.host);
+    return;
+  }
+
   /**
    * Extract Open Graph metadata AND full article text from current page
    */
@@ -230,6 +242,31 @@
   }
 
   /**
+   * Wait for dynamic content to render (React, Vue, etc.)
+   * Waits for DOM to stabilize and content to appear
+   */
+  async function waitForDynamicContent() {
+    console.log('⏳ Waiting for dynamic content to render...');
+
+    // Wait 2 seconds for React/Vue/etc to render
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    // Check if body has meaningful content (more than just skeleton)
+    const bodyText = document.body.innerText || '';
+    const wordCount = bodyText.trim().split(/\s+/).filter(w => w.length > 0).length;
+
+    console.log(`📊 Current word count: ${wordCount}`);
+
+    // If still low word count, wait a bit more
+    if (wordCount < 100) {
+      console.log('⏳ Low word count, waiting 2 more seconds...');
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+
+    console.log('✅ Dynamic content ready');
+  }
+
+  /**
    * Main extraction flow
    */
   async function main() {
@@ -239,6 +276,9 @@
     try {
       // Wait for page to fully load
       await waitForPageLoad();
+
+      // Wait for dynamic content (React, etc.) to render
+      await waitForDynamicContent();
 
       // Extract metadata
       const metadata = extractMetadata();
@@ -256,8 +296,10 @@
         metadata: metadata
       }, (response) => {
         // Check if message was received
-        if (chrome.runtime.lastError) {
-          console.error('❌ Failed to send metadata:', chrome.runtime.lastError);
+        const runtimeError = chrome.runtime.lastError;
+        if (runtimeError) {
+          const message = runtimeError.message || runtimeError.toString() || '[unknown runtime error]';
+          console.error('❌ Failed to send metadata:', message);
         } else {
           console.log('✅ Metadata sent to background script');
         }

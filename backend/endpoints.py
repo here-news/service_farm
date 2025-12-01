@@ -51,7 +51,7 @@ def normalize_url(url: str) -> str:
 
     Removes:
     - www. prefix
-    - Trailing slashes
+    - Trailing slashes (EXCEPT when query string present, to preserve query-driven routes)
     - URL fragments (#)
     - Common tracking parameters (utm_*, fbclid, etc.)
 
@@ -67,8 +67,12 @@ def normalize_url(url: str) -> str:
     if netloc.startswith('www.'):
         netloc = netloc[4:]
 
-    # Remove trailing slash
-    path = parsed.path.rstrip('/')
+    # Remove trailing slash ONLY if no query string present
+    # (preserves path for query-driven routes like /case-detail/?id=123)
+    if parsed.query:
+        path = parsed.path  # Keep trailing slash with query strings
+    else:
+        path = parsed.path.rstrip('/') if parsed.path != '/' else '/'
 
     # Remove tracking parameters (marketing noise)
     # Common tracking params: utm_source, utm_medium, utm_campaign, fbclid, gclid, etc.
