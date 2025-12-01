@@ -28,6 +28,10 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from services.job_queue import JobQueue
+from workers.event_consolidation import (
+    compute_log_prior, compute_log_likelihood,
+    consolidate_claims, detect_event_phases
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -56,23 +60,431 @@ class EventWorker:
 
     async def start(self):
         """Start worker loop"""
-        logger.info(f"📊 event-worker-{self.worker_id} started (multi-pass clustering)")
+        logger.info(f"📊 event-worker-{self.worker_id} started (incremental event formation)")
 
         try:
             while True:
                 try:
-                    # For now, just poll for new claims and trigger clustering
-                    # TODO: Make this event-driven via job queue
-                    await asyncio.sleep(10)  # Poll every 10 seconds
+                    # Listen to job queue for new pages
+                    job = await self.job_queue.dequeue('queue:event:high', timeout=5)
 
-                    await self.run_clustering_cycle()
+                    if job:
+                        page_id = uuid.UUID(job['page_id'])
+                        await self.process_page(page_id)
 
                 except Exception as e:
-                    logger.error(f"❌ Clustering cycle error: {e}", exc_info=True)
-                    await asyncio.sleep(5)
+                    logger.error(f"❌ Event worker error: {e}", exc_info=True)
+                    await asyncio.sleep(1)
 
         except KeyboardInterrupt:
             logger.info("Received shutdown signal")
+
+    async def process_page(self, page_id: uuid.UUID):
+        """
+        Process a page and find/create event
+
+        1. Fetch page embedding and metadata
+        2. Search for similar events (using page embedding as proxy)
+        3. If found (>= 0.7 similarity): attach to existing event
+        4. If not found: create provisional event
+        """
+        async with self.db_pool.acquire() as conn:
+            # Fetch page data
+            page = await conn.fetchrow("""
+                SELECT id, url, title, embedding, pub_time, metadata_confidence
+                FROM core.pages
+                WHERE id = $1
+            """, page_id)
+
+            if not page:
+                logger.warning(f"⚠️  Page {page_id} not found")
+                return
+
+            # Fetch claims with entities
+            claims = await conn.fetch("""
+                SELECT
+                    c.id, c.text, c.event_time, c.confidence, c.metadata,
+                    array_agg(ce.entity_id) FILTER (WHERE ce.entity_id IS NOT NULL) as entity_ids
+                FROM core.claims c
+                LEFT JOIN core.claim_entities ce ON c.id = ce.claim_id
+                WHERE c.page_id = $1
+                GROUP BY c.id
+            """, page_id)
+
+            if not claims:
+                logger.warning(f"⚠️  No claims found for page {page_id}")
+                return
+
+            claims_data = [{
+                'id': c['id'],
+                'text': c['text'],
+                'event_time': c['event_time'],
+                'confidence': c['confidence'],
+                'metadata': c['metadata'],
+                'entity_ids': set(c['entity_ids']) if c['entity_ids'] else set()
+            } for c in claims]
+
+            logger.info(f"📄 Processing page {page['url']} ({len(claims_data)} claims)")
+
+            # Find or create event
+            if page['embedding']:
+                await self._find_or_create_event(conn, page, claims_data)
+            else:
+                logger.warning(f"⚠️  No embedding for page {page_id}, creating provisional event")
+                await self._create_provisional_event(conn, page, claims_data)
+
+    async def _find_or_create_event(self, conn: asyncpg.Connection, page: Dict, claims: List[Dict]):
+        """Find similar event using page embedding or create new one"""
+        SIMILARITY_THRESHOLD = 0.7
+
+        # Search for similar events
+        similar_event = await conn.fetchrow("""
+            SELECT id, title, status, confidence,
+                   1 - (embedding <=> $1::vector) as similarity
+            FROM core.events
+            WHERE embedding IS NOT NULL
+            ORDER BY embedding <=> $1::vector
+            LIMIT 1
+        """, page['embedding'])
+
+        if similar_event and similar_event['similarity'] >= SIMILARITY_THRESHOLD:
+            # Attach to existing event
+            logger.info(
+                f"🔗 Attaching to event '{similar_event['title']}' "
+                f"(similarity: {similar_event['similarity']:.3f}, status: {similar_event['status']})"
+            )
+            await self._attach_to_event(conn, similar_event['id'], page, claims)
+        else:
+            # Create new provisional event
+            sim = similar_event['similarity'] if similar_event else 0.0
+            logger.info(f"📝 Creating provisional event (best similarity: {sim:.3f})")
+            await self._create_provisional_event(conn, page, claims)
+
+    async def _create_provisional_event(self, conn: asyncpg.Connection, page: Dict, claims: List[Dict]):
+        """Create new provisional event from page"""
+        # Extract temporal bounds
+        event_times = [c['event_time'] for c in claims if c['event_time']]
+        if event_times:
+            event_start = min(event_times)
+            event_end = max(event_times)
+        else:
+            event_start = event_end = page['pub_time']
+
+        # Generate title from page title (better than claim fragments)
+        title = page['title'][:100] if page.get('title') else (claims[0]['text'][:80] if claims else 'Untitled Event')
+        summary = f"Provisional event created from {page['url']}"
+
+        # Collect all entities
+        all_entities = set()
+        for c in claims:
+            all_entities.update(c['entity_ids'])
+
+        # Calculate scale and confidence based on reporting coverage
+        # More claims and entities = wider coverage = higher confidence
+        claims_count = len(claims)
+        entities_count = len(all_entities)
+        page_credibility = page['metadata_confidence'] or 0.5
+
+        # Scale determination
+        if claims_count >= 8 or entities_count >= 8:
+            scale_type = 'regional'
+            scale_rationale = f'{claims_count} claims, {entities_count} entities - significant coverage'
+        elif claims_count >= 5 or entities_count >= 5:
+            scale_type = 'local'
+            scale_rationale = f'{claims_count} claims, {entities_count} entities - moderate coverage'
+        else:
+            scale_type = 'micro'
+            scale_rationale = f'{claims_count} claims, {entities_count} entities - limited coverage'
+
+        # Confidence calculation (0.5-0.8 range for provisional)
+        # Base: 0.5, +0.05 per claim (max 0.15), +0.05 per entity (max 0.1), +0.05 for high credibility
+        base_confidence = 0.5
+        claim_boost = min(claims_count * 0.05, 0.15)
+        entity_boost = min(entities_count * 0.05, 0.1)
+        credibility_boost = 0.05 if page_credibility >= 0.7 else 0
+        provisional_confidence = min(base_confidence + claim_boost + entity_boost + credibility_boost, 0.8)
+
+        # Create enriched_json
+        enriched_json = {
+            'temporal': {
+                'start': event_start.isoformat() if event_start else None,
+                'end': event_end.isoformat() if event_end else None,
+                'precision': 'approximate'
+            },
+            'scale': {'type': scale_type, 'rationale': scale_rationale},
+            'participants': {
+                'entity_ids': [str(eid) for eid in all_entities],
+                'count': len(all_entities)
+            },
+            'evidence': {
+                'claims_count': len(claims),
+                'pages_count': 1,
+                'page_ids': [str(page['id'])]
+            },
+            'quality': {
+                'confidence': provisional_confidence,
+                'credibility': page_credibility,
+                'completeness': 0.3
+            },
+            'provenance': {
+                'method': 'provisional_from_page',
+                'created_from_page': str(page['id']),
+                'status_history': ['provisional']
+            }
+        }
+
+        # Convert embedding to pgvector format if present
+        embedding_str = None
+        if page['embedding']:
+            if isinstance(page['embedding'], list):
+                embedding_str = '[' + ','.join(str(x) for x in page['embedding']) + ']'
+            else:
+                embedding_str = str(page['embedding'])
+
+        # Insert event
+        event_id = await conn.fetchval("""
+            INSERT INTO core.events (
+                title, summary, event_start, event_end,
+                confidence, status, event_scale, claims_count, pages_count,
+                embedding, enriched_json
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::vector, $11)
+            RETURNING id
+        """,
+            title, summary[:500], event_start, event_end,
+            0.5, 'provisional', 'micro', len(claims), 1,
+            embedding_str, json.dumps(enriched_json)
+        )
+
+        # Link entities
+        for entity_id in all_entities:
+            await conn.execute("""
+                INSERT INTO core.event_entities (event_id, entity_id)
+                VALUES ($1, $2)
+                ON CONFLICT DO NOTHING
+            """, event_id, entity_id)
+
+        # Link page
+        await conn.execute("""
+            INSERT INTO core.page_events (page_id, event_id)
+            VALUES ($1, $2)
+            ON CONFLICT DO NOTHING
+        """, page['id'], event_id)
+
+        logger.info(f"✨ Created provisional event {event_id}: \"{title}\" ({len(claims)} claims, {len(all_entities)} entities)")
+
+    async def _attach_to_event(self, conn: asyncpg.Connection, event_id: uuid.UUID, page: Dict, claims: List[Dict]):
+        """Attach page to existing event"""
+        # Collect all entities
+        all_entities = set()
+        for c in claims:
+            all_entities.update(c['entity_ids'])
+
+        # Link entities
+        for entity_id in all_entities:
+            await conn.execute("""
+                INSERT INTO core.event_entities (event_id, entity_id)
+                VALUES ($1, $2)
+                ON CONFLICT DO NOTHING
+            """, event_id, entity_id)
+
+        # Link page
+        await conn.execute("""
+            INSERT INTO core.page_events (page_id, event_id)
+            VALUES ($1, $2)
+            ON CONFLICT DO NOTHING
+        """, page['id'], event_id)
+
+        # Get updated counts
+        event_stats = await conn.fetchrow("""
+            SELECT
+                claims_count + $2 as total_claims,
+                (SELECT COUNT(DISTINCT page_id) FROM core.page_events WHERE event_id = $1) as total_pages,
+                (SELECT COUNT(DISTINCT entity_id) FROM core.event_entities WHERE event_id = $1) as total_entities,
+                enriched_json
+            FROM core.events
+            WHERE id = $1
+        """, event_id, len(claims))
+
+        # Recalculate scale based on updated counts
+        total_claims = event_stats['total_claims']
+        total_entities = event_stats['total_entities']
+
+        if total_claims >= 8 or total_entities >= 8:
+            scale_type = 'regional'
+            scale_rationale = f'{total_claims} claims, {total_entities} entities, {event_stats["total_pages"]} sources - significant coverage'
+        elif total_claims >= 5 or total_entities >= 5:
+            scale_type = 'local'
+            scale_rationale = f'{total_claims} claims, {total_entities} entities, {event_stats["total_pages"]} sources - moderate coverage'
+        else:
+            scale_type = 'micro'
+            scale_rationale = f'{total_claims} claims, {total_entities} entities, {event_stats["total_pages"]} sources - limited coverage'
+
+        # Update enriched_json scale
+        # Parse from JSON string to dict if needed
+        enriched_json = event_stats['enriched_json']
+        if isinstance(enriched_json, str):
+            enriched_json = json.loads(enriched_json)
+        elif enriched_json is None:
+            enriched_json = {}
+        enriched_json['scale'] = {'type': scale_type, 'rationale': scale_rationale}
+
+        # Update event
+        await conn.execute("""
+            UPDATE core.events
+            SET claims_count = claims_count + $2,
+                pages_count = (SELECT COUNT(DISTINCT page_id) FROM core.page_events WHERE event_id = $1),
+                confidence = LEAST(confidence + 0.1, 0.95),
+                status = CASE
+                    WHEN status = 'provisional' AND (SELECT COUNT(DISTINCT page_id) FROM core.page_events WHERE event_id = $1) >= 2 THEN 'emerging'
+                    WHEN status = 'emerging' AND (SELECT COUNT(DISTINCT page_id) FROM core.page_events WHERE event_id = $1) >= 5 THEN 'stable'
+                    ELSE status
+                END,
+                enriched_json = $3,
+                updated_at = NOW()
+            WHERE id = $1
+        """, event_id, len(claims), json.dumps(enriched_json))
+
+        # Consolidate all claims for this event
+        await self._consolidate_event(conn, event_id)
+
+        logger.info(f"📎 Attached {len(claims)} claims to event {event_id} (scale: {scale_type})")
+
+    async def _consolidate_event(self, conn: asyncpg.Connection, event_id: uuid.UUID):
+        """
+        Consolidate all claims for an event into structured summary
+
+        Updates enriched_json with:
+        - Timeline of key events
+        - Casualty tracking (death tolls, injuries with ranges and contradictions)
+        - Key participants and locations
+        - Bayesian scores (priors, posteriors, coherence)
+        """
+        # Fetch ALL claims for this event
+        all_claims = await conn.fetch("""
+            SELECT c.id, c.text, c.event_time, c.confidence, c.modality,
+                   p.url as page_url, p.metadata_confidence as page_credibility,
+                   ARRAY_AGG(DISTINCT ce.entity_id) as entity_ids
+            FROM core.claims c
+            JOIN core.pages p ON c.page_id = p.id
+            JOIN core.page_events pe ON p.id = pe.page_id
+            LEFT JOIN core.claim_entities ce ON c.id = ce.claim_id
+            WHERE pe.event_id = $1
+            GROUP BY c.id, c.text, c.event_time, c.confidence, c.modality, p.url, p.metadata_confidence
+            ORDER BY c.event_time NULLS LAST
+        """, event_id)
+
+        # Fetch all entities for this event
+        all_entities = await conn.fetch("""
+            SELECT e.id, e.canonical_name as name, e.entity_type, e.metadata
+            FROM core.entities e
+            JOIN core.event_entities ee ON e.id = ee.entity_id
+            WHERE ee.event_id = $1
+        """, event_id)
+
+        # Convert to dicts
+        claims_list = [dict(c) for c in all_claims]
+        entities_list = [dict(e) for e in all_entities]
+
+        # Consolidate
+        consolidated = consolidate_claims(claims_list, entities_list)
+
+        # Detect phases
+        phases = detect_event_phases(consolidated['timeline'])
+        consolidated['phases'] = [
+            {
+                'start': p['start'].isoformat() if p['start'] else None,
+                'end': p['end'].isoformat() if p['end'] else None,
+                'entry_count': len(p['entries'])
+            }
+            for p in phases
+        ]
+
+        # Get current event data
+        event_data = await conn.fetchrow("""
+            SELECT event_start, event_end, confidence, enriched_json,
+                   claims_count, pages_count
+            FROM core.events
+            WHERE id = $1
+        """, event_id)
+
+        # Compute Bayesian scores
+        event_stats = {
+            'confidence': event_data['confidence'],
+            'event_start': event_data['event_start'],
+            'event_end': event_data['event_end'],
+            'entity_count': len(all_entities),
+            'scale_type': 'regional'  # Get from enriched_json
+        }
+
+        log_prior = compute_log_prior(event_stats)
+
+        # Sum log likelihoods for all claims
+        log_likelihood_sum = 0.0
+        event_entity_ids = {str(e['id']) for e in all_entities}
+        event_dict = {
+            'event_start': event_data['event_start'],
+            'event_end': event_data['event_end']
+        }
+
+        for claim in claims_list:
+            claim_entity_ids = {str(eid) for eid in (claim.get('entity_ids') or []) if eid}
+            shared_entities = len(event_entity_ids & claim_entity_ids)
+            total_claim_entities = len(claim_entity_ids)
+
+            log_lik = compute_log_likelihood(claim, event_dict, shared_entities, total_claim_entities)
+            log_likelihood_sum += log_lik
+
+        log_posterior = log_prior + log_likelihood_sum
+
+        # Compute coherence (1.0 = perfect, lower with contradictions)
+        coherence = 1.0
+        if consolidated['contradictions']:
+            for contradiction in consolidated['contradictions']:
+                if contradiction['severity'] == 'high':
+                    coherence *= 0.8
+                elif contradiction['severity'] == 'moderate':
+                    coherence *= 0.9
+
+        # Parse enriched_json
+        enriched_json = event_data['enriched_json']
+        if isinstance(enriched_json, str):
+            enriched_json = json.loads(enriched_json)
+        elif enriched_json is None:
+            enriched_json = {}
+
+        # Update enriched_json with consolidation
+        enriched_json['consolidated'] = {
+            'casualty_summary': {
+                'deaths': consolidated['casualties']['deaths'],
+                'injured': consolidated['casualties']['injured'],
+                'hospitalized': consolidated['casualties']['hospitalized']
+            },
+            'timeline_entries': len(consolidated['timeline']),
+            'phases': consolidated['phases'],
+            'key_locations': list(consolidated['locations']),
+            'participants': consolidated['participants'],
+            'contradictions': consolidated['contradictions']
+        }
+
+        # Update event with Bayesian scores and consolidation
+        await conn.execute("""
+            UPDATE core.events
+            SET enriched_json = $2,
+                log_prior = $3,
+                log_likelihood = $4,
+                log_posterior = $5,
+                coherence = $6,
+                updated_at = NOW()
+            WHERE id = $1
+        """, event_id, json.dumps(enriched_json), log_prior, log_likelihood_sum, log_posterior, coherence)
+
+        logger.info(
+            f"📊 Consolidated event {event_id}: "
+            f"{len(consolidated['timeline'])} timeline entries, "
+            f"{len(consolidated['contradictions'])} contradictions, "
+            f"coherence={coherence:.3f}, log_posterior={log_posterior:.2f}"
+        )
 
     async def run_clustering_cycle(self):
         """
@@ -384,18 +796,18 @@ class EventWorker:
             # Link entities to event
             for entity_id in all_entities:
                 await conn.execute("""
-                    INSERT INTO core.event_entities (event_id, entity_id, relevance_score)
-                    VALUES ($1, $2, $3)
+                    INSERT INTO core.event_entities (event_id, entity_id)
+                    VALUES ($1, $2)
                     ON CONFLICT (event_id, entity_id) DO NOTHING
-                """, event_id, entity_id, 0.5)
+                """, event_id, entity_id)
 
             # Link pages to event
             for page_id in page_ids:
                 await conn.execute("""
-                    INSERT INTO core.page_events (page_id, event_id, relevance_score)
-                    VALUES ($1, $2, $3)
+                    INSERT INTO core.page_events (page_id, event_id)
+                    VALUES ($1, $2)
                     ON CONFLICT (page_id, event_id) DO NOTHING
-                """, page_id, event_id, 0.5)
+                """, page_id, event_id)
 
 
 async def main():

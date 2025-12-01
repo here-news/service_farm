@@ -449,6 +449,7 @@ class SemanticWorker:
         claim_mapping: Dict[str, uuid.UUID], entity_mapping: Dict[str, uuid.UUID]
     ):
         """Link entities to claims (many-to-many)"""
+        total_links = 0
         for claim in claims:
             # Get claim UUID
             claim_hash = hashlib.sha256(
@@ -458,6 +459,7 @@ class SemanticWorker:
             claim_uuid = claim_mapping.get(claim_det_id)
 
             if not claim_uuid:
+                logger.warning(f"❌ Claim UUID not found for {claim_det_id}: {claim['text'][:50]}")
                 continue
 
             # Extract entities from claim.who and claim.where
@@ -469,10 +471,13 @@ class SemanticWorker:
             for where in claim.get('where', []):
                 entities_in_claim.add(where)
 
+            logger.info(f"🔍 Claim '{claim['text'][:60]}...' has {len(entities_in_claim)} entities: {entities_in_claim}")
+
             # Link each entity to claim
             for entity_ref in entities_in_claim:
                 entity_uuid = entity_mapping.get(entity_ref)
                 if not entity_uuid:
+                    logger.warning(f"❌ Entity UUID not found for {entity_ref}")
                     continue
 
                 # Upsert link
@@ -481,6 +486,9 @@ class SemanticWorker:
                     VALUES ($1, $2, $3)
                     ON CONFLICT (claim_id, entity_id) DO NOTHING
                 """, claim_uuid, entity_uuid, claim['text'][:500])
+                total_links += 1
+
+        logger.info(f"✅ Created {total_links} claim-entity links")
 
 
     async def _link_entities_to_page(
@@ -667,12 +675,14 @@ Only return the description, nothing else."""
             )
             embedding = response.data[0].embedding
 
-            # Store in database
+            # Store in database (pgvector format)
+            # Convert list to pgvector string format: '[0.1,0.2,0.3]'
+            embedding_str = '[' + ','.join(str(x) for x in embedding) + ']'
             await conn.execute("""
                 UPDATE core.pages
-                SET embedding = $2
+                SET embedding = $2::vector
                 WHERE id = $1
-            """, page_id, embedding)
+            """, page_id, embedding_str)
 
         except Exception as e:
             logger.error(f"❌ Failed to generate embedding: {e}")

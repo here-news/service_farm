@@ -181,7 +181,13 @@ For each claim:
   **If you see generic reference like "the military" or "officials", resolve to specific entity from context**
   Example: "The military confirmed..." in Israeli article → "ORG:Israel Defense Forces"
 
-- WHERE: Specific places (GPE:/LOCATION: prefix)
+- WHERE: Specific places at ALL granularities (GPE:/LOCATION: prefix)
+  ⚠️  Extract ALL location levels: buildings, streets, venues, neighborhoods, cities, regions, countries
+  ✅ CORRECT: "LOCATION:White House", "LOCATION:Main Street", "LOCATION:Tiananmen Square", "GPE:Beijing", "GPE:New York"
+  ❌ WRONG: Extract only country/city and ignore specific buildings or streets
+
+  **Example: "Fire at Empire State Building in New York" → ["LOCATION:Empire State Building", "GPE:New York"]**
+
 - WHEN: Event time with precision (exact/approximate/relative)
 
   **CRITICAL RULE: DEFAULT TO ARTICLE PUBLICATION DATE unless there's an EXPLICIT historical date!**
