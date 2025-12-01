@@ -50,7 +50,7 @@ async def main():
     finally:
         # Cleanup
         await db_pool.close()
-        await job_queue.disconnect()
+        await job_queue.close()
         logger.info("Worker shut down cleanly")
 
 

@@ -182,6 +182,9 @@ async def complete_rogue_task(task_id: str, metadata: RogueTaskMetadata):
             param_idx += 1
 
         if metadata.content_text and metadata.word_count >= 100:
+            update_fields.append(f"content_text = ${param_idx}")
+            params.append(metadata.content_text)
+            param_idx += 1
             update_fields.append(f"word_count = ${param_idx}")
             params.append(metadata.word_count)
             param_idx += 1
