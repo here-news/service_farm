@@ -595,7 +595,9 @@
                 <strong>Author:</strong> ${page.author || 'N/A'}<br>
                 <strong>Published:</strong> ${page.pub_time ? new Date(page.pub_time).toLocaleDateString() : 'N/A'}<br>
                 <strong>Entities:</strong> ${page.entity_count || 0}<br>
-                <strong>Claims:</strong> ${page.claim_count || 0}
+                <strong>Claims:</strong> ${page.claim_count || 0}<br>
+                <strong>Metadata Quality:</strong> <span style="color: ${getConfidenceColor(page.metadata_confidence || 0)}">${((page.metadata_confidence || 0) * 100).toFixed(0)}%</span><br>
+                <strong>Semantic Quality:</strong> <span style="color: ${getConfidenceColor(page.semantic_confidence || 0)}">${((page.semantic_confidence || 0) * 100).toFixed(0)}%</span>
             `;
 
             if (page.error_message) {
@@ -693,6 +695,14 @@
 
         function truncate(str, len) {
             return str.length > len ? str.substring(0, len) + '...' : str;
+        }
+
+        function getConfidenceColor(confidence) {
+            // Color scale for confidence: 0.0 = red, 0.5 = orange, 1.0 = green
+            if (confidence >= 0.8) return '#10b981'; // green
+            if (confidence >= 0.5) return '#f59e0b'; // orange
+            if (confidence >= 0.3) return '#ef4444'; // red
+            return '#9ca3af'; // gray for very low
         }
     </script>
 </body>
