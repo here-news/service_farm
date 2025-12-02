@@ -149,6 +149,8 @@ class ExtractionWorker(BaseWorker):
 
             # Step 4: Extract publication date (from HTML metadata)
             pub_time = self._extract_pub_time(html)
+            # IMPORTANT: If pub_time extraction fails, leave it as None
+            # Don't use extraction/scraping time as publication date
 
             # Step 5: Update database with extracted metadata
             word_count = len(extracted.split())
@@ -162,7 +164,7 @@ class ExtractionWorker(BaseWorker):
             async with self.pool.acquire() as conn:
                 # First, get existing metadata to preserve iframely data
                 existing = await conn.fetchrow("""
-                    SELECT title, description, author, thumbnail_url
+                    SELECT title, description, author, thumbnail_url, pub_time
                     FROM core.pages WHERE id = $1
                 """, page_id)
 
@@ -171,10 +173,17 @@ class ExtractionWorker(BaseWorker):
                 final_description = description or existing['description']
                 final_author = author or existing['author']
                 final_thumbnail = thumbnail_url or existing['thumbnail_url']
+                # IMPORTANT: Prefer our HTML extraction for pub_time over iframely
+                # Reason: iframely often returns cache/processing timestamps instead of
+                # actual publication dates. Our multi-strategy HTML extraction (JSON-LD,
+                # meta tags, trafilatura) gets the authoritative date from the publisher.
+                # Only fallback to iframely's pub_time if our extraction completely fails.
+                final_pub_time = pub_time or existing['pub_time']
 
                 # Calculate metadata confidence (0.0-1.0)
                 # 1.0 = all fields present, 0.5 = half present, etc.
-                metadata_fields = [final_title, final_description, final_author, final_thumbnail]
+                # Include pub_time in confidence calculation (important for timeline ordering)
+                metadata_fields = [final_title, final_description, final_author, final_thumbnail, final_pub_time]
                 metadata_confidence = sum(1 for f in metadata_fields if f) / len(metadata_fields)
 
                 await conn.execute("""
@@ -193,7 +202,7 @@ class ExtractionWorker(BaseWorker):
                         updated_at = NOW()
                     WHERE id = $1
                 """, page_id, extracted, final_title, final_description, final_author,
-                     final_thumbnail, metadata_confidence, detected_lang, word_count, pub_time)
+                     final_thumbnail, metadata_confidence, detected_lang, word_count, final_pub_time)
 
                 # Check if word count is suspiciously low (likely paywall/teaser)
                 if word_count < 100:
@@ -263,9 +272,13 @@ class ExtractionWorker(BaseWorker):
 
     def _extract_pub_time(self, html: str) -> datetime:
         """
-        Extract publication time from HTML metadata
+        Extract publication time from HTML metadata with multiple fallbacks
 
-        Uses trafilatura's built-in date extraction
+        Strategy:
+        1. Try trafilatura metadata extraction
+        2. Try common meta tags (article:published_time, datePublished, etc.)
+        3. Try JSON-LD structured data
+        4. Return None if all fail (don't default to current time)
 
         Args:
             html: HTML content
@@ -273,14 +286,73 @@ class ExtractionWorker(BaseWorker):
         Returns:
             Publication datetime or None
         """
+        import re
+        from dateutil import parser as date_parser
+
+        # Strategy 1: Trafilatura (but check if it has time component)
+        trafilatura_date = None
         try:
             from trafilatura import extract_metadata
             metadata = extract_metadata(html)
             if metadata and metadata.date:
-                return datetime.fromisoformat(metadata.date.replace('Z', '+00:00'))
+                dt = datetime.fromisoformat(metadata.date.replace('Z', '+00:00'))
+                # Only use trafilatura if it has a time component (not midnight)
+                if dt.hour != 0 or dt.minute != 0 or dt.second != 0:
+                    return dt
+                else:
+                    # Save as fallback but try other strategies first
+                    trafilatura_date = dt
         except:
             pass
-        return None
+
+        # Strategy 2: Common meta tags
+        meta_patterns = [
+            r'<meta[^>]+property=["\']article:published_time["\'][^>]+content=["\']([^"\']+)["\']',
+            r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']article:published_time["\']',
+            r'<meta[^>]+name=["\']datePublished["\'][^>]+content=["\']([^"\']+)["\']',
+            r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+name=["\']datePublished["\']',
+            r'<meta[^>]+itemprop=["\']datePublished["\'][^>]+content=["\']([^"\']+)["\']',
+            r'<time[^>]+datetime=["\']([^"\']+)["\']',
+        ]
+
+        for pattern in meta_patterns:
+            match = re.search(pattern, html, re.IGNORECASE)
+            if match:
+                try:
+                    date_str = match.group(1)
+                    return date_parser.parse(date_str)
+                except:
+                    continue
+
+        # Strategy 3: JSON-LD structured data
+        jsonld_pattern = r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>'
+        jsonld_matches = re.findall(jsonld_pattern, html, re.DOTALL | re.IGNORECASE)
+
+        for jsonld_str in jsonld_matches:
+            try:
+                import json
+                data = json.loads(jsonld_str)
+
+                # Handle both single object and array
+                if isinstance(data, list):
+                    data = data[0] if data else {}
+
+                # Handle @graph structure (used by BBC and others)
+                if '@graph' in data and isinstance(data['@graph'], list) and len(data['@graph']) > 0:
+                    data = data['@graph'][0]
+
+                # Try common date fields
+                for field in ['datePublished', 'publishDate', 'dateCreated', 'uploadDate']:
+                    if field in data:
+                        try:
+                            return date_parser.parse(data[field])
+                        except:
+                            continue
+            except:
+                continue
+
+        # All strategies failed - use trafilatura date-only as last resort
+        return trafilatura_date
 
     async def _mark_failed(self, page_id: uuid.UUID, reason: str):
         """

@@ -63,7 +63,7 @@ class EnhancedSemanticAnalyzer:
                 full_text, page_meta, url, lang
             )
 
-            # Apply premise filter gatekeeper
+            # Apply premise scoring (no filtering - score instead of exclude)
             # Defensive: ensure claims is a list, not None
             all_claims = claims_response.get('claims', []) or []
             if not isinstance(all_claims, list):
@@ -74,11 +74,19 @@ class EnhancedSemanticAnalyzer:
             excluded_claims = []
 
             for claim in all_claims:
-                is_admitted, exclusion_reason = self._passes_claim_premises(claim)
-                if is_admitted:
+                # Score claim based on premise checks (instead of binary pass/fail)
+                adjusted_confidence, failed_checks, verification_needed = self._score_claim_with_premises(claim)
+
+                # Update claim with adjusted confidence and verification flags
+                claim['confidence'] = adjusted_confidence
+                claim['failed_checks'] = failed_checks
+                claim['verification_needed'] = verification_needed
+
+                # Only exclude if confidence drops below 0.3 (very low quality)
+                if adjusted_confidence >= 0.3:
                     admitted_claims.append(claim)
                 else:
-                    claim['excluded_reason'] = exclusion_reason
+                    claim['excluded_reason'] = f"Confidence too low ({adjusted_confidence:.2f}): {', '.join(failed_checks)}"
                     excluded_claims.append(claim)
 
             # Extract entities only from admitted claims
@@ -151,15 +159,21 @@ Source language: {lang}
 - Use English entity type prefixes (PERSON, ORG, GPE, LOCATION)
 - Preserve original meaning and attribution
 
-Before including a claim, verify it meets ALL these criteria:
-1. **Attribution**: Clearly named source (person or organization) - no vague "they said"
-2. **Temporal context**: Identifiable event time (not just reporting date)
-3. **Modality clarity**: Distinguish observations vs. reported speech vs. allegations
-4. **Evidence signal**: Mentions quote, document, photo, statement, or artifact
-5. **Hedging filter**: Reject "reportedly", "allegedly", "might have" unless properly attributed
-6. **Controversy guard**: Criminal/fault implications require official or court-confirmed source
+Extract ALL factual claims from the article - don't filter at extraction time. The system will
+assess quality later. Include:
+- Direct observations (facts stated in article): "36 people died", "fire broke out at 2:51pm"
+- Reported speech (attributed statements): "Official said..."
+- Allegations (criminal/fault claims): "Accused of..."
 
-Extract up to 10 claims per article that meet these standards. Aim for comprehensive coverage.
+Guidelines for extraction (not hard filters):
+1. **Attribution**: Prefer claims with named sources, but include unattributed facts too
+2. **Temporal context**: Include event time when available
+3. **Modality clarity**: Distinguish observations vs. reported speech vs. allegations
+4. **Evidence signal**: Note if there are quotes, documents, photos, statements
+5. **Hedging filter**: Include hedged claims but mark appropriately
+6. **Controversy guard**: Include all claims - quality scoring happens later
+
+Extract up to 15 claims per article. Prioritize important facts and statements.
 
 For each claim:
 - TEXT: Full claim with attribution **IN ENGLISH** (for reported_speech, include "X said Y" in the text!)
@@ -403,60 +417,88 @@ Only include claims passing ALL 6 criteria above. Use notes_unsupported for inte
 
         return normalized
 
-    def _passes_claim_premises(self, claim: Dict[str, Any]) -> tuple[bool, str]:
+    def _score_claim_with_premises(self, claim: Dict[str, Any]) -> tuple[float, List[str], bool]:
         """
-        Lightweight gatekeeper: Verify claim meets minimal journalistic standards
+        Score claim based on journalistic standards (confidence adjustment instead of filtering)
 
-        6 checks aligned with LLM prompt instructions:
-        1. Attribution - named source required
-        2. Temporal context - event time required
-        3. Modality clarity - must be specified
-        4. Evidence signal - must reference artifacts
-        5. Hedging filter - reject vague language
-        6. Controversy guard - criminal claims need official source
+        Strategy: Start with LLM confidence, apply penalties for failed checks
+        - No information loss: Include claim even if it fails checks
+        - Lower confidence for missing attribution/evidence
+        - Flag for user verification if standards not met
 
-        Returns: (is_admitted: bool, exclusion_reason: str)
+        6 checks with penalties:
+        1. Attribution (-0.15): Named source missing
+        2. Temporal context (-0.10): Event time missing
+        3. Modality clarity (-0.15): Not specified
+        4. Evidence signal (-0.10): No artifacts referenced
+        5. Hedging filter (-0.20): Vague unattributed language
+        6. Controversy guard (-0.25): Criminal claims without proper source
+
+        Returns: (adjusted_confidence, failed_checks, verification_needed)
         """
         text = claim.get('text', '').lower()
-        who = claim.get('who', []) or []  # Ensure None becomes []
-        when = claim.get('when', {}) or {}  # Ensure None becomes {}
+        who = claim.get('who', []) or []
+        when = claim.get('when', {}) or {}
         modality = claim.get('modality', '') or ''
-        evidence = claim.get('evidence_references', []) or []  # Ensure None becomes []
-        confidence = claim.get('confidence', 0.0) or 0.0
+        evidence = claim.get('evidence_references', []) or []
+        base_confidence = claim.get('confidence', 0.7) or 0.7
 
-        # Check 1: Attribution - must have named source
+        failed_checks = []
+        penalty = 0.0
+
+        # Check 1: Attribution - named source preferred
         if not who or all(":" not in w for w in who):
-            return False, "Attribution: No named source (WHO)"
+            failed_checks.append("attribution")
+            penalty += 0.15
 
-        # Check 2: Temporal context - must have event time
+        # Check 2: Temporal context - event time preferred
         if not when or not when.get('date'):
-            return False, "Temporal: Missing event time (WHEN)"
+            failed_checks.append("temporal")
+            penalty += 0.10
 
-        # Check 3: Modality clarity - must be specified (4 types only)
+        # Check 3: Modality clarity - must be specified
         valid_modalities = ['observation', 'reported_speech', 'allegation', 'opinion']
         if not modality or modality not in valid_modalities:
-            return False, f"Modality: Not specified or invalid (must be one of {valid_modalities})"
+            failed_checks.append("modality")
+            penalty += 0.15
 
-        # Check 4: Evidence signal - must reference artifacts
+        # Check 4: Evidence signal - artifacts preferred
         if not evidence or len(evidence) == 0:
-            return False, "Evidence: No artifacts referenced"
+            failed_checks.append("evidence")
+            penalty += 0.10
 
-        # Check 5: Hedging filter - reject unattributed hedging
+        # Check 5: Hedging filter - vague language penalized
         hedging = ["reportedly", "allegedly", "might have", "may have", "rumored", "unconfirmed"]
         if any(h in text for h in hedging):
-            return False, "Hedging: Vague language without proper attribution"
+            failed_checks.append("hedging")
+            penalty += 0.20
 
-        # Check 6: Controversy guard - criminal claims need official source
+        # Check 6: Controversy guard - criminal claims need proper sourcing
         criminal_terms = ["murdered", "killed", "assassinated", "raped", "trafficked", "kidnapped"]
         if any(term in text for term in criminal_terms):
             if modality not in ['observation', 'allegation']:
-                return False, "Controversy: Criminal implication requires observation or allegation modality"
+                failed_checks.append("controversy")
+                penalty += 0.25
 
-        # Confidence floor (basic quality check)
-        if confidence < 0.65:
-            return False, f"Confidence: Below threshold ({confidence:.2f} < 0.65)"
+        # Apply penalty to base confidence
+        adjusted_confidence = max(0.0, base_confidence - penalty)
 
-        return True, ""
+        # Flag for verification if 2+ checks failed or adjusted confidence < 0.6
+        verification_needed = len(failed_checks) >= 2 or adjusted_confidence < 0.6
+
+        return adjusted_confidence, failed_checks, verification_needed
+
+    def _passes_claim_premises(self, claim: Dict[str, Any]) -> tuple[bool, str]:
+        """
+        DEPRECATED: Use _score_claim_with_premises instead
+
+        Kept for backward compatibility
+        """
+        adjusted_confidence, failed_checks, _ = self._score_claim_with_premises(claim)
+        if adjusted_confidence >= 0.65:
+            return True, ""
+        else:
+            return False, f"Confidence too low: {', '.join(failed_checks)}"
 
     def _extract_entities_from_claims(self, claims: List[Dict[str, Any]]) -> Dict[str, List[str]]:
         """Extract and categorize entities from claims"""

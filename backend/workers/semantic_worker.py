@@ -242,7 +242,9 @@ class SemanticWorker:
                     'where': claim.get('where', []),
                     'when': when,
                     'evidence_references': claim.get('evidence_references', []),
-                    'deterministic_id': claim_det_id
+                    'deterministic_id': claim_det_id,
+                    'failed_checks': claim.get('failed_checks', []),
+                    'verification_needed': claim.get('verification_needed', False)
                 })
             )
 

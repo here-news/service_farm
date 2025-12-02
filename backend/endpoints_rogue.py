@@ -45,6 +45,7 @@ class RogueTask(BaseModel):
     id: str
     page_id: str
     url: str
+    status: Optional[str] = None
     created_at: str
 
 
@@ -62,52 +63,78 @@ class RogueTaskMetadata(BaseModel):
 
 
 @router.get("/rogue/tasks")
-async def get_pending_rogue_tasks(limit: int = 1):
+async def get_rogue_tasks(limit: int = 1, status: Optional[str] = None, recent: bool = False):
     """
-    Get pending rogue extraction tasks for browser extension to process
+    Get rogue extraction tasks
 
-    Browser extension polls this endpoint every 3 seconds.
-    Returns oldest pending task (FIFO).
+    Two modes:
+    1. Worker mode (default): Get pending tasks and mark as processing
+    2. Recent mode (recent=true): Get recent tasks for UI display (any status)
 
     Query params:
         limit: Number of tasks to return (default: 1)
+        status: Filter by status (pending, processing, completed, failed)
+        recent: If true, return recent tasks without marking as processing
 
     Returns:
-        List of pending tasks
+        List of tasks
     """
     pool = await init_db_pool()
 
     async with pool.acquire() as conn:
-        # Get pending tasks, mark as processing
-        tasks = await conn.fetch("""
-            SELECT id, page_id, url, created_at
-            FROM core.rogue_extraction_tasks
-            WHERE status = 'pending'
-            ORDER BY created_at ASC
-            LIMIT $1
-        """, limit)
+        if recent:
+            # Recent tasks mode - for UI display
+            status_filter = f"AND status = '{status}'" if status else ""
+            tasks = await conn.fetch(f"""
+                SELECT id, page_id, url, status, created_at, completed_at
+                FROM core.rogue_extraction_tasks
+                WHERE 1=1 {status_filter}
+                ORDER BY created_at DESC
+                LIMIT $1
+            """, limit)
 
-        if not tasks:
-            return []
+            return [
+                RogueTask(
+                    id=str(task['id']),
+                    page_id=str(task['page_id']),
+                    url=task['url'],
+                    status=task['status'],
+                    created_at=task['created_at'].isoformat()
+                )
+                for task in tasks
+            ]
 
-        # Mark as processing with timeout (60 seconds)
-        task_ids = [task['id'] for task in tasks]
-        await conn.execute("""
-            UPDATE core.rogue_extraction_tasks
-            SET status = 'processing',
-                processing_started_at = NOW()
-            WHERE id = ANY($1::uuid[])
-        """, task_ids)
+        else:
+            # Worker mode - get pending and mark as processing
+            tasks = await conn.fetch("""
+                SELECT id, page_id, url, created_at
+                FROM core.rogue_extraction_tasks
+                WHERE status = 'pending'
+                ORDER BY created_at ASC
+                LIMIT $1
+            """, limit)
 
-        return [
-            RogueTask(
-                id=str(task['id']),
-                page_id=str(task['page_id']),
-                url=task['url'],
-                created_at=task['created_at'].isoformat()
-            )
-            for task in tasks
-        ]
+            if not tasks:
+                return []
+
+            # Mark as processing with timeout (60 seconds)
+            task_ids = [task['id'] for task in tasks]
+            await conn.execute("""
+                UPDATE core.rogue_extraction_tasks
+                SET status = 'processing',
+                    processing_started_at = NOW()
+                WHERE id = ANY($1::uuid[])
+            """, task_ids)
+
+            return [
+                RogueTask(
+                    id=str(task['id']),
+                    page_id=str(task['page_id']),
+                    url=task['url'],
+                    created_at=task['created_at'].isoformat()
+                )
+                for task in tasks
+            ]
 
 
 @router.post("/rogue/tasks/{task_id}/complete")
@@ -180,6 +207,17 @@ async def complete_rogue_task(task_id: str, metadata: RogueTaskMetadata):
             update_fields.append(f"thumbnail_url = ${param_idx}")
             params.append(metadata.thumbnail)
             param_idx += 1
+
+        if metadata.published_date:
+            # Parse published_date and update pub_time
+            try:
+                from dateutil import parser as date_parser
+                pub_time = date_parser.parse(metadata.published_date)
+                update_fields.append(f"pub_time = ${param_idx}")
+                params.append(pub_time)
+                param_idx += 1
+            except:
+                pass  # Skip if date parsing fails
 
         if metadata.content_text and metadata.word_count >= 100:
             update_fields.append(f"content_text = ${param_idx}")
