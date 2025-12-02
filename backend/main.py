@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from endpoints import router as artifacts_router
 from endpoints_rogue import router as rogue_router
 from endpoints_legacy import router as legacy_router
+from endpoints_events import router as events_router
 
 app = FastAPI(
     title="HereNews Service Farm",
@@ -25,6 +26,7 @@ app.add_middleware(
 # Main API v2 endpoints
 app.include_router(artifacts_router, prefix="/api/v2", tags=["Artifacts"])
 app.include_router(rogue_router, prefix="/api/v2", tags=["Rogue Extraction"])
+app.include_router(events_router, tags=["Events"])
 
 # Legacy demo endpoints (archived)
 app.include_router(legacy_router, prefix="/api/demo", tags=["Legacy Demo"])

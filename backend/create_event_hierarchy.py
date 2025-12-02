@@ -156,13 +156,32 @@ async def create_event_hierarchy():
                     ON CONFLICT DO NOTHING
                 """, micro_event_id, entity_id)
 
+            # Link pages (collect pages from claims' page_ids)
+            page_ids = set()
+            for claim in group_claims:
+                # Get page_id from the claim (need to query it)
+                page_id = await conn.fetchval("""
+                    SELECT page_id FROM core.claims WHERE id = $1
+                """, claim['id'])
+                if page_id:
+                    page_ids.add(page_id)
+
+            # Create page_events entries for this micro event
+            for page_id in page_ids:
+                await conn.execute("""
+                    INSERT INTO core.page_events (page_id, event_id)
+                    VALUES ($1, $2)
+                    ON CONFLICT DO NOTHING
+                """, page_id, micro_event_id)
+
+            print(f"✅ Created micro event: {title} ({len(group_claims)} claims, {len(page_ids)} pages)")
+
             micro_events[group_name] = {
                 'id': micro_event_id,
                 'title': title,
-                'claims_count': len(group_claims)
+                'claims_count': len(group_claims),
+                'pages_count': len(page_ids)
             }
-
-            print(f"✅ Created micro event: {title} ({len(group_claims)} claims)")
 
         # Update flat event to meso/macro
         await conn.execute("""

@@ -1,0 +1,589 @@
+{
+  "event_id": "test-event-hk-fire",
+  "sections": {
+    "main": {
+      "name": "Main Event",
+      "semantic_type": "primary",
+      "ontology": {
+        "story": {
+          "description": "Following the tragic fire at Wang Fuk Court that resulted in 44 fatalities, Chief Executive John Lee announced a ban on bamboo scaffolding for high-rise buildings over 15 stories. This decision aims to enhance building safety regulations in response to the vulnerabilities exposed by the fire.",
+          "who": [
+            "Chief Executive John Lee",
+            "contractors",
+            "construction industry",
+            "Legislative Council"
+          ],
+          "when": {
+            "start": "2025-11-26T14:51:00",
+            "end": null,
+            "precision": "exact"
+          },
+          "where": [
+            "Wang Fuk Court",
+            "Tai Po"
+          ],
+          "what": "Three contractors have been charged with manslaughter related to the fire that killed 44 people. In response, the Hong Kong government has implemented new safety regulations banning bamboo scaffolding on high-rises.",
+          "why": "The fire was exacerbated by the improper installation of bamboo scaffolding, leading to a rapid spread of flames.",
+          "how": "The fire broke out due to unsafe building practices, prompting the government to reform building codes and enhance safety measures."
+        },
+        "casualties": {
+          "deaths": "<workers.holistic_enrichment.FactBelief object at 0x7ebe2f9718d0>",
+          "missing": "<workers.holistic_enrichment.FactBelief object at 0x7ebe2f970750>"
+        },
+        "timeline": {
+          "start": "<workers.holistic_enrichment.FactBelief object at 0x7ebe2f970d90>",
+          "milestones": [
+            {
+              "event": "upgraded to level 5",
+              "time": "2025-11-26T18:22:00",
+              "confidence": 0.9
+            }
+          ]
+        },
+        "locations": {
+          "primary": "<workers.holistic_enrichment.FactBelief object at 0x7ebe2f973090>",
+          "district": "<workers.holistic_enrichment.FactBelief object at 0x7ebe2f9730d0>"
+        },
+        "response": {
+          "evacuations": "<workers.holistic_enrichment.FactBelief object at 0x7ebe2f973110>",
+          "arrests": "<workers.holistic_enrichment.FactBelief object at 0x7ebe2f973150>",
+          "firefighter_casualties": "<workers.holistic_enrichment.FactBelief object at 0x7ebe2f971e50>"
+        }
+      },
+      "page_ids": [
+        "test-investigation-1",
+        "test-policy-1"
+      ],
+      "page_count": 2,
+      "promotion_score": 0.0,
+      "created_at": "2025-12-01T20:39:06.255541+00:00",
+      "updated_at": "2025-12-02T15:26:38.720382",
+      "enrichment_timeline": []
+    },
+    "response": {
+      "name": "Emergency Response",
+      "semantic_type": "response",
+      "start": null,
+      "end": null,
+      "summary": "",
+      "ontology": {
+        "story": {
+          "description": "On November 26, 2025, a massive fire broke out at the Wang Fuk Court housing complex in Tai Po, Hong Kong, resulting in at least 44 fatalities and leaving 279 people missing. In response to the tragedy, Chief Executive John Lee announced a ban on bamboo scaffolding for high-rise buildings, citing safety concerns and the need for immediate reforms.",
+          "who": [
+            "Chief Executive John Lee",
+            "contractors",
+            "firefighters"
+          ],
+          "when": {
+            "start": "2025-11-26T14:51:00",
+            "end": null,
+            "precision": "exact"
+          },
+          "where": [
+            "Wang Fuk Court",
+            "Tai Po"
+          ],
+          "what": "A fire at the Wang Fuk Court resulted in significant casualties and led to government reforms banning bamboo scaffolding on high-rises.",
+          "why": "The fire exposed vulnerabilities in building safety practices, particularly related to bamboo scaffolding.",
+          "how": "The fire spread rapidly due to the use of bamboo scaffolding, prompting the government to implement new safety regulations."
+        },
+        "casualties": {
+          "deaths": "<workers.holistic_enrichment.FactBelief object at 0x7ebe2f973190>",
+          "missing": "<workers.holistic_enrichment.FactBelief object at 0x7ebe2f9731d0>",
+          "injured": "<workers.holistic_enrichment.FactBelief object at 0x7ebe2f973210>"
+        },
+        "timeline": {
+          "start": "<workers.holistic_enrichment.FactBelief object at 0x7ebe2f973250>",
+          "milestones": [
+            {
+              "event": "upgraded to level 5",
+              "time": "2025-11-26T18:22:00",
+              "confidence": 0.9
+            },
+            {
+              "event": "announcement of bamboo scaffolding ban",
+              "time": "2025-12-01T14:00:00",
+              "confidence": 0.9
+            }
+          ]
+        },
+        "locations": {
+          "primary": "<workers.holistic_enrichment.FactBelief object at 0x7ebe2f973290>",
+          "district": "<workers.holistic_enrichment.FactBelief object at 0x7ebe2f9732d0>"
+        },
+        "response": {
+          "evacuations": "<workers.holistic_enrichment.FactBelief object at 0x7ebe2f973310>",
+          "arrests": "<workers.holistic_enrichment.FactBelief object at 0x7ebe2f973350>",
+          "firefighter_casualties": "<workers.holistic_enrichment.FactBelief object at 0x7ebe2f973390>"
+        }
+      },
+      "page_ids": [
+        "5c066a02-9440-4506-b16e-4f31d878f12a",
+        "97488ed7-e97a-4532-a3a3-a5e87bf40b4e",
+        "abce2605-841b-4c81-bba9-2fb30104e929",
+        "b5f5be48-feb5-4438-8295-e40f700fee0c",
+        "test-investigation-1",
+        "test-policy-1"
+      ],
+      "page_count": 6,
+      "promotion_score": {
+        "total": 0.505,
+        "signals": {
+          "temporal_gap": 0.4,
+          "entity_divergence": 0.5,
+          "semantic_shift": 0.5,
+          "page_density": 0.9,
+          "human_weight": 0.0
+        }
+      },
+      "promotion_signals": {
+        "temporal_gap": 0.4,
+        "entity_divergence": 0.5,
+        "semantic_shift": 0.5,
+        "page_density": 0.9,
+        "human_weight": 0.0
+      },
+      "human_weight": 0.0,
+      "created_at": "2025-12-02T14:35:25.551828",
+      "updated_at": "2025-12-02T15:27:03.097274",
+      "enrichment_timeline": []
+    },
+    "related_incident": {
+      "name": "Related Incident",
+      "semantic_type": "related_incident",
+      "start": null,
+      "end": null,
+      "summary": "",
+      "ontology": {
+        "story": {
+          "description": "On November 26, 2025, a deadly fire broke out at Wang Fuk Court in the Tai Po district of Hong Kong, resulting in at least 44 deaths and significant damage. The incident has drawn comparisons to the Grenfell Tower fire in London, particularly regarding the use of combustible materials that facilitated the rapid spread of flames.",
+          "who": [
+            "Jonathan Barnett",
+            "Basic Expert",
+            "Hong Kong police"
+          ],
+          "when": {
+            "start": "2025-11-26T14:51:00",
+            "end": null,
+            "precision": "exact"
+          },
+          "where": [
+            "Wang Fuk Court",
+            "Tai Po district, Hong Kong"
+          ],
+          "what": "A fire engulfed several high-rise apartment towers, leading to numerous casualties and prompting an investigation into the cause.",
+          "why": "The fire's rapid spread is being investigated, with a focus on building and scaffolding materials, including bamboo scaffolding, which poses a fire risk.",
+          "how": "The fire spread rapidly, similar to the Grenfell Tower blaze, due to combustible materials used in the building's construction."
+        },
+        "casualties": {
+          "deaths": {
+            "fact_type": "casualties",
+            "subtype": "deaths",
+            "current_value": 44,
+            "current_confidence": 0.9,
+            "timeline": [
+              {
+                "value": 44,
+                "confidence": 0.9,
+                "source": "https://www.nytimes.com/2025/11/26/world/asia/bamboo-scaffolding-hong-kong-fire.html",
+                "timestamp": "2025-12-02T14:37:15.825112",
+                "update_type": "initial"
+              }
+            ],
+            "contradictions": [],
+            "resolution_history": [],
+            "update_count": 1
+          },
+          "missing": {
+            "fact_type": "casualties",
+            "subtype": "missing",
+            "current_value": 279,
+            "current_confidence": 0.85,
+            "timeline": [
+              {
+                "value": 279,
+                "confidence": 0.85,
+                "source": "https://www.nytimes.com/2025/11/26/world/asia/bamboo-scaffolding-hong-kong-fire.html",
+                "timestamp": "2025-12-02T14:37:15.825129",
+                "update_type": "initial"
+              }
+            ],
+            "contradictions": [],
+            "resolution_history": [],
+            "update_count": 1
+          }
+        },
+        "timeline": {
+          "start": {
+            "fact_type": "timeline",
+            "subtype": "start",
+            "current_value": "2025-11-26T14:51:00",
+            "current_confidence": 0.9,
+            "timeline": [
+              {
+                "value": "2025-11-26T14:51:00",
+                "confidence": 0.9,
+                "source": "https://www.nytimes.com/2025/11/26/world/asia/bamboo-scaffolding-hong-kong-fire.html",
+                "timestamp": "2025-12-02T14:37:15.825139",
+                "update_type": "initial"
+              }
+            ],
+            "contradictions": [],
+            "resolution_history": [],
+            "update_count": 1
+          },
+          "milestones": [
+            {
+              "event": "upgraded to level 5",
+              "time": "2025-11-26T18:22:00",
+              "confidence": 0.9
+            }
+          ]
+        },
+        "locations": {
+          "primary": {
+            "fact_type": "locations",
+            "subtype": "primary",
+            "current_value": "Wang Fuk Court",
+            "current_confidence": 0.95,
+            "timeline": [
+              {
+                "value": "Wang Fuk Court",
+                "confidence": 0.95,
+                "source": "https://www.nytimes.com/2025/11/26/world/asia/bamboo-scaffolding-hong-kong-fire.html",
+                "timestamp": "2025-12-02T14:37:15.825151",
+                "update_type": "initial"
+              }
+            ],
+            "contradictions": [],
+            "resolution_history": [],
+            "update_count": 1
+          },
+          "district": {
+            "fact_type": "locations",
+            "subtype": "district",
+            "current_value": "Tai Po",
+            "current_confidence": 1.0,
+            "timeline": [
+              {
+                "value": "Tai Po",
+                "confidence": 1.0,
+                "source": "https://www.nytimes.com/2025/11/26/world/asia/bamboo-scaffolding-hong-kong-fire.html",
+                "timestamp": "2025-12-02T14:37:15.825157",
+                "update_type": "initial"
+              }
+            ],
+            "contradictions": [],
+            "resolution_history": [],
+            "update_count": 1
+          }
+        },
+        "response": {
+          "evacuations": {
+            "fact_type": "response",
+            "subtype": "evacuations",
+            "current_value": 700,
+            "current_confidence": 0.85,
+            "timeline": [
+              {
+                "value": 700,
+                "confidence": 0.85,
+                "source": "https://www.nytimes.com/2025/11/26/world/asia/bamboo-scaffolding-hong-kong-fire.html",
+                "timestamp": "2025-12-02T14:37:15.825164",
+                "update_type": "initial"
+              }
+            ],
+            "contradictions": [],
+            "resolution_history": [],
+            "update_count": 1
+          },
+          "arrests": {
+            "fact_type": "response",
+            "subtype": "arrests",
+            "current_value": 3,
+            "current_confidence": 0.9,
+            "timeline": [
+              {
+                "value": 3,
+                "confidence": 0.9,
+                "source": "https://www.nytimes.com/2025/11/26/world/asia/bamboo-scaffolding-hong-kong-fire.html",
+                "timestamp": "2025-12-02T14:37:15.825169",
+                "update_type": "initial"
+              }
+            ],
+            "contradictions": [],
+            "resolution_history": [],
+            "update_count": 1
+          },
+          "firefighter_casualties": {
+            "fact_type": "response",
+            "subtype": "firefighter_casualties",
+            "current_value": 1,
+            "current_confidence": 0.9,
+            "timeline": [
+              {
+                "value": 1,
+                "confidence": 0.9,
+                "source": "https://www.nytimes.com/2025/11/26/world/asia/bamboo-scaffolding-hong-kong-fire.html",
+                "timestamp": "2025-12-02T14:37:15.825175",
+                "update_type": "initial"
+              }
+            ],
+            "contradictions": [],
+            "resolution_history": [],
+            "update_count": 1
+          }
+        }
+      },
+      "page_ids": [
+        "0d5a3ec5-fce4-4372-835a-bacd139e69e6"
+      ],
+      "page_count": 1,
+      "promotion_score": {
+        "total": 0.32,
+        "signals": {
+          "temporal_gap": 0.3,
+          "entity_divergence": 0.5,
+          "semantic_shift": 0.4,
+          "page_density": 0.2,
+          "human_weight": 0.0
+        }
+      },
+      "promotion_signals": {
+        "temporal_gap": 0.3,
+        "entity_divergence": 0.5,
+        "semantic_shift": 0.4,
+        "page_density": 0.2,
+        "human_weight": 0.0
+      },
+      "human_weight": 0.0,
+      "created_at": "2025-12-02T14:37:01.006116",
+      "updated_at": "2025-12-02T14:37:15.825189",
+      "enrichment_timeline": []
+    },
+    "legal_action": {
+      "name": "Legal Action",
+      "semantic_type": "legal_action",
+      "start": null,
+      "end": null,
+      "summary": "",
+      "ontology": {
+        "story": {
+          "description": "Three contractors have been charged with manslaughter in connection with the Wang Fuk Court fire that resulted in 44 fatalities. The fire, which broke out on November 26, was exacerbated by the improper installation of bamboo scaffolding, leading to a rapid spread of the flames.",
+          "who": [
+            "Hong Kong Police",
+            "three contractors",
+            "Inspector Wong"
+          ],
+          "when": {
+            "start": "2025-11-26T14:51:00",
+            "end": null,
+            "precision": "exact"
+          },
+          "where": [
+            "Wang Fuk Court",
+            "Tai Po"
+          ],
+          "what": "Three men have been charged with manslaughter following a deadly fire that killed 44 people. The fire was linked to negligence in scaffolding installation.",
+          "why": "The contractors failed to follow safety protocols, specifically by not using proper fire-resistant netting.",
+          "how": "The bamboo scaffolding acted as a highway for the fire to spread between buildings, indicating clear negligence."
+        },
+        "casualties": {
+          "deaths": "<workers.holistic_enrichment.FactBelief object at 0x7ebe2f977e10>",
+          "missing": "<workers.holistic_enrichment.FactBelief object at 0x7ebe2f984810>"
+        },
+        "timeline": {
+          "start": "<workers.holistic_enrichment.FactBelief object at 0x7ebe2f984b90>",
+          "milestones": [
+            {
+              "event": "upgraded to level 5",
+              "time": "2025-11-26T18:22:00",
+              "confidence": 0.9
+            }
+          ]
+        },
+        "locations": {
+          "primary": "<workers.holistic_enrichment.FactBelief object at 0x7ebe2f985d10>",
+          "district": "<workers.holistic_enrichment.FactBelief object at 0x7ebe2f985d50>"
+        },
+        "response": {
+          "evacuations": "<workers.holistic_enrichment.FactBelief object at 0x7ebe2f985d90>",
+          "arrests": "<workers.holistic_enrichment.FactBelief object at 0x7ebe2f985dd0>",
+          "firefighter_casualties": "<workers.holistic_enrichment.FactBelief object at 0x7ebe2f9858d0>"
+        }
+      },
+      "page_ids": [
+        "test-investigation-1"
+      ],
+      "page_count": 1,
+      "promotion_score": {
+        "total": 0.265,
+        "signals": {
+          "temporal_gap": 0.0,
+          "entity_divergence": 0.5,
+          "semantic_shift": 0.5,
+          "page_density": 0.2,
+          "human_weight": 0.0
+        }
+      },
+      "promotion_signals": {
+        "temporal_gap": 0.0,
+        "entity_divergence": 0.5,
+        "semantic_shift": 0.5,
+        "page_density": 0.2,
+        "human_weight": 0.0
+      },
+      "human_weight": 0.0,
+      "created_at": "2025-12-02T15:25:26.082760",
+      "updated_at": "2025-12-02T15:25:47.721257",
+      "enrichment_timeline": []
+    },
+    "policy_response": {
+      "name": "Policy Response",
+      "semantic_type": "policy_response",
+      "start": null,
+      "end": null,
+      "summary": "",
+      "ontology": {
+        "story": {
+          "description": "In response to the tragic fire at Wang Fuk Court that resulted in 44 deaths and 279 missing, Chief Executive John Lee announced a ban on bamboo scaffolding for high-rise buildings over 15 stories. The new regulations aim to enhance building safety and are expected to be codified into permanent legislation by the end of the year.",
+          "who": [
+            "Chief Executive John Lee",
+            "Wang Fuk Court",
+            "Legislative Council"
+          ],
+          "when": {
+            "start": "2025-11-26T14:51:00",
+            "end": null,
+            "precision": "exact"
+          },
+          "where": [
+            "Wang Fuk Court",
+            "Tai Po"
+          ],
+          "what": "The Hong Kong government banned bamboo scaffolding on high-rises following a deadly fire incident.",
+          "why": "The Wang Fuk Court fire exposed vulnerabilities in building safety practices, prompting the need for immediate reforms.",
+          "how": "Emergency regulations were announced to replace bamboo scaffolding with metal scaffolding and implement additional safety measures."
+        },
+        "casualties": {
+          "deaths": "<workers.holistic_enrichment.FactBelief object at 0x7ebe2f986690>",
+          "missing": "<workers.holistic_enrichment.FactBelief object at 0x7ebe2f970690>"
+        },
+        "timeline": {
+          "start": "<workers.holistic_enrichment.FactBelief object at 0x7ebe2f9a2dd0>",
+          "milestones": [
+            {
+              "event": "upgraded to level 5",
+              "time": "2025-11-26T18:22:00",
+              "confidence": 0.9
+            }
+          ]
+        },
+        "locations": {
+          "primary": "<workers.holistic_enrichment.FactBelief object at 0x7ebe2f9a1390>",
+          "district": "<workers.holistic_enrichment.FactBelief object at 0x7ebe2f9a3350>"
+        },
+        "response": {
+          "evacuations": "<workers.holistic_enrichment.FactBelief object at 0x7ebe2f9a3390>",
+          "arrests": "<workers.holistic_enrichment.FactBelief object at 0x7ebe2f9a33d0>",
+          "firefighter_casualties": "<workers.holistic_enrichment.FactBelief object at 0x7ebe2f9a1b90>"
+        }
+      },
+      "page_ids": [
+        "test-policy-1"
+      ],
+      "page_count": 1,
+      "promotion_score": {
+        "total": 0.265,
+        "signals": {
+          "temporal_gap": 0.0,
+          "entity_divergence": 0.5,
+          "semantic_shift": 0.5,
+          "page_density": 0.2,
+          "human_weight": 0.0
+        }
+      },
+      "promotion_signals": {
+        "temporal_gap": 0.0,
+        "entity_divergence": 0.5,
+        "semantic_shift": 0.5,
+        "page_density": 0.2,
+        "human_weight": 0.0
+      },
+      "human_weight": 0.0,
+      "created_at": "2025-12-02T15:27:03.707071",
+      "updated_at": "2025-12-02T15:27:24.344845",
+      "enrichment_timeline": []
+    }
+  },
+  "artifact_count": 7,
+  "enrichment_timeline": [
+    {
+      "page_id": "5c066a02-9440-4506-b16e-4f31d878f12a",
+      "section": "response",
+      "timestamp": "2025-12-02T14:35:48.997505"
+    },
+    {
+      "page_id": "97488ed7-e97a-4532-a3a3-a5e87bf40b4e",
+      "section": "response",
+      "timestamp": "2025-12-02T14:36:12.763590"
+    },
+    {
+      "page_id": "abce2605-841b-4c81-bba9-2fb30104e929",
+      "section": "response",
+      "timestamp": "2025-12-02T14:36:37.705131"
+    },
+    {
+      "page_id": "b5f5be48-feb5-4438-8295-e40f700fee0c",
+      "section": "response",
+      "timestamp": "2025-12-02T14:36:59.507856"
+    },
+    {
+      "page_id": "0d5a3ec5-fce4-4372-835a-bacd139e69e6",
+      "section": "related_incident",
+      "timestamp": "2025-12-02T14:37:15.825194"
+    },
+    {
+      "page_id": "test-investigation-1",
+      "section": "main",
+      "timestamp": "2025-12-02T15:26:08.424292",
+      "page_time": "2025-11-29 10:30:00"
+    },
+    {
+      "page_id": "test-investigation-1",
+      "section": "response",
+      "timestamp": "2025-12-02T15:26:08.424301",
+      "page_time": "2025-11-29 10:30:00"
+    },
+    {
+      "page_id": "test-investigation-1",
+      "section": "legal_action",
+      "timestamp": "2025-12-02T15:26:08.424303",
+      "page_time": "2025-11-29 10:30:00"
+    },
+    {
+      "page_id": "test-investigation-1",
+      "section": "policy_response",
+      "timestamp": "2025-12-02T15:26:08.424305",
+      "page_time": "2025-11-29 10:30:00"
+    },
+    {
+      "page_id": "test-policy-1",
+      "section": "main",
+      "timestamp": "2025-12-02T15:27:24.836448",
+      "page_time": "2025-12-01 14:00:00"
+    },
+    {
+      "page_id": "test-policy-1",
+      "section": "response",
+      "timestamp": "2025-12-02T15:27:24.836462",
+      "page_time": "2025-12-01 14:00:00"
+    },
+    {
+      "page_id": "test-policy-1",
+      "section": "policy_response",
+      "timestamp": "2025-12-02T15:27:24.836465",
+      "page_time": "2025-12-01 14:00:00"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Section Test</title>
+</head>
+<body>
+    <h1>Section Data Test</h1>
+    <div id="output"></div>
+    <script>
+        fetch('/event_data.json')
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById('output').innerHTML = '<pre>' + JSON.stringify(data, null, 2).substring(0, 1000) + '</pre>';
+                console.log('Loaded sections:', Object.keys(data.sections));
+            })
+            .catch(e => {
+                document.getElementById('output').innerHTML = 'Error: ' + e.message;
+                console.error(e);
+            });
+    </script>
+</body>
+</html>

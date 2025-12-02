@@ -1,0 +1,418 @@
+{
+  "event_id": "hk-fire-2025",
+  "sections": {
+    "main": {
+      "name": "Main Event",
+      "semantic_type": "primary",
+      "claims": [
+        {
+          "text": "44 people killed in apartment fire",
+          "confidence": 0.95,
+          "modality": "FACT",
+          "source_id": "hk-fire-1",
+          "source_title": "Dozens killed in Hong Kong apartment fire",
+          "timestamp": "2025-12-02T15:44:07.936094"
+        },
+        {
+          "text": "Dozens more injured in apartment fire",
+          "confidence": 0.9,
+          "modality": "ESTIMATED",
+          "source_id": "hk-fire-1",
+          "source_title": "Dozens killed in Hong Kong apartment fire",
+          "timestamp": "2025-12-02T15:44:07.936110"
+        },
+        {
+          "text": "Fire broke out around 3:30 AM",
+          "confidence": 0.95,
+          "modality": "FACT",
+          "source_id": "hk-fire-1",
+          "source_title": "Dozens killed in Hong Kong apartment fire",
+          "timestamp": "2025-12-02T15:44:07.936115"
+        },
+        {
+          "text": "Fire occurred at Wang Fuk Court in Sham Shui Po district",
+          "confidence": 0.98,
+          "modality": "FACT",
+          "source_id": "hk-fire-1",
+          "source_title": "Dozens killed in Hong Kong apartment fire",
+          "timestamp": "2025-12-02T15:44:07.936119"
+        },
+        {
+          "text": "44 people died in the Wang Fuk Court fire",
+          "confidence": 0.95,
+          "modality": "FACT",
+          "source_id": "hk-fire-2",
+          "source_title": "Hong Kong fire: Death toll rises to 44 as investigators examine cause",
+          "timestamp": "2025-12-02T15:44:21.452388"
+        },
+        {
+          "text": "28 people were hospitalized with injuries",
+          "confidence": 0.95,
+          "modality": "FACT",
+          "source_id": "hk-fire-2",
+          "source_title": "Hong Kong fire: Death toll rises to 44 as investigators examine cause",
+          "timestamp": "2025-12-02T15:44:21.452397"
+        },
+        {
+          "text": "Fire occurred at Wang Fuk Court in Hong Kong",
+          "confidence": 0.98,
+          "modality": "FACT",
+          "source_id": "hk-fire-2",
+          "source_title": "Hong Kong fire: Death toll rises to 44 as investigators examine cause",
+          "timestamp": "2025-12-02T15:44:21.452399"
+        },
+        {
+          "text": "44 people killed in apartment fire",
+          "confidence": 0.95,
+          "modality": "FACT",
+          "source_id": "hk-fire-3",
+          "source_title": "Hong Kong Police Charge 3 with Manslaughter in Fatal Fire Case",
+          "timestamp": "2025-12-02T15:44:40.806040"
+        },
+        {
+          "text": "Fire occurred at Wang Fuk Court in Hong Kong",
+          "confidence": 0.98,
+          "modality": "FACT",
+          "source_id": "hk-fire-3",
+          "source_title": "Hong Kong Police Charge 3 with Manslaughter in Fatal Fire Case",
+          "timestamp": "2025-12-02T15:44:40.806050"
+        },
+        {
+          "text": "Fire occurred on November 26",
+          "confidence": 0.95,
+          "modality": "FACT",
+          "source_id": "hk-fire-3",
+          "source_title": "Hong Kong Police Charge 3 with Manslaughter in Fatal Fire Case",
+          "timestamp": "2025-12-02T15:44:40.806052"
+        },
+        {
+          "text": "Chief Executive John Lee unveiled the emergency regulations on a televised address on Monday.",
+          "confidence": 0.9,
+          "modality": "FACT",
+          "source_id": "hk-fire-4",
+          "source_title": "Hong Kong Government Bans Bamboo Scaffolding on High-Rises Following Fire",
+          "timestamp": "2025-12-02T15:44:56.380929"
+        },
+        {
+          "text": "The Wang Fuk Court fire exposed a fundamental vulnerability in building safety practices.",
+          "confidence": 0.9,
+          "modality": "FACT",
+          "source_id": "hk-fire-4",
+          "source_title": "Hong Kong Government Bans Bamboo Scaffolding on High-Rises Following Fire",
+          "timestamp": "2025-12-02T15:44:56.380940"
+        },
+        {
+          "text": "At least 128 people are now known to have died in the fire",
+          "confidence": 0.95,
+          "modality": "FACT",
+          "source_id": "aa052ee6-3e94-46c1-8f6c-e693e97b3b28",
+          "source_title": "Hong Kong fire death toll rises to 128 as officials say fire alarms not working properly",
+          "timestamp": "2025-12-02T16:13:13.660754"
+        },
+        {
+          "text": "Dozens are still missing after the fire",
+          "confidence": 0.9,
+          "modality": "FACT",
+          "source_id": "aa052ee6-3e94-46c1-8f6c-e693e97b3b28",
+          "source_title": "Hong Kong fire death toll rises to 128 as officials say fire alarms not working properly",
+          "timestamp": "2025-12-02T16:13:13.660774"
+        },
+        {
+          "text": "A fire broke out at the Wang Fuk Court apartment complex in Tai Po",
+          "confidence": 0.98,
+          "modality": "FACT",
+          "source_id": "aa052ee6-3e94-46c1-8f6c-e693e97b3b28",
+          "source_title": "Hong Kong fire death toll rises to 128 as officials say fire alarms not working properly",
+          "timestamp": "2025-12-02T16:13:13.660779"
+        },
+        {
+          "text": "The fire started at 14:51 local time on Wednesday",
+          "confidence": 0.95,
+          "modality": "FACT",
+          "source_id": "aa052ee6-3e94-46c1-8f6c-e693e97b3b28",
+          "source_title": "Hong Kong fire death toll rises to 128 as officials say fire alarms not working properly",
+          "timestamp": "2025-12-02T16:13:13.660783"
+        },
+        {
+          "text": "The fire was put out at around 10:18 local time the following morning",
+          "confidence": 0.95,
+          "modality": "FACT",
+          "source_id": "aa052ee6-3e94-46c1-8f6c-e693e97b3b28",
+          "source_title": "Hong Kong fire death toll rises to 128 as officials say fire alarms not working properly",
+          "timestamp": "2025-12-02T16:13:13.660787"
+        }
+      ],
+      "page_ids": [
+        "hk-fire-1",
+        "hk-fire-2",
+        "hk-fire-3",
+        "hk-fire-4",
+        "aa052ee6-3e94-46c1-8f6c-e693e97b3b28"
+      ],
+      "page_count": 5,
+      "created_at": "2025-12-02T15:43:59.530659",
+      "updated_at": "2025-12-02T16:13:13.660794"
+    },
+    "response": {
+      "name": "Emergency Response",
+      "semantic_type": "response",
+      "claims": [
+        {
+          "text": "Over 200 firefighters deployed to the scene",
+          "confidence": 0.9,
+          "modality": "FACT",
+          "source_id": "hk-fire-1",
+          "source_title": "Dozens killed in Hong Kong apartment fire",
+          "timestamp": "2025-12-02T15:44:07.936330"
+        },
+        {
+          "text": "40 vehicles deployed to the scene by Hong Kong Fire Services Department",
+          "confidence": 0.9,
+          "modality": "FACT",
+          "source_id": "hk-fire-1",
+          "source_title": "Dozens killed in Hong Kong apartment fire",
+          "timestamp": "2025-12-02T15:44:07.936339"
+        },
+        {
+          "text": "Firefighters battled the flames for several hours",
+          "confidence": 0.85,
+          "modality": "ALLEGED",
+          "source_id": "hk-fire-1",
+          "source_title": "Dozens killed in Hong Kong apartment fire",
+          "timestamp": "2025-12-02T15:44:07.936344"
+        }
+      ],
+      "page_ids": [
+        "hk-fire-1"
+      ],
+      "page_count": 1,
+      "created_at": "2025-12-02T15:44:07.936317",
+      "updated_at": "2025-12-02T15:44:07.936349"
+    },
+    "investigation": {
+      "name": "Investigation",
+      "semantic_type": "investigation",
+      "claims": [
+        {
+          "text": "Investigators are examining the cause of the fire",
+          "confidence": 0.9,
+          "modality": "FACT",
+          "source_id": "hk-fire-2",
+          "source_title": "Hong Kong fire: Death toll rises to 44 as investigators examine cause",
+          "timestamp": "2025-12-02T15:44:21.452536"
+        },
+        {
+          "text": "The building was undergoing renovation work at the time of the fire",
+          "confidence": 0.95,
+          "modality": "FACT",
+          "source_id": "hk-fire-2",
+          "source_title": "Hong Kong fire: Death toll rises to 44 as investigators examine cause",
+          "timestamp": "2025-12-02T15:44:21.452540"
+        },
+        {
+          "text": "Investigators are examining whether faulty wiring contributed to the fire",
+          "confidence": 0.9,
+          "modality": "ALLEGED",
+          "source_id": "hk-fire-2",
+          "source_title": "Hong Kong fire: Death toll rises to 44 as investigators examine cause",
+          "timestamp": "2025-12-02T15:44:21.452544"
+        },
+        {
+          "text": "Investigators are examining whether combustible materials in external bamboo scaffolding contributed to the fire",
+          "confidence": 0.9,
+          "modality": "ALLEGED",
+          "source_id": "hk-fire-2",
+          "source_title": "Hong Kong fire: Death toll rises to 44 as investigators examine cause",
+          "timestamp": "2025-12-02T15:44:21.452548"
+        },
+        {
+          "text": "Suspects aged 35 to 52",
+          "confidence": 0.9,
+          "modality": "FACT",
+          "source_id": "hk-fire-3",
+          "source_title": "Hong Kong Police Charge 3 with Manslaughter in Fatal Fire Case",
+          "timestamp": "2025-12-02T15:44:40.806137"
+        },
+        {
+          "text": "Suspects arrested immediately after the fire",
+          "confidence": 0.95,
+          "modality": "FACT",
+          "source_id": "hk-fire-3",
+          "source_title": "Hong Kong Police Charge 3 with Manslaughter in Fatal Fire Case",
+          "timestamp": "2025-12-02T15:44:40.806145"
+        },
+        {
+          "text": "Suspects have been in custody since the fire",
+          "confidence": 0.9,
+          "modality": "FACT",
+          "source_id": "hk-fire-3",
+          "source_title": "Hong Kong Police Charge 3 with Manslaughter in Fatal Fire Case",
+          "timestamp": "2025-12-02T15:44:40.806149"
+        },
+        {
+          "text": "Three men from a construction firm have been arrested on suspicion of manslaughter",
+          "confidence": 0.95,
+          "modality": "FACT",
+          "source_id": "aa052ee6-3e94-46c1-8f6c-e693e97b3b28",
+          "source_title": "Hong Kong fire death toll rises to 128 as officials say fire alarms not working properly",
+          "timestamp": "2025-12-02T16:13:13.660959"
+        },
+        {
+          "text": "A separate corruption investigation is under way",
+          "confidence": 0.9,
+          "modality": "FACT",
+          "source_id": "aa052ee6-3e94-46c1-8f6c-e693e97b3b28",
+          "source_title": "Hong Kong fire death toll rises to 128 as officials say fire alarms not working properly",
+          "timestamp": "2025-12-02T16:13:13.660966"
+        },
+        {
+          "text": "Authorities say an investigation will be taking place over the next few weeks",
+          "confidence": 0.9,
+          "modality": "FACT",
+          "source_id": "aa052ee6-3e94-46c1-8f6c-e693e97b3b28",
+          "source_title": "Hong Kong fire death toll rises to 128 as officials say fire alarms not working properly",
+          "timestamp": "2025-12-02T16:13:13.660970"
+        }
+      ],
+      "page_ids": [
+        "hk-fire-2",
+        "hk-fire-3",
+        "hk-fire-4",
+        "aa052ee6-3e94-46c1-8f6c-e693e97b3b28"
+      ],
+      "page_count": 4,
+      "created_at": "2025-12-02T15:44:21.452524",
+      "updated_at": "2025-12-02T16:13:13.660974"
+    },
+    "legal_action": {
+      "name": "Legal Action",
+      "semantic_type": "legal_action",
+      "claims": [
+        {
+          "text": "Three contractors charged with manslaughter",
+          "confidence": 0.95,
+          "modality": "FACT",
+          "source_id": "hk-fire-3",
+          "source_title": "Hong Kong Police Charge 3 with Manslaughter in Fatal Fire Case",
+          "timestamp": "2025-12-02T15:44:40.806382"
+        },
+        {
+          "text": "Prosecutors allege improper installation of bamboo scaffolding",
+          "confidence": 0.85,
+          "modality": "ALLEGED",
+          "source_id": "hk-fire-3",
+          "source_title": "Hong Kong Police Charge 3 with Manslaughter in Fatal Fire Case",
+          "timestamp": "2025-12-02T15:44:40.806386"
+        }
+      ],
+      "page_ids": [
+        "hk-fire-3",
+        "hk-fire-4"
+      ],
+      "page_count": 2,
+      "created_at": "2025-12-02T15:44:40.806367",
+      "updated_at": "2025-12-02T15:44:56.382366"
+    },
+    "policy_response": {
+      "name": "Policy Response",
+      "semantic_type": "policy_response",
+      "claims": [
+        {
+          "text": "Scaffolding violated building safety codes",
+          "confidence": 0.85,
+          "modality": "ALLEGED",
+          "source_id": "hk-fire-3",
+          "source_title": "Hong Kong Police Charge 3 with Manslaughter in Fatal Fire Case",
+          "timestamp": "2025-12-02T15:44:40.806530"
+        },
+        {
+          "text": "Scaffolding acted as a highway for the fire to spread",
+          "confidence": 0.8,
+          "modality": "ALLEGED",
+          "source_id": "hk-fire-3",
+          "source_title": "Hong Kong Police Charge 3 with Manslaughter in Fatal Fire Case",
+          "timestamp": "2025-12-02T15:44:40.806535"
+        },
+        {
+          "text": "The Hong Kong Government banned the use of bamboo scaffolding on high-rise buildings taller than 15 stories.",
+          "confidence": 0.95,
+          "modality": "FACT",
+          "source_id": "hk-fire-4",
+          "source_title": "Hong Kong Government Bans Bamboo Scaffolding on High-Rises Following Fire",
+          "timestamp": "2025-12-02T15:44:56.381022"
+        },
+        {
+          "text": "The new rules require metal scaffolding with fire-resistant coverings for all high-rises.",
+          "confidence": 0.95,
+          "modality": "FACT",
+          "source_id": "hk-fire-4",
+          "source_title": "Hong Kong Government Bans Bamboo Scaffolding on High-Rises Following Fire",
+          "timestamp": "2025-12-02T15:44:56.381028"
+        },
+        {
+          "text": "The new rules mandate sprinkler systems on external scaffolding.",
+          "confidence": 0.95,
+          "modality": "FACT",
+          "source_id": "hk-fire-4",
+          "source_title": "Hong Kong Government Bans Bamboo Scaffolding on High-Rises Following Fire",
+          "timestamp": "2025-12-02T15:44:56.381033"
+        },
+        {
+          "text": "Officials say that schemes will be set up to arrange financial assistance for those who have lost their homes",
+          "confidence": 0.9,
+          "modality": "FACT",
+          "source_id": "aa052ee6-3e94-46c1-8f6c-e693e97b3b28",
+          "source_title": "Hong Kong fire death toll rises to 128 as officials say fire alarms not working properly",
+          "timestamp": "2025-12-02T16:13:13.661072"
+        }
+      ],
+      "page_ids": [
+        "hk-fire-3",
+        "hk-fire-4",
+        "aa052ee6-3e94-46c1-8f6c-e693e97b3b28"
+      ],
+      "page_count": 3,
+      "created_at": "2025-12-02T15:44:40.806518",
+      "updated_at": "2025-12-02T16:13:13.661078"
+    }
+  },
+  "overview": "**EVENT OVERVIEW:**\n\nA devastating apartment fire in Hong Kong claimed the lives of 44 individuals and left dozens more injured early on November 26, 2025. The blaze erupted around 3:30 AM at Wang Fuk Court, located in the Sham Shui Po district, prompting a swift response from emergency services. Over 200 firefighters were deployed to the scene to combat the flames and assist in rescue efforts.\n\nAs the situation unfolded, authorities reported a significant number of casualties, with many residents suffering from smoke inhalation and severe burns. The fire's rapid spread raised concerns about building safety regulations and emergency preparedness in high-density residential areas. Investigations are underway to determine the cause of the fire, and local officials are expected to hold briefings to address the community's concerns and outline steps for recovery and support for the affected families.\n\nAs of November 26, 2025, it has been confirmed that 28 people were hospitalized with injuries related to the fire. Investigators are currently examining the cause of the fire, which is notable as the building was undergoing renovation work at the time of the incident. This development adds to the urgency of the investigation, as authorities seek to understand the circumstances that led to the tragedy.\n\nIn a significant development, on November 29, 2025, Hong Kong police charged three contractors with manslaughter in connection with the fatal fire. The suspects, aged between 35 and 52, were arrested immediately after the incident. This legal action underscores the ongoing investigation into the fire and highlights the accountability measures being taken in response to the tragedy.\n\nIn response to the fire and the vulnerabilities it exposed in building safety practices, the Hong Kong Government announced on December 1, 2025, a ban on the use of bamboo scaffolding on high-rise buildings taller than 15 stories. The new regulations require the use of metal scaffolding with fire-resistant coverings for all high-rises and mandate the installation of sprinkler systems on external scaffolding. Chief Executive John Lee unveiled these emergency regulations during a televised address, emphasizing the need for improved safety measures in the wake of the tragedy at Wang Fuk Court.\n\nIn a tragic update on December 2, 2025, the death toll from the fire has risen to at least 128 individuals, with dozens still reported missing. The fire, which broke out at Wang Fuk Court, started at 2:51 PM local time on November 26 and was extinguished around 10:18 AM the following morning. This alarming increase in fatalities has intensified scrutiny on the building's safety measures and the response of emergency services during the incident.",
+  "timeline": [
+    {
+      "date": "2025-11-26T04:00:00",
+      "title": "Dozens killed in Hong Kong apartment fire",
+      "description": "44 people killed in apartment fire",
+      "type": "event",
+      "severity": "critical"
+    },
+    {
+      "date": "2025-11-26T14:30:00",
+      "title": "Hong Kong fire: Death toll rises to 44 as investigators examine cause",
+      "description": "44 people died in the Wang Fuk Court fire",
+      "type": "event",
+      "severity": "critical"
+    },
+    {
+      "date": "2025-11-29T10:30:00",
+      "title": "Hong Kong Police Charge 3 with Manslaughter in Fatal Fire Case",
+      "description": "44 people killed in apartment fire",
+      "type": "development",
+      "severity": "high"
+    },
+    {
+      "date": "2025-12-01T14:00:00",
+      "title": "Hong Kong Government Bans Bamboo Scaffolding on High-Rises Following Fire",
+      "description": "Chief Executive John Lee unveiled the emergency regulations on a televised address on Monday.",
+      "type": "announcement",
+      "severity": "medium"
+    },
+    {
+      "date": "2025-12-02T14:51:00",
+      "title": "Hong Kong fire death toll rises to 128 as officials say fire alarms not working properly",
+      "description": "At least 128 people are now known to have died in the fire",
+      "type": "event",
+      "severity": "critical"
+    }
+  ],
+  "artifact_count": 5
+}

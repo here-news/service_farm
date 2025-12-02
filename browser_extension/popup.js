@@ -12,6 +12,7 @@ const completedCountEl = document.getElementById('completedCount');
 const currentTaskSection = document.getElementById('currentTaskSection');
 const currentTaskUrlEl = document.getElementById('currentTaskUrl');
 const recentTasksListEl = document.getElementById('recentTasksList');
+const extractCurrentBtn = document.getElementById('extractCurrentBtn');
 const refreshBtn = document.getElementById('refreshBtn');
 const togglePollingBtn = document.getElementById('togglePollingBtn');
 
@@ -81,10 +82,39 @@ async function updateTaskCounts() {
  * Update recent tasks list from PostgreSQL (via API)
  */
 async function updateRecentTasks() {
-  // TODO: Implement /api/v2/rogue/recent endpoint for recent tasks
-  // For now, just show a simple message
-  if (recentTasksListEl) {
-    recentTasksListEl.innerHTML = '<div style="padding: 8px; color: #999; font-size: 11px;">Recent tasks view coming soon</div>';
+  try {
+    const response = await fetch(`${SERVICE_FARM_URL}/api/v2/rogue/tasks?limit=5&recent=true`);
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const tasks = await response.json();
+
+    if (!tasks || tasks.length === 0) {
+      recentTasksListEl.innerHTML = '<div style="padding: 8px; color: #999; font-size: 11px;">No recent tasks</div>';
+      return;
+    }
+
+    // Build task list HTML
+    const html = tasks.map(task => {
+      const urlHost = new URL(task.url).hostname.replace('www.', '');
+      const apiUrl = `${SERVICE_FARM_URL}/api/v2/url/${task.page_id}`;
+
+      return `
+        <div class="task-item">
+          <div class="task-url" title="${task.url}">${urlHost}</div>
+          <a href="${apiUrl}" target="_blank" class="task-link">View</a>
+          <span class="task-status ${task.status}">${task.status}</span>
+        </div>
+      `;
+    }).join('');
+
+    recentTasksListEl.innerHTML = html;
+
+  } catch (error) {
+    console.error('Failed to get recent tasks:', error);
+    recentTasksListEl.innerHTML = '<div style="padding: 8px; color: #999; font-size: 11px;">Failed to load tasks</div>';
   }
 }
 
@@ -107,6 +137,53 @@ function formatTimeAgo(date) {
 }
 
 /**
+ * Extract metadata from current active tab
+ */
+async function extractCurrentPage() {
+  try {
+    extractCurrentBtn.disabled = true;
+    extractCurrentBtn.textContent = '⏳ Extracting...';
+
+    // Get current tab
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+    if (!tab?.url) {
+      alert('No active tab found');
+      return;
+    }
+
+    // Submit URL to service farm
+    const response = await fetch(`${SERVICE_FARM_URL}/api/v2/artifacts?url=${encodeURIComponent(tab.url)}`, {
+      method: 'POST'
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+
+    const result = await response.json();
+
+    // Show success and open result
+    alert(`✅ Submitted! Page ID: ${result.page_id}`);
+
+    // Open result in new tab
+    const apiUrl = `${SERVICE_FARM_URL}/api/v2/url/${result.page_id}`;
+    chrome.tabs.create({ url: apiUrl });
+
+    // Refresh status
+    await updateStatus();
+
+  } catch (error) {
+    console.error('Failed to extract current page:', error);
+    const errorMsg = error.message || JSON.stringify(error) || 'Unknown error';
+    alert('Failed to extract: ' + errorMsg);
+  } finally {
+    extractCurrentBtn.disabled = false;
+    extractCurrentBtn.textContent = '📄 Extract Current Page';
+  }
+}
+
+/**
  * Toggle polling on/off
  */
 async function togglePolling() {
@@ -123,6 +200,7 @@ async function togglePolling() {
 }
 
 // Event listeners
+extractCurrentBtn.addEventListener('click', extractCurrentPage);
 refreshBtn.addEventListener('click', updateStatus);
 togglePollingBtn.addEventListener('click', togglePolling);
 

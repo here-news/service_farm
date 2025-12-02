@@ -417,6 +417,24 @@
                 </div>
             </div>
         </div>
+
+        <!-- Event Trees Section -->
+        <div class="header" style="margin-top: 20px;">
+            <h2 style="color: #667eea; margin-bottom: 15px;">🌳 Event Trees</h2>
+            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                <button onclick="loadEvents()" style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px;">
+                    Load Events
+                </button>
+                <select id="eventFilter" onchange="loadEvents()" style="padding: 10px; border: 1px solid #ddd; border-radius: 6px;">
+                    <option value="">All Scales</option>
+                    <option value="micro">Micro</option>
+                    <option value="meso">Meso</option>
+                    <option value="macro">Macro</option>
+                </select>
+            </div>
+        </div>
+
+        <div id="eventsContainer"></div>
     </div>
 
     <script>
@@ -703,6 +721,272 @@
             if (confidence >= 0.5) return '#f59e0b'; // orange
             if (confidence >= 0.3) return '#ef4444'; // red
             return '#9ca3af'; // gray for very low
+        }
+
+        // Event Trees Functionality
+        async function loadEvents() {
+            const filter = document.getElementById('eventFilter').value;
+            const url = filter ? `http://localhost:8000/api/events?scale=${filter}` : `http://localhost:8000/api/events`;
+
+            try {
+                const res = await fetch(url);
+                const data = await res.json();
+
+                displayEvents(data.events);
+            } catch (err) {
+                console.error('Failed to load events:', err);
+                document.getElementById('eventsContainer').innerHTML = `
+                    <div class="panel">
+                        <div style="color: #ef4444; padding: 20px;">Failed to load events: ${err.message}</div>
+                    </div>
+                `;
+            }
+        }
+
+        function displayEvents(events) {
+            const container = document.getElementById('eventsContainer');
+
+            if (!events || events.length === 0) {
+                container.innerHTML = `
+                    <div class="panel">
+                        <div class="empty-state">
+                            <div class="empty-state-icon">🌳</div>
+                            <p>No events found</p>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+
+            const html = events.map(e => `
+                <div class="panel" style="margin-bottom: 15px; cursor: pointer;" onclick="loadEventDetail('${e.id}')">
+                    <div style="display: flex; justify-content: space-between; align-items: start;">
+                        <div style="flex: 1;">
+                            <div style="font-size: 18px; font-weight: 600; color: #333; margin-bottom: 8px;">
+                                ${getScaleIcon(e.event_scale)} ${e.title}
+                            </div>
+                            ${e.summary ? `<div style="color: #666; font-size: 14px; margin-bottom: 10px;">${e.summary}</div>` : ''}
+                            <div style="display: flex; flex-wrap: wrap; gap: 8px; font-size: 12px;">
+                                <span class="tag" style="background: ${getScaleColor(e.event_scale)}; color: white; border: none;">
+                                    ${e.event_scale.toUpperCase()}
+                                </span>
+                                <span class="tag" style="background: ${getStatusColor(e.status)}; color: white; border: none;">
+                                    ${e.status}
+                                </span>
+                                <span class="tag confidence">${Math.round(e.confidence * 100)}% confident</span>
+                                <span class="tag">${e.claims_count} claims</span>
+                                <span class="tag">${e.pages_count} sources</span>
+                                ${e.child_count > 0 ? `<span class="tag" style="background: #764ba2; color: white; border: none;">${e.child_count} sub-events</span>` : ''}
+                            </div>
+                            ${e.log_posterior ? `
+                                <div style="margin-top: 8px; font-size: 11px; color: #666;">
+                                    Bayesian: log_posterior=${e.log_posterior.toFixed(2)}, coherence=${e.coherence.toFixed(2)}
+                                </div>
+                            ` : ''}
+                        </div>
+                        <div style="font-size: 12px; color: #999; text-align: right;">
+                            ${new Date(e.updated_at).toLocaleString()}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+
+            container.innerHTML = html;
+        }
+
+        async function loadEventDetail(eventId) {
+            try {
+                const res = await fetch(`http://localhost:8000/api/events/${eventId}`);
+                const data = await res.json();
+
+                displayEventTree(data);
+            } catch (err) {
+                console.error('Failed to load event detail:', err);
+            }
+        }
+
+        function displayEventTree(data) {
+            const { event, children, parents, related, entities, claims, pages, micro_narratives } = data;
+
+            const container = document.getElementById('eventsContainer');
+
+            const html = `
+                <div class="panel" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; margin-bottom: 15px;">
+                    <div style="font-size: 24px; font-weight: 700; margin-bottom: 10px;">
+                        ${getScaleIcon(event.event_scale)} ${event.title}
+                    </div>
+                    ${event.summary ? `<div style="font-size: 14px; opacity: 0.9; margin-bottom: 15px;">${event.summary}</div>` : ''}
+                    <div style="display: flex; flex-wrap: wrap; gap: 10px; font-size: 13px;">
+                        <span style="background: rgba(255,255,255,0.2); padding: 5px 10px; border-radius: 4px;">
+                            ${event.event_scale.toUpperCase()}
+                        </span>
+                        <span style="background: rgba(255,255,255,0.2); padding: 5px 10px; border-radius: 4px;">
+                            ${event.status}
+                        </span>
+                        <span style="background: rgba(255,255,255,0.2); padding: 5px 10px; border-radius: 4px;">
+                            ${Math.round(event.confidence * 100)}% confidence
+                        </span>
+                        <span style="background: rgba(255,255,255,0.2); padding: 5px 10px; border-radius: 4px;">
+                            ${event.claims_count} claims
+                        </span>
+                        <span style="background: rgba(255,255,255,0.2); padding: 5px 10px; border-radius: 4px;">
+                            ${event.pages_count} sources
+                        </span>
+                    </div>
+                    ${event.log_posterior ? `
+                        <div style="margin-top: 15px; font-size: 12px; opacity: 0.8;">
+                            📊 Bayesian Scores: log_posterior=${event.log_posterior.toFixed(2)},
+                            log_prior=${event.log_prior.toFixed(2)},
+                            log_likelihood=${event.log_likelihood.toFixed(2)},
+                            coherence=${event.coherence.toFixed(2)}
+                        </div>
+                    ` : ''}
+                </div>
+
+                ${parents.length > 0 ? `
+                    <div class="panel">
+                        <div class="panel-title">⬆️ Parent Events</div>
+                        ${parents.map(p => `
+                            <div style="padding: 10px; background: #f8f9fa; margin: 5px 0; border-radius: 6px; cursor: pointer;" onclick="loadEventDetail('${p.id}')">
+                                ${getScaleIcon(p.event_scale)} ${p.title}
+                                <span style="font-size: 11px; color: #666; margin-left: 10px;">${p.relationship_type}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : ''}
+
+                ${children.length > 0 ? `
+                    <div class="panel">
+                        <div class="panel-title">⬇️ Sub-Events (${children.length})</div>
+                        ${children.map(c => `
+                            <div style="padding: 10px; background: #f8f9fa; margin: 5px 0; border-radius: 6px; cursor: pointer;" onclick="loadEventDetail('${c.id}')">
+                                ${getScaleIcon(c.event_scale)} ${c.title}
+                                <div style="font-size: 11px; color: #666; margin-top: 4px;">
+                                    ${c.claims_count} claims · ${c.pages_count} sources · ${Math.round(c.confidence * 100)}% confident
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : ''}
+
+                ${related.length > 0 ? `
+                    <div class="panel">
+                        <div class="panel-title">🔗 Related Events</div>
+                        ${related.map(r => `
+                            <div style="padding: 10px; background: #fff3e0; margin: 5px 0; border-radius: 6px; cursor: pointer;" onclick="loadEventDetail('${r.id}')">
+                                ${r.relationship_type}: ${r.title}
+                                <span style="font-size: 11px; color: #666; margin-left: 10px;">${Math.round(r.rel_confidence * 100)}% confidence</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : ''}
+
+                ${micro_narratives && micro_narratives.length > 0 ? `
+                    <div class="panel" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 12px; margin: 20px 0;">
+                        <div style="font-size: 18px; font-weight: 600; margin-bottom: 15px;">✨ Synthesized Micro-Narratives</div>
+                        <div style="font-size: 12px; opacity: 0.9; margin-bottom: 20px;">
+                            Corroborated descriptions from ${claims.length} claims, organized by topic
+                        </div>
+                        ${micro_narratives.map(n => `
+                            <div style="background: rgba(255,255,255,0.15); backdrop-filter: blur(10px); padding: 15px; margin: 10px 0; border-radius: 8px; border-left: 4px solid rgba(255,255,255,0.5);">
+                                <div style="font-weight: 600; font-size: 14px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;">
+                                    📖 ${n.topic.replace('_', ' ')}
+                                </div>
+                                <div style="font-size: 13px; line-height: 1.6; margin-bottom: 10px;">
+                                    ${n.description || 'No description available'}
+                                </div>
+                                <div style="display: flex; gap: 15px; flex-wrap: wrap; font-size: 11px; opacity: 0.9;">
+                                    ${n.claim_count ? `<span>📊 ${n.claim_count} claims</span>` : ''}
+                                    ${n.confidence ? `<span>✓ ${Math.round(n.confidence * 100)}% confident</span>` : ''}
+                                    ${n.who && n.who.length ? `<span>👤 ${n.who.slice(0,3).join(', ')}</span>` : ''}
+                                    ${n.where && n.where.length ? `<span>📍 ${n.where.join(', ')}</span>` : ''}
+                                </div>
+                                ${n.contradictions && n.contradictions.length > 0 ? `
+                                    <div style="margin-top: 10px; padding: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; font-size: 11px;">
+                                        ⚠️ Contradictions resolved: ${n.contradictions.join('; ')}
+                                    </div>
+                                ` : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : ''}
+
+                <div class="content-grid">
+                    <div class="panel">
+                        <div class="panel-title">👥 Entities (${entities.length})</div>
+                        <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                            ${entities.map(e => `
+                                <div class="entity">
+                                    ${e.canonical_name}
+                                    <span class="entity-type">${e.entity_type}</span>
+                                    ${e.mention_count > 1 ? `<span class="entity-mentions">${e.mention_count}</span>` : ''}
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                    <div class="panel">
+                        <div class="panel-title">📰 Sources (${pages.length})</div>
+                        ${pages.map(p => `
+                            <div style="padding: 8px; background: #f8f9fa; margin: 5px 0; border-radius: 4px; font-size: 12px;">
+                                <div style="font-weight: 600; color: #667eea; margin-bottom: 4px;">${p.title || 'Untitled'}</div>
+                                <div style="color: #666; font-size: 11px; word-break: break-all;">${p.url}</div>
+                                ${p.pub_time ? `<div style="color: #999; font-size: 10px; margin-top: 4px;">${new Date(p.pub_time).toLocaleString()}</div>` : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <div class="panel-title">💬 Claims (${claims.length})</div>
+                    ${claims.map(c => `
+                        <div class="claim">
+                            <div class="claim-text">${c.text}</div>
+                            <div class="claim-meta">
+                                ${c.confidence ? `<span class="tag confidence">${Math.round(c.confidence * 100)}%</span>` : ''}
+                                ${c.modality ? `<span class="tag modality">${c.modality}</span>` : ''}
+                                ${c.event_time ? `<span class="tag when">${new Date(c.event_time).toLocaleDateString()}</span>` : ''}
+                                ${c.entities && c.entities.length ? `<span class="tag">Entities: ${c.entities.slice(0,3).join(', ')}${c.entities.length > 3 ? '...' : ''}</span>` : ''}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+
+                <button onclick="loadEvents()" style="margin: 20px 0; padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer;">
+                    ← Back to Events List
+                </button>
+            `;
+
+            container.innerHTML = html;
+        }
+
+        function getScaleIcon(scale) {
+            const icons = {
+                'micro': '🔬',
+                'meso': '🏙️',
+                'macro': '🌍',
+                'mega': '🌌'
+            };
+            return icons[scale] || '📍';
+        }
+
+        function getScaleColor(scale) {
+            const colors = {
+                'micro': '#3b82f6',
+                'meso': '#8b5cf6',
+                'macro': '#ec4899',
+                'mega': '#ef4444'
+            };
+            return colors[scale] || '#667eea';
+        }
+
+        function getStatusColor(status) {
+            const colors = {
+                'provisional': '#f59e0b',
+                'emerging': '#3b82f6',
+                'stable': '#10b981',
+                'contested': '#ef4444'
+            };
+            return colors[status] || '#6b7280';
         }
     </script>
 </body>

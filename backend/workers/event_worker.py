@@ -17,6 +17,7 @@ import asyncio
 import json
 import logging
 import os
+import re
 import uuid
 from typing import Dict, List, Set, Optional, Tuple
 from datetime import datetime, timedelta
@@ -32,12 +33,42 @@ from workers.event_consolidation import (
     compute_log_prior, compute_log_likelihood,
     consolidate_claims, detect_event_phases
 )
+from workers.event_attachment import EventAttachmentScorer, find_best_event_match
 
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+
+def clean_event_title(title: str) -> str:
+    """
+    Clean page title to create better event title
+
+    Removes:
+    - Source indicators: "– DW –", "| CNN", "- BBC"
+    - Date patterns: "– 11/26/2025", "| Jan 15, 2024"
+    - Trailing punctuation
+    """
+    if not title:
+        return title
+
+    # Remove common source indicators
+    title = re.sub(r'\s*[–|-]\s*(DW|CNN|BBC|Reuters|AP|NYT|NYPost|Bloomberg|Guardian)\s*[–|-]\s*', ' ', title, flags=re.IGNORECASE)
+    title = re.sub(r'\s*\|\s*(DW|CNN|BBC|Reuters|AP|NYT|NYPost|Bloomberg|Guardian)\s*', ' ', title, flags=re.IGNORECASE)
+
+    # Remove date patterns like "– 11/26/2025" or "| Jan 15, 2024"
+    title = re.sub(r'\s*[–|-]\s*\d{1,2}/\d{1,2}/\d{4}\s*', ' ', title)
+    title = re.sub(r'\s*[–|-]\s*\w{3,9}\s+\d{1,2},?\s+\d{4}\s*', ' ', title)
+    title = re.sub(r'\s*\|\s*\d{1,2}/\d{1,2}/\d{4}\s*', ' ', title)
+
+    # Remove trailing separators and whitespace
+    title = re.sub(r'\s*[–|-]\s*$', '', title)
+    title = re.sub(r'\s*\|\s*$', '', title)
+    title = title.strip()
+
+    return title
 
 
 # Clustering parameters (from TODO.md)
@@ -57,6 +88,7 @@ class EventWorker:
         self.db_pool = db_pool
         self.job_queue = job_queue
         self.worker_id = worker_id
+        self.attachment_scorer = EventAttachmentScorer()
 
     async def start(self):
         """Start worker loop"""
@@ -134,33 +166,117 @@ class EventWorker:
                 await self._create_provisional_event(conn, page, claims_data)
 
     async def _find_or_create_event(self, conn: asyncpg.Connection, page: Dict, claims: List[Dict]):
-        """Find similar event using page embedding or create new one"""
-        SIMILARITY_THRESHOLD = 0.7
+        """
+        Find best matching event using multi-signal scoring or create new one
 
-        # Search for similar events
-        similar_event = await conn.fetchrow("""
-            SELECT id, title, status, confidence,
-                   1 - (embedding <=> $1::vector) as similarity
-            FROM core.events
-            WHERE embedding IS NOT NULL
-            ORDER BY embedding <=> $1::vector
-            LIMIT 1
+        Uses:
+        - Semantic similarity (embedding)
+        - Entity overlap
+        - Temporal proximity
+        - Topic coherence
+
+        Decides: attach, spawn, or create relationship
+        """
+        # Get candidate events (top-K by embedding, then multi-signal score)
+        candidates = await conn.fetch("""
+            SELECT
+                e.id, e.title, e.status, e.confidence, e.event_scale,
+                e.event_start, e.event_end, e.embedding,
+                1 - (e.embedding <=> $1::vector) as emb_similarity,
+                ARRAY_AGG(DISTINCT en.canonical_name) FILTER (WHERE en.canonical_name IS NOT NULL) as entity_names
+            FROM core.events e
+            LEFT JOIN core.event_entities ee ON e.id = ee.event_id
+            LEFT JOIN core.entities en ON ee.entity_id = en.id
+            WHERE e.embedding IS NOT NULL
+                AND e.status IN ('provisional', 'emerging', 'stable')
+            GROUP BY e.id, e.title, e.status, e.confidence, e.event_scale,
+                     e.event_start, e.event_end, e.embedding
+            ORDER BY e.embedding <=> $1::vector
+            LIMIT 10
         """, page['embedding'])
 
-        if similar_event and similar_event['similarity'] >= SIMILARITY_THRESHOLD:
-            # Attach to existing event
-            logger.info(
-                f"🔗 Attaching to event '{similar_event['title']}' "
-                f"(similarity: {similar_event['similarity']:.3f}, status: {similar_event['status']})"
-            )
-            await self._attach_to_event(conn, similar_event['id'], page, claims)
+        if not candidates:
+            logger.info("📝 No candidate events found, creating provisional event")
+            await self._create_provisional_event(conn, page, claims)
+            return
+
+        # Get page entities
+        page_entities = set()
+        for claim in claims:
+            page_entities.update(claim.get('entity_ids', []))
+
+        # Convert page_entities UUIDs to names for comparison
+        if page_entities:
+            entity_rows = await conn.fetch("""
+                SELECT canonical_name FROM core.entities WHERE id = ANY($1::uuid[])
+            """, list(page_entities))
+            page_entity_names = {row['canonical_name'] for row in entity_rows}
         else:
-            # Create new provisional event
-            sim = similar_event['similarity'] if similar_event else 0.0
-            logger.info(f"📝 Creating provisional event (best similarity: {sim:.3f})")
+            page_entity_names = set()
+
+        # Score each candidate
+        best_event = None
+        best_score = None
+        best_score_value = 0.0
+
+        for candidate in candidates:
+            candidate_dict = dict(candidate)
+            candidate_entity_names = set(candidate_dict.get('entity_names') or [])
+
+            # Score this candidate
+            score = self.attachment_scorer.score_page_to_event(
+                page_embedding=page.get('embedding'),
+                page_entities=page_entity_names,
+                page_time=page.get('pub_time'),
+                page_claims=claims,
+                event=candidate_dict,
+                event_entities=candidate_entity_names,
+                event_claims=[]  # TODO: fetch event claims if needed
+            )
+
+            logger.info(
+                f"  📊 Event '{candidate_dict['title'][:50]}...': "
+                f"score={score['total_score']:.3f} ({score['rationale']})"
+            )
+
+            if score['total_score'] > best_score_value:
+                best_score_value = score['total_score']
+                best_event = candidate_dict
+                best_score = score
+
+        # Decision based on best score
+        if not best_score:
+            logger.info("📝 No suitable matches, creating provisional event")
+            await self._create_provisional_event(conn, page, claims)
+            return
+
+        decision = best_score['decision']
+        relationship_type = best_score['relationship_type']
+
+        if decision == 'attach':
+            logger.info(
+                f"🔗 Attaching to event '{best_event['title']}' "
+                f"(score: {best_score_value:.3f}, {best_score['rationale']})"
+            )
+            await self._attach_to_event(conn, best_event['id'], page, claims)
+
+        elif decision == 'relate' and relationship_type:
+            logger.info(
+                f"🔗 Creating {relationship_type} relationship with '{best_event['title']}' "
+                f"(score: {best_score_value:.3f}, {best_score['rationale']})"
+            )
+            # Create new event and relationship
+            new_event_id = await self._create_provisional_event(conn, page, claims, return_id=True)
+            await self._create_relationship(conn, new_event_id, best_event['id'], relationship_type, best_score['confidence'])
+
+        else:  # spawn
+            logger.info(
+                f"📝 Creating new event (best match: '{best_event['title']}', "
+                f"score: {best_score_value:.3f} below threshold)"
+            )
             await self._create_provisional_event(conn, page, claims)
 
-    async def _create_provisional_event(self, conn: asyncpg.Connection, page: Dict, claims: List[Dict]):
+    async def _create_provisional_event(self, conn: asyncpg.Connection, page: Dict, claims: List[Dict], return_id: bool = False):
         """Create new provisional event from page"""
         # Extract temporal bounds
         event_times = [c['event_time'] for c in claims if c['event_time']]
@@ -171,7 +287,8 @@ class EventWorker:
             event_start = event_end = page['pub_time']
 
         # Generate title from page title (better than claim fragments)
-        title = page['title'][:100] if page.get('title') else (claims[0]['text'][:80] if claims else 'Untitled Event')
+        raw_title = page['title'] if page.get('title') else (claims[0]['text'][:80] if claims else 'Untitled Event')
+        title = clean_event_title(raw_title)[:100]
         summary = f"Provisional event created from {page['url']}"
 
         # Collect all entities
@@ -272,6 +389,39 @@ class EventWorker:
         """, page['id'], event_id)
 
         logger.info(f"✨ Created provisional event {event_id}: \"{title}\" ({len(claims)} claims, {len(all_entities)} entities)")
+
+        if return_id:
+            return event_id
+
+    async def _create_relationship(
+        self,
+        conn: asyncpg.Connection,
+        from_event_id: uuid.UUID,
+        to_event_id: uuid.UUID,
+        relationship_type: str,
+        confidence: float
+    ):
+        """Create relationship between events"""
+        await conn.execute("""
+            INSERT INTO core.event_relationships (
+                event_id, related_event_id, relationship_type, confidence, metadata
+            )
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (event_id, related_event_id, relationship_type) DO UPDATE
+            SET confidence = GREATEST(core.event_relationships.confidence, EXCLUDED.confidence),
+                updated_at = NOW()
+        """,
+            from_event_id,
+            to_event_id,
+            relationship_type,
+            confidence,
+            json.dumps({'created_by': 'multi_signal_scorer'})
+        )
+
+        logger.info(
+            f"🔗 Created {relationship_type} relationship: "
+            f"{from_event_id} → {to_event_id} (confidence: {confidence:.3f})"
+        )
 
     async def _attach_to_event(self, conn: asyncpg.Connection, event_id: uuid.UUID, page: Dict, claims: List[Dict]):
         """Attach page to existing event"""

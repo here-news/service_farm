@@ -204,50 +204,49 @@ For each claim:
 
 - WHEN: Event time with precision (exact/approximate/relative)
 
-  **CRITICAL RULE: DEFAULT TO ARTICLE PUBLICATION DATE unless there's an EXPLICIT historical date!**
+  **PRIORITY ORDER FOR TEMPORAL EXTRACTION:**
 
-  ⚠️  COMMON MISTAKE: Using historical dates mentioned in content instead of publication date!
+  1. **EXPLICIT TIME IN CLAIM TEXT** (highest priority)
+     If claim mentions specific time: "at 2:51 p.m.", "Wednesday at 14:51", "on Sept 26 at noon"
+     → Extract that EXACT date/time, combine with publication date if only time given
 
-  **Decision Tree:**
-  1. If claim has EXPLICIT year marker ("in 2023", "died in 2019", "on Sept 26, 2019")
+     Examples:
+     - "Fire broke out at 2:51 p.m." (article published 2025-11-26 09:39)
+       → WHEN = 2025-11-26 14:51 (extract the 2:51 p.m. time!)
+
+     - "Meeting scheduled for Wednesday at 3pm" (article published 2025-11-26)
+       → WHEN = 2025-11-26 15:00 (if Wednesday matches pub date)
+
+  2. **EXPLICIT HISTORICAL DATE** (second priority)
+     If claim has EXPLICIT year/date marker: "in 2023", "died in 2019", "on Sept 26, 2019"
      → Use that historical date
 
-  2. If claim describes PRESENT/RECENT action ("newly", "recently", "has asked", "ordered", "announced")
-     → Use article publication date (NOT dates mentioned in the content!)
+     Examples:
+     - "JPMorgan agreed to pay $290 million in 2023"
+       → WHEN = 2023 (explicit historical marker)
 
-  3. If claim describes past event WITHOUT explicit date
+  3. **RECENT/PRESENT ACTION** (third priority)
+     If claim describes PRESENT/RECENT action: "newly", "recently", "has asked", "ordered", "announced"
      → Use article publication date
 
-  **Examples (Article published 2025-10-31):**
+     Examples (article published 2025-10-31):
+     - "According to newly unsealed records, JPMorgan reported suspicious activity in 2019"
+       → WHEN = 2025-10-31 (records NEWLY unsealed today, NOT 2019)
 
-  ✅ CORRECT:
-  - "According to newly unsealed records, JPMorgan reported suspicious activity in 2019"
-    → WHEN = 2025-10-31 (records NEWLY unsealed today, NOT 2019)
+     - "Judge ordered the unsealing of documents"
+       → WHEN = 2025-10-31 (ordering happened recently)
 
-  - "Judge ordered the unsealing of documents"
-    → WHEN = 2025-10-31 (ordering happened recently, NOT historical)
-
-  - "Senator has asked for investigation"
-    → WHEN = 2025-10-31 (present perfect = recent action)
-
-  - "JPMorgan agreed to pay $290 million in 2023"
-    → WHEN = 2023 (EXPLICIT "in 2023" marker - historical date correct)
-
-  ❌ WRONG:
-  - "According to newly unsealed records from 2019..."
-    → WHEN = 2019 ← NO! Should be 2025-10-31 (records unsealed today)
-
-  - "Judge ordered unsealing of 2019 documents"
-    → WHEN = 2019 ← NO! Should be 2025-10-31 (2019 is document date, not claim date)
+  4. **NO TEMPORAL INFO** (fallback)
+     If claim has NO temporal markers at all
+     → Use article publication date
 
   **MODALITY-SPECIFIC GUIDANCE:**
-  • observation: When the fact/event occurred (pub_time unless explicit historical date)
-  • reported_speech: When the STATEMENT was made (pub_time unless "said in 2020")
-  • allegation: When the accusation was made (pub_time unless "accused in 2019")
-  • opinion: When opinion was expressed (pub_time unless "predicted in 2022")
+  • observation: When the fact/event occurred (extract specific time from text if available!)
+  • reported_speech: When the STATEMENT was made (usually pub_time unless "said on Tuesday at 3pm")
+  • allegation: When the accusation was made (usually pub_time unless "accused on Monday")
+  • opinion: When opinion was expressed (usually pub_time)
 
-  **Rule of thumb:** If you see "newly", "recently", "has/have [verb]", "ordered", "announced"
-  → It happened RECENTLY → Use publication date, NOT historical dates in the text!
+  **⚠️ CRITICAL: For breaking news (fires, accidents, attacks), ALWAYS extract specific times like "at 2:51 p.m." from the claim text!**
 - MODALITY: Choose ONE (4 types only):
 
   1. **observation** - Objectively verifiable fact or event

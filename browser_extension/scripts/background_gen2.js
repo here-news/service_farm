@@ -116,12 +116,14 @@ async function processTask(task) {
     });
 
     const extractionPromise = new Promise((resolve, reject) => {
-      chrome.runtime.onMessage.addListener(function listener(message, sender) {
+      chrome.runtime.onMessage.addListener(function listener(message, sender, sendResponse) {
         if (message.type === 'METADATA_EXTRACTED' && sender.tab?.id === currentTabId) {
           chrome.runtime.onMessage.removeListener(listener);
+          sendResponse({ received: true });
           resolve(message.metadata);
         } else if (message.type === 'METADATA_EXTRACTION_ERROR' && sender.tab?.id === currentTabId) {
           chrome.runtime.onMessage.removeListener(listener);
+          sendResponse({ received: true });
           reject(new Error(message.error));
         }
       });
@@ -215,6 +217,15 @@ function updateBadge(count, error = false) {
  * Handle messages from popup
  */
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  // Ignore stray metadata messages (e.g., content script running on non-task tabs)
+  if (message.type === 'METADATA_EXTRACTED' || message.type === 'METADATA_EXTRACTION_ERROR') {
+    if (!currentTabId || sender.tab?.id !== currentTabId) {
+      console.log('ℹ️  Received metadata message from unrelated tab, ignoring:', sender.tab?.id);
+      sendResponse({ ignored: true });
+      return true;
+    }
+  }
+
   if (message.type === 'GET_STATUS') {
     sendResponse({
       isPolling: pollingInterval !== null,
