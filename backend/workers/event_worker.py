@@ -63,6 +63,9 @@ def clean_event_title(title: str) -> str:
     title = re.sub(r'\s*[–|-]\s*\w{3,9}\s+\d{1,2},?\s+\d{4}\s*', ' ', title)
     title = re.sub(r'\s*\|\s*\d{1,2}/\d{1,2}/\d{4}\s*', ' ', title)
 
+    # Remove trailing numbers (partial dates like "– 11")
+    title = re.sub(r'\s*[–|-]\s*\d{1,2}\s*$', '', title)
+
     # Remove trailing separators and whitespace
     title = re.sub(r'\s*[–|-]\s*$', '', title)
     title = re.sub(r'\s*\|\s*$', '', title)
@@ -234,15 +237,31 @@ class EventWorker:
                 event_claims=[]  # TODO: fetch event claims if needed
             )
 
+            # Boost score for stable/large events (prefer consolidation into main events)
+            boosted_score = score['total_score']
+            status = candidate_dict.get('status', 'provisional')
+            pages_count = candidate_dict.get('pages_count', 1) or 1
+
+            if status == 'stable':
+                boosted_score += 0.08  # Significant boost for stable events
+            elif status == 'emerging':
+                boosted_score += 0.04  # Moderate boost for emerging
+
+            # Additional boost for events with multiple pages (log scale)
+            import math
+            if pages_count > 1:
+                boosted_score += min(0.05, math.log10(pages_count) * 0.03)
+
             logger.info(
                 f"  📊 Event '{candidate_dict['title'][:50]}...': "
-                f"score={score['total_score']:.3f} ({score['rationale']})"
+                f"raw={score['total_score']:.3f} boosted={boosted_score:.3f} "
+                f"(status={status}, pages={pages_count}) {score['rationale']}"
             )
 
-            if score['total_score'] > best_score_value:
-                best_score_value = score['total_score']
+            if boosted_score > best_score_value:
+                best_score_value = boosted_score
                 best_event = candidate_dict
-                best_score = score
+                best_score = score  # Keep original score for decision logic
 
         # Decision based on best score
         if not best_score:
@@ -260,7 +279,7 @@ class EventWorker:
             )
             await self._attach_to_event(conn, best_event['id'], page, claims)
 
-        elif decision == 'relate' and relationship_type:
+        elif decision == 'relate':
             logger.info(
                 f"🔗 Creating {relationship_type} relationship with '{best_event['title']}' "
                 f"(score: {best_score_value:.3f}, {best_score['rationale']})"
@@ -390,6 +409,14 @@ class EventWorker:
 
         logger.info(f"✨ Created provisional event {event_id}: \"{title}\" ({len(claims)} claims, {len(all_entities)} entities)")
 
+        # Trigger enrichment if event has sufficient claims
+        if len(claims) >= 3:
+            await self.job_queue.enqueue('enrichment_queue', {
+                'event_id': str(event_id),
+                'trigger': 'provisional_created'
+            })
+            logger.info(f"🎨 Enqueued enrichment for event {event_id}")
+
         if return_id:
             return event_id
 
@@ -479,8 +506,8 @@ class EventWorker:
             enriched_json = {}
         enriched_json['scale'] = {'type': scale_type, 'rationale': scale_rationale}
 
-        # Update event
-        await conn.execute("""
+        # Update event and capture new status
+        new_status = await conn.fetchval("""
             UPDATE core.events
             SET claims_count = claims_count + $2,
                 pages_count = (SELECT COUNT(DISTINCT page_id) FROM core.page_events WHERE event_id = $1),
@@ -493,12 +520,23 @@ class EventWorker:
                 enriched_json = $3,
                 updated_at = NOW()
             WHERE id = $1
+            RETURNING status
         """, event_id, len(claims), json.dumps(enriched_json))
 
         # Consolidate all claims for this event
         await self._consolidate_event(conn, event_id)
 
-        logger.info(f"📎 Attached {len(claims)} claims to event {event_id} (scale: {scale_type})")
+        logger.info(f"📎 Attached {len(claims)} claims to event {event_id} (scale: {scale_type}, status: {new_status})")
+
+        # Trigger enrichment when event becomes multi-source or reaches stable status
+        if new_status in ('emerging', 'stable') and event_stats['total_pages'] >= 2:
+            await self.job_queue.enqueue('enrichment_queue', {
+                'event_id': str(event_id),
+                'trigger': f'status_transition_{new_status}',
+                'pages_count': event_stats['total_pages'],
+                'claims_count': total_claims
+            })
+            logger.info(f"🎨 Enqueued enrichment for event {event_id} (status: {new_status})")
 
     async def _consolidate_event(self, conn: asyncpg.Connection, event_id: uuid.UUID):
         """
