@@ -187,13 +187,18 @@ For each claim:
 
   CRITICAL: Don't extract just the CONTENT of quotes - include WHO said it in the TEXT field!
 
-- WHO: SPECIFIC named people/organizations (PERSON:/ORG: prefix) - required
+- WHO: SPECIFIC named people/organizations (PERSON:/ORG: prefix) - ONLY if article provides specific names
   ⚠️  Use FULL SPECIFIC names, NOT generic terms!
-  ✅ CORRECT: "ORG:Israel Defense Forces", "ORG:U.S. Department of Defense", "PERSON:John Smith"
-  ❌ WRONG: "ORG:Military", "ORG:Government", "ORG:Officials", "ORG:Police", "ORG:Army"
+  ✅ CORRECT: "ORG:Israel Defense Forces", "ORG:Fire Services Department", "PERSON:John Lee Ka-chiu"
+  ❌ WRONG: "ORG:Military", "ORG:Government", "ORG:Officials", "ORG:Police", "ORG:Authorities", "ORG:Firefighters"
 
-  **If you see generic reference like "the military" or "officials", resolve to specific entity from context**
-  Example: "The military confirmed..." in Israeli article → "ORG:Israel Defense Forces"
+  **CRITICAL RULE: If article only says generic terms like "authorities", "officials", "police", "firefighters" WITHOUT naming the specific organization, LEAVE WHO EMPTY or use ONLY the named person if given**
+
+  Examples:
+  ✅ "Authorities said..." + article mentions "Hong Kong Fire Services Department" → "ORG:Hong Kong Fire Services Department"
+  ✅ "Fire chief John Lee said..." → "PERSON:John Lee"
+  ❌ "Officials confirmed..." + no org name in article → WHO = [] (empty, don't extract!)
+  ❌ "The BBC reported..." → WHO = [] (news orgs are sources, not event participants)
 
 - WHERE: Specific places at ALL granularities (GPE:/LOCATION: prefix)
   ⚠️  Extract ALL location levels: buildings, streets, venues, neighborhoods, cities, regions, countries
@@ -499,6 +504,42 @@ Only include claims passing ALL 6 criteria above. Use notes_unsupported for inte
         else:
             return False, f"Confidence too low: {', '.join(failed_checks)}"
 
+    def _is_proper_noun(self, text: str) -> bool:
+        """
+        Check if text is likely a proper noun using linguistic features.
+
+        Proper nouns (accept):
+        - Multiple words with capitals: "Hong Kong Fire Services Department"
+        - Single word with capital and multiple syllables: "Beijing", "Microsoft"
+
+        Common nouns/generic terms (reject):
+        - Lowercase words
+        - Single short words without capitals
+        - Words that are all uppercase (likely abbreviations without context)
+        """
+        words = text.split()
+
+        # At least one word should start with capital
+        has_capital = any(w[0].isupper() for w in words if w)
+        if not has_capital:
+            return False
+
+        # Multi-word names are generally good (Hong Kong, Fire Services Department)
+        if len(words) >= 2:
+            return True
+
+        # Single word: check it's substantial (not "Ng", "Wu", "Li")
+        if len(words) == 1:
+            # Need at least 3 characters for single-word entities
+            if len(text) < 3:
+                return False
+            # All caps without context is suspicious (BBC, CNN as participants)
+            if text.isupper() and len(text) <= 4:
+                return False
+            return True
+
+        return False
+
     def _extract_entities_from_claims(self, claims: List[Dict[str, Any]]) -> Dict[str, List[str]]:
         """Extract and categorize entities from claims"""
         entities = {
@@ -512,17 +553,24 @@ Only include claims passing ALL 6 criteria above. Use notes_unsupported for inte
             if not isinstance(claim, dict):
                 continue
 
-            # Extract from WHO field
+            # Extract from WHO field with linguistic validation
             for who in claim.get('who', []):
                 if who.startswith('PERSON:'):
-                    entities['people'].add(who[7:])
+                    name = who[7:].strip()
+                    if self._is_proper_noun(name):
+                        entities['people'].add(name)
                 elif who.startswith('ORG:'):
-                    entities['organizations'].add(who[4:])
+                    name = who[4:].strip()
+                    if self._is_proper_noun(name):
+                        entities['organizations'].add(name)
 
-            # Extract from WHERE field
+            # Extract from WHERE field with validation
             for where in claim.get('where', []):
                 location = where.split(':', 1)[-1] if ':' in where else where
-                entities['locations'].add(location.strip())
+                location = location.strip()
+                # Locations need to be specific named places
+                if self._is_proper_noun(location):
+                    entities['locations'].add(location)
 
             # Extract from WHEN field
             when_info = claim.get('when', {})

@@ -275,6 +275,7 @@ services:
       POSTGRES_USER: herenews_user
       POSTGRES_PASSWORD: herenews_pass
       REDIS_URL: redis://redis:6379
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
       WORKER_NAME: enrichment-1
     volumes:
       - ./backend:/app
@@ -307,6 +308,30 @@ services:
       redis:
         condition: service_healthy
     command: python run_entity_merge_worker.py
+
+  # Event Consolidation Worker (1 instance - periodic Bayesian re-evaluation)
+  worker-event-consolidation:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: herenews-worker-event-consolidation
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: herenews
+      POSTGRES_USER: herenews_user
+      POSTGRES_PASSWORD: herenews_pass
+      REDIS_URL: redis://redis:6379
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      WORKER_ID: "1"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: python run_event_consolidation_worker.py
 
 volumes:
   pg_data:

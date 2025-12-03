@@ -122,18 +122,139 @@ class EnrichmentWorker:
                         **synthesis
                     })
 
+            # Synthesize canonical event title
+            canonical_title = await self._synthesize_event_title(conn, event_id, claims)
+
             # Store syntheses in enriched_json
             enriched = json.loads(event['enriched_json']) if event['enriched_json'] else {}
             enriched['micro_narratives'] = syntheses
             enriched['enrichment_timestamp'] = datetime.utcnow().isoformat()
+            if canonical_title:
+                enriched['canonical_title'] = canonical_title
 
-            await conn.execute("""
-                UPDATE core.events
-                SET enriched_json = $2
-                WHERE id = $1
-            """, event_id, json.dumps(enriched))
+            # Update event with canonical title and enriched_json
+            if canonical_title:
+                await conn.execute("""
+                    UPDATE core.events
+                    SET title = $2, enriched_json = $3
+                    WHERE id = $1
+                """, event_id, canonical_title, json.dumps(enriched))
+                logger.info(f"✅ Updated title to: {canonical_title}")
+            else:
+                await conn.execute("""
+                    UPDATE core.events
+                    SET enriched_json = $2
+                    WHERE id = $1
+                """, event_id, json.dumps(enriched))
 
             logger.info(f"✅ Enriched event with {len(syntheses)} micro-narratives")
+
+    async def _synthesize_event_title(self, conn: asyncpg.Connection, event_id: str, claims: List[Dict]) -> str:
+        """
+        Synthesize a canonical event title from all pages and claims
+
+        Format: "YYYY Location Event Type" (e.g., "2025 Hong Kong Tai Po Residential Fire")
+        Not: article headlines like "Death toll rises as blaze engulfs high-rise"
+        """
+        # Get all page titles for this event
+        pages = await conn.fetch("""
+            SELECT p.title, p.url
+            FROM core.pages p
+            JOIN core.page_events pe ON p.id = pe.page_id
+            WHERE pe.event_id = $1
+            LIMIT 15
+        """, event_id)
+
+        if not pages:
+            return None
+
+        # Get key entities (locations, orgs, people)
+        entities = await conn.fetch("""
+            SELECT e.canonical_name, e.entity_type, COUNT(*) as mentions
+            FROM core.entities e
+            JOIN core.event_entities ee ON e.id = ee.entity_id
+            WHERE ee.event_id = $1
+            GROUP BY e.canonical_name, e.entity_type
+            ORDER BY mentions DESC
+            LIMIT 10
+        """, event_id)
+
+        # Prepare context for LLM
+        page_titles = "\n".join([f"- {p['title']}" for p in pages])
+
+        entity_list = []
+        for e in entities:
+            entity_list.append(f"- {e['canonical_name']} ({e['entity_type']}, {e['mentions']} mentions)")
+        entities_text = "\n".join(entity_list)
+
+        # Get sample claims for context
+        sample_claims = "\n".join([f"- {c['text'][:100]}" for c in claims[:10]])
+
+        # Get event date
+        event_date = claims[0]['event_time'] if claims and claims[0].get('event_time') else None
+        date_str = event_date.strftime("%Y") if event_date else "Recent"
+
+        prompt = f"""Synthesize a canonical event title from multiple news articles about the same incident.
+
+ARTICLE HEADLINES ({len(pages)} sources):
+{page_titles}
+
+KEY ENTITIES:
+{entities_text}
+
+SAMPLE CLAIMS:
+{sample_claims}
+
+Create a canonical event name following this format:
+"{date_str} [Location] [Event Type]"
+
+Examples of GOOD canonical titles:
+- "2025 Hong Kong Tai Po Residential Fire"
+- "2024 Baltimore Bridge Collapse"
+- "2023 Turkey-Syria Earthquake"
+- "2025 Los Angeles Wildfire"
+
+Examples of BAD titles (these are article headlines, NOT event names):
+- "Death toll rises as blaze engulfs high-rise"
+- "Survivors asking how it was allowed to happen"
+- "Fire kills dozens in apartment complex"
+
+Requirements:
+1. Start with year if known
+2. Include primary location (city/district level, not just country)
+3. End with event type (Fire, Earthquake, Shooting, Explosion, etc.)
+4. Keep it under 8 words
+5. Use proper nouns, not generic terms
+6. Make it timeless (not "breaking" or "toll rises")
+
+Return ONLY the canonical title, nothing else."""
+
+        try:
+            response = await self.openai_client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "You are an expert at naming historical events. Return only the canonical event title."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.2,
+                max_tokens=50
+            )
+
+            title = response.choices[0].message.content.strip()
+
+            # Remove quotes if present
+            title = title.strip('"').strip("'")
+
+            # Validate length
+            if len(title) > 100:
+                title = title[:100]
+
+            logger.info(f"📝 Synthesized title: '{title}'")
+            return title
+
+        except Exception as e:
+            logger.error(f"❌ Title synthesis error: {e}")
+            return None
 
     async def _cluster_claims(self, claims: List[Dict]) -> List[List[Dict]]:
         """

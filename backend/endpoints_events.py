@@ -46,11 +46,12 @@ async def list_events(
             e.id, e.title, e.summary, e.event_scale, e.status,
             e.confidence, e.claims_count, e.pages_count,
             e.event_start, e.event_end, e.created_at, e.updated_at,
-            e.log_posterior, e.coherence,
+            e.log_posterior, e.coherence, e.enriched_json,
             COUNT(DISTINCT rel.related_event_id) FILTER (WHERE rel.relationship_type = 'PART_OF') as child_count
         FROM core.events e
         LEFT JOIN core.event_relationships rel ON e.id = rel.related_event_id AND rel.relationship_type = 'PART_OF'
-        WHERE 1=1
+        WHERE e.status != 'archived'
+          AND e.pages_count > 0
     """
     params = []
     param_idx = 1
@@ -78,9 +79,21 @@ async def list_events(
     async with pool.acquire() as conn:
         rows = await conn.fetch(query, *params)
 
+    # Parse enriched_json for each event
+    import json
+    events = []
+    for row in rows:
+        event = dict(row)
+        if event.get('enriched_json'):
+            try:
+                event['enriched_json'] = json.loads(event['enriched_json']) if isinstance(event['enriched_json'], str) else event['enriched_json']
+            except:
+                pass
+        events.append(event)
+
     return {
-        'events': [dict(row) for row in rows],
-        'total': len(rows)
+        'events': events,
+        'total': len(events)
     }
 
 
@@ -163,6 +176,8 @@ async def get_event_tree(event_id: str):
         """, event_uuid)
 
         # Get entities with Wikidata info
+        # Quality filter: Prefer entities with Wikidata QIDs (validated by Wikipedia)
+        # OR entities mentioned multiple times (cross-page corroboration)
         entities = await conn.fetch("""
             SELECT
                 e.id, e.canonical_name, e.entity_type,
@@ -173,7 +188,8 @@ async def get_event_tree(event_id: str):
             FROM core.entities e
             JOIN core.event_entities ee ON e.id = ee.entity_id
             WHERE ee.event_id = $1
-            ORDER BY e.mention_count DESC, e.canonical_name
+              AND (e.wikidata_qid IS NOT NULL OR e.mention_count >= 2)
+            ORDER BY e.wikidata_qid IS NOT NULL DESC, e.mention_count DESC, e.canonical_name
         """, event_uuid)
 
         # Get claims
@@ -203,12 +219,16 @@ async def get_event_tree(event_id: str):
             ORDER BY p.pub_time DESC NULLS LAST
         """, event_uuid)
 
-    # Extract micro-narratives from enriched_json if available
+    # Parse enriched_json for frontend
+    import json
+    enriched = None
     micro_narratives = []
+
     if event_dict.get('enriched_json'):
-        import json
         enriched = json.loads(event_dict['enriched_json']) if isinstance(event_dict['enriched_json'], str) else event_dict['enriched_json']
         micro_narratives = enriched.get('micro_narratives', [])
+        # Replace string with parsed object for frontend
+        event_dict['enriched_json'] = enriched
 
     return {
         'event': event_dict,

@@ -18,6 +18,7 @@ from typing import List, Dict, Set, Tuple
 from datetime import datetime, timedelta
 
 import asyncpg
+from openai import AsyncOpenAI
 
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -42,6 +43,10 @@ class EventConsolidationWorker:
         self.job_queue = job_queue
         self.worker_id = worker_id
         self.scorer = EventAttachmentScorer()
+
+        # Initialize OpenAI client for title synthesis (can be None if no API key)
+        api_key = os.getenv("OPENAI_API_KEY")
+        self.openai_client = AsyncOpenAI(api_key=api_key) if api_key else None
 
     async def start(self):
         """Start periodic consolidation loop"""
@@ -239,19 +244,38 @@ class EventConsolidationWorker:
                 WHERE event_id = $1
             """, source)
 
-            # Update target event counts and confidence
-            await conn.execute("""
-                UPDATE core.events
-                SET
-                    pages_count = (SELECT COUNT(DISTINCT page_id) FROM core.page_events WHERE event_id = $1),
-                    claims_count = (SELECT COUNT(DISTINCT c.id)
-                                    FROM core.claims c
-                                    JOIN core.page_events pe ON c.page_id = pe.page_id
-                                    WHERE pe.event_id = $1),
-                    confidence = LEAST(confidence + 0.15, 0.95),
-                    updated_at = NOW()
-                WHERE id = $1
-            """, target)
+            # Synthesize canonical event title after merge
+            new_title = await self._synthesize_event_title(conn, target)
+
+            # Update target event counts, confidence, and title
+            if new_title:
+                await conn.execute("""
+                    UPDATE core.events
+                    SET
+                        title = $2,
+                        pages_count = (SELECT COUNT(DISTINCT page_id) FROM core.page_events WHERE event_id = $1),
+                        claims_count = (SELECT COUNT(DISTINCT c.id)
+                                        FROM core.claims c
+                                        JOIN core.page_events pe ON c.page_id = pe.page_id
+                                        WHERE pe.event_id = $1),
+                        confidence = LEAST(confidence + 0.15, 0.95),
+                        updated_at = NOW()
+                    WHERE id = $1
+                """, target, new_title)
+                logger.info(f"📝 Updated title to: '{new_title}'")
+            else:
+                await conn.execute("""
+                    UPDATE core.events
+                    SET
+                        pages_count = (SELECT COUNT(DISTINCT page_id) FROM core.page_events WHERE event_id = $1),
+                        claims_count = (SELECT COUNT(DISTINCT c.id)
+                                        FROM core.claims c
+                                        JOIN core.page_events pe ON c.page_id = pe.page_id
+                                        WHERE pe.event_id = $1),
+                        confidence = LEAST(confidence + 0.15, 0.95),
+                        updated_at = NOW()
+                    WHERE id = $1
+                """, target)
 
             # Archive source event
             await conn.execute("""
@@ -260,6 +284,81 @@ class EventConsolidationWorker:
                     updated_at = NOW()
                 WHERE id = $1
             """, source)
+
+    async def _synthesize_event_title(self, conn: asyncpg.Connection, event_id: uuid.UUID) -> str:
+        """
+        Synthesize canonical event title from all pages
+
+        Format: "YYYY Location Event Type" (e.g., "2025 Hong Kong Tai Po Fire")
+        Not: article headlines like "Death toll rises..."
+        """
+        # Get all page titles
+        pages = await conn.fetch("""
+            SELECT p.title
+            FROM core.pages p
+            JOIN core.page_events pe ON p.id = pe.page_id
+            WHERE pe.event_id = $1
+            LIMIT 15
+        """, event_id)
+
+        if len(pages) < 2 or not self.openai_client:
+            return None  # Don't synthesize for single-page events or if no API key
+
+        # Get key entities (especially locations)
+        entities = await conn.fetch("""
+            SELECT e.canonical_name, e.entity_type
+            FROM core.entities e
+            JOIN core.event_entities ee ON e.id = ee.entity_id
+            WHERE ee.event_id = $1
+            ORDER BY e.mention_count DESC NULLS LAST
+            LIMIT 8
+        """, event_id)
+
+        # Get event time for year
+        event = await conn.fetchrow("""
+            SELECT event_start FROM core.events WHERE id = $1
+        """, event_id)
+
+        page_titles = "\n".join([f"- {p['title']}" for p in pages])
+        entities_text = "\n".join([f"- {e['canonical_name']} ({e['entity_type']})" for e in entities])
+        year = event['event_start'].strftime("%Y") if event and event['event_start'] else "2025"
+
+        prompt = f"""Create a canonical event name from these news headlines about the same incident:
+
+HEADLINES ({len(pages)} sources):
+{page_titles}
+
+KEY ENTITIES:
+{entities_text}
+
+Format: "{year} [Location] [Event Type]"
+
+Examples:
+✅ "2025 Hong Kong Tai Po Residential Fire"
+✅ "2024 Baltimore Bridge Collapse"
+❌ "Death toll rises as blaze engulfs high-rise"
+
+Requirements:
+1. Start with year
+2. Include specific location (city/district, not just country)
+3. End with event type (Fire, Explosion, etc.)
+4. Keep under 8 words
+5. Make it timeless (no "breaking", "toll rises", etc.)
+
+Return ONLY the canonical title."""
+
+        try:
+            response = await self.openai_client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.2,
+                max_tokens=30
+            )
+            title = response.choices[0].message.content.strip().strip('"').strip("'")
+            return title[:100] if title else None
+        except Exception as e:
+            logger.error(f"❌ Title synthesis error: {e}")
+            return None
 
     async def _update_event_status(self, conn: asyncpg.Connection):
         """
