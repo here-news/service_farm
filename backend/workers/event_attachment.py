@@ -35,9 +35,9 @@ class EventAttachmentScorer:
             'topic': 0.15
         }
 
-        # Thresholds
-        self.attach_threshold = 0.65  # Combined score to attach
-        self.relationship_threshold = 0.45  # Create relationship instead
+        # Thresholds (empirically tuned for real-world event coverage)
+        self.attach_threshold = 0.40  # Combined score to attach
+        self.relationship_threshold = 0.28  # Create relationship instead
 
     def score_page_to_event(
         self,
@@ -92,6 +92,9 @@ class EventAttachmentScorer:
             confidence = total_score
         elif total_score >= self.relationship_threshold or relationship_type:
             decision = 'relate'
+            # Use detected type or default to RELATED_TO
+            if not relationship_type:
+                relationship_type = 'RELATED_TO'
             attachment_level = None
             confidence = total_score * 0.8
         else:
@@ -258,13 +261,22 @@ class EventAttachmentScorer:
         if any(re.search(pattern, combined_text) for pattern in comparison_patterns):
             return 'SIMILAR_TO'
 
-        # Phase/temporal progression
+        # Phase/temporal progression and responses
         phase_patterns = [
             r'following', r'after', r'subsequently', r'then', r'next',
-            r'in the wake of', r'aftermath'
+            r'in the wake of', r'aftermath', r'response to', r'in response',
+            r'reacting to', r'regarding', r'about the', r'concerning'
         ]
         if any(re.search(pattern, combined_text) for pattern in phase_patterns):
             return 'PHASE_OF'
+
+        # Condolence/sympathy messages
+        condolence_patterns = [
+            r'condolences?', r'sympathy', r'saddened', r'heartfelt',
+            r'thoughts (?:are|and prayers)', r'prayers?', r'mourn'
+        ]
+        if any(re.search(pattern, combined_text) for pattern in condolence_patterns):
+            return 'RESPONSE_TO'
 
         # Investigation/explanation (EXTENDS)
         extends_patterns = [
