@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gen2 Processing Pipeline</title>
+    <title>HereNews - Event Intelligence</title>
     <style>
         * {
             margin: 0;
@@ -12,981 +12,401 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
-
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #0a0a0a;
+            color: #e0e0e0;
+            line-height: 1.6;
         }
 
         .header {
-            background: white;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 40px 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            color: #fff;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .submit-section {
+            background: rgba(26, 26, 26, 0.95);
             padding: 30px;
             border-radius: 12px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-            margin-bottom: 20px;
+            margin-bottom: 30px;
+            border: 1px solid rgba(102, 126, 234, 0.3);
         }
 
-        h1 {
+        .submit-section h2 {
             color: #667eea;
-            margin-bottom: 10px;
-            font-size: 28px;
+            margin-bottom: 15px;
+            font-size: 1.5rem;
         }
 
-        .subtitle {
-            color: #666;
-            font-size: 14px;
-            margin-bottom: 20px;
-        }
-
-        .input-section {
+        .submit-form {
             display: flex;
             gap: 10px;
         }
 
-        input {
+        .submit-form input {
             flex: 1;
-            padding: 12px 16px;
-            border: 2px solid #e0e0e0;
+            padding: 15px;
+            background: rgba(102, 126, 234, 0.1);
+            border: 1px solid rgba(102, 126, 234, 0.3);
             border-radius: 8px;
-            font-size: 14px;
-            transition: all 0.2s;
+            color: #fff;
+            font-size: 1rem;
         }
 
-        input:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-
-        button {
-            background: #667eea;
-            color: white;
+        .submit-form button {
+            padding: 15px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             border: none;
-            padding: 12px 32px;
             border-radius: 8px;
+            color: #fff;
+            font-weight: 600;
             cursor: pointer;
-            font-size: 14px;
-            font-weight: 600;
-            transition: all 0.2s;
+            transition: transform 0.2s;
         }
 
-        button:hover {
-            background: #5568d3;
-        }
-
-        button:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        /* Pipeline Stages */
-        .pipeline {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-
-        .stage {
-            background: white;
-            padding: 20px;
-            border-radius: 12px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-            text-align: center;
-            transition: all 0.3s;
-        }
-
-        .stage-title {
-            font-size: 12px;
-            font-weight: 600;
-            color: #999;
-            text-transform: uppercase;
-            margin-bottom: 12px;
-            letter-spacing: 0.5px;
-        }
-
-        .stage-status {
-            font-size: 32px;
-            margin-bottom: 10px;
-        }
-
-        .stage-data {
-            font-size: 13px;
-            color: #666;
-            line-height: 1.6;
-        }
-
-        .stage.pending {
-            opacity: 0.6;
-        }
-
-        .stage.active {
-            border: 3px solid #667eea;
-            background: #f0f4ff;
+        .submit-form button:hover {
             transform: scale(1.05);
         }
 
-        .stage.done {
-            border: 3px solid #4caf50;
-        }
-
-        .stage.failed {
-            border: 3px solid #f44336;
-            background: #ffebee;
-        }
-
-        /* Content Grid */
-        .content-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
+        .filters {
+            display: flex;
+            gap: 10px;
             margin-bottom: 20px;
+            flex-wrap: wrap;
         }
 
-        .panel {
-            background: white;
+        .filter-btn {
+            padding: 10px 20px;
+            background: rgba(102, 126, 234, 0.1);
+            border: 1px solid rgba(102, 126, 234, 0.3);
+            border-radius: 8px;
+            color: #667eea;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .filter-btn:hover, .filter-btn.active {
+            background: rgba(102, 126, 234, 0.3);
+            border-color: #667eea;
+        }
+
+        .events-section h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 1.8rem;
+        }
+
+        .events-grid {
+            display: grid;
+            gap: 20px;
+        }
+
+        .event-card {
+            background: rgba(26, 26, 26, 0.95);
             padding: 25px;
             border-radius: 12px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-        }
-
-        .panel-title {
-            font-size: 18px;
-            font-weight: 600;
-            margin-bottom: 20px;
-            color: #333;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .metadata {
-            font-size: 13px;
-            line-height: 2;
-            color: #666;
-        }
-
-        .metadata strong {
-            color: #333;
-            display: inline-block;
-            min-width: 100px;
-        }
-
-        /* Entities */
-        .entity {
-            display: inline-block;
-            background: #f0f4ff;
-            color: #667eea;
-            padding: 6px 12px;
-            margin: 4px;
-            border-radius: 6px;
-            font-size: 13px;
-            font-weight: 500;
+            border: 1px solid rgba(102, 126, 234, 0.2);
             cursor: pointer;
-            position: relative;
-            transition: all 0.2s;
-        }
-
-        .entity:hover {
-            background: #667eea;
-            color: white;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
-        }
-
-        .entity.central {
-            border: 2px solid #667eea;
-            font-weight: 600;
-        }
-
-        .entity-type {
-            font-size: 10px;
-            background: rgba(102, 126, 234, 0.3);
-            padding: 2px 5px;
-            border-radius: 3px;
-            margin-left: 5px;
-            text-transform: uppercase;
-        }
-
-        .entity-mentions {
-            font-size: 10px;
-            background: #4caf50;
-            color: white;
-            padding: 2px 5px;
-            border-radius: 50%;
-            margin-left: 5px;
-            font-weight: 600;
-        }
-
-        .entity-tooltip {
-            position: absolute;
-            bottom: 100%;
-            left: 50%;
-            transform: translateX(-50%);
-            background: #333;
-            color: white;
-            padding: 10px;
-            border-radius: 6px;
-            font-size: 12px;
-            white-space: normal;
-            width: 300px;
-            z-index: 1000;
-            margin-bottom: 8px;
-            display: none;
-            line-height: 1.4;
-        }
-
-        .entity:hover .entity-tooltip {
+            transition: all 0.3s;
+            text-decoration: none;
+            color: inherit;
             display: block;
         }
 
-        .entity-tooltip::after {
-            content: '';
-            position: absolute;
-            top: 100%;
-            left: 50%;
-            transform: translateX(-50%);
-            border: 6px solid transparent;
-            border-top-color: #333;
+        .event-card:hover {
+            border-color: #667eea;
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(102, 126, 234, 0.3);
         }
 
-        /* Claims */
-        .claim {
-            background: #f8f9fa;
-            border-left: 4px solid #667eea;
-            padding: 15px;
-            margin: 10px 0;
-            border-radius: 6px;
-            font-size: 14px;
-            line-height: 1.6;
-        }
-
-        .claim-text {
-            margin-bottom: 10px;
-            color: #333;
-        }
-
-        .claim-meta {
+        .event-header {
             display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 15px;
+        }
+
+        .event-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 8px;
+        }
+
+        .status {
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.7rem;
+        }
+
+        .status.stable { background: #10b981; color: #fff; }
+        .status.emerging { background: #f59e0b; color: #fff; }
+        .status.provisional { background: #6b7280; color: #fff; }
+
+        .event-meta {
+            display: flex;
+            gap: 20px;
             flex-wrap: wrap;
+            font-size: 0.9rem;
+            color: #888;
+            margin-bottom: 12px;
+        }
+
+        .event-meta span {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .event-summary {
+            color: #b0b0b0;
+            font-size: 0.95rem;
+            line-height: 1.5;
+            margin-bottom: 15px;
+        }
+
+        .event-tags {
+            display: flex;
             gap: 8px;
-            font-size: 11px;
+            flex-wrap: wrap;
         }
 
         .tag {
-            background: white;
-            border: 1px solid #e0e0e0;
-            padding: 3px 8px;
+            background: rgba(102, 126, 234, 0.2);
+            padding: 4px 10px;
             border-radius: 4px;
-            font-weight: 500;
+            font-size: 0.8rem;
+            color: #667eea;
         }
 
-        .tag.confidence {
-            background: #e8f5e9;
-            border-color: #81c784;
-            color: #2e7d32;
-        }
-
-        .tag.modality {
-            background: #fff3e0;
-            border-color: #ffb74d;
-            color: #e65100;
-        }
-
-        .tag.who {
-            background: #e3f2fd;
-            border-color: #64b5f6;
-            color: #1565c0;
-        }
-
-        .tag.where {
-            background: #fff3e0;
-            border-color: #ffb74d;
-            color: #e65100;
-        }
-
-        .tag.when {
-            background: #e8f5e9;
-            border-color: #81c784;
-            color: #2e7d32;
+        .loading {
+            text-align: center;
+            padding: 60px;
+            color: #888;
+            font-size: 1.2rem;
         }
 
         .empty-state {
             text-align: center;
-            padding: 40px;
-            color: #999;
+            padding: 60px;
+            color: #888;
         }
 
-        .empty-state-icon {
-            font-size: 48px;
-            margin-bottom: 15px;
-        }
-
-        .error {
-            background: #ffebee;
-            color: #c62828;
-            padding: 15px;
-            border-radius: 8px;
-            margin: 15px 0;
-            border-left: 4px solid #f44336;
-        }
-
-        @media (max-width: 900px) {
-            .content-grid {
-                grid-template-columns: 1fr;
-            }
+        .empty-state h3 {
+            color: #667eea;
+            font-size: 1.5rem;
+            margin-bottom: 10px;
         }
     </style>
 </head>
 <body>
+    <div class="header">
+        <h1>HereNews</h1>
+        <p>Event Intelligence Platform</p>
+    </div>
+
     <div class="container">
-        <div class="header">
-            <h1>🧠 Gen2 Processing Pipeline</h1>
-            <div class="subtitle">
-                Real-time article processing: Extraction → Semantic Analysis → Event Formation
-            </div>
-            <div class="input-section">
-                <input
-                    type="text"
-                    id="urlInput"
-                    placeholder="Paste article URL (e.g., https://www.foxnews.com/...)"
-                    onkeypress="if(event.key === 'Enter') submitUrl()"
-                />
-                <button onclick="submitUrl()" id="submitBtn">Process Article</button>
-            </div>
+        <!-- Submit Section -->
+        <div class="submit-section">
+            <h2>Submit News Article</h2>
+            <form class="submit-form" onsubmit="submitURL(event)">
+                <input type="url" id="url-input" placeholder="https://example.com/article" required>
+                <button type="submit">Submit</button>
+            </form>
         </div>
 
-        <!-- Pipeline Stages -->
-        <div class="pipeline" id="pipeline">
-            <div class="stage pending" id="stage-preview">
-                <div class="stage-title">1. Preview</div>
-                <div class="stage-status">⏸️</div>
-                <div class="stage-data">Metadata fetch</div>
-            </div>
-            <div class="stage pending" id="stage-extraction">
-                <div class="stage-title">2. Extraction</div>
-                <div class="stage-status">⏸️</div>
-                <div class="stage-data">Content extraction</div>
-            </div>
-            <div class="stage pending" id="stage-semantic">
-                <div class="stage-title">3. Semantic</div>
-                <div class="stage-status">⏸️</div>
-                <div class="stage-data">Claims & entities</div>
-            </div>
-            <div class="stage pending" id="stage-complete">
-                <div class="stage-title">4. Complete</div>
-                <div class="stage-status">⏸️</div>
-                <div class="stage-data">Ready for events</div>
-            </div>
+        <!-- Filters -->
+        <div class="filters">
+            <a href="/timeline.html" class="filter-btn" style="text-decoration: none;">📅 Timeline View</a>
+            <button class="filter-btn active" onclick="filterEvents('all')">All Events</button>
+            <button class="filter-btn" onclick="filterEvents('stable')">Stable</button>
+            <button class="filter-btn" onclick="filterEvents('emerging')">Emerging</button>
+            <button class="filter-btn" onclick="filterEvents('provisional')">Provisional</button>
         </div>
 
-        <!-- Content Grid -->
-        <div class="content-grid">
-            <div class="panel">
-                <div class="panel-title">📄 Page Metadata</div>
-                <div id="pageData" class="metadata">
-                    <div class="empty-state">
-                        <div class="empty-state-icon">📰</div>
-                        <p>Submit a URL to start processing</p>
-                    </div>
-                </div>
-                <div id="thumbnail" style="margin-top: 15px;"></div>
+        <!-- Events Section -->
+        <div class="events-section">
+            <h2>Recent Events</h2>
+            <div id="loading" class="loading">Loading events...</div>
+            <div id="empty-state" class="empty-state" style="display: none;">
+                <h3>No Events Found</h3>
+                <p>Submit articles above to start building event intelligence</p>
             </div>
-            <div class="panel">
-                <div class="panel-title">🏷️ Entities</div>
-                <div id="entities">
-                    <div class="empty-state">
-                        <div class="empty-state-icon">👥</div>
-                        <p>Entities will appear after semantic analysis</p>
-                    </div>
-                </div>
-            </div>
+            <div id="events-grid" class="events-grid" style="display: none;"></div>
         </div>
-
-        <!-- Claims Panel (Full Width) -->
-        <div class="panel">
-            <div class="panel-title">📝 Claims</div>
-            <div id="claims">
-                <div class="empty-state">
-                    <div class="empty-state-icon">💬</div>
-                    <p>Claims will appear after semantic analysis</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Event Trees Section -->
-        <div class="header" style="margin-top: 20px;">
-            <h2 style="color: #667eea; margin-bottom: 15px;">🌳 Event Trees</h2>
-            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                <button onclick="loadEvents()" style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px;">
-                    Load Events
-                </button>
-                <select id="eventFilter" onchange="loadEvents()" style="padding: 10px; border: 1px solid #ddd; border-radius: 6px;">
-                    <option value="">All Scales</option>
-                    <option value="micro">Micro</option>
-                    <option value="meso">Meso</option>
-                    <option value="macro">Macro</option>
-                </select>
-            </div>
-        </div>
-
-        <div id="eventsContainer"></div>
     </div>
 
     <script>
-        const API = 'http://localhost:8000/api/v2';
-        let currentPageId = null;
-        let pollTimer = null;
+        let allEvents = [];
+        let currentFilter = 'all';
 
-        async function submitUrl() {
-            const url = document.getElementById('urlInput').value.trim();
-            if (!url) {
-                alert('Please enter a URL');
-                return;
-            }
+        // Load events on page load
+        loadEvents();
 
-            const btn = document.getElementById('submitBtn');
-            btn.disabled = true;
-            btn.textContent = 'Processing...';
-
-            resetStages();
-
+        async function loadEvents() {
             try {
-                const res = await fetch(`${API}/artifacts?url=${encodeURIComponent(url)}`, {
-                    method: 'POST'
-                });
-
-                if (!res.ok) {
-                    throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+                const response = await fetch('http://localhost:8000/api/events');
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
                 }
 
-                const data = await res.json();
-                currentPageId = data.page_id;
+                const data = await response.json();
+                allEvents = data.events || [];
 
-                console.log('✅ Submitted:', data);
+                document.getElementById('loading').style.display = 'none';
 
-                // Start polling for updates
-                startPolling(currentPageId);
+                if (allEvents.length === 0) {
+                    document.getElementById('empty-state').style.display = 'block';
+                } else {
+                    document.getElementById('events-grid').style.display = 'grid';
+                    renderEvents(allEvents);
+                }
 
             } catch (error) {
-                console.error('❌ Submission failed:', error);
-                alert(`Failed to submit URL: ${error.message}`);
-                btn.disabled = false;
-                btn.textContent = 'Process Article';
-            }
-        }
-
-        function resetStages() {
-            ['preview', 'extraction', 'semantic', 'complete'].forEach(stage => {
-                const el = document.getElementById(`stage-${stage}`);
-                el.className = 'stage pending';
-                el.querySelector('.stage-status').textContent = '⏸️';
-            });
-        }
-
-        function startPolling(pageId) {
-            if (pollTimer) clearInterval(pollTimer);
-
-            const update = async () => {
-                try {
-                    const res = await fetch(`${API}/url/${pageId}`);
-                    if (!res.ok) {
-                        console.error('Poll failed:', res.status);
-                        return;
-                    }
-
-                    const page = await res.json();
-                    console.log('📊 Page status:', page.status);
-
-                    // Update UI
-                    updateStages(page);
-                    showPageData(page);
-
-                    // Display claims and entities if included in response
-                    if (page.status === 'semantic_complete' && page.entities && page.claims) {
-                        console.log('🏷️ Entities:', page.entities.length);
-                        console.log('📝 Claims:', page.claims.length);
-
-                        showEntities(page.entities || []);
-                        showClaims(page.claims || []);
-
-                        // Stop polling
-                        clearInterval(pollTimer);
-                        document.getElementById('submitBtn').disabled = false;
-                        document.getElementById('submitBtn').textContent = 'Process Article';
-                    }
-
-                    // Stop polling on failure
-                    if (page.status.includes('failed')) {
-                        clearInterval(pollTimer);
-                        document.getElementById('submitBtn').disabled = false;
-                        document.getElementById('submitBtn').textContent = 'Process Article';
-                    }
-
-                } catch (error) {
-                    console.error('Poll error:', error);
-                }
-            };
-
-            update();
-            pollTimer = setInterval(update, 2000);
-        }
-
-        function updateStages(page) {
-            const status = page.status;
-
-            // Reset all stages
-            ['preview', 'extraction', 'semantic', 'complete'].forEach(stage => {
-                const el = document.getElementById(`stage-${stage}`);
-                el.className = 'stage pending';
-                el.querySelector('.stage-status').textContent = '⏸️';
-            });
-
-            // Update based on status
-            if (status === 'stub' || status === 'preview') {
-                const el = document.getElementById('stage-preview');
-                el.className = 'stage active';
-                el.querySelector('.stage-status').textContent = '▶️';
-                el.querySelector('.stage-data').textContent = page.title ? 'Metadata loaded' : 'Created stub';
-            }
-
-            if (status === 'extracted' || status === 'semantic_complete') {
-                // Preview done
-                const preview = document.getElementById('stage-preview');
-                preview.className = 'stage done';
-                preview.querySelector('.stage-status').textContent = '✅';
-                preview.querySelector('.stage-data').textContent = 'Done';
-
-                // Extraction
-                const extraction = document.getElementById('stage-extraction');
-                if (status === 'extracted') {
-                    extraction.className = 'stage active';
-                    extraction.querySelector('.stage-status').textContent = '▶️';
-                } else {
-                    extraction.className = 'stage done';
-                    extraction.querySelector('.stage-status').textContent = '✅';
-                }
-                extraction.querySelector('.stage-data').textContent = `${page.word_count || 0} words`;
-            }
-
-            if (status === 'semantic_complete') {
-                // Semantic done
-                const semantic = document.getElementById('stage-semantic');
-                semantic.className = 'stage done';
-                semantic.querySelector('.stage-status').textContent = '✅';
-                semantic.querySelector('.stage-data').textContent = `${page.claim_count || 0} claims, ${page.entity_count || 0} entities`;
-
-                // Complete
-                const complete = document.getElementById('stage-complete');
-                complete.className = 'stage done';
-                complete.querySelector('.stage-status').textContent = '✅';
-                complete.querySelector('.stage-data').textContent = 'Ready';
-            }
-
-            // Handle failures
-            if (status === 'failed') {
-                const extraction = document.getElementById('stage-extraction');
-                extraction.className = 'stage failed';
-                extraction.querySelector('.stage-status').textContent = '❌';
-                extraction.querySelector('.stage-data').textContent = 'Extraction failed';
-            }
-
-            if (status === 'semantic_failed') {
-                const semantic = document.getElementById('stage-semantic');
-                semantic.className = 'stage failed';
-                semantic.querySelector('.stage-status').textContent = '❌';
-                semantic.querySelector('.stage-data').textContent = 'Semantic failed';
-            }
-        }
-
-        function showPageData(page) {
-            let html = `
-                <strong>Title:</strong> ${page.title || 'N/A'}<br>
-                <strong>URL:</strong> <a href="${page.canonical_url}" target="_blank">${truncate(page.canonical_url, 60)}</a><br>
-                <strong>Status:</strong> <span style="color: #667eea; font-weight: 600">${page.status}</span><br>
-                <strong>Language:</strong> ${page.language || 'N/A'}<br>
-                <strong>Word Count:</strong> ${page.word_count || 0}<br>
-                <strong>Author:</strong> ${page.author || 'N/A'}<br>
-                <strong>Published:</strong> ${page.pub_time ? new Date(page.pub_time).toLocaleDateString() : 'N/A'}<br>
-                <strong>Entities:</strong> ${page.entity_count || 0}<br>
-                <strong>Claims:</strong> ${page.claim_count || 0}<br>
-                <strong>Metadata Quality:</strong> <span style="color: ${getConfidenceColor(page.metadata_confidence || 0)}">${((page.metadata_confidence || 0) * 100).toFixed(0)}%</span><br>
-                <strong>Semantic Quality:</strong> <span style="color: ${getConfidenceColor(page.semantic_confidence || 0)}">${((page.semantic_confidence || 0) * 100).toFixed(0)}%</span>
-            `;
-
-            if (page.error_message) {
-                html += `<div class="error"><strong>Error:</strong> ${page.error_message}</div>`;
-            }
-
-            document.getElementById('pageData').innerHTML = html;
-
-            // Show thumbnail if available
-            if (page.thumbnail_url) {
-                document.getElementById('thumbnail').innerHTML = `
-                    <img src="${page.thumbnail_url}"
-                         style="width: 100%; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);"
-                         alt="Article thumbnail"
-                         onerror="this.style.display='none'" />
+                console.error('Error loading events:', error);
+                document.getElementById('loading').innerHTML = `
+                    <div style="color: #ef4444;">Failed to load events: ${error.message}</div>
                 `;
+            }
+        }
+
+        function filterEvents(status) {
+            // Update active filter button
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+
+            currentFilter = status;
+
+            if (status === 'all') {
+                renderEvents(allEvents);
             } else {
-                document.getElementById('thumbnail').innerHTML = '';
+                const filtered = allEvents.filter(e => e.status === status);
+                renderEvents(filtered);
             }
         }
 
-        function showEntities(entities) {
-            const container = document.getElementById('entities');
+        function renderEvents(events) {
+            const grid = document.getElementById('events-grid');
 
-            if (entities.length === 0) {
-                container.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-state-icon">🔍</div>
-                        <p>No entities extracted</p>
-                    </div>
-                `;
+            if (events.length === 0) {
+                grid.innerHTML = '<div class="empty-state"><p>No events match this filter</p></div>';
                 return;
             }
 
-            // Find max mentions to identify central entities
-            const maxMentions = Math.max(...entities.map(e => e.page_mentions || 1));
-
-            const html = entities.map(e => {
-                const isCentral = (e.page_mentions || 1) >= maxMentions && maxMentions > 1;
-                const description = e.profile_summary || 'No description available';
-
-                return `
-                    <span class="entity ${isCentral ? 'central' : ''}" title="${description}">
-                        ${e.canonical_name}
-                        <span class="entity-type">${e.entity_type}</span>
-                        ${(e.page_mentions || 1) > 1 ? `<span class="entity-mentions">${e.page_mentions}</span>` : ''}
-                        <div class="entity-tooltip">
-                            <strong>${e.canonical_name}</strong><br/>
-                            ${description}<br/>
-                            <small style="color: #aaa; margin-top: 5px; display: block;">Mentioned in ${e.page_mentions || 1} claim(s)</small>
-                        </div>
-                    </span>
-                `;
-            }).join('');
-
-            container.innerHTML = html;
-        }
-
-        function showClaims(claims) {
-            const container = document.getElementById('claims');
-
-            if (claims.length === 0) {
-                container.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-state-icon">💭</div>
-                        <p>No claims extracted</p>
-                    </div>
-                `;
-                return;
-            }
-
-            const html = claims.map(c => {
-                const meta = c.metadata ? (typeof c.metadata === 'string' ? JSON.parse(c.metadata) : c.metadata) : {};
-                const who = meta.who || [];
-                const where = meta.where || [];
-                const when = meta.when || {};
-
-                return `
-                    <div class="claim">
-                        <div class="claim-text">${c.text}</div>
-                        <div class="claim-meta">
-                            ${c.modality ? `<span class="tag modality">${c.modality}</span>` : ''}
-                            ${c.confidence ? `<span class="tag confidence">${Math.round(c.confidence * 100)}%</span>` : ''}
-                            ${who.length ? `<span class="tag who">Who: ${who.join(', ')}</span>` : ''}
-                            ${where.length ? `<span class="tag where">Where: ${where.join(', ')}</span>` : ''}
-                            ${when.date ? `<span class="tag when">When: ${when.date}</span>` : ''}
-                            ${c.event_time ? `<span class="tag when">Event: ${new Date(c.event_time).toLocaleDateString()}</span>` : ''}
-                        </div>
-                    </div>
-                `;
-            }).join('');
-
-            container.innerHTML = html;
-        }
-
-        function truncate(str, len) {
-            return str.length > len ? str.substring(0, len) + '...' : str;
-        }
-
-        function getConfidenceColor(confidence) {
-            // Color scale for confidence: 0.0 = red, 0.5 = orange, 1.0 = green
-            if (confidence >= 0.8) return '#10b981'; // green
-            if (confidence >= 0.5) return '#f59e0b'; // orange
-            if (confidence >= 0.3) return '#ef4444'; // red
-            return '#9ca3af'; // gray for very low
-        }
-
-        // Event Trees Functionality
-        async function loadEvents() {
-            const filter = document.getElementById('eventFilter').value;
-            const url = filter ? `http://localhost:8000/api/events?scale=${filter}` : `http://localhost:8000/api/events`;
-
-            try {
-                const res = await fetch(url);
-                const data = await res.json();
-
-                displayEvents(data.events);
-            } catch (err) {
-                console.error('Failed to load events:', err);
-                document.getElementById('eventsContainer').innerHTML = `
-                    <div class="panel">
-                        <div style="color: #ef4444; padding: 20px;">Failed to load events: ${err.message}</div>
-                    </div>
-                `;
-            }
-        }
-
-        function displayEvents(events) {
-            const container = document.getElementById('eventsContainer');
-
-            if (!events || events.length === 0) {
-                container.innerHTML = `
-                    <div class="panel">
-                        <div class="empty-state">
-                            <div class="empty-state-icon">🌳</div>
-                            <p>No events found</p>
-                        </div>
-                    </div>
-                `;
-                return;
-            }
-
-            const html = events.map(e => `
-                <div class="panel" style="margin-bottom: 15px; cursor: pointer;" onclick="loadEventDetail('${e.id}')">
-                    <div style="display: flex; justify-content: space-between; align-items: start;">
+            grid.innerHTML = events.map(event => `
+                <a href="/event.html?id=${event.id}" class="event-card">
+                    <div class="event-header">
                         <div style="flex: 1;">
-                            <div style="font-size: 18px; font-weight: 600; color: #333; margin-bottom: 8px;">
-                                ${getScaleIcon(e.event_scale)} ${e.title}
+                            <div class="event-title">${event.title || 'Untitled Event'}</div>
+                            <div class="event-meta">
+                                <span>📄 ${event.pages_count || 0} sources</span>
+                                <span>💬 ${event.claims_count || 0} claims</span>
+                                <span>📊 ${(event.confidence * 100).toFixed(0)}% confidence</span>
+                                <span>🕒 ${formatDate(event.event_start)}</span>
                             </div>
-                            ${e.summary ? `<div style="color: #666; font-size: 14px; margin-bottom: 10px;">${e.summary}</div>` : ''}
-                            <div style="display: flex; flex-wrap: wrap; gap: 8px; font-size: 12px;">
-                                <span class="tag" style="background: ${getScaleColor(e.event_scale)}; color: white; border: none;">
-                                    ${e.event_scale.toUpperCase()}
-                                </span>
-                                <span class="tag" style="background: ${getStatusColor(e.status)}; color: white; border: none;">
-                                    ${e.status}
-                                </span>
-                                <span class="tag confidence">${Math.round(e.confidence * 100)}% confident</span>
-                                <span class="tag">${e.claims_count} claims</span>
-                                <span class="tag">${e.pages_count} sources</span>
-                                ${e.child_count > 0 ? `<span class="tag" style="background: #764ba2; color: white; border: none;">${e.child_count} sub-events</span>` : ''}
-                            </div>
-                            ${e.log_posterior ? `
-                                <div style="margin-top: 8px; font-size: 11px; color: #666;">
-                                    Bayesian: log_posterior=${e.log_posterior.toFixed(2)}, coherence=${e.coherence.toFixed(2)}
-                                </div>
-                            ` : ''}
                         </div>
-                        <div style="font-size: 12px; color: #999; text-align: right;">
-                            ${new Date(e.updated_at).toLocaleString()}
-                        </div>
+                        <span class="status ${event.status}">${event.status}</span>
                     </div>
-                </div>
+                    ${event.summary ? `<div class="event-summary">${truncate(event.summary, 200)}</div>` : ''}
+                    ${renderTags(event)}
+                </a>
             `).join('');
-
-            container.innerHTML = html;
         }
 
-        async function loadEventDetail(eventId) {
-            try {
-                const res = await fetch(`http://localhost:8000/api/events/${eventId}`);
-                const data = await res.json();
+        function renderTags(event) {
+            const tags = [];
 
-                displayEventTree(data);
-            } catch (err) {
-                console.error('Failed to load event detail:', err);
+            // Scale tag
+            if (event.event_scale) {
+                tags.push(`<span class="tag">${event.event_scale}</span>`);
+            }
+
+            // Entity count
+            const enriched = event.enriched_json;
+            if (enriched?.participants?.count) {
+                tags.push(`<span class="tag">${enriched.participants.count} entities</span>`);
+            }
+
+            // Casualty info
+            const casualties = enriched?.consolidated?.casualty_summary;
+            if (casualties?.deaths?.latest) {
+                tags.push(`<span class="tag">💀 ${casualties.deaths.latest} deaths</span>`);
+            }
+
+            if (tags.length === 0) return '';
+            return `<div class="event-tags">${tags.join('')}</div>`;
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return 'N/A';
+            const date = new Date(dateStr);
+            const now = new Date();
+            const diffMs = now - date;
+            const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+            const diffDays = Math.floor(diffHours / 24);
+
+            if (diffHours < 24) {
+                return `${diffHours}h ago`;
+            } else if (diffDays < 7) {
+                return `${diffDays}d ago`;
+            } else {
+                return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
             }
         }
 
-        function displayEventTree(data) {
-            const { event, children, parents, related, entities, claims, pages, micro_narratives } = data;
-
-            const container = document.getElementById('eventsContainer');
-
-            const html = `
-                <div class="panel" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; margin-bottom: 15px;">
-                    <div style="font-size: 24px; font-weight: 700; margin-bottom: 10px;">
-                        ${getScaleIcon(event.event_scale)} ${event.title}
-                    </div>
-                    ${event.summary ? `<div style="font-size: 14px; opacity: 0.9; margin-bottom: 15px;">${event.summary}</div>` : ''}
-                    <div style="display: flex; flex-wrap: wrap; gap: 10px; font-size: 13px;">
-                        <span style="background: rgba(255,255,255,0.2); padding: 5px 10px; border-radius: 4px;">
-                            ${event.event_scale.toUpperCase()}
-                        </span>
-                        <span style="background: rgba(255,255,255,0.2); padding: 5px 10px; border-radius: 4px;">
-                            ${event.status}
-                        </span>
-                        <span style="background: rgba(255,255,255,0.2); padding: 5px 10px; border-radius: 4px;">
-                            ${Math.round(event.confidence * 100)}% confidence
-                        </span>
-                        <span style="background: rgba(255,255,255,0.2); padding: 5px 10px; border-radius: 4px;">
-                            ${event.claims_count} claims
-                        </span>
-                        <span style="background: rgba(255,255,255,0.2); padding: 5px 10px; border-radius: 4px;">
-                            ${event.pages_count} sources
-                        </span>
-                    </div>
-                    ${event.log_posterior ? `
-                        <div style="margin-top: 15px; font-size: 12px; opacity: 0.8;">
-                            📊 Bayesian Scores: log_posterior=${event.log_posterior.toFixed(2)},
-                            log_prior=${event.log_prior.toFixed(2)},
-                            log_likelihood=${event.log_likelihood.toFixed(2)},
-                            coherence=${event.coherence.toFixed(2)}
-                        </div>
-                    ` : ''}
-                </div>
-
-                ${parents.length > 0 ? `
-                    <div class="panel">
-                        <div class="panel-title">⬆️ Parent Events</div>
-                        ${parents.map(p => `
-                            <div style="padding: 10px; background: #f8f9fa; margin: 5px 0; border-radius: 6px; cursor: pointer;" onclick="loadEventDetail('${p.id}')">
-                                ${getScaleIcon(p.event_scale)} ${p.title}
-                                <span style="font-size: 11px; color: #666; margin-left: 10px;">${p.relationship_type}</span>
-                            </div>
-                        `).join('')}
-                    </div>
-                ` : ''}
-
-                ${children.length > 0 ? `
-                    <div class="panel">
-                        <div class="panel-title">⬇️ Sub-Events (${children.length})</div>
-                        ${children.map(c => `
-                            <div style="padding: 10px; background: #f8f9fa; margin: 5px 0; border-radius: 6px; cursor: pointer;" onclick="loadEventDetail('${c.id}')">
-                                ${getScaleIcon(c.event_scale)} ${c.title}
-                                <div style="font-size: 11px; color: #666; margin-top: 4px;">
-                                    ${c.claims_count} claims · ${c.pages_count} sources · ${Math.round(c.confidence * 100)}% confident
-                                </div>
-                            </div>
-                        `).join('')}
-                    </div>
-                ` : ''}
-
-                ${related.length > 0 ? `
-                    <div class="panel">
-                        <div class="panel-title">🔗 Related Events</div>
-                        ${related.map(r => `
-                            <div style="padding: 10px; background: #fff3e0; margin: 5px 0; border-radius: 6px; cursor: pointer;" onclick="loadEventDetail('${r.id}')">
-                                ${r.relationship_type}: ${r.title}
-                                <span style="font-size: 11px; color: #666; margin-left: 10px;">${Math.round(r.rel_confidence * 100)}% confidence</span>
-                            </div>
-                        `).join('')}
-                    </div>
-                ` : ''}
-
-                ${micro_narratives && micro_narratives.length > 0 ? `
-                    <div class="panel" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 12px; margin: 20px 0;">
-                        <div style="font-size: 18px; font-weight: 600; margin-bottom: 15px;">✨ Synthesized Micro-Narratives</div>
-                        <div style="font-size: 12px; opacity: 0.9; margin-bottom: 20px;">
-                            Corroborated descriptions from ${claims.length} claims, organized by topic
-                        </div>
-                        ${micro_narratives.map(n => `
-                            <div style="background: rgba(255,255,255,0.15); backdrop-filter: blur(10px); padding: 15px; margin: 10px 0; border-radius: 8px; border-left: 4px solid rgba(255,255,255,0.5);">
-                                <div style="font-weight: 600; font-size: 14px; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;">
-                                    📖 ${n.topic.replace('_', ' ')}
-                                </div>
-                                <div style="font-size: 13px; line-height: 1.6; margin-bottom: 10px;">
-                                    ${n.description || 'No description available'}
-                                </div>
-                                <div style="display: flex; gap: 15px; flex-wrap: wrap; font-size: 11px; opacity: 0.9;">
-                                    ${n.claim_count ? `<span>📊 ${n.claim_count} claims</span>` : ''}
-                                    ${n.confidence ? `<span>✓ ${Math.round(n.confidence * 100)}% confident</span>` : ''}
-                                    ${n.who && n.who.length ? `<span>👤 ${n.who.slice(0,3).join(', ')}</span>` : ''}
-                                    ${n.where && n.where.length ? `<span>📍 ${n.where.join(', ')}</span>` : ''}
-                                </div>
-                                ${n.contradictions && n.contradictions.length > 0 ? `
-                                    <div style="margin-top: 10px; padding: 8px; background: rgba(255,255,255,0.1); border-radius: 4px; font-size: 11px;">
-                                        ⚠️ Contradictions resolved: ${n.contradictions.join('; ')}
-                                    </div>
-                                ` : ''}
-                            </div>
-                        `).join('')}
-                    </div>
-                ` : ''}
-
-                <div class="content-grid">
-                    <div class="panel">
-                        <div class="panel-title">👥 Entities (${entities.length})</div>
-                        <div style="display: flex; flex-wrap: wrap; gap: 8px;">
-                            ${entities.map(e => `
-                                <div class="entity">
-                                    ${e.canonical_name}
-                                    <span class="entity-type">${e.entity_type}</span>
-                                    ${e.mention_count > 1 ? `<span class="entity-mentions">${e.mention_count}</span>` : ''}
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
-                    <div class="panel">
-                        <div class="panel-title">📰 Sources (${pages.length})</div>
-                        ${pages.map(p => `
-                            <div style="padding: 8px; background: #f8f9fa; margin: 5px 0; border-radius: 4px; font-size: 12px;">
-                                <div style="font-weight: 600; color: #667eea; margin-bottom: 4px;">${p.title || 'Untitled'}</div>
-                                <div style="color: #666; font-size: 11px; word-break: break-all;">${p.url}</div>
-                                ${p.pub_time ? `<div style="color: #999; font-size: 10px; margin-top: 4px;">${new Date(p.pub_time).toLocaleString()}</div>` : ''}
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-
-                <div class="panel">
-                    <div class="panel-title">💬 Claims (${claims.length})</div>
-                    ${claims.map(c => `
-                        <div class="claim">
-                            <div class="claim-text">${c.text}</div>
-                            <div class="claim-meta">
-                                ${c.confidence ? `<span class="tag confidence">${Math.round(c.confidence * 100)}%</span>` : ''}
-                                ${c.modality ? `<span class="tag modality">${c.modality}</span>` : ''}
-                                ${c.event_time ? `<span class="tag when">${new Date(c.event_time).toLocaleDateString()}</span>` : ''}
-                                ${c.entities && c.entities.length ? `<span class="tag">Entities: ${c.entities.slice(0,3).join(', ')}${c.entities.length > 3 ? '...' : ''}</span>` : ''}
-                            </div>
-                        </div>
-                    `).join('')}
-                </div>
-
-                <button onclick="loadEvents()" style="margin: 20px 0; padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer;">
-                    ← Back to Events List
-                </button>
-            `;
-
-            container.innerHTML = html;
+        function truncate(text, length) {
+            if (!text || text.length <= length) return text;
+            return text.substring(0, length) + '...';
         }
 
-        function getScaleIcon(scale) {
-            const icons = {
-                'micro': '🔬',
-                'meso': '🏙️',
-                'macro': '🌍',
-                'mega': '🌌'
-            };
-            return icons[scale] || '📍';
-        }
+        async function submitURL(event) {
+            event.preventDefault();
+            const urlInput = document.getElementById('url-input');
+            const url = urlInput.value.trim();
 
-        function getScaleColor(scale) {
-            const colors = {
-                'micro': '#3b82f6',
-                'meso': '#8b5cf6',
-                'macro': '#ec4899',
-                'mega': '#ef4444'
-            };
-            return colors[scale] || '#667eea';
-        }
+            if (!url) return;
 
-        function getStatusColor(status) {
-            const colors = {
-                'provisional': '#f59e0b',
-                'emerging': '#3b82f6',
-                'stable': '#10b981',
-                'contested': '#ef4444'
-            };
-            return colors[status] || '#6b7280';
+            try {
+                const response = await fetch(`http://localhost:8000/api/v2/artifacts?url=${encodeURIComponent(url)}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    alert(`✅ Page submitted successfully!\nPage ID: ${data.page_id}\n\nProcessing will begin shortly.`);
+                    urlInput.value = '';
+
+                    // Reload events after a delay
+                    setTimeout(() => loadEvents(), 2000);
+                } else {
+                    const error = await response.json();
+                    alert(`❌ Error: ${error.detail || response.statusText}`);
+                }
+            } catch (error) {
+                alert(`❌ Network error: ${error.message}`);
+            }
         }
     </script>
 </body>
