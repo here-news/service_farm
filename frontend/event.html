@@ -431,6 +431,7 @@
             <div class="view-links">
                 <a href="#" class="view-link" id="timeline-link">📊 Timeline View</a>
                 <a href="#" class="view-link" id="graph-link">🔗 Entity Graph</a>
+                <a href="#" class="view-link" id="map-link">🗺️ Map View</a>
             </div>
         </div>
     </nav>
@@ -637,6 +638,7 @@
             // View links
             document.getElementById('timeline-link').href = `/timeline.html?id=${event.id}`;
             document.getElementById('graph-link').href = `/event_graph.html?id=${event.id}`;
+            document.getElementById('map-link').href = `/map.html?id=${event.id}`;
 
             // Casualty summary
             const casualties = event.enriched_json?.consolidated?.casualty_summary;

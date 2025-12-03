@@ -19,9 +19,75 @@
             overflow: hidden;
         }
 
+        /* Top Navigation */
+        .top-nav {
+            background: rgba(10, 10, 10, 0.95);
+            border-bottom: 1px solid rgba(102, 126, 234, 0.2);
+            padding: 15px 0;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+        }
+
+        .nav-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .back-link {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .back-link:hover {
+            color: #764ba2;
+        }
+
+        .event-title-nav {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #fff;
+            max-width: 600px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .view-links {
+            display: flex;
+            gap: 12px;
+        }
+
+        .view-link {
+            padding: 8px 16px;
+            background: rgba(102, 126, 234, 0.15);
+            border-radius: 6px;
+            text-decoration: none;
+            color: #667eea;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.2s;
+            border: 1px solid rgba(102, 126, 234, 0.3);
+        }
+
+        .view-link:hover {
+            background: rgba(102, 126, 234, 0.25);
+            transform: translateY(-1px);
+        }
+
         #graph-container {
             width: 100vw;
-            height: 100vh;
+            height: calc(100vh - 60px);
+            margin-top: 60px;
             position: relative;
         }
 
@@ -131,6 +197,18 @@
     </style>
 </head>
 <body>
+    <!-- Top Navigation -->
+    <nav class="top-nav">
+        <div class="nav-content">
+            <a href="#" class="back-link" id="back-link">← Back to Event</a>
+            <div class="event-title-nav" id="event-title-nav">Entity Graph</div>
+            <div class="view-links">
+                <a href="#" class="view-link" id="timeline-link">📊 Timeline</a>
+                <a href="#" class="view-link" id="map-link">🗺️ Map</a>
+            </div>
+        </div>
+    </nav>
+
     <div id="graph-container">
         <div class="loading">Loading entity graph...</div>
     </div>
@@ -148,6 +226,11 @@
         if (!eventId) {
             document.getElementById('graph-container').innerHTML = '<div class="error">No event ID provided. Use ?id=EVENT_ID</div>';
         } else {
+            // Set navigation links
+            document.getElementById('back-link').href = `/event.html?id=${eventId}`;
+            document.getElementById('timeline-link').href = `/timeline.html?id=${eventId}`;
+            document.getElementById('map-link').href = `/map.html?id=${eventId}`;
+
             loadEventGraph(eventId);
         }
 
@@ -168,6 +251,10 @@
                     pages: data.pages || [],
                     related_events: data.related || []
                 };
+
+                // Update navigation title
+                document.getElementById('event-title-nav').textContent = event.title || 'Entity Graph';
+
                 renderGraph(event);
 
             } catch (error) {
