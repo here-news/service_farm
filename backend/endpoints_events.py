@@ -175,9 +175,10 @@ async def get_event_tree(event_id: str):
                 AND rel.relationship_type != 'PART_OF'
         """, event_uuid)
 
-        # Get entities with Wikidata info
-        # Quality filter: Prefer entities with Wikidata QIDs (validated by Wikipedia)
-        # OR entities mentioned multiple times (cross-page corroboration)
+        # Get entities with quality filtering
+        # Require mention_count >= 2 to avoid one-off generic extractions like "Police"
+        # Even if entity has Wikidata (e.g., Q178095 = generic "Police" concept)
+        # This filters out spurious entities while keeping validated ones
         entities = await conn.fetch("""
             SELECT
                 e.id, e.canonical_name, e.entity_type,
@@ -188,7 +189,7 @@ async def get_event_tree(event_id: str):
             FROM core.entities e
             JOIN core.event_entities ee ON e.id = ee.entity_id
             WHERE ee.event_id = $1
-              AND (e.wikidata_qid IS NOT NULL OR e.mention_count >= 2)
+              AND e.mention_count >= 2
             ORDER BY e.wikidata_qid IS NOT NULL DESC, e.mention_count DESC, e.canonical_name
         """, event_uuid)
 
