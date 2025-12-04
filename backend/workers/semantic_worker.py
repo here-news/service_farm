@@ -224,12 +224,18 @@ class SemanticWorker:
                 except (ValueError, AttributeError):
                     pass
 
+            # Generate claim embedding
+            claim_embedding = await self._generate_claim_embedding(claim['text'])
+            claim_embedding_str = None
+            if claim_embedding:
+                claim_embedding_str = '[' + ','.join(str(x) for x in claim_embedding) + ']'
+
             # Store claim
             claim_uuid = await conn.fetchval("""
                 INSERT INTO core.claims (
-                    page_id, text, event_time, confidence, modality, metadata
+                    page_id, text, event_time, confidence, modality, metadata, embedding
                 )
-                VALUES ($1, $2, $3, $4, $5, $6)
+                VALUES ($1, $2, $3, $4, $5, $6, $7::vector)
                 RETURNING id
             """,
                 page_id,
@@ -245,7 +251,8 @@ class SemanticWorker:
                     'deterministic_id': claim_det_id,
                     'failed_checks': claim.get('failed_checks', []),
                     'verification_needed': claim.get('verification_needed', False)
-                })
+                }),
+                claim_embedding_str
             )
 
             claim_mapping[claim_det_id] = claim_uuid
@@ -688,6 +695,21 @@ Only return the description, nothing else."""
 
         except Exception as e:
             logger.error(f"❌ Failed to generate embedding: {e}")
+
+
+    async def _generate_claim_embedding(
+        self, claim_text: str
+    ) -> Optional[List[float]]:
+        """Generate embedding for a single claim text"""
+        try:
+            response = await self.openai_client.embeddings.create(
+                model="text-embedding-3-small",
+                input=claim_text[:8000]  # Token limit
+            )
+            return response.data[0].embedding
+        except Exception as e:
+            logger.error(f"❌ Failed to generate claim embedding: {e}")
+            return None
 
 
     async def _mark_semantic_failed(
