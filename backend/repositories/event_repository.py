@@ -87,8 +87,38 @@ class EventRepository:
         Returns:
             Updated event
         """
-        # Update Neo4j (all metadata)
-        # Note: Neo4j updates handled by EventService for now
+        # Update Neo4j event properties
+        metadata = event.metadata.copy() if event.metadata else {}
+        if event.claim_ids:
+            metadata['claim_ids'] = [str(cid) for cid in event.claim_ids]
+
+        # JSON serialize metadata for Neo4j (doesn't support nested structures)
+        metadata_json = json.dumps(metadata) if metadata else '{}'
+
+        await self.neo4j._execute_write("""
+            MATCH (e:Event {id: $event_id})
+            SET e.canonical_name = $canonical_name,
+                e.event_type = $event_type,
+                e.status = $status,
+                e.confidence = $confidence,
+                e.event_scale = $event_scale,
+                e.earliest_time = $earliest_time,
+                e.latest_time = $latest_time,
+                e.metadata = $metadata,
+                e.coherence = $coherence,
+                e.updated_at = datetime()
+        """, {
+            'event_id': str(event.id),
+            'canonical_name': event.canonical_name,
+            'event_type': event.event_type,
+            'status': event.status,
+            'confidence': event.confidence,
+            'event_scale': event.event_scale,
+            'earliest_time': event.event_start,
+            'latest_time': event.event_end,
+            'metadata': metadata_json,
+            'coherence': event.coherence
+        })
 
         # Update embedding in PostgreSQL
         if event.embedding:

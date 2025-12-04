@@ -74,6 +74,7 @@ class EventService:
         claims_added = []
         claims_rejected = []
         sub_events_created = []
+        yielded_claims = []  # Batch YIELD_SUBEVENT decisions for clustering
 
         # Fetch existing claims for this event (for duplicate detection)
         existing_claims = await self._get_event_claims(event)
@@ -81,6 +82,7 @@ class EventService:
         # Load sub-events (for delegation)
         sub_events = await self.event_repo.get_sub_events(event.id) if hasattr(self.event_repo, 'get_sub_events') else []
 
+        # First pass: classify all claims
         for claim in new_claims:
             decision = await self._classify_claim(event, claim, existing_claims, sub_events)
 
@@ -110,21 +112,48 @@ class EventService:
                     claims_rejected.append(claim)
 
             elif decision == ClaimDecision.YIELD_SUBEVENT:
-                # Novel aspect → create sub-event
+                # Novel aspect → batch for clustering
                 logger.debug(f"  ⚡ YIELD_SUBEVENT: {claim.text[:50]}...")
-                sub_event = await self._create_sub_event(event, [claim])
-                sub_events_created.append(sub_event)
-                claims_added.append(claim)
+                yielded_claims.append(claim)
 
             elif decision == ClaimDecision.REJECT:
                 # Doesn't belong here
                 logger.debug(f"  ✗ REJECT: {claim.text[:50]}...")
                 claims_rejected.append(claim)
 
+        # Second pass: cluster and create sub-events for yielded claims
+        if yielded_claims:
+            if len(yielded_claims) == 1:
+                # Single claim → create simple sub-event
+                sub_event = await self._create_sub_event(event, yielded_claims)
+                sub_events_created.append(sub_event)
+                claims_added.extend(yielded_claims)
+            else:
+                # Multiple claims → cluster by theme, create intermediate events
+                logger.info(f"🧩 Clustering {len(yielded_claims)} yielded claims by theme...")
+                clusters = await self._cluster_claims_by_theme(event, yielded_claims)
+
+                for cluster in clusters:
+                    # Create intermediate sub-event for this cluster
+                    sub_event = await self._create_sub_event(event, cluster['claims'])
+                    sub_events_created.append(sub_event)
+
+                    # Recursively examine claims within the cluster
+                    if len(cluster['claims']) > 1:
+                        result = await self.examine_claims(sub_event, cluster['claims'])
+                        # Nested sub-events are already tracked in result
+                        sub_events_created.extend(result.sub_events_created)
+
+                    claims_added.extend(cluster['claims'])
+
         # Update event metrics if claims were added
         if claims_added:
             await self._update_event_metrics(event, existing_claims + claims_added)
             await self.event_repo.update(event)
+
+        # Propagate metadata from sub-events to parent
+        if sub_events_created:
+            await self._propagate_from_children(event, sub_events_created)
 
         logger.info(f"📊 Result: {len(claims_added)} added, {len(sub_events_created)} sub-events, {len(claims_rejected)} rejected")
 
@@ -367,6 +396,210 @@ class EventService:
             entity_ids.update(claim.entity_ids)
 
         return entity_ids
+
+    async def _propagate_from_children(
+        self,
+        parent: Event,
+        children: List[Event]
+    ) -> None:
+        """
+        Propagate metadata from sub-events upward to parent
+
+        Updates:
+        - event_end: max of all descendant end times
+        - coherence: measure of clustering quality (tight vs dispersed)
+        - confidence: boost if children are high-confidence
+        - canonical_name: enrich if sub-events reveal new dimensions
+
+        Args:
+            parent: Parent event to update
+            children: New sub-events created
+        """
+        if not children:
+            return
+
+        logger.debug(f"⬆️  Propagating metadata from {len(children)} children to {parent.canonical_name}")
+
+        # 1. Update event_end = max(all descendant end times)
+        max_end = parent.event_end
+        for child in children:
+            if child.event_end:
+                child_end_py = neo4j_datetime_to_python(child.event_end)
+                max_end_py = neo4j_datetime_to_python(max_end) if max_end else None
+
+                if child_end_py and (not max_end_py or child_end_py > max_end_py):
+                    max_end = child.event_end
+
+        if max_end != parent.event_end:
+            logger.info(f"⬆️  Updated parent event_end: {parent.event_end} → {max_end}")
+            parent.event_end = max_end
+
+        # 2. Calculate coherence from clustering quality
+        # High coherence = children are similar (tight cluster)
+        # Low coherence = children are diverse (dispersed cluster)
+        if len(children) > 1:
+            # Use child embeddings to measure dispersion
+            child_embeddings = [c.embedding for c in children if c.embedding]
+            if len(child_embeddings) >= 2:
+                embeddings_array = np.array(child_embeddings)
+
+                # Calculate pairwise similarities
+                similarities = []
+                for i in range(len(child_embeddings)):
+                    for j in range(i+1, len(child_embeddings)):
+                        vec1 = embeddings_array[i]
+                        vec2 = embeddings_array[j]
+                        sim = np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2))
+                        similarities.append(sim)
+
+                avg_similarity = float(np.mean(similarities))
+
+                # High similarity = high coherence (children are tightly related)
+                # Update parent coherence as weighted average
+                new_coherence = 0.7 * parent.coherence + 0.3 * avg_similarity
+
+                logger.info(f"⬆️  Updated parent coherence: {parent.coherence:.2f} → {new_coherence:.2f} (child similarity: {avg_similarity:.2f})")
+                parent.coherence = new_coherence
+
+        # 3. Boost confidence if children are high-confidence
+        child_confidences = [c.confidence for c in children]
+        if child_confidences:
+            avg_child_confidence = sum(child_confidences) / len(child_confidences)
+            if avg_child_confidence > parent.confidence:
+                new_confidence = 0.8 * parent.confidence + 0.2 * avg_child_confidence
+                logger.info(f"⬆️  Boosted parent confidence: {parent.confidence:.2f} → {new_confidence:.2f}")
+                parent.confidence = new_confidence
+
+        # 4. Update parent in repository
+        await self.event_repo.update(parent)
+
+    async def _cluster_claims_by_theme(
+        self,
+        parent_event: Event,
+        claims: List[Claim]
+    ) -> List[dict]:
+        """
+        Cluster claims by semantic theme using embeddings + LLM
+
+        Universal clustering approach:
+        1. Use embedding similarity to find natural groupings
+        2. Use LLM to name each cluster theme
+        3. Return clusters with theme name and claims
+
+        Args:
+            parent_event: Parent event for context
+            claims: Claims to cluster
+
+        Returns:
+            List of dicts: [{'theme': 'Investigation Phase', 'claims': [...]}, ...]
+        """
+        if len(claims) <= 1:
+            return [{'theme': 'Sub-event', 'claims': claims}]
+
+        # Build similarity matrix from embeddings
+        embeddings = []
+        valid_claims = []
+        for claim in claims:
+            if claim.embedding:
+                embeddings.append(np.array(claim.embedding))
+                valid_claims.append(claim)
+
+        if len(valid_claims) <= 1:
+            # No embeddings available, treat as single cluster
+            return [{'theme': 'Related Events', 'claims': claims}]
+
+        embeddings = np.array(embeddings)
+
+        # Simple hierarchical clustering using cosine similarity
+        from scipy.cluster.hierarchy import linkage, fcluster
+        from scipy.spatial.distance import pdist
+
+        # Compute pairwise cosine distances
+        distances = pdist(embeddings, metric='cosine')
+
+        # Hierarchical clustering
+        linkage_matrix = linkage(distances, method='average')
+
+        # Cut tree to get clusters (adaptive threshold based on claim count)
+        if len(valid_claims) <= 3:
+            num_clusters = 2
+        elif len(valid_claims) <= 5:
+            num_clusters = 3
+        else:
+            num_clusters = min(5, len(valid_claims) // 2)
+
+        cluster_labels = fcluster(linkage_matrix, num_clusters, criterion='maxclust')
+
+        # Group claims by cluster
+        clusters = {}
+        for claim, label in zip(valid_claims, cluster_labels):
+            if label not in clusters:
+                clusters[label] = []
+            clusters[label].append(claim)
+
+        # Use LLM to name each cluster
+        result_clusters = []
+        for label, cluster_claims in clusters.items():
+            theme = await self._name_cluster_theme(parent_event, cluster_claims)
+            result_clusters.append({
+                'theme': theme,
+                'claims': cluster_claims
+            })
+
+        logger.info(f"📊 Clustered {len(valid_claims)} claims into {len(result_clusters)} themes: {[c['theme'] for c in result_clusters]}")
+        return result_clusters
+
+    async def _name_cluster_theme(
+        self,
+        parent_event: Event,
+        claims: List[Claim]
+    ) -> str:
+        """
+        Use LLM to identify the theme of a cluster of claims
+
+        Args:
+            parent_event: Parent event for context
+            claims: Claims in the cluster
+
+        Returns:
+            Theme name (e.g., 'Investigation Phase', 'Safety Findings')
+        """
+        claim_texts = [c.text[:200] for c in claims[:5]]  # Sample first 5 claims
+
+        prompt = f"""You are analyzing a cluster of related claims about an event.
+
+Parent Event: {parent_event.canonical_name} ({parent_event.event_type})
+
+Claims in this cluster:
+{chr(10).join(f"- {text}" for text in claim_texts)}
+
+What is the common theme or aspect that unifies these claims?
+
+Consider:
+- Investigation/legal proceedings
+- Safety findings/root cause analysis
+- Regulatory response/consequences
+- Political/social dimensions
+- Temporal phases (before, during, after)
+
+Provide a concise theme name (2-5 words) that captures the essence of this cluster.
+Respond with ONLY the theme name."""
+
+        try:
+            response = await self.openai_client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3,
+                max_tokens=20
+            )
+
+            theme = response.choices[0].message.content.strip()
+            logger.debug(f"🏷️  Cluster theme: {theme}")
+            return theme
+
+        except Exception as e:
+            logger.warning(f"Failed to name cluster theme with LLM: {e}")
+            return "Related Events"
 
     async def _is_temporal_aftermath(
         self,
