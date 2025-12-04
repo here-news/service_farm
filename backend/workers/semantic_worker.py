@@ -7,11 +7,11 @@ Architecture: Claims-first approach (Demo's proven method)
 3. Resolve entities (coreference + deduplication)
 4. Link entities back to claims
 5. Generate embeddings
-6. Store in PostgreSQL
+6. Store in PostgreSQL AND Neo4j (via repositories)
 7. Commission event worker
 
 Based on: Demo's semantic_analyzer.py
-Adapted for: Gen2 PostgreSQL schema
+Adapted for: Gen2 PostgreSQL schema + Neo4j graph
 """
 import asyncio
 import asyncpg
@@ -26,6 +26,12 @@ import logging
 
 # Import the proven semantic analyzer from Demo
 from semantic_analyzer import EnhancedSemanticAnalyzer
+
+# Import domain models and repositories
+from models import Entity, Claim
+from models.relationships import ClaimEntityLink
+from repositories import EntityRepository, ClaimRepository
+from services.neo4j_service import Neo4jService
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +50,7 @@ class SemanticWorker:
     7. Commission event worker
     """
 
-    def __init__(self, db_pool: asyncpg.Pool, job_queue):
+    def __init__(self, db_pool: asyncpg.Pool, job_queue, neo4j_service: Neo4jService = None):
         self.db_pool = db_pool
         self.job_queue = job_queue
         self.openai_client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -52,8 +58,25 @@ class SemanticWorker:
         # Use Demo's proven semantic analyzer
         self.analyzer = EnhancedSemanticAnalyzer()
 
-        logger.info("✅ SemanticWorker initialized with Demo's semantic analyzer")
+        # Initialize Neo4j service if not provided
+        if neo4j_service is None:
+            self.neo4j = Neo4jService()
+        else:
+            self.neo4j = neo4j_service
 
+        # Initialize repositories (handle dual-write to PostgreSQL + Neo4j)
+        self.entity_repo = EntityRepository(db_pool, self.neo4j)
+        self.claim_repo = ClaimRepository(db_pool, self.neo4j)
+
+        logger.info("✅ SemanticWorker initialized with Demo's semantic analyzer + Neo4j repositories")
+
+    async def connect_neo4j(self):
+        """Ensure Neo4j connection is established"""
+        await self.neo4j.connect()
+
+    async def close_neo4j(self):
+        """Close Neo4j connection"""
+        await self.neo4j.close()
 
     async def process(self, page_id: uuid.UUID, url: str):
         """
@@ -200,7 +223,7 @@ class SemanticWorker:
         claims: List[Dict], url: str
     ) -> Dict[str, uuid.UUID]:
         """
-        Store claims in database
+        Store claims using ClaimRepository (PostgreSQL only for now, Neo4j later via event worker)
 
         Returns mapping: {claim_deterministic_id: claim_uuid}
         """
@@ -226,24 +249,17 @@ class SemanticWorker:
 
             # Generate claim embedding
             claim_embedding = await self._generate_claim_embedding(claim['text'])
-            claim_embedding_str = None
-            if claim_embedding:
-                claim_embedding_str = '[' + ','.join(str(x) for x in claim_embedding) + ']'
 
-            # Store claim
-            claim_uuid = await conn.fetchval("""
-                INSERT INTO core.claims (
-                    page_id, text, event_time, confidence, modality, metadata, embedding
-                )
-                VALUES ($1, $2, $3, $4, $5, $6, $7::vector)
-                RETURNING id
-            """,
-                page_id,
-                claim['text'],
-                event_time,
-                claim.get('confidence', 0.5),
-                claim.get('modality', 'observation'),
-                json.dumps({
+            # Create Claim domain model
+            claim_model = Claim(
+                id=uuid.uuid4(),
+                page_id=page_id,
+                text=claim['text'],
+                event_time=event_time,
+                confidence=claim.get('confidence', 0.5),
+                modality=claim.get('modality', 'observation'),
+                embedding=claim_embedding,
+                metadata={
                     'who': claim.get('who', []),
                     'where': claim.get('where', []),
                     'when': when,
@@ -251,11 +267,12 @@ class SemanticWorker:
                     'deterministic_id': claim_det_id,
                     'failed_checks': claim.get('failed_checks', []),
                     'verification_needed': claim.get('verification_needed', False)
-                }),
-                claim_embedding_str
+                }
             )
 
-            claim_mapping[claim_det_id] = claim_uuid
+            # Repository handles storage (PostgreSQL for now, Neo4j later via event worker)
+            created_claim = await self.claim_repo.create(claim_model)
+            claim_mapping[claim_det_id] = created_claim.id
 
         return claim_mapping
 
@@ -419,38 +436,43 @@ class SemanticWorker:
         entity_type: str, language: str
     ) -> uuid.UUID:
         """
-        Upsert entity with deduplication (Demo's approach)
+        Upsert entity using EntityRepository (dual-write to PostgreSQL + Neo4j)
 
         Uses UNIQUE constraint on (canonical_name, entity_type)
         """
+        # Map entity type to standardized values
+        type_mapping = {
+            'PERSON': 'PERSON',
+            'ORGANIZATION': 'ORG',
+            'LOCATION': 'GPE'  # Geo-Political Entity
+        }
+        mapped_type = type_mapping.get(entity_type, entity_type)
+
         # Try to find existing entity
-        existing = await conn.fetchval("""
-            SELECT id FROM core.entities
-            WHERE canonical_name = $1 AND entity_type = $2
-        """, canonical_name, entity_type)
+        existing = await self.entity_repo.get_by_canonical_name(canonical_name, entity_type)
 
         if existing:
-            # Update mention count and last_seen
-            await conn.execute("""
-                UPDATE core.entities
-                SET mention_count = mention_count + 1,
-                    last_seen = NOW(),
-                    updated_at = NOW()
-                WHERE id = $1
-            """, existing)
-            return existing
+            # Update mention count
+            await self.entity_repo.increment_mention_count(existing.id)
+            return existing.id
 
-        # Create new entity
-        entity_id = await conn.fetchval("""
-            INSERT INTO core.entities (
-                canonical_name, entity_type, semantic_confidence,
-                mention_count, first_seen, last_seen, status
-            )
-            VALUES ($1, $2, $3, 1, NOW(), NOW(), 'stub')
-            RETURNING id
-        """, canonical_name, entity_type, 0.7)  # Default confidence
+        # Create new entity using domain model
+        entity = Entity(
+            id=uuid.uuid4(),
+            canonical_name=canonical_name,
+            entity_type=mapped_type,
+            mention_count=1,
+            aliases=[],
+            metadata={
+                'language': language,
+                'semantic_confidence': 0.7,
+                'status': 'stub'
+            }
+        )
 
-        return entity_id
+        # Repository handles dual-write (PostgreSQL + Neo4j)
+        created_entity = await self.entity_repo.create(entity)
+        return created_entity.id
 
 
     async def _link_entities_to_claims(
@@ -830,10 +852,15 @@ async def run_semantic_worker():
     job_queue = JobQueue(os.getenv('REDIS_URL', 'redis://redis:6379'))
     await job_queue.connect()
 
-    # Initialize worker
-    worker = SemanticWorker(db_pool, job_queue)
+    # Initialize Neo4j service
+    neo4j_service = Neo4jService()
+    await neo4j_service.connect()
+    await neo4j_service.initialize_constraints()
 
-    logger.info("🧠 SemanticWorker started, listening on queue:semantic:high")
+    # Initialize worker
+    worker = SemanticWorker(db_pool, job_queue, neo4j_service)
+
+    logger.info("🧠 SemanticWorker started with Neo4j, listening on queue:semantic:high")
 
     # Process jobs
     while True:

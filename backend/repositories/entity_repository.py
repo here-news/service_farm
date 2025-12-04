@@ -7,6 +7,7 @@ Storage strategy:
 - Both are kept in sync via this repository
 """
 import uuid
+import json
 import logging
 from typing import Optional, List
 import asyncpg
@@ -30,7 +31,7 @@ class EntityRepository:
 
     async def create(self, entity: Entity) -> Entity:
         """
-        Create entity in both PostgreSQL and Neo4j
+        Create entity in PostgreSQL (Neo4j creation happens via event worker)
 
         Args:
             entity: Entity domain model
@@ -38,17 +39,25 @@ class EntityRepository:
         Returns:
             Created entity with timestamps
         """
+        # Extract metadata fields for PostgreSQL schema
+        semantic_confidence = entity.metadata.get('semantic_confidence', 0.7)
+        status = entity.metadata.get('status', 'stub')
+
         async with self.db_pool.acquire() as conn:
-            # Insert into PostgreSQL
+            # Insert into PostgreSQL with proper schema fields
             await conn.execute("""
                 INSERT INTO core.entities (
-                    id, canonical_name, entity_type, aliases, mention_count, metadata
+                    id, canonical_name, entity_type, aliases, mention_count,
+                    semantic_confidence, first_seen, last_seen, status, metadata
                 )
-                VALUES ($1, $2, $3, $4, $5, $6)
+                VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW(), $7, $8)
                 ON CONFLICT (id) DO UPDATE SET
                     canonical_name = EXCLUDED.canonical_name,
                     aliases = EXCLUDED.aliases,
                     mention_count = EXCLUDED.mention_count,
+                    semantic_confidence = EXCLUDED.semantic_confidence,
+                    last_seen = NOW(),
+                    status = EXCLUDED.status,
                     metadata = EXCLUDED.metadata,
                     updated_at = NOW()
             """,
@@ -57,7 +66,9 @@ class EntityRepository:
                 entity.entity_type,
                 entity.aliases,
                 entity.mention_count,
-                entity.metadata
+                semantic_confidence,
+                status,
+                json.dumps(entity.metadata) if entity.metadata else '{}'
             )
 
             # Fetch timestamps
@@ -68,8 +79,8 @@ class EntityRepository:
             entity.created_at = row['created_at']
             entity.updated_at = row['updated_at']
 
-        # Create node in Neo4j (MERGE for idempotency)
-        # This is handled via link_claim_to_entity in Neo4jService
+        # Note: Neo4j entity nodes are created by event worker via link_claim_to_entity()
+        # This allows proper relationship creation in the graph
 
         logger.debug(f"📦 Created entity: {entity.canonical_name} ({entity.entity_type})")
         return entity
