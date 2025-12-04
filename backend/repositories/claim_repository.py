@@ -2,9 +2,9 @@
 Claim Repository - PostgreSQL and Neo4j operations
 
 Storage strategy:
-- PostgreSQL: Claim content, embedding (core.claims table)
-- Neo4j: Claim nodes with relationships to entities and phases
-- claim_entities join table for PostgreSQL queries
+- PostgreSQL: Claim content, embedding, entity_ids in metadata JSON (core.claims table)
+- Neo4j: Entity nodes fetched by entity_ids
+- NO junction tables - entity references stored in claim.metadata
 """
 import uuid
 import logging
@@ -13,7 +13,7 @@ from typing import Optional, List
 import asyncpg
 
 from models.claim import Claim
-from models.relationships import ClaimEntityLink
+from models.entity import Entity
 from services.neo4j_service import Neo4jService
 
 logger = logging.getLogger(__name__)
@@ -30,18 +30,25 @@ class ClaimRepository:
         self.db_pool = db_pool
         self.neo4j = neo4j_service
 
-    async def create(self, claim: Claim) -> Claim:
+    async def create(self, claim: Claim, entity_ids: List[uuid.UUID] = None, entity_names: List[str] = None) -> Claim:
         """
-        Create claim in PostgreSQL
-
-        Neo4j claim nodes are created by event worker when linking to phases
+        Create claim in PostgreSQL with entity references in metadata
 
         Args:
             claim: Claim domain model
+            entity_ids: List of entity UUIDs to store in metadata
+            entity_names: List of entity names (for debugging)
 
         Returns:
             Created claim with timestamp
         """
+        # Add entity references to metadata
+        metadata = claim.metadata.copy()
+        if entity_ids:
+            metadata['entity_ids'] = [str(eid) for eid in entity_ids]
+            if entity_names:
+                metadata['entity_names'] = entity_names
+
         # Convert embedding to pgvector format
         embedding_str = None
         if claim.embedding:
@@ -60,7 +67,7 @@ class ClaimRepository:
                 claim.event_time,
                 claim.confidence,
                 claim.modality,
-                json.dumps(claim.metadata) if claim.metadata else '{}',
+                json.dumps(metadata),
                 embedding_str
             )
 
@@ -70,42 +77,49 @@ class ClaimRepository:
             """, claim.id)
 
             claim.created_at = row['created_at']
+            claim.metadata = metadata  # Update claim with entity references
 
-        logger.debug(f"📝 Created claim: {claim.text[:50]}...")
+        logger.debug(f"📝 Created claim: {claim.text[:50]}... (entities: {len(entity_ids or [])})")
         return claim
 
-    async def link_to_entity(
-        self, claim_id: uuid.UUID, entity_id: uuid.UUID, relationship_type: str = 'MENTIONS'
-    ) -> ClaimEntityLink:
+    async def hydrate_entities(self, claim: Claim) -> Claim:
         """
-        Link claim to entity in both PostgreSQL and Neo4j
+        Fetch and attach entities from Neo4j based on claim.metadata.entity_ids
 
         Args:
-            claim_id: Claim UUID
-            entity_id: Entity UUID
-            relationship_type: MENTIONS, ACTOR, SUBJECT, LOCATION
+            claim: Claim with entity_ids in metadata
 
         Returns:
-            ClaimEntityLink relationship
+            Claim with entities populated
         """
-        # Store in PostgreSQL join table
-        async with self.db_pool.acquire() as conn:
-            await conn.execute("""
-                INSERT INTO core.claim_entities (claim_id, entity_id, relationship_type)
-                VALUES ($1, $2, $3)
-                ON CONFLICT (claim_id, entity_id) DO UPDATE SET
-                    relationship_type = EXCLUDED.relationship_type
-            """, claim_id, entity_id, relationship_type)
+        entity_ids = claim.entity_ids
+        if not entity_ids:
+            claim.entities = []
+            return claim
 
-        # Neo4j relationship created by event worker via neo4j.link_claim_to_entity()
+        # Fetch entities from Neo4j
+        entity_id_strings = [str(eid) for eid in entity_ids]
+        entities_data = await self.neo4j.get_entities_by_ids(entity_ids=entity_id_strings)
 
-        logger.debug(f"🔗 Linked claim {claim_id} → {relationship_type} → entity {entity_id}")
+        entities = []
+        for entity_data in entities_data:
+            entities.append(Entity(
+                id=uuid.UUID(entity_data['id']),
+                canonical_name=entity_data['canonical_name'],
+                entity_type=entity_data['entity_type'],
+                mention_count=entity_data.get('mention_count', 0),
+                profile_summary=entity_data.get('profile_summary'),
+                wikidata_qid=entity_data.get('wikidata_qid'),
+                wikidata_label=entity_data.get('wikidata_label'),
+                wikidata_description=entity_data.get('wikidata_description'),
+                aliases=entity_data.get('aliases', []),
+                status=entity_data.get('status', 'pending'),
+                confidence=entity_data.get('confidence', 0.0)
+            ))
 
-        return ClaimEntityLink(
-            claim_id=claim_id,
-            entity_id=entity_id,
-            relationship_type=relationship_type
-        )
+        claim.entities = entities
+        logger.debug(f"✅ Hydrated {len(entities)} entities for claim {claim.id}")
+        return claim
 
     async def get_by_id(self, claim_id: uuid.UUID) -> Optional[Claim]:
         """
@@ -186,24 +200,22 @@ class ClaimRepository:
 
             return claims
 
-    async def get_entities_for_claim(self, claim_id: uuid.UUID) -> List[tuple]:
+    async def get_entities_for_claim(self, claim_id: uuid.UUID) -> List[Entity]:
         """
-        Get all entities linked to a claim
+        Get all entities linked to a claim (from metadata + Neo4j)
 
         Args:
             claim_id: Claim UUID
 
         Returns:
-            List of (entity_id, relationship_type) tuples
+            List of Entity objects
         """
-        async with self.db_pool.acquire() as conn:
-            rows = await conn.fetch("""
-                SELECT entity_id, relationship_type
-                FROM core.claim_entities
-                WHERE claim_id = $1
-            """, claim_id)
+        claim = await self.get_by_id(claim_id)
+        if not claim:
+            return []
 
-            return [(row['entity_id'], row['relationship_type']) for row in rows]
+        await self.hydrate_entities(claim)
+        return claim.entities or []
 
     def _parse_embedding(self, emb_str: str) -> Optional[List[float]]:
         """Parse embedding from PostgreSQL vector string"""

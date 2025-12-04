@@ -156,21 +156,15 @@ class SemanticWorker:
                     await self._mark_semantic_failed(conn, page_id, "No valid claims")
                     return False
 
-                # 4. Store claims in database
-                claim_ids = await self._store_claims(conn, page_id, claims, page['url'])
-                logger.info(f"💾 Stored {len(claim_ids)} claims")
-
-                # 5. Extract entities FROM claims (WHO/WHERE have correct type prefixes)
+                # 4. Extract entities FROM claims FIRST (WHO/WHERE have correct type prefixes)
                 entity_mapping = await self._extract_entities_from_claims(
                     conn, claims, page['language']
                 )
                 logger.info(f"💾 Extracted {len(entity_mapping)} unique entities from claims")
 
-                # 6. Link entities to claims
-                # Add _url to claims for deterministic ID matching
-                for claim in claims:
-                    claim['_url'] = page['url']
-                await self._link_entities_to_claims(conn, claims, claim_ids, entity_mapping)
+                # 5. Store claims with entity_ids in metadata
+                claim_ids = await self._store_claims(conn, page_id, claims, page['url'], entity_mapping)
+                logger.info(f"💾 Stored {len(claim_ids)} claims")
                 logger.info(f"🔗 Linked entities to claims")
 
                 # 7. Link entities to page (metadata) with centrality scoring
@@ -220,10 +214,13 @@ class SemanticWorker:
 
     async def _store_claims(
         self, conn: asyncpg.Connection, page_id: uuid.UUID,
-        claims: List[Dict], url: str
+        claims: List[Dict], url: str, entity_mapping: Dict[str, uuid.UUID]
     ) -> Dict[str, uuid.UUID]:
         """
-        Store claims using ClaimRepository (PostgreSQL only for now, Neo4j later via event worker)
+        Store claims using ClaimRepository with entity_ids in metadata
+
+        Args:
+            entity_mapping: Dict mapping entity references (e.g., "PERSON:John") to UUIDs
 
         Returns mapping: {claim_deterministic_id: claim_uuid}
         """
@@ -250,6 +247,17 @@ class SemanticWorker:
             # Generate claim embedding
             claim_embedding = await self._generate_claim_embedding(claim['text'])
 
+            # Extract entity IDs and names from claim's who/where fields
+            entity_ids = []
+            entity_names = []
+            for entity_ref in claim.get('who', []) + claim.get('where', []):
+                entity_uuid = entity_mapping.get(entity_ref)
+                if entity_uuid:
+                    entity_ids.append(entity_uuid)
+                    # Extract canonical name from "PREFIX:Name" format
+                    if ':' in entity_ref:
+                        entity_names.append(entity_ref.split(':', 1)[1])
+
             # Create Claim domain model
             claim_model = Claim(
                 id=uuid.uuid4(),
@@ -270,8 +278,8 @@ class SemanticWorker:
                 }
             )
 
-            # Repository handles storage (PostgreSQL for now, Neo4j later via event worker)
-            created_claim = await self.claim_repo.create(claim_model)
+            # Repository handles storage with entity_ids in metadata
+            created_claim = await self.claim_repo.create(claim_model, entity_ids=entity_ids, entity_names=entity_names)
             claim_mapping[claim_det_id] = created_claim.id
 
         return claim_mapping

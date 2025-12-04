@@ -604,42 +604,52 @@ class EventWorkerNeo4j:
                 logger.warning(f"⚠️  Page {page_id} not found")
                 return
 
-            # Fetch claims with entities and embeddings
+            # Fetch claims with metadata (entity_ids stored in JSON)
             claims = await conn.fetch("""
                 SELECT
-                    c.id, c.text, c.event_time, c.confidence, c.modality, c.embedding,
-                    ARRAY_AGG(DISTINCT ce.entity_id) FILTER (WHERE ce.entity_id IS NOT NULL) as entity_ids,
-                    ARRAY_AGG(DISTINCT e.canonical_name) FILTER (WHERE e.canonical_name IS NOT NULL) as entity_names,
-                    ARRAY_AGG(DISTINCT e.entity_type) FILTER (WHERE e.entity_type IS NOT NULL) as entity_types
+                    c.id, c.text, c.event_time, c.confidence, c.modality, c.embedding, c.metadata
                 FROM core.claims c
-                LEFT JOIN core.claim_entities ce ON c.id = ce.claim_id
-                LEFT JOIN core.entities e ON ce.entity_id = e.id
                 WHERE c.page_id = $1
-                GROUP BY c.id
+                ORDER BY c.event_time NULLS LAST, c.created_at
             """, page_id)
 
             if not claims:
                 logger.warning(f"⚠️  No claims found for page {page_id}")
                 return
 
-            claims_data = [{
-                'id': c['id'],
-                'text': c['text'],
-                'event_time': c['event_time'],
-                'confidence': c['confidence'],
-                'modality': c['modality'],
-                'embedding': c['embedding'],
-                'entity_ids': list(c['entity_ids']) if c['entity_ids'] else [],
-                'entity_names': list(c['entity_names']) if c['entity_names'] else [],
-                'entity_types': list(c['entity_types']) if c['entity_types'] else []
-            } for c in claims]
+            # Build claims_data with entity_ids from metadata
+            claims_data = []
+            all_entity_ids = set()
+
+            for c in claims:
+                metadata = c['metadata'] or {}
+                entity_id_strings = metadata.get('entity_ids', [])
+                entity_ids = [uuid.UUID(eid) if isinstance(eid, str) else eid for eid in entity_id_strings]
+                all_entity_ids.update(entity_ids)
+
+                claims_data.append({
+                    'id': c['id'],
+                    'text': c['text'],
+                    'event_time': c['event_time'],
+                    'confidence': c['confidence'],
+                    'modality': c['modality'],
+                    'embedding': c['embedding'],
+                    'entity_ids': entity_ids,
+                    'entity_names': metadata.get('entity_names', []),  # For debugging
+                    'entity_types': []  # Will fetch from Neo4j if needed
+                })
 
             logger.info(f"📄 Processing page {page['url']} ({len(claims_data)} claims)")
 
-            # Collect all entity names from claims
-            all_entity_names = set()
-            for claim in claims_data:
-                all_entity_names.update(claim['entity_names'])
+            # Fetch entity details from Neo4j for all entities
+            entity_names = set()
+            if all_entity_ids:
+                entity_id_strings = [str(eid) for eid in all_entity_ids]
+                entities_data = await self.neo4j.get_entities_by_ids(entity_ids=entity_id_strings)
+                for entity in entities_data:
+                    entity_names.add(entity['canonical_name'])
+
+            all_entity_names = entity_names
 
             # Find or create event
             await self._find_or_create_event_graph(page, claims_data, all_entity_names)
