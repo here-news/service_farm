@@ -24,8 +24,8 @@ class Event:
     coherence: float = 0.0   # How well claims fit together (0-1)
 
     # Temporal bounds
-    earliest_time: Optional[datetime] = None
-    latest_time: Optional[datetime] = None
+    event_start: Optional[datetime] = None
+    event_end: Optional[datetime] = None
 
     # Embedding for semantic matching
     embedding: Optional[List[float]] = None
@@ -188,8 +188,8 @@ CREATE (e:Event {
     confidence: $confidence,
     coherence: $coherence,
     status: $status,
-    earliest_time: $earliest,
-    latest_time: $latest
+    event_start: $earliest,
+    event_end: $latest
 })
 
 // Claims link to events (not phases)
@@ -224,7 +224,7 @@ def find_candidate_events(
         entity_overlap = len(entities & event_entities) / max(len(entities), len(event_entities))
 
         # 2. Temporal proximity score
-        time_diff = abs((reference_time - event.earliest_time).days)
+        time_diff = abs((reference_time - event.event_start).days)
         time_score = max(0, 1 - time_diff / 7)  # Decay over 7 days
 
         # 3. Semantic similarity score (if embeddings available)
@@ -271,8 +271,8 @@ def _create_sub_event(self, claims: List[Claim]) -> Event:
         parent_event_id=self.id,
         claim_ids=[c.id for c in claims],
         confidence=0.5,  # Initial confidence
-        earliest_time=min(c.event_time for c in claims if c.event_time),
-        latest_time=max(c.event_time for c in claims if c.event_time)
+        event_start=min(c.event_time for c in claims if c.event_time),
+        event_end=max(c.event_time for c in claims if c.event_time)
     )
 
     # Store in Neo4j

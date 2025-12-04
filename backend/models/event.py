@@ -50,9 +50,9 @@ class Event:
     confidence: float = 0.3  # Evidence strength (0-1)
     coherence: float = 0.5   # How well claims fit together (0-1)
 
-    # Temporal bounds
-    earliest_time: Optional[datetime] = None
-    latest_time: Optional[datetime] = None
+    # Temporal bounds (matches database schema: event_start, event_end)
+    event_start: Optional[datetime] = None
+    event_end: Optional[datetime] = None
 
     # Event properties
     status: str = 'provisional'  # provisional, stable, archived
@@ -108,7 +108,7 @@ class Event:
     @property
     def has_temporal_bounds(self) -> bool:
         """Check if event has temporal bounds"""
-        return self.earliest_time is not None and self.latest_time is not None
+        return self.event_start is not None and self.event_end is not None
 
     @property
     def claim_count(self) -> int:
