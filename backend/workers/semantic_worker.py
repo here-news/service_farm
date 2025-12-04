@@ -451,13 +451,8 @@ class SemanticWorker:
 
         Uses UNIQUE constraint on (canonical_name, entity_type)
         """
-        # Map entity type to standardized values
-        type_mapping = {
-            'PERSON': 'PERSON',
-            'ORGANIZATION': 'ORG',
-            'LOCATION': 'GPE'  # Geo-Political Entity
-        }
-        mapped_type = type_mapping.get(entity_type, entity_type)
+        # Use entity_type as-is (PERSON, ORGANIZATION, LOCATION)
+        # No type mapping needed - keep consistent types across system
 
         # Try to find existing entity
         existing = await self.entity_repo.get_by_canonical_name(canonical_name, entity_type)
@@ -471,7 +466,7 @@ class SemanticWorker:
         entity = Entity(
             id=uuid.uuid4(),
             canonical_name=canonical_name,
-            entity_type=mapped_type,
+            entity_type=entity_type,
             mention_count=1,
             aliases=[],
             metadata={
