@@ -148,6 +148,11 @@ class ClaimRepository:
             if row['embedding']:
                 embedding = self._parse_embedding(row['embedding'])
 
+            # Parse metadata if it's a string (from JSON column)
+            metadata = row['metadata'] or {}
+            if isinstance(metadata, str):
+                metadata = json.loads(metadata)
+
             return Claim(
                 id=row['id'],
                 page_id=row['page_id'],
@@ -155,7 +160,7 @@ class ClaimRepository:
                 event_time=row['event_time'],
                 confidence=row['confidence'],
                 modality=row['modality'],
-                metadata=row['metadata'] or {},
+                metadata=metadata,
                 embedding=embedding,
                 created_at=row['created_at']
             )
@@ -186,6 +191,11 @@ class ClaimRepository:
                 if row['embedding']:
                     embedding = self._parse_embedding(row['embedding'])
 
+                # Parse metadata if it's a string
+                metadata = row['metadata'] or {}
+                if isinstance(metadata, str):
+                    metadata = json.loads(metadata)
+
                 claims.append(Claim(
                     id=row['id'],
                     page_id=row['page_id'],
@@ -193,7 +203,7 @@ class ClaimRepository:
                     event_time=row['event_time'],
                     confidence=row['confidence'],
                     modality=row['modality'],
-                    metadata=row['metadata'] or {},
+                    metadata=metadata,
                     embedding=embedding,
                     created_at=row['created_at']
                 ))
