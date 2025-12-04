@@ -149,11 +149,21 @@ class EventService:
         # Update event metrics if claims were added
         if claims_added:
             await self._update_event_metrics(event, existing_claims + claims_added)
+
+            # Generate narrative from claims
+            all_claims = existing_claims + claims_added
+            event.summary = await self._generate_event_narrative(event, all_claims)
+            logger.info(f"📝 Generated narrative for {event.canonical_name}")
+
             await self.event_repo.update(event)
 
         # Propagate metadata from sub-events to parent
         if sub_events_created:
             await self._propagate_from_children(event, sub_events_created)
+
+            # Generate parent narrative from sub-events
+            await self._generate_parent_narrative(event, sub_events_created)
+            await self.event_repo.update(event)
 
         logger.info(f"📊 Result: {len(claims_added)} added, {len(sub_events_created)} sub-events, {len(claims_rejected)} rejected")
 
@@ -182,7 +192,14 @@ class EventService:
         6. Otherwise reject
         """
 
-        # 1. Check for duplicates
+        # 1. Check if claim is UPDATE of existing metric (not duplicate)
+        update_info = await self._is_metric_update(claim, existing_claims)
+        if update_info:
+            metric_type, old_value, new_value = update_info
+            logger.info(f"📈 Metric UPDATE: {metric_type} {old_value} → {new_value} (will update parent event)")
+            return ClaimDecision.ADD  # Add to update the metric
+
+        # 2. Check for duplicates
         for existing_claim in existing_claims:
             if self._calculate_claim_similarity(claim, existing_claim) > self.DUPLICATE_THRESHOLD:
                 return ClaimDecision.MERGE
@@ -203,9 +220,24 @@ class EventService:
         else:
             entity_overlap = len(event_entities & claim_entities) / max(len(event_entities), len(claim_entities))
 
-        # 3. Check if it fits my topic
+        # 3. MULTI-DIMENSIONAL SCORING
+        # Universal principle: Match on ANY strong signal (entity, reference)
+        # Then check semantic coherence if needed
+        reference_match = self._references_event(event, claim, event_entities)
+
+        # If strong reference match with low entity overlap = different dimension
+        if reference_match and entity_overlap < self.ENTITY_OVERLAP_THRESHOLD:
+            logger.info(f"📍 Reference match with low entity overlap ({entity_overlap:.2f}) → different dimension")
+            return ClaimDecision.YIELD_SUBEVENT
+
+        # If moderate entity overlap + reference = likely same event
+        if reference_match and entity_overlap >= self.SUB_EVENT_THRESHOLD:
+            coherence = await self._calculate_coherence_with_claim(event, claim, existing_claims)
+            if coherence > self.COHERENCE_THRESHOLD:
+                return ClaimDecision.ADD
+
+        # If high entity overlap = check semantic coherence
         if entity_overlap > self.ENTITY_OVERLAP_THRESHOLD:
-            # Check semantic coherence with existing claims
             coherence = await self._calculate_coherence_with_claim(event, claim, existing_claims)
             if coherence > self.COHERENCE_THRESHOLD:
                 return ClaimDecision.ADD
@@ -269,6 +301,10 @@ class EventService:
         # Calculate initial metrics
         await self._update_event_metrics(event, claims)
 
+        # Generate narrative from claims
+        event.summary = await self._generate_event_narrative(event, claims)
+        logger.info(f"📝 Generated initial narrative for root event")
+
         # Store in repositories
         created_event = await self.event_repo.create(event)
 
@@ -317,6 +353,10 @@ class EventService:
 
         # Calculate metrics
         await self._update_event_metrics(sub_event, claims)
+
+        # Generate narrative from claims
+        sub_event.summary = await self._generate_event_narrative(sub_event, claims)
+        logger.info(f"📝 Generated narrative for sub-event")
 
         # Store in repositories
         created_sub_event = await self.event_repo.create(sub_event)
@@ -396,6 +436,263 @@ class EventService:
             entity_ids.update(claim.entity_ids)
 
         return entity_ids
+
+    def _references_event(self, event: Event, claim: Claim, event_entities: Set[uuid.UUID]) -> bool:
+        """
+        Check if claim explicitly references the event by name or location
+
+        Universal principle: Explicit reference signals relationship
+        even when entity overlap is low (e.g., humanitarian response
+        vs investigation - different actors but same event)
+
+        Args:
+            event: Event to check against
+            claim: Claim to analyze
+            event_entities: Pre-computed event entity IDs
+
+        Returns:
+            True if claim references event
+        """
+        claim_text_lower = claim.text.lower()
+
+        # Extract key terms from event name
+        # "Wang Fuk Court Fire" → ["wang fuk court", "wang fuk", "fire"]
+        event_name_lower = event.canonical_name.lower()
+
+        # Check full name
+        if event_name_lower in claim_text_lower:
+            logger.info(f"📍 Exact event name match: '{event.canonical_name}'")
+            return True
+
+        # Check location name (multi-word locations)
+        # Extract location entities from event
+        location_terms = []
+        if event.location:
+            location_terms.append(event.location.lower())
+
+        # Also check for key identifiers in event name
+        # e.g., "Wang Fuk Court" even without "Fire"
+        event_keywords = [
+            word.lower() for word in event.canonical_name.split()
+            if len(word) >= 3 and word.lower() not in ['fire', 'the', 'and', 'incident']
+        ]
+
+        # Check for multi-word location phrases (at least 2 words)
+        for i in range(len(event_keywords) - 1):
+            two_word_phrase = f"{event_keywords[i]} {event_keywords[i+1]}"
+            if two_word_phrase in claim_text_lower:
+                logger.info(f"📍 Location phrase match: '{two_word_phrase}'")
+                return True
+
+        # Check for location terms
+        for location in location_terms:
+            if location in claim_text_lower:
+                logger.info(f"📍 Location match: '{location}'")
+                return True
+
+        # Check for contextual references like "the fire", "the incident"
+        # This is weaker, so require at least one shared entity
+        contextual_refs = ["the fire", "the incident", "the blaze", "the disaster"]
+        has_contextual_ref = any(ref in claim_text_lower for ref in contextual_refs)
+
+        if has_contextual_ref and len(set(claim.entity_ids) & event_entities) > 0:
+            logger.info(f"📍 Contextual reference + shared entity")
+            return True
+
+        return False
+
+    async def _is_metric_update(self, claim: Claim, existing_claims: List[Claim]) -> Optional[tuple]:
+        """
+        Check if claim is an UPDATE of an existing metric (e.g., death toll increasing)
+
+        Universal principle: "40 dead" → "128 dead" is an UPDATE, not a duplicate
+
+        Args:
+            claim: New claim to check
+            existing_claims: Existing claims in the event
+
+        Returns:
+            (metric_type, old_value, new_value) if update detected, None otherwise
+        """
+        import re
+
+        # Extract numeric metrics from new claim
+        claim_lower = claim.text.lower()
+
+        # Common metric patterns
+        metric_patterns = [
+            (r'(\d+)\s+(?:people\s+)?(?:have\s+)?died', 'deaths'),
+            (r'(?:death\s+toll|fatalities):\s*(\d+)', 'deaths'),
+            (r'(?:death\s+toll|fatalities)\s+(?:has\s+)?(?:risen\s+to|reached|climbed to|now)\s+(\d+)', 'deaths'),
+            (r'(?:at\s+least|more than)\s+(\d+)\s+(?:people\s+)?died', 'deaths'),
+            (r'(\d+)\s+(?:people\s+)?(?:are\s+)?missing', 'missing'),
+            (r'(\d+)\s+(?:people\s+)?(?:were\s+)?injured', 'injured'),
+            (r'(\d+)\s+(?:people\s+)?evacuated', 'evacuated'),
+        ]
+
+        # Extract metrics from new claim
+        for pattern, metric_type in metric_patterns:
+            match = re.search(pattern, claim_lower)
+            if match:
+                new_value = int(match.group(1))
+
+                # Check if any existing claim has the same metric type with different value
+                for existing in existing_claims:
+                    existing_lower = existing.text.lower()
+                    existing_match = re.search(pattern, existing_lower)
+
+                    if existing_match:
+                        old_value = int(existing_match.group(1))
+
+                        # If values are different, this is an update
+                        if new_value != old_value:
+                            logger.debug(f"📈 Found metric update: {metric_type} {old_value} → {new_value}")
+                            return (metric_type, old_value, new_value)
+
+        return None
+
+    async def _calculate_semantic_similarity(self, event: Event, claim: Claim) -> float:
+        """
+        Calculate semantic similarity between event and claim using embeddings
+
+        Args:
+            event: Event to compare against
+            claim: Claim to analyze
+
+        Returns:
+            Cosine similarity score between 0 and 1
+        """
+        if not event.embedding or not claim.embedding:
+            return 0.0
+
+        import numpy as np
+        vec1 = np.array(event.embedding)
+        vec2 = np.array(claim.embedding)
+
+        dot_product = np.dot(vec1, vec2)
+        norm1 = np.linalg.norm(vec1)
+        norm2 = np.linalg.norm(vec2)
+
+        if norm1 > 0 and norm2 > 0:
+            similarity = float(dot_product / (norm1 * norm2))
+            # Normalize from [-1, 1] to [0, 1]
+            return (similarity + 1) / 2
+
+        return 0.0
+
+    async def _generate_event_narrative(self, event: Event, claims: List[Claim]) -> str:
+        """
+        Generate narrative summary from event claims using LLM
+
+        Args:
+            event: Event to generate narrative for
+            claims: All claims supporting this event
+
+        Returns:
+            Narrative summary (2-3 sentences)
+        """
+        if not claims:
+            return f"{event.canonical_name} - No details available."
+
+        # Prepare claims for LLM
+        claim_texts = [f"- {claim.text}" for claim in claims[:10]]  # Limit to 10 for context
+        claims_str = "\n".join(claim_texts)
+
+        prompt = f"""Generate a concise narrative summary (2-3 sentences) for this event:
+
+Event Name: {event.canonical_name}
+Event Type: {event.event_type}
+
+Claims:
+{claims_str}
+
+Write a clear, factual narrative that synthesizes these claims into a coherent story.
+IMPORTANT: Include temporal information (WHEN things happened) if available in the claims.
+Focus on: what happened, when it happened, and key impacts."""
+
+        response = await self.openai_client.chat.completions.create(
+            messages=[{"role": "user", "content": prompt}],
+            model="gpt-4o-mini",
+            temperature=0.3
+        )
+
+        narrative = response.choices[0].message.content.strip()
+        logger.debug(f"📖 Generated narrative: {narrative[:100]}...")
+        return narrative
+
+    async def _generate_parent_narrative(self, parent: Event, sub_events: List[Event]):
+        """
+        Generate parent narrative from sub-event narratives
+
+        This creates a high-level story from all sub-events to check coherence.
+        Orders sub-events chronologically to show event progression.
+
+        Args:
+            parent: Parent event
+            sub_events: List of sub-events created
+        """
+        # Get all sub-events (including existing ones)
+        all_sub_events = await self.event_repo.get_sub_events(parent.id)
+
+        if not all_sub_events:
+            return
+
+        # Sort sub-events by earliest_time for chronological ordering
+        # Events without time go last
+        def get_sort_key(event):
+            if event.event_start:
+                start_py = neo4j_datetime_to_python(event.event_start)
+                return (0, start_py) if start_py else (1, datetime.max)
+            return (1, datetime.max)
+
+        sorted_sub_events = sorted(all_sub_events, key=get_sort_key)
+
+        # Collect sub-event narratives with temporal info
+        sub_narratives = []
+        for sub in sorted_sub_events:
+            if sub.summary:
+                # Add temporal context if available
+                time_str = ""
+                if sub.event_start:
+                    start_py = neo4j_datetime_to_python(sub.event_start)
+                    if start_py:
+                        time_str = f" (Around {start_py.strftime('%B %d, %Y')})"
+
+                sub_narratives.append(f"**{sub.canonical_name}**{time_str}: {sub.summary}")
+
+        if not sub_narratives:
+            logger.debug("No sub-event narratives to synthesize")
+            return
+
+        narratives_str = "\n\n".join(sub_narratives)
+
+        prompt = f"""Synthesize a high-level narrative (2-3 paragraphs) for this complex event from its sub-events:
+
+Event: {parent.canonical_name}
+Type: {parent.event_type}
+
+Sub-Events (in chronological order):
+{narratives_str}
+
+Create a coherent story that:
+1. Follows the CHRONOLOGICAL PROGRESSION - start with what happened first (the incident/breakout)
+2. Shows how sub-events relate to each other temporally
+3. Emphasizes WHEN things happened (use temporal markers: "initially", "following this", "in the aftermath", etc.)
+4. Identifies the key phases/dimensions and their sequence
+
+Write in clear, journalistic style with strong temporal flow."""
+
+        response = await self.openai_client.chat.completions.create(
+            messages=[{"role": "user", "content": prompt}],
+            model="gpt-4o-mini",
+            temperature=0.3
+        )
+
+        parent_narrative = response.choices[0].message.content.strip()
+        parent.summary = parent_narrative
+
+        logger.info(f"📚 Generated parent narrative for {parent.canonical_name}")
+        logger.debug(f"   Narrative: {parent_narrative[:150]}...")
 
     async def _propagate_from_children(
         self,

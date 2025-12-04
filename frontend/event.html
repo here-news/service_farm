@@ -387,6 +387,66 @@
             border-radius: 12px;
         }
 
+        /* Sub-Events */
+        .subevents-grid {
+            display: grid;
+            gap: 20px;
+        }
+
+        .subevent-card {
+            background: rgba(26, 26, 26, 0.8);
+            padding: 24px;
+            border-radius: 12px;
+            border: 1px solid rgba(102, 126, 234, 0.3);
+            text-decoration: none;
+            color: inherit;
+            transition: all 0.3s;
+            display: block;
+        }
+
+        .subevent-card:hover {
+            border-color: #667eea;
+            transform: translateX(4px);
+            box-shadow: 0 4px 16px rgba(102, 126, 234, 0.2);
+        }
+
+        .subevent-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 12px;
+        }
+
+        .subevent-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 8px;
+        }
+
+        .subevent-meta {
+            display: flex;
+            gap: 16px;
+            font-size: 0.85rem;
+            color: #888;
+            margin-bottom: 12px;
+        }
+
+        .subevent-summary {
+            color: #b0b0b0;
+            line-height: 1.6;
+            font-size: 0.95rem;
+        }
+
+        .subevent-badge {
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: rgba(102, 126, 234, 0.2);
+            color: #667eea;
+        }
+
         /* Related Events */
         .related-events-grid {
             display: grid;
@@ -479,6 +539,15 @@
                 <div class="entities-grid" id="entities-grid"></div>
             </div>
 
+            <!-- Sub-Events -->
+            <div class="section" id="subevents-section" style="display: none;">
+                <h2 class="section-title">
+                    <span class="section-title-icon">🌳</span>
+                    Sub-Events (<span id="subevents-count">0</span>)
+                </h2>
+                <div class="subevents-grid" id="subevents-grid"></div>
+            </div>
+
             <!-- Related Events -->
             <div class="section" id="related-section" style="display: none;">
                 <h2 class="section-title">
@@ -540,34 +609,30 @@
 
         function renderEvent(data) {
             const event = data.event;
-            const pages = data.pages || [];
+            const pages = [];  // Not returned by new API
             const claims = data.claims || [];
             const entities = data.entities || [];
-            const related = data.related || [];
-            const parents = data.parents || [];
+            const related = [];  // Not returned by new API
+            const parents = data.parent ? [data.parent] : [];
             const children = data.children || [];
-            const microNarratives = data.micro_narratives || [];
+            const microNarratives = [];  // Not returned by new API
 
             document.getElementById('loading').style.display = 'none';
             document.getElementById('content').style.display = 'block';
 
             // Hero section
-            document.getElementById('event-title').textContent = event.title || 'Untitled Event';
+            document.getElementById('event-title').textContent = event.canonical_name || 'Untitled Event';
             document.getElementById('status-badge').textContent = event.status;
             document.getElementById('status-badge').className = `status-badge ${event.status}`;
 
             // Build narrative story from available data
             let story = '';
 
-            // Priority 1: Use corroborated_description if available
-            if (event.enriched_json?.corroborated_description) {
-                story = event.enriched_json.corroborated_description;
+            // Priority 1: Use LLM-generated summary if available
+            if (event.summary && event.summary.trim()) {
+                story = event.summary;
             }
-            // Priority 2: Synthesize from micro_narratives
-            else if (microNarratives.length > 0) {
-                story = microNarratives.slice(0, 3).join(' ');
-            }
-            // Priority 3: Synthesize from top observation claims
+            // Priority 2: Synthesize from top observation claims
             else if (claims.length > 0) {
                 // Get top 3 observation claims (factual statements)
                 const observations = claims
@@ -584,13 +649,9 @@
                     story = claims.slice(0, 3).map(c => c.text).join(' ');
                 }
             }
-            // Priority 4: Use basic summary if not debug text
-            else if (event.summary && !event.summary.includes('Provisional event created from')) {
-                story = event.summary;
-            }
             // Fallback: Show processing message
             else {
-                story = `This event has been identified from ${pages.length} news source${pages.length === 1 ? '' : 's'} with ${claims.length} factual claims. Analysis and narrative synthesis in progress.`;
+                story = `This event has been identified with ${claims.length} factual claims and ${children.length} sub-events. Analysis and narrative synthesis in progress.`;
             }
 
             document.getElementById('event-summary').textContent = story;
@@ -640,9 +701,9 @@
             document.getElementById('graph-link').href = `/event_graph.html?id=${event.id}`;
             document.getElementById('map-link').href = `/map.html?id=${event.id}`;
 
-            // Casualty summary
-            const casualties = event.enriched_json?.consolidated?.casualty_summary;
-            if (casualties && (casualties.deaths?.latest || casualties.injured?.latest || casualties.hospitalized?.latest)) {
+            // Casualty summary - disabled for now (enriched_json not in new API)
+            const casualties = null;
+            if (false && casualties && (casualties.deaths?.latest || casualties.injured?.latest || casualties.hospitalized?.latest)) {
                 document.getElementById('casualty-section').style.display = 'block';
                 const grid = document.getElementById('casualties-grid');
                 grid.innerHTML = '';
@@ -701,15 +762,39 @@
                 entitiesGrid.innerHTML = '<div style="color: #888;">No entities found</div>';
             }
 
-            // Related events
-            const allRelated = [...related, ...parents, ...children];
+            // Sub-Events
+            if (children.length > 0) {
+                document.getElementById('subevents-section').style.display = 'block';
+                document.getElementById('subevents-count').textContent = children.length;
+                const subeventsGrid = document.getElementById('subevents-grid');
+
+                subeventsGrid.innerHTML = children.map(child => `
+                    <a href="/event.html?id=${child.id}" class="subevent-card">
+                        <div class="subevent-header">
+                            <div style="flex: 1;">
+                                <div class="subevent-title">${child.canonical_name || 'Untitled Sub-Event'}</div>
+                                <div class="subevent-meta">
+                                    ${child.event_start ? `<span>📅 ${formatDate(child.event_start)}</span>` : ''}
+                                    <span>💬 ${child.claims_count || 0} claims</span>
+                                    ${child.confidence ? `<span>📊 ${(child.confidence * 100).toFixed(0)}% confidence</span>` : ''}
+                                </div>
+                            </div>
+                            ${child.event_type ? `<span class="subevent-badge">${child.event_type}</span>` : ''}
+                        </div>
+                        ${child.summary ? `<div class="subevent-summary">${child.summary}</div>` : '<div class="subevent-summary" style="color: #666;">No summary available</div>'}
+                    </a>
+                `).join('');
+            }
+
+            // Related events (parent only, children shown in sub-events section)
+            const allRelated = [...related, ...parents];
             if (allRelated.length > 0) {
                 document.getElementById('related-section').style.display = 'block';
                 const relatedGrid = document.getElementById('related-events-grid');
                 relatedGrid.innerHTML = allRelated.map(rel => `
                     <a href="/event.html?id=${rel.id}" class="related-event-card">
-                        <div class="related-event-title">${rel.title || 'Untitled'}</div>
-                        <div class="related-event-type">${rel.relationship_type || 'related'}</div>
+                        <div class="related-event-title">${rel.canonical_name || 'Untitled'}</div>
+                        <div class="related-event-type">PARENT EVENT</div>
                     </a>
                 `).join('');
             }

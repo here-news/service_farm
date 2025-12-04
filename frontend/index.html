@@ -318,10 +318,10 @@
                 <a href="/event.html?id=${event.id}" class="event-card">
                     <div class="event-header">
                         <div style="flex: 1;">
-                            <div class="event-title">${event.title || 'Untitled Event'}</div>
+                            <div class="event-title">${event.canonical_name || 'Untitled Event'}</div>
                             <div class="event-meta">
-                                <span>📄 ${event.pages_count || 0} sources</span>
                                 <span>💬 ${event.claims_count || 0} claims</span>
+                                <span>🌳 ${event.child_count || 0} sub-events</span>
                                 <span>📊 ${(event.confidence * 100).toFixed(0)}% confidence</span>
                                 <span>🕒 ${formatDate(event.event_start)}</span>
                             </div>
@@ -337,21 +337,19 @@
         function renderTags(event) {
             const tags = [];
 
+            // Event type tag
+            if (event.event_type) {
+                tags.push(`<span class="tag">${event.event_type}</span>`);
+            }
+
             // Scale tag
             if (event.event_scale) {
                 tags.push(`<span class="tag">${event.event_scale}</span>`);
             }
 
-            // Entity count
-            const enriched = event.enriched_json;
-            if (enriched?.participants?.count) {
-                tags.push(`<span class="tag">${enriched.participants.count} entities</span>`);
-            }
-
-            // Casualty info
-            const casualties = enriched?.consolidated?.casualty_summary;
-            if (casualties?.deaths?.latest) {
-                tags.push(`<span class="tag">💀 ${casualties.deaths.latest} deaths</span>`);
+            // Coherence score
+            if (event.coherence) {
+                tags.push(`<span class="tag">🔗 ${(event.coherence * 100).toFixed(0)}% coherence</span>`);
             }
 
             if (tags.length === 0) return '';

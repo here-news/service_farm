@@ -408,7 +408,7 @@
             const related = [...(data.related || []), ...(data.parents || []), ...(data.children || [])];
 
             // Update navigation
-            document.getElementById('event-title-nav').textContent = event.title || 'Untitled Event';
+            document.getElementById('event-title-nav').textContent = event.canonical_name || 'Untitled Event';
             document.getElementById('back-link').href = `/event.html?id=${event.id}`;
             document.getElementById('timeline-link').href = `/timeline.html?id=${event.id}`;
             document.getElementById('graph-link').href = `/event_graph.html?id=${event.id}`;
@@ -449,7 +449,7 @@
             // Try to add related events with locations
             let relatedWithCoords = [];
             for (const rel of related.slice(0, 20)) {
-                const relLocation = rel.location || extractLocationFromTitle(rel.title);
+                const relLocation = rel.location || extractLocationFromTitle(rel.canonical_name);
                 if (relLocation) {
                     const relCoords = await geocodeLocation(relLocation);
                     if (relCoords) {
@@ -564,7 +564,7 @@
             }
 
             // Priority 4: extract from title
-            return extractLocationFromTitle(event.title);
+            return extractLocationFromTitle(event.canonical_name);
         }
 
         function extractLocationFromTitle(title) {
@@ -636,7 +636,7 @@
         }
 
         function createPopup(event, location, isMain) {
-            const title = event.title || 'Untitled Event';
+            const title = event.canonical_name || 'Untitled Event';
             const date = event.event_start ? formatDate(event.event_start) : 'Unknown date';
             const summary = event.summary && !event.summary.includes('Provisional event')
                 ? event.summary.substring(0, 150) + (event.summary.length > 150 ? '...' : '')

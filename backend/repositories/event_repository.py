@@ -44,10 +44,16 @@ class EventRepository:
         Returns:
             Created event
         """
-        # Prepare metadata with claim_ids
+        # Prepare metadata with claim_ids, summary, location
         metadata = event.metadata.copy() if event.metadata else {}
         if event.claim_ids:
             metadata['claim_ids'] = [str(cid) for cid in event.claim_ids]
+        if event.summary:
+            metadata['summary'] = event.summary
+        if event.location:
+            metadata['location'] = event.location
+        if event.coherence:
+            metadata['coherence'] = event.coherence
 
         # Store ALL event data in Neo4j (primary storage)
         await self.neo4j.create_event(
@@ -91,6 +97,12 @@ class EventRepository:
         metadata = event.metadata.copy() if event.metadata else {}
         if event.claim_ids:
             metadata['claim_ids'] = [str(cid) for cid in event.claim_ids]
+        if event.summary:
+            metadata['summary'] = event.summary
+        if event.location:
+            metadata['location'] = event.location
+        if event.coherence:
+            metadata['coherence'] = event.coherence
 
         # JSON serialize metadata for Neo4j (doesn't support nested structures)
         metadata_json = json.dumps(metadata) if metadata else '{}'

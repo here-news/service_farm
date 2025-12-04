@@ -125,6 +125,53 @@ class EntityRepository:
 
         return entities
 
+    async def get_by_event_id(self, event_id: uuid.UUID) -> List[Entity]:
+        """
+        Retrieve all entities for an event from Neo4j
+
+        Args:
+            event_id: Event UUID
+
+        Returns:
+            List of Entity models involved in the event
+        """
+        # Query Neo4j for entities linked to this event
+        results = await self.neo4j._execute_read("""
+            MATCH (e:Event {id: $event_id})-[:INVOLVES]->(entity:Entity)
+            RETURN entity.id as id,
+                   entity.canonical_name as canonical_name,
+                   entity.entity_type as entity_type,
+                   entity.mention_count as mention_count,
+                   entity.confidence as confidence,
+                   entity.wikidata_qid as wikidata_qid,
+                   entity.wikidata_label as wikidata_label,
+                   entity.wikidata_description as wikidata_description,
+                   entity.profile_summary as profile_summary,
+                   entity.status as status,
+                   entity.aliases as aliases
+            ORDER BY entity.canonical_name
+        """, {'event_id': str(event_id)})
+
+        # Convert to Entity models
+        entities = []
+        for row in results:
+            entities.append(Entity(
+                id=uuid.UUID(row['id']),
+                canonical_name=row['canonical_name'],
+                entity_type=row['entity_type'],
+                mention_count=row.get('mention_count', 0),
+                profile_summary=row.get('profile_summary'),
+                wikidata_qid=row.get('wikidata_qid'),
+                wikidata_label=row.get('wikidata_label'),
+                wikidata_description=row.get('wikidata_description'),
+                status=row.get('status', 'pending'),
+                confidence=row.get('confidence', 0.0),
+                aliases=row.get('aliases', []),
+                metadata={}
+            ))
+
+        return entities
+
     async def get_by_canonical_name(
         self, canonical_name: str, entity_type: Optional[str] = None
     ) -> Optional[Entity]:

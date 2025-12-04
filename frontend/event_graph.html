@@ -253,7 +253,7 @@
                 };
 
                 // Update navigation title
-                document.getElementById('event-title-nav').textContent = event.title || 'Entity Graph';
+                document.getElementById('event-title-nav').textContent = event.canonical_name || 'Entity Graph';
 
                 renderGraph(event);
 
@@ -277,9 +277,9 @@
             const overlay = document.createElement('div');
             overlay.className = 'overlay';
             overlay.innerHTML = `
-                <h1>${event.title || 'Untitled Event'}</h1>
+                <h1>${event.canonical_name || 'Untitled Event'}</h1>
                 <div class="overlay-meta">
-                    ${event.pages_count || 0} sources • ${event.claims_count || 0} claims
+                    ${event.claims_count || 0} claims • ${event.child_count || 0} sub-events
                 </div>
                 <div class="legend">
                     <div class="legend-item">
@@ -438,7 +438,7 @@
             // Add event node (center)
             nodes.push({
                 id: `event-${event.id}`,
-                name: event.title?.substring(0, 40) + '...' || 'Event',
+                name: event.canonical_name?.substring(0, 40) + '...' || 'Event',
                 type: 'event',
                 val: 100,
                 color: '#667eea',
@@ -499,7 +499,7 @@
 
                 nodes.push({
                     id: relEventId,
-                    name: relatedEvent.title?.substring(0, 40) + '...' || 'Related Event',
+                    name: relatedEvent.canonical_name?.substring(0, 40) + '...' || 'Related Event',
                     type: 'event',
                     val: 60,
                     color: '#764ba2',
