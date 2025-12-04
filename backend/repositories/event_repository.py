@@ -20,6 +20,7 @@ import numpy as np
 
 from models.event import Event
 from services.neo4j_service import Neo4jService
+from utils.datetime_utils import neo4j_datetime_to_python
 
 logger = logging.getLogger(__name__)
 
@@ -150,8 +151,8 @@ class EventRepository:
             id=uuid.UUID(node['id']),
             canonical_name=node.get('canonical_name', ''),
             event_type=node.get('event_type', 'INCIDENT'),
-            event_start=node.get('earliest_time'),
-            event_end=node.get('latest_time'),
+            event_start=neo4j_datetime_to_python(node.get('earliest_time')),
+            event_end=neo4j_datetime_to_python(node.get('latest_time')),
             status=node.get('status', 'provisional'),
             confidence=node.get('confidence', 0.3),
             event_scale=node.get('event_scale', 'micro'),
@@ -263,8 +264,11 @@ class EventRepository:
             # Calculate temporal proximity score
             time_score = 0.0
             if event.event_start and reference_time:
-                time_diff_days = abs((reference_time - event.event_start).days)
-                time_score = max(0, 1 - (time_diff_days / time_window_days))
+                # Defensive conversion for event.event_start
+                event_start_py = neo4j_datetime_to_python(event.event_start)
+                if event_start_py:
+                    time_diff_days = abs((reference_time - event_start_py).days)
+                    time_score = max(0, 1 - (time_diff_days / time_window_days))
 
             # Calculate semantic similarity score
             semantic_score = 0.0
@@ -315,3 +319,4 @@ class EventRepository:
         except Exception as e:
             logger.warning(f"Failed to parse embedding: {e}")
         return None
+

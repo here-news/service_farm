@@ -18,6 +18,7 @@ from models.claim import Claim
 from repositories.event_repository import EventRepository
 from repositories.claim_repository import ClaimRepository
 from repositories.entity_repository import EntityRepository
+from utils.datetime_utils import neo4j_datetime_to_python
 
 logger = logging.getLogger(__name__)
 
@@ -143,18 +144,25 @@ class EventService:
         """
         Decide how to handle a new claim
 
-        Logic from RECURSIVE_EVENT_DESIGN.md:
+        Logic (temporal-aware):
         1. Check for duplicates (semantic similarity > 0.9)
-        2. Check if it fits my topic (entity overlap > 0.5, coherence > 0.6)
-        3. Check if sub-event handles it better
-        4. Check if novel aspect (entity overlap 0.3-0.5)
-        5. Otherwise reject
+        2. Check if temporal aftermath/investigation (happens AFTER event + references it)
+        3. Check if it fits my topic (entity overlap > 0.5, coherence > 0.6)
+        4. Check if sub-event handles it better
+        5. Check if novel aspect (entity overlap 0.3-0.5)
+        6. Otherwise reject
         """
 
         # 1. Check for duplicates
         for existing_claim in existing_claims:
             if self._calculate_claim_similarity(claim, existing_claim) > self.DUPLICATE_THRESHOLD:
                 return ClaimDecision.MERGE
+
+        # 2. NEW: Check if this is temporal aftermath/investigation
+        # Key insight: Investigation/aftermath happens AFTER the incident but references it
+        if await self._is_temporal_aftermath(event, claim, existing_claims):
+            logger.info(f"🕐 Claim is temporal aftermath of {event.canonical_name}")
+            return ClaimDecision.YIELD_SUBEVENT
 
         # Get entities for overlap calculation
         event_entities = await self._get_event_entities(event)
@@ -166,14 +174,14 @@ class EventService:
         else:
             entity_overlap = len(event_entities & claim_entities) / max(len(event_entities), len(claim_entities))
 
-        # 2. Check if it fits my topic
+        # 3. Check if it fits my topic
         if entity_overlap > self.ENTITY_OVERLAP_THRESHOLD:
             # Check semantic coherence with existing claims
             coherence = await self._calculate_coherence_with_claim(event, claim, existing_claims)
             if coherence > self.COHERENCE_THRESHOLD:
                 return ClaimDecision.ADD
 
-        # 3. Check if sub-event handles it better
+        # 4. Check if sub-event handles it better
         if sub_events:
             best_sub_event = await self._find_best_sub_event(claim, sub_events)
             if best_sub_event:
@@ -182,12 +190,12 @@ class EventService:
                 if sub_match > my_match and sub_match > 0.5:
                     return ClaimDecision.DELEGATE
 
-        # 4. Is it novel but related? (shares context but different aspect)
+        # 5. Is it novel but related? (shares context but different aspect)
         if entity_overlap > self.SUB_EVENT_THRESHOLD and entity_overlap < self.ENTITY_OVERLAP_THRESHOLD:
             # Related but distinct aspect
             return ClaimDecision.YIELD_SUBEVENT
 
-        # 5. Unrelated
+        # 6. Unrelated
         return ClaimDecision.REJECT
 
     async def create_root_event(self, claims: List[Claim]) -> Event:
@@ -359,6 +367,86 @@ class EventService:
             entity_ids.update(claim.entity_ids)
 
         return entity_ids
+
+    async def _is_temporal_aftermath(
+        self,
+        event: Event,
+        claim: Claim,
+        existing_claims: List[Claim]
+    ) -> bool:
+        """
+        Detect if claim is temporal aftermath/investigation of the event
+
+        Key insight from human analysis:
+        - Investigation/aftermath happens AFTER the incident (3-7 days typical)
+        - Different entities (investigators vs firefighters)
+        - But semantically references the original event
+
+        Example:
+        - Fire incident: Nov 26 (firefighters, casualties)
+        - Investigation: Nov 29-Dec 2 (officials, safety inspectors)
+        - Investigation references "the fire" even with different actors
+
+        Returns: True if this is aftermath/investigation phase
+        """
+        # 1. Temporal check: Claim happens AFTER event ended
+        if not claim.event_time or not event.event_end:
+            return False
+
+        # Defensive conversion for datetime arithmetic
+        event_end_py = neo4j_datetime_to_python(event.event_end)
+        claim_time_py = neo4j_datetime_to_python(claim.event_time)
+
+        if not event_end_py or not claim_time_py:
+            logger.warning(f"Could not convert datetimes: event_end={type(event.event_end)}, claim_time={type(claim.event_time)}")
+            return False
+
+        # Aftermath typically 2-14 days after incident
+        days_after = (claim_time_py - event_end_py).days
+        if days_after < 2 or days_after > 14:
+            return False
+
+        logger.debug(f"Claim is {days_after} days after event - checking semantic reference...")
+
+        # 2. Semantic check: Does claim reference the event?
+        # Use LLM to detect aftermath language
+        prompt = f"""Analyze if this claim discusses the aftermath or investigation of an event.
+
+Event: {event.canonical_name} ({event.event_type})
+Event occurred: {neo4j_datetime_to_python(event.event_start).strftime('%B %d, %Y') if event.event_start and neo4j_datetime_to_python(event.event_start) else 'unknown'}
+
+Existing claims about the event (sample):
+{chr(10).join([f"- {c.text[:100]}" for c in existing_claims[:3]])}
+
+New claim ({neo4j_datetime_to_python(claim.event_time).strftime('%B %d, %Y') if claim.event_time and neo4j_datetime_to_python(claim.event_time) else 'unknown'}):
+"{claim.text}"
+
+Question: Is this new claim discussing the aftermath, investigation, or consequences of the event described above?
+
+Consider:
+- Does it mention investigation, accountability, officials, safety reviews?
+- Does it reference "the {event.event_type.lower()}" or similar?
+- Does it discuss responses, failures, or consequences?
+
+Answer ONLY "yes" or "no"."""
+
+        try:
+            response = await self.openai_client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3,
+                max_tokens=5
+            )
+
+            answer = response.choices[0].message.content.strip().lower()
+            is_aftermath = "yes" in answer
+
+            logger.info(f"Temporal aftermath check: {is_aftermath} (claim: '{claim.text[:80]}...')")
+            return is_aftermath
+
+        except Exception as e:
+            logger.warning(f"LLM aftermath check failed: {e}")
+            return False
 
     async def _calculate_coherence_with_claim(
         self,

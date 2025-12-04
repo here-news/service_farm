@@ -564,7 +564,7 @@ class Neo4jService:
             'entity_id': entity_id
         })
 
-    async def create_event_relationship(
+    async def create_causal_relationship(
         self,
         from_event_id: str,
         to_event_id: str,
@@ -572,7 +572,7 @@ class Neo4jService:
         confidence: float = 0.8,
         metadata: Dict = None
     ):
-        """Create relationship between two events"""
+        """Create causal/peer relationship between two events (CAUSED, TRIGGERED, etc.)"""
         query = f"""
         MATCH (e1:Event {{id: $from_event_id}})
         MATCH (e2:Event {{id: $to_event_id}})
