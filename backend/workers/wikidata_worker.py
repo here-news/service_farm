@@ -38,6 +38,8 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from services.job_queue import JobQueue
+from services.neo4j_service import Neo4jService
+from repositories.entity_repository import EntityRepository
 
 logging.basicConfig(
     level=logging.INFO,
@@ -152,13 +154,17 @@ class WikidataWorker:
 
     WIKIDATA_API = "https://www.wikidata.org/w/api.php"
 
-    def __init__(self, db_pool: asyncpg.Pool, job_queue: JobQueue, worker_id: int = 1):
+    def __init__(self, db_pool: asyncpg.Pool, job_queue: JobQueue, neo4j_service: Neo4jService = None, worker_id: int = 1):
         self.db_pool = db_pool
         self.job_queue = job_queue
         self.worker_id = worker_id
         self.session: Optional[aiohttp.ClientSession] = None
         # Cache for P279 (subclass of) chains to avoid repeated API calls
         self.subclass_cache: Dict[str, set] = {}
+
+        # Initialize Neo4j and repository
+        self.neo4j = neo4j_service or Neo4jService()
+        self.entity_repo = EntityRepository(db_pool, self.neo4j)
 
     async def start(self):
         """Start worker loop"""
@@ -209,188 +215,181 @@ class WikidataWorker:
         logger.info(f"🔍 Processing: {canonical_name} ({entity_type})")
 
         try:
-            async with self.db_pool.acquire() as conn:
-                # Check if already enriched
-                existing = await conn.fetchval(
-                    "SELECT wikidata_qid FROM core.entities WHERE id = $1",
-                    entity_id
-                )
+            # Check if already enriched using repository
+            entity = await self.entity_repo.get_by_id(entity_id)
 
-                if existing:
-                    logger.info(f"⏭️  Already enriched: {canonical_name} -> {existing}")
-                    return
+            if not entity:
+                logger.warning(f"⚠️  Entity {entity_id} not found in Neo4j")
+                return
 
-                # Stage 1: Search Wikidata for candidates
-                candidates = await self._search_wikidata(canonical_name)
+            if entity.wikidata_qid:
+                logger.info(f"⏭️  Already enriched: {canonical_name} -> {entity.wikidata_qid}")
+                return
 
-                if not candidates:
-                    logger.warning(f"⚠️  No Wikidata candidates for '{canonical_name}'")
-                    await self._mark_entity_checked(conn, entity_id)
-                    return
+            # Stage 1: Search Wikidata for candidates
+            candidates = await self._search_wikidata(canonical_name)
 
-                logger.info(f"📋 Found {len(candidates)} candidates")
+            if not candidates:
+                logger.warning(f"⚠️  No Wikidata candidates for '{canonical_name}'")
+                await self.entity_repo.mark_checked(entity_id)
+                return
 
-                # Stage 2: Filter by label similarity
-                filtered_candidates = self._filter_by_label_match(
-                    candidates, canonical_name
-                )
+            logger.info(f"📋 Found {len(candidates)} candidates")
 
-                if not filtered_candidates:
-                    logger.warning(f"⚠️  No label matches for '{canonical_name}'")
-                    await self._mark_entity_checked(conn, entity_id)
-                    return
+            # Stage 2: Filter by label similarity
+            filtered_candidates = self._filter_by_label_match(
+                candidates, canonical_name
+            )
 
-                logger.info(f"✓ {len(filtered_candidates)} passed label matching")
+            if not filtered_candidates:
+                logger.warning(f"⚠️  No label matches for '{canonical_name}'")
+                await self.entity_repo.mark_checked(entity_id)
+                return
 
-                # Stage 3: Fetch full entity data and filter by type
-                typed_candidates = []
-                for candidate in filtered_candidates:
-                    entity_data = await self._fetch_wikidata_entity(candidate['qid'])
+            logger.info(f"✓ {len(filtered_candidates)} passed label matching")
 
-                    # Type filtering (CRITICAL for accuracy)
-                    # Uses P279 (subclass of) hierarchy traversal for comprehensive matching
-                    if entity_type in ENTITY_TYPE_FILTERS:
-                        expected_types = ENTITY_TYPE_FILTERS[entity_type]
-                        instance_of_qids = entity_data.get('instance_of_qids', [])
+            # Stage 3: Fetch full entity data and filter by type
+            typed_candidates = []
+            for candidate in filtered_candidates:
+                entity_data = await self._fetch_wikidata_entity(candidate['qid'])
 
-                        # Check type match using hierarchy traversal
-                        has_matching_type = await self._check_type_match(
-                            instance_of_qids, expected_types
+                # Type filtering (CRITICAL for accuracy)
+                # Uses P279 (subclass of) hierarchy traversal for comprehensive matching
+                if entity_type in ENTITY_TYPE_FILTERS:
+                    expected_types = ENTITY_TYPE_FILTERS[entity_type]
+                    instance_of_qids = entity_data.get('instance_of_qids', [])
+
+                    # Check type match using hierarchy traversal
+                    has_matching_type = await self._check_type_match(
+                        instance_of_qids, expected_types
+                    )
+
+                    if not has_matching_type:
+                        instance_labels = entity_data.get('instance_of_labels', [])
+                        instance_str = ', '.join(instance_labels) if instance_labels else 'unknown'
+                        qid_str = ', '.join(instance_of_qids[:3])
+                        logger.debug(
+                            f"  ⏭️  Skipping {candidate['qid']} - wrong type "
+                            f"(expected {entity_type}, got {instance_str} [{qid_str}])"
                         )
+                        continue
 
-                        if not has_matching_type:
-                            instance_labels = entity_data.get('instance_of_labels', [])
-                            instance_str = ', '.join(instance_labels) if instance_labels else 'unknown'
-                            qid_str = ', '.join(instance_of_qids[:3])
-                            logger.debug(
-                                f"  ⏭️  Skipping {candidate['qid']} - wrong type "
-                                f"(expected {entity_type}, got {instance_str} [{qid_str}])"
-                            )
-                            continue
+                typed_candidates.append({
+                    **candidate,
+                    'entity_data': entity_data
+                })
 
-                    typed_candidates.append({
-                        **candidate,
-                        'entity_data': entity_data
-                    })
+            if not typed_candidates:
+                logger.warning(
+                    f"⚠️  No candidates matched expected type ({entity_type})"
+                )
+                await self.entity_repo.mark_checked(entity_id)
+                return
 
-                if not typed_candidates:
-                    logger.warning(
-                        f"⚠️  No candidates matched expected type ({entity_type})"
-                    )
-                    await self._mark_entity_checked(conn, entity_id)
-                    return
+            logger.info(f"✓ {len(typed_candidates)} passed type filtering")
 
-                logger.info(f"✓ {len(typed_candidates)} passed type filtering")
-
-                # Stage 4: Score using structural signals
-                scored_candidates = []
-                for idx, candidate in enumerate(typed_candidates, start=1):
-                    structural_score = await self._score_entity_structural(
-                        entity_data=candidate['entity_data'],
-                        search_rank=idx,
-                        total_candidates=len(typed_candidates)
-                    )
-
-                    scored_candidates.append({
-                        **candidate,
-                        'structural_score': structural_score,
-                        'search_rank': idx
-                    })
-
-                # Sort by score (highest first)
-                scored_candidates.sort(key=lambda x: x['structural_score'], reverse=True)
-
-                # Stage 5: Calculate confidence and ambiguity
-                best_candidate = scored_candidates[0]
-                ambiguity_score = 0.0
-
-                if len(scored_candidates) > 1:
-                    second_best = scored_candidates[1]
-                    score_diff = best_candidate['structural_score'] - second_best['structural_score']
-                    # Ambiguity: 0.0 = clear winner (diff > 10), 1.0 = tie (diff < 2)
-                    ambiguity_score = max(0.0, min(1.0, (10.0 - score_diff) / 10.0))
-
-                # Confidence = structural score normalized + ambiguity penalty
-                # Max structural score ≈ 55 (rank 10 + sitelinks 15 + claims 10 + primary 20)
-                confidence = min(1.0, best_candidate['structural_score'] / 55.0)
-                confidence *= (1.0 - ambiguity_score * 0.3)  # Ambiguity penalty
-
-                # Log ranking for transparency (BEFORE confidence check for debugging)
-                logger.info(f"🏆 Candidate ranking:")
-                for i, cand in enumerate(scored_candidates[:3], 1):
-                    logger.info(
-                        f"   {i}. {cand['qid']} - {cand['description'][:60]} "
-                        f"(score: {cand['structural_score']:.1f})"
-                    )
-
-                # Stage 6: Confidence threshold check
-                if confidence < MIN_CONFIDENCE_THRESHOLD:
-                    # Show scoring breakdown for low confidence cases
-                    ed = best_candidate['entity_data']
-                    instance_qids = ed.get('instance_of_qids', [])
-                    logger.warning(
-                        f"⚠️  Low confidence for '{canonical_name}': "
-                        f"{best_candidate['qid']} (confidence={confidence:.2f}, "
-                        f"threshold={MIN_CONFIDENCE_THRESHOLD})"
-                    )
-                    logger.info(
-                        f"   Structural breakdown: sitelinks={ed.get('sitelinks_count', 0)}, "
-                        f"claims={ed.get('claims_count', 0)}, "
-                        f"P31_instance_of={instance_qids}, "
-                        f"total_score={best_candidate['structural_score']:.1f}/55.0"
-                    )
-                    await self._mark_entity_checked(conn, entity_id)
-                    return
-
-                if ambiguity_score > HIGH_AMBIGUITY_THRESHOLD:
-                    logger.warning(
-                        f"📌 High ambiguity: {ambiguity_score:.2f} "
-                        f"(score diff: {score_diff:.1f})"
-                    )
-
-                # Stage 7: Fetch additional properties (image, coords)
-                entity_data = best_candidate['entity_data']
-                thumbnail_url = await self._get_wikidata_image(best_candidate['qid'])
-
-                # Fetch aliases for cross-lingual matching
-                aliases = await self._fetch_wikidata_aliases(best_candidate['qid'])
-
-                # Stage 8: Update entity with enriched data
-                wikidata_properties = {
-                    'label': best_candidate['label'],
-                    'description': best_candidate['description'],
-                    'aliases': aliases,
-                    'thumbnail_url': thumbnail_url,
-                    'sitelinks_count': entity_data.get('sitelinks_count', 0),
-                    'claims_count': entity_data.get('claims_count', 0),
-                    'latitude': entity_data.get('latitude'),
-                    'longitude': entity_data.get('longitude'),
-                    'enriched_at': datetime.utcnow().isoformat(),
-                    'confidence': round(confidence, 3),
-                    'ambiguity_score': round(ambiguity_score, 3)
-                }
-
-                await conn.execute("""
-                    UPDATE core.entities
-                    SET wikidata_qid = $2,
-                        wikidata_properties = $3,
-                        names_by_language = COALESCE(names_by_language, '{}'::jsonb) || $4,
-                        semantic_confidence = GREATEST(semantic_confidence, $5),
-                        status = 'enriched',
-                        updated_at = NOW()
-                    WHERE id = $1
-                """,
-                    entity_id,
-                    best_candidate['qid'],
-                    json.dumps(wikidata_properties),
-                    json.dumps(aliases),
-                    confidence
+            # Stage 4: Score using structural signals
+            scored_candidates = []
+            for idx, candidate in enumerate(typed_candidates, start=1):
+                structural_score = await self._score_entity_structural(
+                    entity_data=candidate['entity_data'],
+                    search_rank=idx,
+                    total_candidates=len(typed_candidates)
                 )
 
+                scored_candidates.append({
+                    **candidate,
+                    'structural_score': structural_score,
+                    'search_rank': idx
+                })
+
+            # Sort by score (highest first)
+            scored_candidates.sort(key=lambda x: x['structural_score'], reverse=True)
+
+            # Stage 5: Calculate confidence and ambiguity
+            best_candidate = scored_candidates[0]
+            ambiguity_score = 0.0
+
+            if len(scored_candidates) > 1:
+                second_best = scored_candidates[1]
+                score_diff = best_candidate['structural_score'] - second_best['structural_score']
+                # Ambiguity: 0.0 = clear winner (diff > 10), 1.0 = tie (diff < 2)
+                ambiguity_score = max(0.0, min(1.0, (10.0 - score_diff) / 10.0))
+
+            # Confidence = structural score normalized + ambiguity penalty
+            # Max structural score ≈ 55 (rank 10 + sitelinks 15 + claims 10 + primary 20)
+            confidence = min(1.0, best_candidate['structural_score'] / 55.0)
+            confidence *= (1.0 - ambiguity_score * 0.3)  # Ambiguity penalty
+
+            # Log ranking for transparency (BEFORE confidence check for debugging)
+            logger.info(f"🏆 Candidate ranking:")
+            for i, cand in enumerate(scored_candidates[:3], 1):
                 logger.info(
-                    f"✅ Enriched {canonical_name} -> {best_candidate['qid']} "
-                    f"(confidence={confidence:.2f}, ambiguity={ambiguity_score:.2f})"
+                    f"   {i}. {cand['qid']} - {cand['description'][:60]} "
+                    f"(score: {cand['structural_score']:.1f})"
                 )
+
+            # Stage 6: Confidence threshold check
+            if confidence < MIN_CONFIDENCE_THRESHOLD:
+                # Show scoring breakdown for low confidence cases
+                ed = best_candidate['entity_data']
+                instance_qids = ed.get('instance_of_qids', [])
+                logger.warning(
+                    f"⚠️  Low confidence for '{canonical_name}': "
+                    f"{best_candidate['qid']} (confidence={confidence:.2f}, "
+                    f"threshold={MIN_CONFIDENCE_THRESHOLD})"
+                )
+                logger.info(
+                    f"   Structural breakdown: sitelinks={ed.get('sitelinks_count', 0)}, "
+                    f"claims={ed.get('claims_count', 0)}, "
+                    f"P31_instance_of={instance_qids}, "
+                    f"total_score={best_candidate['structural_score']:.1f}/55.0"
+                )
+                await self.entity_repo.mark_checked(entity_id)
+                return
+
+            if ambiguity_score > HIGH_AMBIGUITY_THRESHOLD:
+                logger.warning(
+                    f"📌 High ambiguity: {ambiguity_score:.2f} "
+                    f"(score diff: {score_diff:.1f})"
+                )
+
+            # Stage 7: Fetch additional properties (image, coords)
+            entity_data = best_candidate['entity_data']
+            thumbnail_url = await self._get_wikidata_image(best_candidate['qid'])
+
+            # Fetch aliases for cross-lingual matching
+            aliases_dict = await self._fetch_wikidata_aliases(best_candidate['qid'])
+            # Flatten aliases dict to simple list for Neo4j (Neo4j doesn't support nested maps)
+            aliases = []
+            for lang_aliases in aliases_dict.values():
+                aliases.extend(lang_aliases)
+
+            # Stage 8: Update entity using repository
+            metadata = {
+                'thumbnail_url': thumbnail_url,
+                'sitelinks_count': entity_data.get('sitelinks_count', 0),
+                'claims_count': entity_data.get('claims_count', 0),
+                'latitude': entity_data.get('latitude'),
+                'longitude': entity_data.get('longitude'),
+                'enriched_at': datetime.utcnow().isoformat(),
+                'ambiguity_score': round(ambiguity_score, 3)
+            }
+
+            await self.entity_repo.enrich(
+                entity_id=entity_id,
+                wikidata_qid=best_candidate['qid'],
+                wikidata_label=best_candidate['label'],
+                wikidata_description=best_candidate['description'],
+                confidence=confidence,
+                aliases=aliases,
+                metadata=metadata
+            )
+
+            logger.info(
+                f"✅ Enriched {canonical_name} -> {best_candidate['qid']} "
+                f"(confidence={confidence:.2f}, ambiguity={ambiguity_score:.2f})"
+            )
 
         except Exception as e:
             logger.error(f"❌ Failed to enrich {canonical_name}: {e}", exc_info=True)
@@ -740,15 +739,6 @@ class WikidataWorker:
 
         return score
 
-    async def _mark_entity_checked(self, conn: asyncpg.Connection, entity_id: uuid.UUID):
-        """Mark entity as checked even if no Wikidata match found"""
-        await conn.execute("""
-            UPDATE core.entities
-            SET status = 'checked',
-                updated_at = NOW()
-            WHERE id = $1
-        """, entity_id)
-
     async def _fetch_subclass_hierarchy(
         self, qid: str, depth: int = 0, visited: Optional[set] = None
     ) -> set:
@@ -867,7 +857,11 @@ async def main():
     job_queue = JobQueue(os.getenv('REDIS_URL', 'redis://redis:6379'))
     await job_queue.connect()
 
-    worker = WikidataWorker(db_pool, job_queue, worker_id=worker_id)
+    # Initialize Neo4j
+    neo4j_service = Neo4jService()
+    await neo4j_service.connect()
+
+    worker = WikidataWorker(db_pool, job_queue, neo4j_service=neo4j_service, worker_id=worker_id)
     logger.info(f"🔗 Starting Wikidata enrichment worker {worker_id}")
 
     try:
@@ -877,6 +871,7 @@ async def main():
     finally:
         await db_pool.close()
         await job_queue.close()
+        await neo4j_service.close()
 
 
 if __name__ == "__main__":

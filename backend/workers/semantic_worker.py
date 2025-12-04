@@ -288,6 +288,9 @@ class SemanticWorker:
         - "ORG:CNN"
         - "LOCATION:New York"
 
+        Note: LLM may misclassify entities (e.g., "PERSON:Hong Kong"). This should be
+        handled by entity resolution/enrichment workers that query Wikidata for correct types.
+
         Returns mapping: {prefixed_name: entity_uuid}
         """
         entity_mapping = {}
@@ -511,15 +514,11 @@ class SemanticWorker:
                     logger.warning(f"❌ Entity UUID not found for {entity_ref}")
                     continue
 
-                # Upsert link
-                await conn.execute("""
-                    INSERT INTO core.claim_entities (claim_id, entity_id, mention_context)
-                    VALUES ($1, $2, $3)
-                    ON CONFLICT (claim_id, entity_id) DO NOTHING
-                """, claim_uuid, entity_uuid, claim['text'][:500])
+                # Note: claim-entity links will be created in Neo4j by event worker
+                # when it creates Claim nodes in the graph. Entities are already in Neo4j.
                 total_links += 1
 
-        logger.info(f"✅ Created {total_links} claim-entity links")
+        logger.info(f"✅ Tracked {total_links} claim-entity links (will be created in Neo4j by event worker)")
 
 
     async def _link_entities_to_page(
@@ -543,16 +542,10 @@ class SemanticWorker:
             for entity_ref in entities_in_claim:
                 entity_claim_counts[entity_ref] = entity_claim_counts.get(entity_ref, 0) + 1
 
-        # Store with actual mention counts
-        for entity_ref, entity_uuid in entity_mapping.items():
-            mention_count = entity_claim_counts.get(entity_ref, 1)
-
-            await conn.execute("""
-                INSERT INTO core.page_entities (page_id, entity_id, mention_count)
-                VALUES ($1, $2, $3)
-                ON CONFLICT (page_id, entity_id)
-                DO UPDATE SET mention_count = $3
-            """, page_id, entity_uuid, mention_count)
+        # Note: page-entity links will be created in Neo4j by event worker
+        # when it builds the event graph. Entities are already in Neo4j.
+        # Mention counts are tracked in Neo4j Entity nodes via MERGE ON MATCH.
+        pass
 
 
     async def _generate_entity_descriptions(
@@ -609,11 +602,8 @@ Only return the description, nothing else."""
                 # Remove quotes if present
                 profile_summary = profile_summary.strip('"\'')
 
-                await conn.execute("""
-                    UPDATE core.entities
-                    SET profile_summary = $2
-                    WHERE id = $1
-                """, entity_uuid, profile_summary)
+                # Update profile in Neo4j via repository
+                await self.entity_repo.update_profile(entity_uuid, profile_summary)
 
                 logger.debug(f"📝 Generated description for {entity_name}: {profile_summary}")
 
@@ -622,11 +612,8 @@ Only return the description, nothing else."""
                 # Fallback: use first claim context (truncated)
                 profile_summary = contexts[0][:200] if contexts else None
                 if profile_summary:
-                    await conn.execute("""
-                        UPDATE core.entities
-                        SET profile_summary = $2
-                        WHERE id = $1
-                    """, entity_uuid, profile_summary)
+                    # Update profile in Neo4j via repository
+                    await self.entity_repo.update_profile(entity_uuid, profile_summary)
 
     async def _queue_wikidata_enrichment(
         self, conn: asyncpg.Connection, entity_mapping: Dict[str, uuid.UUID],
@@ -639,16 +626,16 @@ Only return the description, nothing else."""
         - Don't already have a wikidata_qid
         - Are linkable types (PERSON, ORGANIZATION, LOCATION, GPE)
         """
-        # Get entity details for queuing
+        # Get entity details from Neo4j via repository
         entity_ids = list(entity_mapping.values())
+        all_entities = await self.entity_repo.get_by_ids(entity_ids)
 
-        entities_to_enrich = await conn.fetch("""
-            SELECT id, canonical_name, entity_type, profile_summary, wikidata_qid
-            FROM core.entities
-            WHERE id = ANY($1::uuid[])
-            AND wikidata_qid IS NULL
-            AND entity_type IN ('PERSON', 'ORGANIZATION', 'LOCATION')
-        """, entity_ids)
+        # Filter entities that need enrichment
+        entities_to_enrich = [
+            entity for entity in all_entities
+            if entity.wikidata_qid is None
+            and entity.entity_type in ('PERSON', 'ORGANIZATION', 'LOCATION')
+        ]
 
         # Collect claim contexts for each entity
         entity_contexts = {}
@@ -667,15 +654,15 @@ Only return the description, nothing else."""
 
         # Queue enrichment jobs
         for entity in entities_to_enrich:
-            entity_ref = f"{entity['entity_type']}:{entity['canonical_name']}"
+            entity_ref = f"{entity.entity_type}:{entity.canonical_name}"
             mentions = entity_contexts.get(entity_ref, [])
 
             await self.job_queue.enqueue('wikidata_enrichment', {
-                'entity_id': str(entity['id']),
-                'canonical_name': entity['canonical_name'],
-                'entity_type': entity['entity_type'],
+                'entity_id': str(entity.id),
+                'canonical_name': entity.canonical_name,
+                'entity_type': entity.entity_type,
                 'context': {
-                    'description': entity['profile_summary'],
+                    'description': entity.profile_summary or '',
                     'mentions': mentions[:5]  # Include up to 5 claim contexts
                 }
             })

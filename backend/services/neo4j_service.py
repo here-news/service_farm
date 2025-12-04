@@ -272,6 +272,54 @@ class Neo4jService:
         logger.debug(f"📦 Created/updated Entity: {canonical_name} ({entity_type})")
         return result['id'] if result else entity_id
 
+    async def get_entities_by_ids(self, entity_ids: List[str]) -> List[Dict]:
+        """
+        Retrieve multiple entities by IDs from Neo4j
+
+        Args:
+            entity_ids: List of Entity UUIDs
+
+        Returns:
+            List of entity dictionaries
+        """
+        if not entity_ids:
+            return []
+
+        query = """
+        MATCH (e:Entity)
+        WHERE e.id IN $entity_ids
+        RETURN e.id as id, e.canonical_name as canonical_name,
+               e.entity_type as entity_type, e.mention_count as mention_count,
+               e.created_at as created_at, e.wikidata_qid as wikidata_qid,
+               e.wikidata_label as wikidata_label,
+               e.wikidata_description as wikidata_description,
+               e.status as status, e.confidence as confidence,
+               e.aliases as aliases, e.profile_summary as profile_summary
+        """
+
+        results = await self._execute_read(query, {'entity_ids': entity_ids})
+        return results
+
+    async def get_entity_by_id(self, entity_id: str) -> Optional[Dict]:
+        """
+        Get entity by ID
+
+        Returns entity data or None
+        """
+        query = """
+        MATCH (e:Entity {id: $entity_id})
+        RETURN e.id as id, e.canonical_name as canonical_name,
+               e.entity_type as entity_type, e.mention_count as mention_count,
+               e.created_at as created_at, e.wikidata_qid as wikidata_qid,
+               e.wikidata_label as wikidata_label,
+               e.wikidata_description as wikidata_description,
+               e.status as status, e.confidence as confidence,
+               e.aliases as aliases
+        """
+
+        results = await self._execute_read(query, {'entity_id': entity_id})
+        return results[0] if results else None
+
     async def get_entity_by_name_and_type(
         self,
         canonical_name: str,
@@ -286,7 +334,8 @@ class Neo4jService:
         MATCH (e:Entity {canonical_name: $canonical_name, entity_type: $entity_type})
         RETURN e.id as id, e.canonical_name as canonical_name,
                e.entity_type as entity_type, e.mention_count as mention_count,
-               e.created_at as created_at
+               e.created_at as created_at, e.wikidata_qid as wikidata_qid,
+               e.status as status
         """
 
         results = await self._execute_read(query, {
@@ -295,6 +344,187 @@ class Neo4jService:
         })
 
         return results[0] if results else None
+
+    async def enrich_entity(
+        self,
+        entity_id: str,
+        wikidata_qid: str,
+        wikidata_label: str,
+        wikidata_description: str,
+        confidence: float,
+        aliases: list,
+        metadata: dict
+    ) -> None:
+        """
+        Enrich entity with Wikidata information
+
+        Stores: QID, label, description, confidence, aliases, metadata (thumbnail, coords, etc.)
+        """
+        query = """
+        MATCH (e:Entity {id: $entity_id})
+        SET e.wikidata_qid = $wikidata_qid,
+            e.wikidata_label = $wikidata_label,
+            e.wikidata_description = $wikidata_description,
+            e.confidence = $confidence,
+            e.aliases = $aliases,
+            e.metadata_json = $metadata_json,
+            e.status = 'enriched',
+            e.updated_at = datetime()
+        """
+
+        await self._execute_write(query, {
+            'entity_id': entity_id,
+            'wikidata_qid': wikidata_qid,
+            'wikidata_label': wikidata_label,
+            'wikidata_description': wikidata_description,
+            'confidence': confidence,
+            'aliases': aliases,
+            'metadata_json': json.dumps(metadata)
+        })
+
+        logger.info(f"📦 Enriched Entity {entity_id} with Wikidata {wikidata_qid}")
+
+    async def mark_entity_checked(self, entity_id: str) -> None:
+        """
+        Mark entity as checked (no Wikidata match found)
+        """
+        query = """
+        MATCH (e:Entity {id: $entity_id})
+        SET e.status = 'checked',
+            e.updated_at = datetime()
+        """
+
+        await self._execute_write(query, {
+            'entity_id': entity_id
+        })
+
+        logger.debug(f"✓ Marked Entity {entity_id} as checked")
+
+    async def update_entity_profile(
+        self,
+        entity_id: str,
+        profile_summary: str
+    ) -> None:
+        """
+        Update entity profile summary (generated from claim contexts)
+
+        Args:
+            entity_id: Entity UUID
+            profile_summary: AI-generated description of entity
+        """
+        query = """
+        MATCH (e:Entity {id: $entity_id})
+        SET e.profile_summary = $profile_summary,
+            e.updated_at = datetime()
+        """
+
+        await self._execute_write(query, {
+            'entity_id': entity_id,
+            'profile_summary': profile_summary
+        })
+
+        logger.debug(f"✓ Updated profile for Entity {entity_id}")
+
+    async def find_duplicate_entities(self) -> List[Dict]:
+        """
+        Find all entities that share the same Wikidata QID (duplicates)
+
+        Returns:
+            List of duplicate groups with entity details
+        """
+        query = """
+        MATCH (e:Entity)
+        WHERE e.wikidata_qid IS NOT NULL
+        WITH e.wikidata_qid as qid, collect(e) as entities
+        WHERE size(entities) > 1
+        RETURN qid as wikidata_qid,
+               [entity IN entities | entity.id] as entity_ids,
+               [entity IN entities | entity.canonical_name] as names,
+               [entity IN entities | entity.mention_count] as mention_counts
+        ORDER BY size(entities) DESC
+        """
+
+        results = await self._execute_read(query, {})
+        return results
+
+    async def merge_entities(
+        self,
+        canonical_id: str,
+        duplicate_ids: List[str],
+        total_mentions: int
+    ) -> None:
+        """
+        Merge duplicate entities into canonical entity
+
+        Steps:
+        1. Re-point all relationships from duplicates to canonical
+        2. Update canonical entity mention count
+        3. Delete duplicate entities
+
+        Args:
+            canonical_id: ID of canonical entity to keep
+            duplicate_ids: List of duplicate entity IDs to merge
+            total_mentions: Total mention count after merge
+        """
+        query = """
+        // Step 1: Find canonical entity and duplicates
+        MATCH (canonical:Entity {id: $canonical_id})
+        MATCH (duplicate:Entity)
+        WHERE duplicate.id IN $duplicate_ids
+
+        // Step 2: Re-point all MENTIONS relationships
+        WITH canonical, collect(duplicate) as duplicates
+        UNWIND duplicates as dup
+        OPTIONAL MATCH (c:Claim)-[r:MENTIONS]->(dup)
+        WITH canonical, dup, collect(c) as claims
+        FOREACH (claim IN claims |
+            MERGE (claim)-[:MENTIONS]->(canonical)
+        )
+
+        // Step 3: Re-point all other relationships (ACTOR, SUBJECT, LOCATION)
+        WITH canonical, dup
+        OPTIONAL MATCH (c:Claim)-[r:ACTOR|SUBJECT|LOCATION]->(dup)
+        WITH canonical, dup, type(r) as rel_type, collect(c) as claims
+        FOREACH (claim IN claims |
+            FOREACH (ignoreMe IN CASE WHEN rel_type = 'ACTOR' THEN [1] ELSE [] END |
+                MERGE (claim)-[:ACTOR]->(canonical)
+            )
+            FOREACH (ignoreMe IN CASE WHEN rel_type = 'SUBJECT' THEN [1] ELSE [] END |
+                MERGE (claim)-[:SUBJECT]->(canonical)
+            )
+            FOREACH (ignoreMe IN CASE WHEN rel_type = 'LOCATION' THEN [1] ELSE [] END |
+                MERGE (claim)-[:LOCATION]->(canonical)
+            )
+        )
+
+        // Step 4: Re-point Event relationships
+        WITH canonical, dup
+        OPTIONAL MATCH (e:Event)-[r:INVOLVES]->(dup)
+        WITH canonical, dup, collect(e) as events
+        FOREACH (event IN events |
+            MERGE (event)-[:INVOLVES]->(canonical)
+        )
+
+        // Step 5: Delete old relationships and duplicates
+        WITH canonical, dup
+        OPTIONAL MATCH (c)-[r]->(dup)
+        DELETE r
+        WITH canonical, dup
+        DELETE dup
+
+        // Step 6: Update canonical mention count
+        WITH canonical
+        SET canonical.mention_count = $total_mentions,
+            canonical.updated_at = datetime()
+        """
+
+        await self._execute_write(query, {
+            'canonical_id': canonical_id,
+            'duplicate_ids': duplicate_ids,
+            'total_mentions': total_mentions
+        })
+
+        logger.info(f"🔗 Merged {len(duplicate_ids)} entities into {canonical_id}")
 
     async def link_claim_to_entity(
         self,

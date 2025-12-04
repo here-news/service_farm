@@ -21,28 +21,28 @@ class Page:
 
     # Metadata
     canonical_url: Optional[str] = None
-    byline: Optional[str] = None
-    site_name: Optional[str] = None
-    domain: Optional[str] = None
+    description: Optional[str] = None
+    author: Optional[str] = None
+    thumbnail_url: Optional[str] = None
     language: Optional[str] = None
     word_count: int = 0
     pub_time: Optional[datetime] = None
+    metadata_confidence: float = 0.0
 
-    # Page gist/summary
+    # Page gist/summary (from semantic worker)
     gist: Optional[str] = None
 
     # Embedding (stored in PostgreSQL as vector)
     embedding: Optional[List[float]] = None
 
-    # Status tracking
-    extraction_status: str = 'pending'
-    semantic_status: str = 'pending'
+    # Status: 'stub', 'preview', 'extracted', 'semantic_complete', 'failed'
+    status: str = 'stub'
 
     # Timestamps
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
-    # Additional metadata as dict
+    # Additional metadata as dict (for backward compatibility)
     metadata: dict = field(default_factory=dict)
 
     def __post_init__(self):
@@ -58,9 +58,14 @@ class Page:
     @property
     def is_extracted(self) -> bool:
         """Check if page has been extracted"""
-        return self.extraction_status == 'completed'
+        return self.status in ('extracted', 'semantic_complete')
+
+    @property
+    def needs_extraction(self) -> bool:
+        """Check if page needs extraction"""
+        return self.status in ('stub', 'preview')
 
     @property
     def is_semantically_analyzed(self) -> bool:
         """Check if page has been semantically analyzed"""
-        return self.semantic_status == 'completed'
+        return self.status == 'semantic_complete'

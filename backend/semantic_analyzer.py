@@ -9,6 +9,9 @@ import json
 from datetime import datetime
 import hashlib
 import time
+import logging
+
+logger = logging.getLogger(__name__)
 
 class EnhancedSemanticAnalyzer:
     def __init__(self):
@@ -67,8 +70,10 @@ class EnhancedSemanticAnalyzer:
             # Defensive: ensure claims is a list, not None
             all_claims = claims_response.get('claims', []) or []
             if not isinstance(all_claims, list):
-                print(f"⚠️  Claims response malformed: {type(all_claims)}, expected list")
+                logger.warning(f"⚠️  Claims response malformed: {type(all_claims)}, expected list")
                 all_claims = []
+
+            logger.info(f"🔍 LLM returned {len(all_claims)} raw claims before premise filtering")
 
             admitted_claims = []
             excluded_claims = []
@@ -149,6 +154,9 @@ class EnhancedSemanticAnalyzer:
                                             page_meta: Dict[str, Any],
                                             url: str, lang: str = "en") -> Dict[str, Any]:
         """Extract atomic claims with named entities using LLM"""
+
+        # Log content being sent to LLM
+        logger.info(f"📝 Sending {len(content)} chars to LLM. Preview: {content[:200]}...")
 
         system_prompt = f"""You are a fact extractor for structured journalism. Extract atomic, verifiable claims that meet minimum journalistic standards.
 
@@ -325,20 +333,27 @@ Only include claims passing ALL 6 criteria above. Use notes_unsupported for inte
                 ],
                 response_format={"type": "json_object"},
                 temperature=0.2,
-                max_tokens=2000
+                max_tokens=4000  # Increased from 2000 to prevent JSON truncation
             )
 
-            result = json.loads(response.choices[0].message.content)
+            raw_response = response.choices[0].message.content
+            logger.info(f"📥 Raw OpenAI response ({len(raw_response)} chars): {raw_response[:500]}...")
+
+            result = json.loads(raw_response)
+
+            # Debug: Check result immediately after parsing
+            claims_from_json = result.get('claims', [])
+            logger.info(f"🔬 Immediately after JSON parse: claims type={type(claims_from_json)}, count={len(claims_from_json) if isinstance(claims_from_json, list) else 'N/A'}")
 
             # Log what LLM returned for debugging
-            print(f"🔍 LLM returned: claims type={type(result.get('claims'))}, count={len(result.get('claims', []) or [])}")
+            logger.info(f"🔍 LLM returned: claims type={type(result.get('claims'))}, count={len(result.get('claims', []) or [])}")
 
             # Defensive: ensure claims is a list
             if result.get('claims') is None:
-                print("⚠️  LLM returned null claims, replacing with empty list")
+                logger.warning("⚠️  LLM returned null claims, replacing with empty list")
                 result['claims'] = []
             elif not isinstance(result.get('claims'), list):
-                print(f"⚠️  LLM returned non-list claims: {type(result.get('claims'))}, replacing with empty list")
+                logger.warning(f"⚠️  LLM returned non-list claims: {type(result.get('claims'))}, replacing with empty list")
                 result['claims'] = []
 
             # Extract token usage
@@ -353,10 +368,13 @@ Only include claims passing ALL 6 criteria above. Use notes_unsupported for inte
             result = self._normalize_claims(result, url)
             result['token_usage'] = token_usage
 
+            # Debug: Check result after normalization
+            logger.info(f"🔬 After normalization: claims count={len(result.get('claims', []))}")
+
             return result
 
         except Exception as e:
-            print(f"❌ LLM extraction failed: {e}")
+            logger.error(f"❌ LLM extraction failed: {e}", exc_info=True)
             return {
                 "claims": [],
                 "gist": "Extraction failed",
@@ -369,7 +387,7 @@ Only include claims passing ALL 6 criteria above. Use notes_unsupported for inte
         """Normalize LLM output with deterministic IDs and calibrated confidence"""
         claims = result.get('claims', []) or []
         if not isinstance(claims, list):
-            print(f"⚠️  _normalize_claims received non-list: {type(claims)}")
+            logger.warning(f"⚠️  _normalize_claims received non-list: {type(claims)}")
             claims = []
 
         current_time_iso = datetime.now().isoformat()

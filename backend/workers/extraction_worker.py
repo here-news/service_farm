@@ -22,9 +22,16 @@ import asyncpg
 import httpx
 import trafilatura
 from langdetect import detect
+import sys
+import os
+# Add parent directory to path for direct imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from services.job_queue import JobQueue
 from services.worker_base import BaseWorker
 from services.multi_extractor import MultiMethodExtractor
+# Direct import to avoid Neo4j dependency from repositories.__init__
+from repositories.page_repository import PageRepository
 
 logger = logging.getLogger(__name__)
 
@@ -48,33 +55,37 @@ class ExtractionWorker(BaseWorker):
         )
         self.worker_id = worker_id
         self.multi_extractor = MultiMethodExtractor(min_words=100)
+        self.page_repo = PageRepository(pool)
 
     async def get_state(self, job: dict) -> dict:
         """
-        Fetch page state from PostgreSQL
+        Fetch page state from PageRepository
 
         Args:
             job: {'page_id': uuid, 'url': str, 'retry_count': int}
 
         Returns:
-            Page state from core.pages table
+            Page state as dict
         """
         page_id = uuid.UUID(job['page_id'])
+        page = await self.page_repo.get_by_id(page_id)
 
-        async with self.pool.acquire() as conn:
-            row = await conn.fetchrow("""
-                SELECT
-                    id, url, canonical_url, title, status,
-                    language, word_count, pub_time,
-                    created_at, updated_at
-                FROM core.pages
-                WHERE id = $1
-            """, page_id)
+        if not page:
+            raise ValueError(f"Page {page_id} not found in database")
 
-            if not row:
-                raise ValueError(f"Page {page_id} not found in database")
-
-            return dict(row)
+        # Convert Page model to dict for compatibility with BaseWorker
+        return {
+            'id': page.id,
+            'url': page.url,
+            'canonical_url': page.canonical_url,
+            'title': page.title,
+            'status': page.status,
+            'language': page.language,
+            'word_count': page.word_count,
+            'pub_time': page.pub_time,
+            'created_at': page.created_at,
+            'updated_at': page.updated_at
+        }
 
     async def should_process(self, state: dict) -> Tuple[bool, float]:
         """
@@ -161,62 +172,50 @@ class ExtractionWorker(BaseWorker):
             author = ', '.join(result.authors) if result.authors else None  # Join multiple authors
             thumbnail_url = result.top_image  # Use top_image as thumbnail
 
-            async with self.pool.acquire() as conn:
-                # First, get existing metadata to preserve iframely data
-                existing = await conn.fetchrow("""
-                    SELECT title, description, author, thumbnail_url, pub_time
-                    FROM core.pages WHERE id = $1
-                """, page_id)
+            # Get existing metadata from repository (preserve iframely data)
+            existing = await self.page_repo.get_by_id(page_id)
 
-                # Use COALESCE to prefer new data, fallback to existing (from iframely)
-                final_title = title or existing['title']
-                final_description = description or existing['description']
-                final_author = author or existing['author']
-                final_thumbnail = thumbnail_url or existing['thumbnail_url']
-                # IMPORTANT: Prefer our HTML extraction for pub_time over iframely
-                # Reason: iframely often returns cache/processing timestamps instead of
-                # actual publication dates. Our multi-strategy HTML extraction (JSON-LD,
-                # meta tags, trafilatura) gets the authoritative date from the publisher.
-                # Only fallback to iframely's pub_time if our extraction completely fails.
-                final_pub_time = pub_time or existing['pub_time']
+            # Use COALESCE to prefer new data, fallback to existing (from iframely)
+            final_title = title or existing.title
+            final_description = description or existing.description
+            final_author = author or existing.author
+            final_thumbnail = thumbnail_url or existing.thumbnail_url
+            # IMPORTANT: Prefer our HTML extraction for pub_time over iframely
+            # Reason: iframely often returns cache/processing timestamps instead of
+            # actual publication dates. Our multi-strategy HTML extraction (JSON-LD,
+            # meta tags, trafilatura) gets the authoritative date from the publisher.
+            # Only fallback to iframely's pub_time if our extraction completely fails.
+            final_pub_time = pub_time or existing.pub_time
 
-                # Calculate metadata confidence (0.0-1.0)
-                # 1.0 = all fields present, 0.5 = half present, etc.
-                # Include pub_time in confidence calculation (important for timeline ordering)
-                metadata_fields = [final_title, final_description, final_author, final_thumbnail, final_pub_time]
-                metadata_confidence = sum(1 for f in metadata_fields if f) / len(metadata_fields)
+            # Calculate metadata confidence (0.0-1.0)
+            # 1.0 = all fields present, 0.5 = half present, etc.
+            # Include pub_time in confidence calculation (important for timeline ordering)
+            metadata_fields = [final_title, final_description, final_author, final_thumbnail, final_pub_time]
+            metadata_confidence = sum(1 for f in metadata_fields if f) / len(metadata_fields)
 
-                await conn.execute("""
-                    UPDATE core.pages
-                    SET
-                        content_text = $2,
-                        title = $3,
-                        description = $4,
-                        author = $5,
-                        thumbnail_url = $6,
-                        metadata_confidence = $7,
-                        status = 'extracted',
-                        language = $8,
-                        word_count = $9,
-                        pub_time = $10,
-                        updated_at = NOW()
-                    WHERE id = $1
-                """, page_id, extracted, final_title, final_description, final_author,
-                     final_thumbnail, metadata_confidence, detected_lang, word_count, final_pub_time)
+            # Update page using repository
+            await self.page_repo.update_extracted_content(
+                page_id=page_id,
+                content_text=extracted,
+                title=final_title,
+                description=final_description,
+                author=final_author,
+                thumbnail_url=final_thumbnail,
+                metadata_confidence=metadata_confidence,
+                language=detected_lang,
+                word_count=word_count,
+                pub_time=final_pub_time
+            )
 
-                # Check if word count is suspiciously low (likely paywall/teaser)
-                if word_count < 100:
-                    logger.warning(
-                        f"[{self.worker_name}] ⚠️ Low word count ({word_count} words) - creating rogue task"
-                    )
-                    await conn.execute("""
-                        INSERT INTO core.rogue_extraction_tasks (page_id, url, status, created_at)
-                        VALUES ($1, $2, 'pending', NOW())
-                        ON CONFLICT DO NOTHING
-                    """, page_id, url)
-                    logger.info(
-                        f"[{self.worker_name}] 🔴 Created rogue task for {url} (low word count - likely paywall)"
-                    )
+            # Check if word count is suspiciously low (likely paywall/teaser)
+            if word_count < 100:
+                logger.warning(
+                    f"[{self.worker_name}] ⚠️ Low word count ({word_count} words) - creating rogue task"
+                )
+                await self.page_repo.create_rogue_task(page_id, url)
+                logger.info(
+                    f"[{self.worker_name}] 🔴 Created rogue task for {url} (low word count - likely paywall)"
+                )
 
                 logger.info(
                     f"[{self.worker_name}] ✅ Extracted {word_count} words "
@@ -364,39 +363,28 @@ class ExtractionWorker(BaseWorker):
             page_id: Page UUID
             reason: Failure reason
         """
-        async with self.pool.acquire() as conn:
-            # Get page URL
-            page = await conn.fetchrow("""
-                SELECT url, status FROM core.pages WHERE id = $1
-            """, page_id)
+        # Get page from repository
+        page = await self.page_repo.get_by_id(page_id)
 
-            if not page:
-                logger.error(f"[{self.worker_name}] Page {page_id} not found")
-                return
+        if not page:
+            logger.error(f"[{self.worker_name}] Page {page_id} not found")
+            return
 
-            # Mark page as failed
-            await conn.execute("""
-                UPDATE core.pages
-                SET status = 'failed', updated_at = NOW()
-                WHERE id = $1
-            """, page_id)
+        # Mark page as failed using repository
+        await self.page_repo.mark_failed(page_id)
 
-            # Check if this is a scraper-blocking issue (401/403 or fetch failure)
-            is_rogue = any(code in reason for code in ['401', '403', 'Failed to fetch'])
+        # Check if this is a scraper-blocking issue (401/403 or fetch failure)
+        is_rogue = any(code in reason for code in ['401', '403', 'Failed to fetch'])
 
-            if is_rogue:
-                # Create rogue extraction task for browser extension
-                await conn.execute("""
-                    INSERT INTO core.rogue_extraction_tasks (page_id, url, status, created_at)
-                    VALUES ($1, $2, 'pending', NOW())
-                    ON CONFLICT DO NOTHING
-                """, page_id, page['url'])
+        if is_rogue:
+            # Create rogue extraction task for browser extension
+            await self.page_repo.create_rogue_task(page_id, page.url)
 
-                logger.info(
-                    f"[{self.worker_name}] 🔴 Created rogue task for {page['url']} (browser extension will handle)"
-                )
-            else:
-                logger.warning(f"[{self.worker_name}] ❌ Marked {page_id} as failed: {reason}")
+            logger.info(
+                f"[{self.worker_name}] 🔴 Created rogue task for {page.url} (browser extension will handle)"
+            )
+        else:
+            logger.warning(f"[{self.worker_name}] ❌ Marked {page_id} as failed: {reason}")
 
     async def handle_error(self, job: dict, error: Exception):
         """

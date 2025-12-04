@@ -30,6 +30,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from services.job_queue import JobQueue
+from services.neo4j_service import Neo4jService
 
 logging.basicConfig(
     level=logging.INFO,
@@ -43,9 +44,16 @@ class EntityMergeWorker:
     Worker that merges duplicate entities sharing the same Wikidata QID
     """
 
-    def __init__(self, db_pool: asyncpg.Pool, job_queue: JobQueue, worker_id: int = 1):
+    def __init__(
+        self,
+        db_pool: asyncpg.Pool,
+        job_queue: JobQueue,
+        neo4j_service: Neo4jService,
+        worker_id: int = 1
+    ):
         self.db_pool = db_pool
         self.job_queue = job_queue
+        self.neo4j = neo4j_service
         self.worker_id = worker_id
 
     async def start(self):
@@ -75,61 +83,51 @@ class EntityMergeWorker:
 
     async def run_merge_pass(self):
         """
-        Find and merge all duplicate entities
+        Find and merge all duplicate entities using Neo4j
         """
-        async with self.db_pool.acquire() as conn:
-            # Find all QIDs with multiple entities
-            duplicates = await conn.fetch("""
-                SELECT
-                    wikidata_qid,
-                    array_agg(id) as entity_ids,
-                    array_agg(canonical_name) as names,
-                    array_agg(mention_count) as mention_counts
-                FROM core.entities
-                WHERE wikidata_qid IS NOT NULL
-                  AND status IN ('enriched', 'checked')
-                GROUP BY wikidata_qid
-                HAVING COUNT(*) > 1
-                ORDER BY COUNT(*) DESC
-            """)
+        # Find all QIDs with multiple entities from Neo4j
+        duplicates = await self.neo4j.find_duplicate_entities()
 
-            if not duplicates:
-                logger.info("✓ No duplicates found")
-                return
+        if not duplicates:
+            logger.info("✓ No duplicates found")
+            return
 
-            logger.info(f"🔍 Found {len(duplicates)} QIDs with duplicates")
+        logger.info(f"🔍 Found {len(duplicates)} QIDs with duplicates")
 
-            merged_count = 0
-            for dup_group in duplicates:
-                qid = dup_group['wikidata_qid']
-                entity_ids = dup_group['entity_ids']
-                names = dup_group['names']
-                mention_counts = dup_group['mention_counts']
+        merged_count = 0
+        for dup_group in duplicates:
+            qid = dup_group['wikidata_qid']
+            entity_ids = dup_group['entity_ids']
+            names = dup_group['names']
+            mention_counts = dup_group['mention_counts']
 
-                # Pick canonical entity (most mentions, or longest name if tie)
-                canonical_idx = self._pick_canonical(names, mention_counts)
-                canonical_id = entity_ids[canonical_idx]
-                canonical_name = names[canonical_idx]
+            # Pick canonical entity (most mentions, or longest name if tie)
+            canonical_idx = self._pick_canonical(names, mention_counts)
+            canonical_id = entity_ids[canonical_idx]
+            canonical_name = names[canonical_idx]
 
-                # IDs to merge into canonical
-                duplicate_ids = [eid for i, eid in enumerate(entity_ids) if i != canonical_idx]
+            # IDs to merge into canonical
+            duplicate_ids = [eid for i, eid in enumerate(entity_ids) if i != canonical_idx]
 
-                logger.info(
-                    f"🔗 Merging {qid}: {len(duplicate_ids)} variants → '{canonical_name}'"
-                )
-                for i, (name, count) in enumerate(zip(names, mention_counts)):
-                    if i != canonical_idx:
-                        logger.info(f"   ← '{name}' ({count} mentions)")
+            logger.info(
+                f"🔗 Merging {qid}: {len(duplicate_ids)} variants → '{canonical_name}'"
+            )
+            for i, (name, count) in enumerate(zip(names, mention_counts)):
+                if i != canonical_idx:
+                    logger.info(f"   ← '{name}' ({count} mentions)")
 
-                # Perform merge
-                total_mentions = await self._merge_entities(
-                    conn, canonical_id, duplicate_ids, names, mention_counts
-                )
+            # Perform merge in Neo4j
+            total_mentions = sum(mention_counts)
+            await self.neo4j.merge_entities(
+                canonical_id=canonical_id,
+                duplicate_ids=duplicate_ids,
+                total_mentions=total_mentions
+            )
 
-                logger.info(f"✅ Merged → {canonical_name} (total: {total_mentions} mentions)")
-                merged_count += len(duplicate_ids)
+            logger.info(f"✅ Merged → {canonical_name} (total: {total_mentions} mentions)")
+            merged_count += len(duplicate_ids)
 
-            logger.info(f"✓ Merge pass complete: {merged_count} entities merged")
+        logger.info(f"✓ Merge pass complete: {merged_count} entities merged")
 
     def _pick_canonical(self, names: List[str], mention_counts: List[int]) -> int:
         """
@@ -156,66 +154,6 @@ class EntityMergeWorker:
 
         return candidates[0][0]
 
-    async def _merge_entities(
-        self,
-        conn: asyncpg.Connection,
-        canonical_id: uuid.UUID,
-        duplicate_ids: List[uuid.UUID],
-        names: List[str],
-        mention_counts: List[int]
-    ) -> int:
-        """
-        Merge duplicate entities into canonical entity
-
-        Steps:
-        1. Update claim_entities references
-        2. Update event_entities references (avoid duplicates)
-        3. Sum mention counts
-        4. Delete duplicate entities
-
-        Returns total mention count
-        """
-        async with conn.transaction():
-            # Step 1: Update claim_entities
-            await conn.execute("""
-                UPDATE core.claim_entities
-                SET entity_id = $1
-                WHERE entity_id = ANY($2::uuid[])
-            """, canonical_id, duplicate_ids)
-
-            # Step 2: Update event_entities (handle duplicates)
-            # First, insert canonical entity for all events that had duplicates
-            await conn.execute("""
-                INSERT INTO core.event_entities (event_id, entity_id)
-                SELECT DISTINCT event_id, $1::uuid
-                FROM core.event_entities
-                WHERE entity_id = ANY($2::uuid[])
-                ON CONFLICT (event_id, entity_id) DO NOTHING
-            """, canonical_id, duplicate_ids)
-
-            # Then delete old references
-            await conn.execute("""
-                DELETE FROM core.event_entities
-                WHERE entity_id = ANY($1::uuid[])
-            """, duplicate_ids)
-
-            # Step 3: Sum mention counts
-            total_mentions = sum(mention_counts)
-            await conn.execute("""
-                UPDATE core.entities
-                SET mention_count = $2,
-                    updated_at = NOW()
-                WHERE id = $1
-            """, canonical_id, total_mentions)
-
-            # Step 4: Delete duplicates
-            await conn.execute("""
-                DELETE FROM core.entities
-                WHERE id = ANY($1::uuid[])
-            """, duplicate_ids)
-
-            return total_mentions
-
 
 async def main():
     """Main worker entry point"""
@@ -234,7 +172,15 @@ async def main():
     job_queue = JobQueue(os.getenv('REDIS_URL', 'redis://redis:6379'))
     await job_queue.connect()
 
-    worker = EntityMergeWorker(db_pool, job_queue, worker_id=worker_id)
+    # Initialize Neo4j service
+    neo4j_service = Neo4jService(
+        uri=os.getenv('NEO4J_URI', 'bolt://neo4j:7687'),
+        user=os.getenv('NEO4J_USER', 'neo4j'),
+        password=os.getenv('NEO4J_PASSWORD', 'password')
+    )
+    await neo4j_service.connect()
+
+    worker = EntityMergeWorker(db_pool, job_queue, neo4j_service, worker_id=worker_id)
     logger.info(f"🔗 Starting entity merge worker {worker_id}")
 
     try:
@@ -244,6 +190,7 @@ async def main():
     finally:
         await db_pool.close()
         await job_queue.close()
+        await neo4j_service.close()
 
 
 if __name__ == "__main__":

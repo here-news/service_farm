@@ -16,7 +16,7 @@ class Entity:
     """
     id: uuid.UUID
     canonical_name: str
-    entity_type: str  # PERSON, ORG, GPE, LOC, etc.
+    entity_type: str  # PERSON, ORGANIZATION, LOCATION
 
     # Alternative names/aliases
     aliases: List[str] = field(default_factory=list)
@@ -24,7 +24,21 @@ class Entity:
     # Mention count (how many times referenced across all claims)
     mention_count: int = 0
 
-    # Metadata
+    # AI-generated profile summary (from semantic worker)
+    profile_summary: Optional[str] = None
+
+    # Wikidata enrichment (from Wikidata worker)
+    wikidata_qid: Optional[str] = None
+    wikidata_label: Optional[str] = None
+    wikidata_description: Optional[str] = None
+
+    # Status: 'pending', 'checked', 'enriched'
+    status: str = 'pending'
+
+    # Confidence score from enrichment
+    confidence: float = 0.0
+
+    # Additional metadata (coordinates, thumbnail, etc.)
     metadata: dict = field(default_factory=dict)
 
     # Timestamps

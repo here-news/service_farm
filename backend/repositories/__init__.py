@@ -10,14 +10,18 @@ Architecture:
 - Dual-write: Some entities stored in both (e.g., entities, events)
 """
 
-from .entity_repository import EntityRepository
-from .claim_repository import ClaimRepository
-from .event_repository import EventRepository
-from .phase_repository import PhaseRepository
-
-__all__ = [
-    'EntityRepository',
-    'ClaimRepository',
-    'EventRepository',
-    'PhaseRepository',
-]
+# Conditional imports - some workers don't have Neo4j dependency
+try:
+    from .entity_repository import EntityRepository
+    from .claim_repository import ClaimRepository
+    from .event_repository import EventRepository
+    from .phase_repository import PhaseRepository
+    __all__ = [
+        'EntityRepository',
+        'ClaimRepository',
+        'EventRepository',
+        'PhaseRepository',
+    ]
+except ModuleNotFoundError:
+    # Neo4j not available - only basic repositories
+    __all__ = []
