@@ -15,12 +15,10 @@ try:
     from .entity_repository import EntityRepository
     from .claim_repository import ClaimRepository
     from .event_repository import EventRepository
-    from .phase_repository import PhaseRepository
     __all__ = [
         'EntityRepository',
         'ClaimRepository',
         'EventRepository',
-        'PhaseRepository',
     ]
 except ModuleNotFoundError:
     # Neo4j not available - only basic repositories

@@ -51,27 +51,6 @@ class ClaimEntityLink:
 
 
 @dataclass
-class PhaseClaimLink:
-    """
-    Link between a Phase and a Claim
-
-    Represents that a claim supports/belongs to a phase
-    """
-    phase_id: uuid.UUID
-    claim_id: uuid.UUID
-
-    # Confidence that this claim belongs to this phase
-    confidence: float = 0.9
-
-    def __post_init__(self):
-        """Ensure IDs are UUIDs"""
-        if isinstance(self.phase_id, str):
-            self.phase_id = uuid.UUID(self.phase_id)
-        if isinstance(self.claim_id, str):
-            self.claim_id = uuid.UUID(self.claim_id)
-
-
-@dataclass
 class PageEventLink:
     """
     Link between a Page and an Event

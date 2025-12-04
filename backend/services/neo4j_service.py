@@ -4,11 +4,10 @@ Neo4j Graph Service - Event Graph Operations
 Provides interface for creating and querying the event graph in Neo4j.
 
 Key operations:
-- Create Event nodes with phases
-- Create Claim nodes and link to events/phases
-- Create Entity nodes and relationships (MENTIONS, ACTOR, SUBJECT, LOCATION)
-- Query for event attachment scoring
-- Generate narrative from graph traversal
+- Create Event nodes and recursive sub-event structures
+- Create Claim nodes and link to events
+- Create Entity nodes and relationships (MENTIONS, ACTOR, SUBJECT, LOCATION, INVOLVES)
+- Support recursive event formation with parent-child relationships
 """
 import os
 import logging
@@ -119,51 +118,75 @@ class Neo4jService:
         logger.info(f"✨ Created Event node: {canonical_name} ({event_id})")
         return result['id'] if result else None
 
-    async def create_phase(
-        self,
-        phase_id: str,
-        event_id: str,
-        name: str,
-        phase_type: str,
-        start_time: datetime = None,
-        end_time: datetime = None,
-        confidence: float = 0.9,
-        sequence: int = 1
-    ) -> str:
+    async def get_parent_event_id(self, event_id: str) -> Optional[str]:
         """
-        Create Phase node and link to Event (graph structure only)
+        Get parent event ID from Neo4j relationships (:CONTAINS)
 
-        Phase embedding is stored in PostgreSQL core.event_phases table
+        Args:
+            event_id: Child event ID
 
-        Returns: phase_id
+        Returns:
+            Parent event ID or None if root event
         """
         query = """
-        MATCH (e:Event {id: $event_id})
-        CREATE (p:Phase {
-            id: $phase_id,
-            name: $name,
-            phase_type: $phase_type,
-            start_time: $start_time,
-            end_time: $end_time,
-            confidence: $confidence
-        })
-        CREATE (e)-[:HAS_PHASE {sequence: $sequence}]->(p)
-        RETURN p.id as id
+        MATCH (parent:Event)-[:CONTAINS]->(child:Event {id: $event_id})
+        RETURN parent.id as parent_id
+        LIMIT 1
+        """
+
+        result = await self._execute_read(query, {'event_id': event_id})
+        return result[0]['parent_id'] if result else None
+
+    async def get_sub_event_ids(self, event_id: str) -> List[str]:
+        """
+        Get all sub-event IDs from Neo4j relationships (:CONTAINS)
+
+        Args:
+            event_id: Parent event ID
+
+        Returns:
+            List of sub-event IDs
+        """
+        query = """
+        MATCH (parent:Event {id: $event_id})-[:CONTAINS]->(child:Event)
+        RETURN child.id as child_id
+        ORDER BY child.created_at
+        """
+
+        result = await self._execute_read(query, {'event_id': event_id})
+        return [row['child_id'] for row in result]
+
+    async def create_event_relationship(
+        self,
+        parent_id: str,
+        child_id: str,
+        relationship_type: str = "CONTAINS"
+    ) -> bool:
+        """
+        Create relationship between parent and child events
+
+        Args:
+            parent_id: Parent event ID
+            child_id: Child event ID
+            relationship_type: Type of relationship (CONTAINS, PHASE_OF, etc.)
+
+        Returns:
+            True if successful
+        """
+        query = f"""
+        MATCH (parent:Event {{id: $parent_id}})
+        MATCH (child:Event {{id: $child_id}})
+        MERGE (parent)-[r:{relationship_type} {{created_at: datetime()}}]->(child)
+        RETURN r
         """
 
         result = await self._execute_write(query, {
-            'event_id': event_id,
-            'phase_id': phase_id,
-            'name': name,
-            'phase_type': phase_type,
-            'start_time': start_time,
-            'end_time': end_time,
-            'confidence': confidence,
-            'sequence': sequence
+            'parent_id': parent_id,
+            'child_id': child_id
         })
 
-        logger.info(f"📍 Created Phase: {name} ({phase_id})")
-        return result['id'] if result else None
+        logger.info(f"🔗 Created {relationship_type} relationship: {parent_id} → {child_id}")
+        return result is not None
 
     async def create_claim(
         self,
@@ -215,25 +238,6 @@ class Neo4jService:
 
         logger.debug(f"📝 Created Claim: {text[:50]}... ({claim_id})")
         return result['id'] if result else None
-
-    async def link_claim_to_phase(
-        self,
-        claim_id: str,
-        phase_id: str,
-        confidence: float = 0.9
-    ):
-        """Link Claim to Phase with SUPPORTED_BY relationship"""
-        query = """
-        MATCH (p:Phase {id: $phase_id})
-        MATCH (c:Claim {id: $claim_id})
-        CREATE (p)-[:SUPPORTED_BY {confidence: $confidence}]->(c)
-        """
-
-        await self._execute_write(query, {
-            'phase_id': phase_id,
-            'claim_id': claim_id,
-            'confidence': confidence
-        })
 
     # ===== Entity Operations =====
 
@@ -603,114 +607,10 @@ class Neo4jService:
 
     # ===== Query Operations =====
 
-    async def get_event_with_phases(self, event_id: str) -> Dict:
-        """Get event with all phases and claims"""
-        query = """
-        MATCH (e:Event {id: $event_id})
-        OPTIONAL MATCH (e)-[:HAS_PHASE]->(p:Phase)
-        OPTIONAL MATCH (p)-[:SUPPORTED_BY]->(c:Claim)
-        RETURN e, collect(DISTINCT p) as phases, collect(DISTINCT c) as claims
-        """
-
-        results = await self._execute_read(query, {'event_id': event_id})
-
-        if not results:
-            return None
-
-        return results[0]
-
-    async def find_candidate_events(
-        self,
-        entity_names: Set[str],
-        time_window_days: int = 7,
-        reference_time: datetime = None,
-        limit: int = 10
-    ) -> List[Dict]:
-        """
-        Find candidate events for attachment based on entity overlap
-
-        Returns list of events with entity overlap scores
-        """
-        query = """
-        MATCH (e:Event)
-        WHERE e.status IN ['provisional', 'emerging', 'stable']
-        """
-
-        # Add temporal filter if reference_time provided
-        if reference_time:
-            query += """
-            AND duration.between(e.earliest_time, $reference_time).days <= $time_window_days
-            """
-
-        query += """
-        OPTIONAL MATCH (e)-[:HAS_PHASE]->(p:Phase)-[:SUPPORTED_BY]->(c:Claim)-[:MENTIONS]->(entity:Entity)
-        WHERE entity.canonical_name IN $entity_names
-        WITH e, count(DISTINCT entity) as entity_overlap
-        WHERE entity_overlap > 0
-        RETURN e, entity_overlap
-        ORDER BY entity_overlap DESC, e.updated_at DESC
-        LIMIT $limit
-        """
-
-        results = await self._execute_read(query, {
-            'entity_names': list(entity_names),
-            'reference_time': reference_time,
-            'time_window_days': time_window_days,
-            'limit': limit
-        })
-
-        return results
-
-    async def get_event_narrative(self, event_id: str) -> Dict:
-        """
-        Generate narrative from event graph traversal
-
-        Returns structured narrative with timeline, phases, entities
-        """
-        query = """
-        MATCH (e:Event {id: $event_id})
-        OPTIONAL MATCH (e)-[:HAS_PHASE]->(p:Phase)
-        OPTIONAL MATCH (p)-[:SUPPORTED_BY]->(c:Claim)
-        OPTIONAL MATCH (c)-[:MENTIONS|ACTOR|SUBJECT|LOCATION]->(entity:Entity)
-        RETURN
-            e,
-            collect(DISTINCT {
-                phase: p,
-                claims: collect(DISTINCT c),
-                entities: collect(DISTINCT entity)
-            }) as phases
-        """
-
-        results = await self._execute_read(query, {'event_id': event_id})
-
-        if not results:
-            return None
-
-        return results[0]
-
-    async def get_casualty_evolution(self, event_id: str) -> List[Dict]:
-        """
-        Get casualty evolution for event (tracking death toll updates)
-
-        Follows EVOLVED_TO edges to track claim evolution
-        """
-        query = """
-        MATCH (e:Event {id: $event_id})-[:HAS_PHASE]->(p:Phase)
-        WHERE p.name CONTAINS 'Casualty' OR p.phase_type = 'CONSEQUENCE'
-        MATCH (p)-[:SUPPORTED_BY]->(c1:Claim)
-        OPTIONAL MATCH path = (c1)-[:EVOLVED_TO*]->(c2:Claim)
-        RETURN c1, c2, path
-        ORDER BY c1.event_time
-        """
-
-        results = await self._execute_read(query, {'event_id': event_id})
-        return results
-
     async def initialize_constraints(self):
         """Create Neo4j constraints and indexes"""
         constraints = [
             "CREATE CONSTRAINT event_id IF NOT EXISTS FOR (e:Event) REQUIRE e.id IS UNIQUE",
-            "CREATE CONSTRAINT phase_id IF NOT EXISTS FOR (p:Phase) REQUIRE p.id IS UNIQUE",
             "CREATE CONSTRAINT claim_id IF NOT EXISTS FOR (c:Claim) REQUIRE c.id IS UNIQUE",
             "CREATE CONSTRAINT entity_id IF NOT EXISTS FOR (e:Entity) REQUIRE e.id IS UNIQUE",
             "CREATE CONSTRAINT page_id IF NOT EXISTS FOR (p:Page) REQUIRE p.id IS UNIQUE",

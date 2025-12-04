@@ -14,10 +14,8 @@ from .page import Page
 from .claim import Claim
 from .entity import Entity
 from .event import Event
-from .phase import Phase
 from .relationships import (
     ClaimEntityLink,
-    PhaseClaimLink,
     PageEventLink,
     EventRelationship
 )
@@ -28,11 +26,9 @@ __all__ = [
     'Claim',
     'Entity',
     'Event',
-    'Phase',
 
     # Relationships
     'ClaimEntityLink',
-    'PhaseClaimLink',
     'PageEventLink',
     'EventRelationship',
 ]

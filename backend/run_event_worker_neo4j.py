@@ -1,8 +1,8 @@
 """
-Event Worker Runner (Neo4j-based)
+Event Worker Runner - Uses EventService for recursive event formation
 """
 import asyncio
-from workers.event_worker_neo4j import main
+from workers.event_worker import main
 
 if __name__ == "__main__":
     asyncio.run(main())
