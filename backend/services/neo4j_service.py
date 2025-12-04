@@ -235,6 +235,67 @@ class Neo4jService:
             'confidence': confidence
         })
 
+    # ===== Entity Operations =====
+
+    async def create_or_update_entity(
+        self,
+        entity_id: str,
+        canonical_name: str,
+        entity_type: str
+    ) -> str:
+        """
+        Create or update Entity node in Neo4j (primary entity storage)
+
+        Uses MERGE for idempotency based on (canonical_name, entity_type)
+        Increments mention_count on match
+
+        Returns: entity_id
+        """
+        query = """
+        MERGE (e:Entity {canonical_name: $canonical_name, entity_type: $entity_type})
+        ON CREATE SET
+            e.id = $entity_id,
+            e.mention_count = 1,
+            e.created_at = datetime()
+        ON MATCH SET
+            e.mention_count = e.mention_count + 1,
+            e.updated_at = datetime()
+        RETURN e.id as id
+        """
+
+        result = await self._execute_write(query, {
+            'entity_id': entity_id,
+            'canonical_name': canonical_name,
+            'entity_type': entity_type
+        })
+
+        logger.debug(f"📦 Created/updated Entity: {canonical_name} ({entity_type})")
+        return result['id'] if result else entity_id
+
+    async def get_entity_by_name_and_type(
+        self,
+        canonical_name: str,
+        entity_type: str
+    ) -> Optional[Dict]:
+        """
+        Get entity by canonical name and type
+
+        Returns entity data or None
+        """
+        query = """
+        MATCH (e:Entity {canonical_name: $canonical_name, entity_type: $entity_type})
+        RETURN e.id as id, e.canonical_name as canonical_name,
+               e.entity_type as entity_type, e.mention_count as mention_count,
+               e.created_at as created_at
+        """
+
+        results = await self._execute_read(query, {
+            'canonical_name': canonical_name,
+            'entity_type': entity_type
+        })
+
+        return results[0] if results else None
+
     async def link_claim_to_entity(
         self,
         claim_id: str,
@@ -246,34 +307,27 @@ class Neo4jService:
         """
         Link Claim to Entity with specified relationship type
 
-        Creates Entity node if it doesn't exist (using MERGE)
+        Note: Entity should already exist (created via create_or_update_entity)
+        This just creates the relationship
         """
         query = """
         MATCH (c:Claim {id: $claim_id})
-        MERGE (e:Entity {id: $entity_id})
-        ON CREATE SET
-            e.canonical_name = $canonical_name,
-            e.entity_type = $entity_type,
-            e.mention_count = 1
-        ON MATCH SET
-            e.mention_count = e.mention_count + 1
+        MATCH (e:Entity {id: $entity_id})
         """
 
         # Add appropriate relationship based on type
         if relationship_type == "ACTOR":
-            query += " CREATE (c)-[:ACTOR]->(e)"
+            query += " MERGE (c)-[:ACTOR]->(e)"
         elif relationship_type == "SUBJECT":
-            query += " CREATE (c)-[:SUBJECT]->(e)"
+            query += " MERGE (c)-[:SUBJECT]->(e)"
         elif relationship_type == "LOCATION":
-            query += " CREATE (c)-[:LOCATION]->(e)"
+            query += " MERGE (c)-[:LOCATION]->(e)"
         else:  # Default: MENTIONS
-            query += " CREATE (c)-[:MENTIONS]->(e)"
+            query += " MERGE (c)-[:MENTIONS]->(e)"
 
         await self._execute_write(query, {
             'claim_id': claim_id,
-            'entity_id': entity_id,
-            'canonical_name': canonical_name,
-            'entity_type': entity_type
+            'entity_id': entity_id
         })
 
     async def create_event_relationship(

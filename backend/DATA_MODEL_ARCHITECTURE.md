@@ -43,20 +43,20 @@ Repositories abstract storage operations:
 #### PostgreSQL (Content + Embeddings)
 - **Purpose**: Store content, metadata, embeddings (pgvector)
 - **Tables**:
-  - `core.pages`: Page content, metadata
-  - `core.claims`: Claim text, embeddings
-  - `core.entities`: Entity metadata, aliases
+  - `core.pages`: Page content, metadata, embedding
+  - `core.claims`: Claim text, embedding
   - `core.events`: Event metadata, embedding (mean of pages)
   - `core.event_phases`: Phase embeddings (mean of claims)
-  - `core.claim_entities`: Join table for claim-entity relationships
+  - `core.claim_entities`: Join table for claim-entity relationships (reference only)
+  - `core.entity_enrichment`: Entity enrichment data (Wikidata descriptions, external IDs) - **future**
 
-#### Neo4j (Graph Structure)
-- **Purpose**: Store relationships and graph structure
+#### Neo4j (Graph Structure + Entities)
+- **Purpose**: Store relationships, graph structure, and entities (primary)
 - **Nodes**:
   - `Event`: Event nodes
   - `Phase`: Phase nodes
   - `Claim`: Claim nodes
-  - `Entity`: Entity nodes
+  - `Entity`: **Primary entity storage** (canonical_name, type, mention_count)
   - `Page`: Page nodes (for tracking)
 - **Relationships**:
   - `(Event)-[:HAS_PHASE]->(Phase)`
@@ -64,19 +64,31 @@ Repositories abstract storage operations:
   - `(Claim)-[:FROM_PAGE]->(Page)`
   - `(Claim)-[:MENTIONS|ACTOR|SUBJECT|LOCATION]->(Entity)`
 
-## Dual-Write Strategy
+## Storage Strategy
 
-Some entities are stored in **both** PostgreSQL and Neo4j:
+| Entity | PostgreSQL | Neo4j | Strategy |
+|--------|-----------|-------|----------|
+| **Event** | ✅ (metadata + embedding) | ✅ (graph node) | Dual-write: Need embedding for similarity, graph for relationships |
+| **Phase** | ✅ (embedding) | ✅ (graph node) | Dual-write: Need embedding for matching, graph for claim links |
+| **Claim** | ✅ (content + embedding) | ✅ (graph node) | Dual-write: Need embedding for phase computation, graph for entity links |
+| **Entity** | ❌ (enrichment only) | ✅ (PRIMARY) | **Neo4j-first**: Entities are graph nodes, PostgreSQL only for enrichment |
+| **Page** | ✅ (content + embedding) | ✅ (tracking node) | Dual-write: Need content/embedding for event formation, graph for tracking |
 
-| Entity | PostgreSQL | Neo4j | Why Both? |
-|--------|-----------|-------|-----------|
-| Event | ✅ (metadata + embedding) | ✅ (graph node) | Need embedding for similarity, graph for relationships |
-| Phase | ✅ (embedding) | ✅ (graph node) | Need embedding for matching, graph for claim links |
-| Claim | ✅ (content + embedding) | ✅ (graph node) | Need embedding for phase computation, graph for entity links |
-| Entity | ✅ (metadata + aliases) | ✅ (graph node) | Need metadata for resolution, graph for claim relationships |
-| Page | ✅ (content + embedding) | ✅ (tracking node) | Need content/embedding for event formation, graph for tracking |
+### Entity Storage Rationale
 
-**Repositories handle dual-write transparently** - calling `entity_repo.create(entity)` writes to both databases.
+**Why Neo4j-first for entities?**
+1. Entities are fundamentally graph nodes (connected to claims, events)
+2. Neo4j MERGE provides natural deduplication on (canonical_name, entity_type)
+3. Mention count tracking via Neo4j (increment on MATCH)
+4. No need for complex PostgreSQL joins - graph queries are natural
+
+**PostgreSQL enrichment (future):**
+- `core.entity_enrichment` table for large text fields:
+  - Wikidata descriptions (1000+ characters)
+  - Wikipedia URLs, external IDs
+  - Full-text search on descriptions
+
+**Repositories handle storage transparently** - calling `entity_repo.create(entity)` writes to Neo4j.
 
 ## Usage Example
 
@@ -100,14 +112,14 @@ entity = Entity(
     mention_count=0
 )
 
-# Repository handles dual-write
+# Repository writes to Neo4j (primary entity storage)
 entity_repo = EntityRepository(db_pool, neo4j_service)
-created_entity = await entity_repo.create(entity)
+created_entity = await entity_repo.create(entity)  # ← Stored in Neo4j graph!
 
 # Business logic operates on models
 if created_entity.is_organization:
-    created_entity.add_alias("HKFSD")
-    await entity_repo.update(created_entity)
+    # Entities are graph nodes, naturally connected to claims
+    pass
 ```
 
 ## Benefits of This Architecture

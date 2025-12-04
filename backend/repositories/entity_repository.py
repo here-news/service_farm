@@ -1,13 +1,14 @@
 """
-Entity Repository - Dual-write to PostgreSQL and Neo4j
+Entity Repository - Neo4j primary storage
 
 Storage strategy:
-- PostgreSQL: Entity metadata, aliases (core.entities table)
-- Neo4j: Entity nodes for graph relationships
-- Both are kept in sync via this repository
+- Neo4j: Primary entity storage (canonical_name, type, mention_count, created_at)
+- PostgreSQL: Enrichment data only (Wikidata descriptions, external IDs)
+
+Entities are fundamentally graph nodes, so Neo4j is the source of truth.
+PostgreSQL only stores large text fields (descriptions) from enrichment workers.
 """
 import uuid
-import json
 import logging
 from typing import Optional, List
 import asyncpg
@@ -22,7 +23,8 @@ class EntityRepository:
     """
     Repository for Entity domain model
 
-    Handles dual-write to PostgreSQL (metadata) and Neo4j (graph)
+    Neo4j is the primary storage for entities.
+    PostgreSQL enrichment handled separately.
     """
 
     def __init__(self, db_pool: asyncpg.Pool, neo4j_service: Neo4jService):
@@ -31,206 +33,77 @@ class EntityRepository:
 
     async def create(self, entity: Entity) -> Entity:
         """
-        Create entity in PostgreSQL (Neo4j creation happens via event worker)
+        Create entity in Neo4j (primary storage)
+
+        Uses MERGE for deduplication based on (canonical_name, entity_type)
 
         Args:
             entity: Entity domain model
 
         Returns:
-            Created entity with timestamps
+            Created entity with id
         """
-        # Extract metadata fields for PostgreSQL schema
-        semantic_confidence = entity.metadata.get('semantic_confidence', 0.7)
-        status = entity.metadata.get('status', 'stub')
+        # Create entity in Neo4j (primary storage)
+        returned_id = await self.neo4j.create_or_update_entity(
+            entity_id=str(entity.id),
+            canonical_name=entity.canonical_name,
+            entity_type=entity.entity_type
+        )
 
-        async with self.db_pool.acquire() as conn:
-            # Insert into PostgreSQL with proper schema fields
-            await conn.execute("""
-                INSERT INTO core.entities (
-                    id, canonical_name, entity_type, aliases, mention_count,
-                    semantic_confidence, first_seen, last_seen, status, metadata
-                )
-                VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW(), $7, $8)
-                ON CONFLICT (id) DO UPDATE SET
-                    canonical_name = EXCLUDED.canonical_name,
-                    aliases = EXCLUDED.aliases,
-                    mention_count = EXCLUDED.mention_count,
-                    semantic_confidence = EXCLUDED.semantic_confidence,
-                    last_seen = NOW(),
-                    status = EXCLUDED.status,
-                    metadata = EXCLUDED.metadata,
-                    updated_at = NOW()
-            """,
-                entity.id,
-                entity.canonical_name,
-                entity.entity_type,
-                entity.aliases,
-                entity.mention_count,
-                semantic_confidence,
-                status,
-                json.dumps(entity.metadata) if entity.metadata else '{}'
-            )
+        # Note: PostgreSQL enrichment (descriptions, Wikidata) handled by enrichment worker
 
-            # Fetch timestamps
-            row = await conn.fetchrow("""
-                SELECT created_at, updated_at FROM core.entities WHERE id = $1
-            """, entity.id)
-
-            entity.created_at = row['created_at']
-            entity.updated_at = row['updated_at']
-
-        # Note: Neo4j entity nodes are created by event worker via link_claim_to_entity()
-        # This allows proper relationship creation in the graph
-
-        logger.debug(f"📦 Created entity: {entity.canonical_name} ({entity.entity_type})")
+        logger.debug(f"📦 Created entity in Neo4j: {entity.canonical_name} ({entity.entity_type})")
         return entity
-
-    async def get_by_id(self, entity_id: uuid.UUID) -> Optional[Entity]:
-        """
-        Retrieve entity from PostgreSQL by ID
-
-        Args:
-            entity_id: Entity UUID
-
-        Returns:
-            Entity model or None if not found
-        """
-        async with self.db_pool.acquire() as conn:
-            row = await conn.fetchrow("""
-                SELECT
-                    id, canonical_name, entity_type, aliases,
-                    mention_count, metadata, created_at, updated_at
-                FROM core.entities
-                WHERE id = $1
-            """, entity_id)
-
-            if not row:
-                return None
-
-            return Entity(
-                id=row['id'],
-                canonical_name=row['canonical_name'],
-                entity_type=row['entity_type'],
-                aliases=list(row['aliases']) if row['aliases'] else [],
-                mention_count=row['mention_count'] or 0,
-                metadata=row['metadata'] or {},
-                created_at=row['created_at'],
-                updated_at=row['updated_at']
-            )
 
     async def get_by_canonical_name(
         self, canonical_name: str, entity_type: Optional[str] = None
     ) -> Optional[Entity]:
         """
-        Retrieve entity by canonical name and optionally type
+        Retrieve entity by canonical name from Neo4j
 
         Args:
             canonical_name: Entity canonical name
-            entity_type: Optional entity type filter
+            entity_type: Required entity type
 
         Returns:
             Entity model or None
         """
-        async with self.db_pool.acquire() as conn:
-            if entity_type:
-                row = await conn.fetchrow("""
-                    SELECT
-                        id, canonical_name, entity_type, aliases,
-                        mention_count, metadata, created_at, updated_at
-                    FROM core.entities
-                    WHERE canonical_name = $1 AND entity_type = $2
-                """, canonical_name, entity_type)
-            else:
-                row = await conn.fetchrow("""
-                    SELECT
-                        id, canonical_name, entity_type, aliases,
-                        mention_count, metadata, created_at, updated_at
-                    FROM core.entities
-                    WHERE canonical_name = $1
-                """, canonical_name)
+        if not entity_type:
+            logger.warning("get_by_canonical_name requires entity_type for Neo4j queries")
+            return None
 
-            if not row:
-                return None
+        # Query Neo4j
+        entity_data = await self.neo4j.get_entity_by_name_and_type(
+            canonical_name=canonical_name,
+            entity_type=entity_type
+        )
 
-            return Entity(
-                id=row['id'],
-                canonical_name=row['canonical_name'],
-                entity_type=row['entity_type'],
-                aliases=list(row['aliases']) if row['aliases'] else [],
-                mention_count=row['mention_count'] or 0,
-                metadata=row['metadata'] or {},
-                created_at=row['created_at'],
-                updated_at=row['updated_at']
-            )
+        if not entity_data:
+            return None
+
+        # Convert Neo4j data to Entity model
+        return Entity(
+            id=uuid.UUID(entity_data['id']),
+            canonical_name=entity_data['canonical_name'],
+            entity_type=entity_data['entity_type'],
+            mention_count=entity_data.get('mention_count', 0),
+            aliases=[],  # Aliases not stored in Neo4j base entity
+            metadata={}
+        )
 
     async def increment_mention_count(self, entity_id: uuid.UUID) -> int:
         """
-        Increment mention count for an entity
+        Increment mention count (handled automatically by Neo4j MERGE)
+
+        This is a no-op since Neo4j create_or_update_entity increments on MATCH
 
         Args:
             entity_id: Entity UUID
 
         Returns:
-            New mention count
+            Updated mention count (always returns 0 as placeholder)
         """
-        async with self.db_pool.acquire() as conn:
-            new_count = await conn.fetchval("""
-                UPDATE core.entities
-                SET mention_count = mention_count + 1, updated_at = NOW()
-                WHERE id = $1
-                RETURNING mention_count
-            """, entity_id)
-
-            return new_count or 0
-
-    async def batch_create(self, entities: List[Entity]) -> List[Entity]:
-        """
-        Batch create entities for efficiency
-
-        Args:
-            entities: List of Entity models
-
-        Returns:
-            List of created entities with timestamps
-        """
-        if not entities:
-            return []
-
-        async with self.db_pool.acquire() as conn:
-            # Use COPY for bulk insert (most efficient)
-            await conn.executemany("""
-                INSERT INTO core.entities (
-                    id, canonical_name, entity_type, aliases, mention_count, metadata
-                )
-                VALUES ($1, $2, $3, $4, $5, $6)
-                ON CONFLICT (id) DO UPDATE SET
-                    canonical_name = EXCLUDED.canonical_name,
-                    aliases = EXCLUDED.aliases,
-                    mention_count = EXCLUDED.mention_count,
-                    updated_at = NOW()
-            """, [
-                (
-                    e.id, e.canonical_name, e.entity_type,
-                    e.aliases, e.mention_count, e.metadata
-                )
-                for e in entities
-            ])
-
-            # Fetch timestamps
-            ids = [e.id for e in entities]
-            rows = await conn.fetch("""
-                SELECT id, created_at, updated_at
-                FROM core.entities
-                WHERE id = ANY($1::uuid[])
-            """, ids)
-
-            # Update timestamps
-            timestamp_map = {r['id']: r for r in rows}
-            for entity in entities:
-                ts = timestamp_map.get(entity.id)
-                if ts:
-                    entity.created_at = ts['created_at']
-                    entity.updated_at = ts['updated_at']
-
-        logger.info(f"📦 Batch created {len(entities)} entities")
-        return entities
+        # Neo4j handles mention_count increment automatically in create_or_update_entity
+        # This method exists for compatibility but is a no-op
+        logger.debug(f"Mention count for {entity_id} incremented via Neo4j MERGE")
+        return 0
