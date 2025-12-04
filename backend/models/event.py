@@ -3,8 +3,29 @@ Event domain model
 """
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Set, TYPE_CHECKING
+from enum import Enum
 import uuid
+
+if TYPE_CHECKING:
+    from .claim import Claim
+
+
+class ClaimDecision(Enum):
+    """Decision on how to handle a new claim"""
+    MERGE = "merge"              # Duplicate - corroborate existing claim
+    ADD = "add"                  # Novel but fits this event's topic
+    DELEGATE = "delegate"        # Sub-event handles it better
+    YIELD_SUBEVENT = "yield"     # Novel aspect - create sub-event
+    REJECT = "reject"            # Doesn't belong here
+
+
+@dataclass
+class ExaminationResult:
+    """Result of examining claims"""
+    claims_added: List['Claim'] = field(default_factory=list)
+    sub_events_created: List['Event'] = field(default_factory=list)
+    claims_rejected: List['Claim'] = field(default_factory=list)
 
 
 @dataclass
@@ -12,30 +33,40 @@ class Event:
     """
     Event domain model - storage-agnostic representation
 
-    Represents a real-world event discovered from multiple pages
+    Represents a real-world event discovered from multiple pages.
+    Events are RECURSIVE - can contain sub-events (phases/aspects).
     """
     id: uuid.UUID
-    title: str
+    canonical_name: str  # Canonical event name
     event_type: str  # FIRE, SHOOTING, PROTEST, etc.
 
+    # Recursive structure
+    parent_event_id: Optional[uuid.UUID] = None
+
+    # Direct claims supporting THIS event (not sub-events)
+    claim_ids: List[uuid.UUID] = field(default_factory=list)
+
+    # Quality metrics
+    confidence: float = 0.3  # Evidence strength (0-1)
+    coherence: float = 0.5   # How well claims fit together (0-1)
+
     # Temporal bounds
-    event_start: Optional[datetime] = None
-    event_end: Optional[datetime] = None
+    earliest_time: Optional[datetime] = None
+    latest_time: Optional[datetime] = None
 
     # Event properties
-    status: str = 'provisional'  # provisional, emerging, stable
-    confidence: float = 0.5
+    status: str = 'provisional'  # provisional, stable, archived
     event_scale: str = 'micro'  # micro, meso, macro
 
     # Summary/description
     summary: Optional[str] = None
     location: Optional[str] = None
 
-    # Counts
+    # Counts (legacy - for compatibility)
     pages_count: int = 0
     claims_count: int = 0
 
-    # Embedding (stored in PostgreSQL as vector, computed from page embeddings)
+    # Embedding (stored in PostgreSQL as vector)
     embedding: Optional[List[float]] = None
 
     # Metadata
@@ -45,39 +76,59 @@ class Event:
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
 
+    # Lazy-loaded relationships
+    sub_events: Optional[List['Event']] = field(default=None, repr=False)
+    entities: Optional[Set[uuid.UUID]] = field(default=None, repr=False)
+
     def __post_init__(self):
         """Ensure id is UUID"""
         if isinstance(self.id, str):
             self.id = uuid.UUID(self.id)
 
     @property
+    def is_root(self) -> bool:
+        """Check if this is a root event (no parent)"""
+        return self.parent_event_id is None
+
+    @property
+    def is_sub_event(self) -> bool:
+        """Check if this is a sub-event (has parent)"""
+        return self.parent_event_id is not None
+
+    @property
     def is_provisional(self) -> bool:
-        """Check if event is provisional (1 page)"""
+        """Check if event is provisional"""
         return self.status == 'provisional'
 
     @property
-    def is_emerging(self) -> bool:
-        """Check if event is emerging (2-4 pages)"""
-        return self.status == 'emerging'
-
-    @property
     def is_stable(self) -> bool:
-        """Check if event is stable (5+ pages)"""
+        """Check if event is stable"""
         return self.status == 'stable'
 
     @property
     def has_temporal_bounds(self) -> bool:
         """Check if event has temporal bounds"""
-        return self.event_start is not None and self.event_end is not None
+        return self.earliest_time is not None and self.latest_time is not None
 
-    def update_status_from_page_count(self):
-        """Update status based on page count"""
-        if self.pages_count >= 5:
+    @property
+    def claim_count(self) -> int:
+        """Get number of direct claims"""
+        return len(self.claim_ids)
+
+    def update_status(self):
+        """Update status based on confidence and claim count"""
+        if self.confidence >= 0.7 and self.claim_count >= 3:
             self.status = 'stable'
-            self.confidence = 0.95
-        elif self.pages_count >= 2:
-            self.status = 'emerging'
-            self.confidence = 0.75
         else:
             self.status = 'provisional'
-            self.confidence = 0.5
+
+    # Recursive examination methods (to be implemented in service layer)
+    # These are placeholders - actual logic lives in EventService
+    async def examine(self, claims: List['Claim']) -> ExaminationResult:
+        """
+        Recursively examine new claims and integrate into event structure
+
+        This is a placeholder - actual implementation is in EventService
+        to avoid circular dependencies and access to repositories
+        """
+        raise NotImplementedError("Use EventService.examine_claims() instead")
