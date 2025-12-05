@@ -224,6 +224,11 @@ For each claim:
   - "year" = Year only: "in 2023", "last year"
   - "approximate" = Vague timeframe: "recently", "this week", "around Tuesday"
 
+  **TIMEZONE INFERENCE:**
+  - Infer timezone from article location context (e.g., Hong Kong → +08:00, New York → -05:00/-04:00)
+  - If article explicitly mentions timezone (e.g., "2 p.m. EST"), extract it
+  - Default to UTC (+00:00) if location/timezone unclear
+
   **PRIORITY ORDER FOR TEMPORAL EXTRACTION:**
 
   1. **EXPLICIT TIME IN CLAIM TEXT** (highest priority)
@@ -329,6 +334,7 @@ Return JSON:
                 "date": "YYYY-MM-DD or YYYY or null",
                 "time": "HH:MM:SS or null",
                 "precision": "hour|day|month|year|approximate",
+                "timezone": "+HH:MM or -HH:MM (infer from location, e.g., Hong Kong=+08:00, NYC=-05:00)",
                 "event_time": "descriptive timestamp",
                 "temporal_context": "timing description from text"
             }},
@@ -450,14 +456,19 @@ Only include claims passing ALL 6 criteria above. Use notes_unsupported for inte
             "date": when.get("date") or None,
             "time": when.get("time") or None,
             "precision": when.get("precision") or "approximate",
+            "timezone": when.get("timezone") or None,
             "event_time": when.get("event_time") or None,
             "reported_time": reported_time_iso,
             "temporal_context": when.get("temporal_context") or None
         }
 
         # Create ISO timestamp if both date and time exist
+        # SIMPLE FIX: Use timezone if provided, default to UTC
+        # TODO(GH issue): Long-term epistemic concern - timezone inference accuracy
         if normalized["date"] and normalized["time"]:
-            normalized["event_time_iso"] = f'{normalized["date"]}T{normalized["time"]}Z'
+            timezone = normalized["timezone"] or "+00:00"  # Default to UTC
+            # Convert +HH:MM format to ISO format
+            normalized["event_time_iso"] = f'{normalized["date"]}T{normalized["time"]}{timezone}'
 
         return normalized
 

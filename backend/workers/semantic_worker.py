@@ -238,12 +238,14 @@ class SemanticWorker:
             event_time = None
             when = claim.get('when', {})
 
-            # Try event_time_iso first (full datetime)
+            # Try event_time_iso first (full datetime with timezone)
             if when and when.get('event_time_iso'):
                 try:
-                    event_time = datetime.fromisoformat(
-                        when['event_time_iso'].replace('Z', '+00:00')
-                    )
+                    iso_str = when['event_time_iso']
+                    # Handle both 'Z' (UTC) and '+HH:MM'/'-HH:MM' timezone formats
+                    if iso_str.endswith('Z'):
+                        iso_str = iso_str.replace('Z', '+00:00')
+                    event_time = datetime.fromisoformat(iso_str)
                 except (ValueError, AttributeError):
                     pass
 
