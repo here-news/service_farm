@@ -621,13 +621,21 @@ class EventService:
                 return True
 
         # Check for contextual references like "the fire", "the incident"
-        # This is weaker, so require at least one shared entity
         contextual_refs = ["the fire", "the incident", "the blaze", "the disaster"]
         has_contextual_ref = any(ref in claim_text_lower for ref in contextual_refs)
 
-        if has_contextual_ref and len(set(claim.entity_ids) & event_entities) > 0:
-            logger.info(f"📍 Contextual reference + shared entity")
-            return True
+        if has_contextual_ref:
+            # Prior behavior: only accept if at least one shared entity.
+            if len(set(claim.entity_ids) & event_entities) > 0:
+                logger.info(f"📍 Contextual reference + shared entity")
+                return True
+
+            # New: allow generic references when temporally aligned (e.g., "the fire" within 48h of event start).
+            if claim.event_time and event.event_start:
+                days_from_start = abs((claim.event_time - event.event_start).total_seconds()) / 86400
+                if days_from_start <= 2.0:
+                    logger.info(f"📍 Contextual reference within temporal window ({days_from_start:.1f}d)")
+                    return True
 
         return False
 
