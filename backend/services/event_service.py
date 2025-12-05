@@ -54,6 +54,22 @@ class EventService:
         self.ENTITY_OVERLAP_THRESHOLD = 0.5  # Entity overlap for topic match
         self.SUB_EVENT_THRESHOLD = 0.3       # Min overlap for yielding sub-event
 
+        # Multi-signal scoring thresholds (issue #3)
+        self.ATTACH_THRESHOLD = 0.7          # High confidence → ATTACH
+        self.YIELD_THRESHOLD = 0.4           # Medium confidence → YIELD for sub-event
+        self.DELEGATE_THRESHOLD = 0.25       # Low confidence → try siblings
+        # Below DELEGATE_THRESHOLD → REJECT
+
+        # Signal weights for ensemble scoring
+        self.SIGNAL_WEIGHTS = {
+            'entity': 0.20,       # Entity overlap (reduced from sole signal)
+            'temporal': 0.20,     # Time proximity to event
+            'reference': 0.25,    # Event name/location mentioned (HIGH IMPACT!)
+            'semantic': 0.15,     # Embedding similarity
+            'spatial': 0.10,      # Location overlap
+            'causal': 0.10        # Causal keywords
+        }
+
     async def examine_claims(
         self,
         event: Event,
@@ -181,6 +197,74 @@ class EventService:
             claims_rejected=claims_rejected
         )
 
+    async def _compute_relatedness_score(
+        self,
+        event: Event,
+        claim: Claim,
+        event_entities: set
+    ) -> tuple[float, dict]:
+        """
+        Multi-signal ensemble scoring (issue #3)
+
+        Returns:
+            (total_score, signal_scores) where total_score is weighted sum
+        """
+        scores = {}
+        claim_entities = set(claim.entity_ids)
+
+        # Signal 1: Entity overlap (existing)
+        if event_entities and claim_entities:
+            scores['entity'] = len(event_entities & claim_entities) / max(len(event_entities), len(claim_entities))
+        else:
+            scores['entity'] = 0.0
+
+        # Signal 2: Temporal proximity
+        if claim.event_time and event.earliest_time:
+            # Calculate days difference
+            time_diff = abs((claim.event_time - event.earliest_time).total_seconds() / 86400)
+            # Decay: 1.0 at 0 days, 0.5 at 7 days, 0.1 at 30 days
+            scores['temporal'] = max(0.0, 1.0 - (time_diff / 30.0))
+        else:
+            scores['temporal'] = 0.5  # Unknown time → neutral score
+
+        # Signal 3: Reference detection (CHEAP & HIGH IMPACT!)
+        scores['reference'] = 1.0 if self._references_event(event, claim, event_entities) else 0.0
+
+        # Signal 4: Semantic similarity
+        if claim.embedding and event.embedding:
+            from numpy import dot
+            from numpy.linalg import norm
+            claim_emb = claim.embedding
+            event_emb = event.embedding
+            cosine_sim = dot(claim_emb, event_emb) / (norm(claim_emb) * norm(event_emb))
+            scores['semantic'] = max(0.0, float(cosine_sim))
+        else:
+            scores['semantic'] = 0.0
+
+        # Signal 5: Spatial overlap (location mentions)
+        # Check if claim text mentions event location
+        claim_text_lower = claim.text.lower()
+        location_mentions = 0
+        for entity_id in event_entities:
+            # Get entity from repo to check type and name
+            entity = await self.entity_repo.get_by_id(entity_id)
+            if entity and entity.entity_type in ['LOCATION', 'GPE']:
+                if entity.name.lower() in claim_text_lower:
+                    location_mentions += 1
+        scores['spatial'] = min(1.0, location_mentions / 2.0)  # Normalize: 2+ locations = 1.0
+
+        # Signal 6: Causal keywords
+        causal_keywords = ['because', 'caused', 'led to', 'result', 'due to', 'triggered', 'sparked']
+        causal_count = sum(1 for keyword in causal_keywords if keyword in claim_text_lower)
+        scores['causal'] = min(1.0, causal_count / 2.0)  # Normalize
+
+        # Weighted ensemble
+        total_score = sum(scores[k] * self.SIGNAL_WEIGHTS[k] for k in scores)
+
+        logger.debug(f"📊 Relatedness scores: {scores} → total={total_score:.3f}")
+
+        return total_score, scores
+
     async def _classify_claim(
         self,
         event: Event,
@@ -189,15 +273,17 @@ class EventService:
         sub_events: List[Event]
     ) -> ClaimDecision:
         """
-        Decide how to handle a new claim
+        Decide how to handle a new claim using multi-signal scoring (issue #3)
 
-        Logic (temporal-aware):
+        Logic:
         1. Check for duplicates (semantic similarity > 0.9)
-        2. Check if temporal aftermath/investigation (happens AFTER event + references it)
-        3. Check if it fits my topic (entity overlap > 0.5, coherence > 0.6)
-        4. Check if sub-event handles it better
-        5. Check if novel aspect (entity overlap 0.3-0.5)
-        6. Otherwise reject
+        2. Check if UPDATE of existing metric
+        3. Compute multi-signal relatedness score
+        4. Classify based on score thresholds:
+           - ≥0.7: ATTACH (high confidence)
+           - ≥0.4: YIELD_SUBEVENT (medium, needs clustering)
+           - ≥0.25: DELEGATE (try sibling events)
+           - <0.25: REJECT (unrelated)
         """
 
         # 1. Check if claim is UPDATE of existing metric (not duplicate)
@@ -212,60 +298,45 @@ class EventService:
             if self._calculate_claim_similarity(claim, existing_claim) > self.DUPLICATE_THRESHOLD:
                 return ClaimDecision.MERGE
 
-        # 2. NEW: Check if this is temporal aftermath/investigation
-        # Key insight: Investigation/aftermath happens AFTER the incident but references it
-        if await self._is_temporal_aftermath(event, claim, existing_claims):
-            logger.info(f"🕐 Claim is temporal aftermath of {event.canonical_name}")
-            return ClaimDecision.YIELD_SUBEVENT
-
-        # Get entities for overlap calculation
+        # 3. Compute multi-signal relatedness score
         event_entities = await self._get_event_entities(event)
-        claim_entities = set(claim.entity_ids)
+        relatedness_score, signal_scores = await self._compute_relatedness_score(event, claim, event_entities)
 
-        if not event_entities or not claim_entities:
-            # No entities to compare - use semantic similarity as fallback
-            entity_overlap = 0.0
+        logger.info(
+            f"📊 Multi-signal score: {relatedness_score:.3f} "
+            f"(entity={signal_scores['entity']:.2f}, temporal={signal_scores['temporal']:.2f}, "
+            f"reference={signal_scores['reference']:.2f}, semantic={signal_scores['semantic']:.2f})"
+        )
+
+        # 4. Classify based on score thresholds
+        if relatedness_score >= self.ATTACH_THRESHOLD:
+            # High confidence - add directly
+            logger.info(f"✅ ATTACH (score={relatedness_score:.3f} ≥ {self.ATTACH_THRESHOLD})")
+            return ClaimDecision.ADD
+
+        elif relatedness_score >= self.YIELD_THRESHOLD:
+            # Medium confidence - yield for sub-event clustering
+            logger.info(f"🌿 YIELD (score={relatedness_score:.3f} ≥ {self.YIELD_THRESHOLD})")
+            return ClaimDecision.YIELD_SUBEVENT
+
+        elif relatedness_score >= self.DELEGATE_THRESHOLD:
+            # Low confidence - try sibling events first
+            if sub_events:
+                best_sub_event = await self._find_best_sub_event(claim, sub_events)
+                if best_sub_event:
+                    sub_match = await self._calculate_match_score(best_sub_event, claim)
+                    if sub_match > relatedness_score and sub_match > 0.5:
+                        logger.info(f"🔀 DELEGATE to sub-event (sub_score={sub_match:.3f} > {relatedness_score:.3f})")
+                        return ClaimDecision.DELEGATE
+
+            # No better sub-event found, still yield as new dimension
+            logger.info(f"🌿 YIELD (no better sub-event, score={relatedness_score:.3f})")
+            return ClaimDecision.YIELD_SUBEVENT
+
         else:
-            entity_overlap = len(event_entities & claim_entities) / max(len(event_entities), len(claim_entities))
-
-        # 3. MULTI-DIMENSIONAL SCORING
-        # Universal principle: Match on ANY strong signal (entity, reference)
-        # Then check semantic coherence if needed
-        reference_match = self._references_event(event, claim, event_entities)
-
-        # If strong reference match with low entity overlap = different dimension
-        if reference_match and entity_overlap < self.ENTITY_OVERLAP_THRESHOLD:
-            logger.info(f"📍 Reference match with low entity overlap ({entity_overlap:.2f}) → different dimension")
-            return ClaimDecision.YIELD_SUBEVENT
-
-        # If moderate entity overlap + reference = likely same event
-        if reference_match and entity_overlap >= self.SUB_EVENT_THRESHOLD:
-            coherence = await self._calculate_coherence_with_claim(event, claim, existing_claims)
-            if coherence > self.COHERENCE_THRESHOLD:
-                return ClaimDecision.ADD
-
-        # If high entity overlap = check semantic coherence
-        if entity_overlap > self.ENTITY_OVERLAP_THRESHOLD:
-            coherence = await self._calculate_coherence_with_claim(event, claim, existing_claims)
-            if coherence > self.COHERENCE_THRESHOLD:
-                return ClaimDecision.ADD
-
-        # 4. Check if sub-event handles it better
-        if sub_events:
-            best_sub_event = await self._find_best_sub_event(claim, sub_events)
-            if best_sub_event:
-                sub_match = await self._calculate_match_score(best_sub_event, claim)
-                my_match = entity_overlap  # Simplified match score
-                if sub_match > my_match and sub_match > 0.5:
-                    return ClaimDecision.DELEGATE
-
-        # 5. Is it novel but related? (shares context but different aspect)
-        if entity_overlap > self.SUB_EVENT_THRESHOLD and entity_overlap < self.ENTITY_OVERLAP_THRESHOLD:
-            # Related but distinct aspect
-            return ClaimDecision.YIELD_SUBEVENT
-
-        # 6. Unrelated
-        return ClaimDecision.REJECT
+            # Very low score - reject
+            logger.info(f"❌ REJECT (score={relatedness_score:.3f} < {self.DELEGATE_THRESHOLD})")
+            return ClaimDecision.REJECT
 
     async def create_root_event(self, claims: List[Claim]) -> Event:
         """
