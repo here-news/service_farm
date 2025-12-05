@@ -215,51 +215,73 @@ For each claim:
 
   **Example: "Fire at Empire State Building in New York" → ["LOCATION:Empire State Building", "GPE:New York"]**
 
-- WHEN: Event time with precision (exact/approximate/relative)
+- WHEN: Event time with precision level matching temporal granularity
+
+  **PRECISION LEVELS:**
+  - "hour" = Specific time with hours/minutes: "at 2:51 p.m.", "at 14:51", "at noon"
+  - "day" = Date only, no specific time: "on November 26", "Wednesday", "yesterday"
+  - "month" = Month/year only: "in November 2025", "last month"
+  - "year" = Year only: "in 2023", "last year"
+  - "approximate" = Vague timeframe: "recently", "this week", "around Tuesday"
 
   **PRIORITY ORDER FOR TEMPORAL EXTRACTION:**
 
   1. **EXPLICIT TIME IN CLAIM TEXT** (highest priority)
      If claim mentions specific time: "at 2:51 p.m.", "Wednesday at 14:51", "on Sept 26 at noon"
-     → Extract that EXACT date/time, combine with publication date if only time given
+     → Extract that date/time with precision="hour"
 
      Examples:
      - "Fire broke out at 2:51 p.m." (article published 2025-11-26 09:39)
-       → WHEN = 2025-11-26 14:51 (extract the 2:51 p.m. time!)
+       → WHEN = {date: "2025-11-26", time: "14:51:00", precision: "hour"}
 
      - "Meeting scheduled for Wednesday at 3pm" (article published 2025-11-26)
-       → WHEN = 2025-11-26 15:00 (if Wednesday matches pub date)
+       → WHEN = {date: "2025-11-26", time: "15:00:00", precision: "hour"}
 
-  2. **EXPLICIT HISTORICAL DATE** (second priority)
-     If claim has EXPLICIT year/date marker: "in 2023", "died in 2019", "on Sept 26, 2019"
-     → Use that historical date
+  2. **EXPLICIT DATE (no specific time)** (second priority)
+     If claim mentions date without specific time: "on November 26", "on Sept 26, 2019"
+     → Extract date with precision="day"
 
      Examples:
+     - "Fire broke out at Wang Fuk Court on November 26" (article published 2025-11-26)
+       → WHEN = {date: "2025-11-26", time: null, precision: "day"}
+
      - "JPMorgan agreed to pay $290 million in 2023"
-       → WHEN = 2023 (explicit historical marker)
+       → WHEN = {date: "2023", time: null, precision: "year"}
 
   3. **RECENT/PRESENT ACTION** (third priority)
-     If claim describes PRESENT/RECENT action: "newly", "recently", "has asked", "ordered", "announced"
+     If claim has EXPLICIT present tense or "today" marker: "today X happened", "announced today"
      → Use article publication date
 
      Examples (article published 2025-10-31):
      - "According to newly unsealed records, JPMorgan reported suspicious activity in 2019"
        → WHEN = 2025-10-31 (records NEWLY unsealed today, NOT 2019)
 
-     - "Judge ordered the unsealing of documents"
-       → WHEN = 2025-10-31 (ordering happened recently)
+     - "Judge today ordered the unsealing of documents"
+       → WHEN = 2025-10-31 (explicitly says "today")
 
   4. **NO TEMPORAL INFO** (fallback)
      If claim has NO temporal markers at all
-     → Use article publication date
+     → Leave WHEN empty/null (DO NOT guess or use pub_time!)
+
+  **CRITICAL TIMESTAMP EXTRACTION RULES:**
+  • ONLY extract times EXPLICITLY stated in the article text
+  • If NO time is mentioned for the claim, leave WHEN field empty/null
+  • DO NOT use pub_time as default - only use it if the claim text says "today", "yesterday", "recently" referring to publication date
+  • DO NOT guess or infer times not explicitly stated
 
   **MODALITY-SPECIFIC GUIDANCE:**
-  • observation: When the fact/event occurred (extract specific time from text if available!)
-  • reported_speech: When the STATEMENT was made (usually pub_time unless "said on Tuesday at 3pm")
-  • allegation: When the accusation was made (usually pub_time unless "accused on Monday")
-  • opinion: When opinion was expressed (usually pub_time)
+  • observation: When the fact/event occurred (extract ONLY if text says "at 2:51 p.m.", "on Nov 26", etc.)
+  • reported_speech: When the STATEMENT was made (extract ONLY if text says "said on Tuesday", "announced yesterday", etc.)
+  • allegation: When the accusation was made (extract ONLY if explicitly stated)
+  • opinion: When opinion was expressed (extract ONLY if explicitly stated)
 
-  **⚠️ CRITICAL: For breaking news (fires, accidents, attacks), ALWAYS extract specific times like "at 2:51 p.m." from the claim text!**
+  **Example (article published Dec 4 about Nov 26 fire):**
+  ✅ "Fire broke out at 2:51 p.m. on November 26" → WHEN = {date: "2025-11-26", time: "14:51:00", precision: "hour"}
+  ✅ "Fire broke out on November 26" → WHEN = {date: "2025-11-26", time: null, precision: "day"}
+  ✅ "159 people confirmed dead in the fire" → WHEN = null (no time mentioned in claim)
+  ❌ WRONG: Using Dec 4 pub_time for claim about Nov 26 event
+
+  **⚠️ For breaking news (fires, accidents, attacks), extract specific times like "at 2:51 p.m." or "on November 26" from the text!**
 - MODALITY: Choose ONE (4 types only):
 
   1. **observation** - Objectively verifiable fact or event
@@ -304,11 +326,11 @@ Return JSON:
             "who": ["PERSON:Name", "ORG:Organization"],
             "where": ["GPE:Location", "LOCATION:Place"],
             "when": {{
-                "date": "YYYY-MM-DD",
-                "time": "HH:MM:SS",
-                "precision": "exact|approximate|relative",
-                "event_time": "when it happened",
-                "temporal_context": "timing description"
+                "date": "YYYY-MM-DD or YYYY or null",
+                "time": "HH:MM:SS or null",
+                "precision": "hour|day|month|year|approximate",
+                "event_time": "descriptive timestamp",
+                "temporal_context": "timing description from text"
             }},
             "modality": "observation|reported_speech|allegation|opinion",
             "evidence_references": ["statement", "document", "photo"],
