@@ -87,6 +87,8 @@ async def list_events(
         metadata = row.get('metadata', {})
         if isinstance(metadata, str):
             metadata = json.loads(metadata) if metadata else {}
+        elif metadata is None:
+            metadata = {}
 
         # Extract coherence and summary from metadata (they might be there)
         coherence = metadata.get('coherence', row.get('coherence'))
