@@ -215,33 +215,6 @@ services:
         condition: service_healthy
     command: python run_semantic_worker.py
 
-  # Playwright Worker (1 instance for JS-heavy content)
-  worker-playwright:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile.playwright
-    container_name: herenews-worker-playwright
-    environment:
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
-      POSTGRES_DB: herenews
-      POSTGRES_USER: herenews_user
-      POSTGRES_PASSWORD: herenews_pass
-      REDIS_URL: redis://redis:6379
-      WORKER_ID: "1"
-    volumes:
-      - ./backend:/app
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    # Required for Playwright to run Chromium in Docker
-    cap_add:
-      - SYS_ADMIN
-    shm_size: '2gb'
-    command: python run_playwright_worker.py
-
   # Wikidata Enrichment Worker (1 instance for entity linking)
   worker-wikidata:
     build:
@@ -293,77 +266,6 @@ services:
       neo4j:
         condition: service_healthy
     command: python run_event_worker_neo4j.py
-
-  # Enrichment Worker (1 instance)
-  worker-enrichment:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: herenews-worker-enrichment
-    environment:
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
-      POSTGRES_DB: herenews
-      POSTGRES_USER: herenews_user
-      POSTGRES_PASSWORD: herenews_pass
-      REDIS_URL: redis://redis:6379
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-      WORKER_NAME: enrichment-1
-    volumes:
-      - ./backend:/app
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    command: python worker_entity_enrichment.py
-
-  # Entity Merge Worker (1 instance)
-  worker-entity-merge:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: herenews-worker-entity-merge
-    environment:
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
-      POSTGRES_DB: herenews
-      POSTGRES_USER: herenews_user
-      POSTGRES_PASSWORD: herenews_pass
-      REDIS_URL: redis://redis:6379
-      WORKER_ID: "1"
-    volumes:
-      - ./backend:/app
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    command: python run_entity_merge_worker.py
-
-  # Event Consolidation Worker (1 instance - periodic Bayesian re-evaluation)
-  worker-event-consolidation:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: herenews-worker-event-consolidation
-    environment:
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
-      POSTGRES_DB: herenews
-      POSTGRES_USER: herenews_user
-      POSTGRES_PASSWORD: herenews_pass
-      REDIS_URL: redis://redis:6379
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-      WORKER_ID: "1"
-    volumes:
-      - ./backend:/app
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    command: python run_event_consolidation_worker.py
 
 volumes:
   pg_data:
