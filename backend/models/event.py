@@ -43,8 +43,8 @@ class Event:
     # Recursive structure
     parent_event_id: Optional[uuid.UUID] = None
 
-    # Direct claims supporting THIS event (not sub-events)
-    claim_ids: List[uuid.UUID] = field(default_factory=list)
+    # NOTE: Claims are linked via Neo4j graph relationships (Event-[SUPPORTS]->Claim)
+    # Use EventRepository.get_event_claims() to fetch claims for an event
 
     # Quality metrics
     confidence: float = 0.3  # Evidence strength (0-1)
@@ -110,14 +110,13 @@ class Event:
         """Check if event has temporal bounds"""
         return self.event_start is not None and self.event_end is not None
 
-    @property
-    def claim_count(self) -> int:
-        """Get number of direct claims"""
-        return len(self.claim_ids)
-
     def update_status(self):
-        """Update status based on confidence and claim count"""
-        if self.confidence >= 0.7 and self.claim_count >= 3:
+        """
+        Update status based on confidence and claim count
+
+        Note: claim_count now requires fetching from graph via repository
+        """
+        if self.confidence >= 0.7 and self.claims_count >= 3:
             self.status = 'stable'
         else:
             self.status = 'provisional'

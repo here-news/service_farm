@@ -15,10 +15,14 @@ try:
     from .entity_repository import EntityRepository
     from .claim_repository import ClaimRepository
     from .event_repository import EventRepository
+    from .page_repository import PageRepository
+    from .rogue_task_repository import RogueTaskRepository
     __all__ = [
         'EntityRepository',
         'ClaimRepository',
         'EventRepository',
+        'PageRepository',
+        'RogueTaskRepository',
     ]
 except ModuleNotFoundError:
     # Neo4j not available - only basic repositories

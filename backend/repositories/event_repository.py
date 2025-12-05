@@ -44,10 +44,9 @@ class EventRepository:
         Returns:
             Created event
         """
-        # Prepare metadata with claim_ids, summary, location
+        # Prepare metadata with summary, location, coherence
+        # NOTE: claim_ids NO LONGER stored in metadata - use graph relationships instead
         metadata = event.metadata.copy() if event.metadata else {}
-        if event.claim_ids:
-            metadata['claim_ids'] = [str(cid) for cid in event.claim_ids]
         if event.summary:
             metadata['summary'] = event.summary
         if event.location:
@@ -94,9 +93,8 @@ class EventRepository:
             Updated event
         """
         # Update Neo4j event properties
+        # NOTE: claim_ids NO LONGER stored in metadata - use graph relationships instead
         metadata = event.metadata.copy() if event.metadata else {}
-        if event.claim_ids:
-            metadata['claim_ids'] = [str(cid) for cid in event.claim_ids]
         if event.summary:
             metadata['summary'] = event.summary
         if event.location:
@@ -166,16 +164,12 @@ class EventRepository:
 
         node = result[0]['e']
 
-        # Parse metadata (may contain claim_ids)
+        # Parse metadata
         metadata = node.get('metadata_json', {})
         if isinstance(metadata, str):
             metadata = json.loads(metadata) if metadata else {}
 
-        # Extract claim_ids from metadata
-        claim_ids = []
-        if 'claim_ids' in metadata:
-            claim_ids = [uuid.UUID(cid) if isinstance(cid, str) else cid
-                        for cid in metadata.get('claim_ids', [])]
+        # NOTE: claim_ids NO LONGER in metadata - use EventRepository.get_event_claims() to fetch
 
         # Get parent_event_id from Neo4j :CONTAINS relationships
         parent_event_id = await self.neo4j.get_parent_event_id(event_id=str(event_id))
@@ -201,9 +195,8 @@ class EventRepository:
             embedding=embedding,
             metadata=metadata,
             parent_event_id=uuid.UUID(parent_event_id) if parent_event_id else None,
-            claim_ids=claim_ids,
-            pages_count=0,  # Derivable from claims
-            claims_count=len(claim_ids),
+            pages_count=0,  # Legacy field
+            claims_count=0,  # Use get_event_claims() to fetch actual count from graph
             summary=metadata.get('summary'),
             location=metadata.get('location'),
             coherence=metadata.get('coherence', 0.3)
@@ -361,4 +354,188 @@ class EventRepository:
         except Exception as e:
             logger.warning(f"Failed to parse embedding: {e}")
         return None
+
+    async def link_claim(self, event: Event, claim, relationship_type: str = "SUPPORTS") -> None:
+        """
+        Link a claim to an event in Neo4j knowledge graph
+
+        Args:
+            event: Event domain model
+            claim: Claim domain model
+            relationship_type: Type of relationship (SUPPORTS, CONTRADICTS, UPDATES)
+
+        This creates:
+        1. Claim node in Neo4j (if not exists)
+        2. Event-[relationship_type]->Claim relationship
+        """
+        # Import here to avoid circular dependency
+        from models.claim import Claim
+
+        # Create or merge Claim node in Neo4j (idempotent)
+        await self.neo4j.create_claim(
+            claim_id=str(claim.id),
+            text=claim.text,
+            modality=claim.modality,
+            confidence=claim.confidence,
+            event_time=claim.event_time,
+            page_id=str(claim.page_id)
+        )
+
+        # Link Event->Claim in graph
+        await self.neo4j.link_claim_to_event(
+            event_id=str(event.id),
+            claim_id=str(claim.id),
+            relationship_type=relationship_type
+        )
+
+        logger.debug(f"🔗 Linked claim {claim.id} to event {event.canonical_name}")
+
+    async def get_event_claims(self, event_id: uuid.UUID) -> List:
+        """
+        Get all claims linked to an event from Neo4j graph
+
+        Returns:
+            List of Claim domain models
+        """
+        # Import here to avoid circular dependency
+        from models.claim import Claim
+
+        result = await self.neo4j._execute_read("""
+            MATCH (e:Event {id: $event_id})-[r:SUPPORTS|CONTRADICTS|UPDATES]->(c:Claim)
+            RETURN c.id as id, c.text as text, c.modality as modality,
+                   c.confidence as confidence, c.event_time as event_time,
+                   type(r) as relationship
+            ORDER BY c.event_time
+        """, {'event_id': str(event_id)})
+
+        claims = []
+        for row in result:
+            # Note: We only have minimal claim data from Neo4j
+            # Full claim data (embedding, metadata) lives in PostgreSQL
+            claim = Claim(
+                id=uuid.UUID(row['id']),
+                page_id=uuid.UUID('00000000-0000-0000-0000-000000000000'),  # Placeholder
+                text=row['text'],
+                modality=row.get('modality', 'observation'),
+                confidence=row.get('confidence', 0.8),
+                event_time=neo4j_datetime_to_python(row['event_time']) if row.get('event_time') else None
+            )
+            claims.append(claim)
+
+        return claims
+
+    async def create_sub_event_relationship(self, parent_id: uuid.UUID, child_id: uuid.UUID) -> None:
+        """
+        Create parent-child relationship between events
+
+        Args:
+            parent_id: Parent event UUID
+            child_id: Child event UUID
+        """
+        await self.neo4j.create_event_relationship(
+            parent_id=str(parent_id),
+            child_id=str(child_id),
+            relationship_type="CONTAINS"
+        )
+
+        logger.info(f"🔗 Created CONTAINS relationship: {parent_id} → {child_id}")
+
+    async def link_event_to_entities(self, event_id: uuid.UUID, entity_ids: Set[uuid.UUID]) -> None:
+        """
+        Link event to multiple entities in Neo4j graph
+
+        Args:
+            event_id: Event UUID
+            entity_ids: Set of entity UUIDs
+        """
+        if not entity_ids:
+            return
+
+        for entity_id in entity_ids:
+            await self.neo4j._execute_write("""
+                MATCH (e:Event {id: $event_id})
+                MATCH (entity:Entity {id: $entity_id})
+                MERGE (e)-[r:INVOLVES]->(entity)
+                ON CREATE SET r.created_at = datetime()
+            """, {
+                'event_id': str(event_id),
+                'entity_id': str(entity_id)
+            })
+
+        logger.debug(f"🔗 Linked event {event_id} to {len(entity_ids)} entities")
+
+    async def list_root_events(
+        self,
+        status: Optional[str] = None,
+        scale: Optional[str] = None,
+        limit: int = 50
+    ) -> List[dict]:
+        """
+        List root events (events without parents) with optional filters
+
+        Args:
+            status: Optional status filter (provisional, confirmed, etc.)
+            scale: Optional scale filter (local, regional, national, international)
+            limit: Maximum number of events to return
+
+        Returns:
+            List of event dictionaries with child counts
+        """
+        query = """
+            MATCH (e:Event)
+            WHERE NOT exists((e)<-[:CONTAINS]-())
+        """
+
+        params = {}
+
+        if status:
+            query += " AND e.status = $status"
+            params['status'] = status
+
+        if scale:
+            query += " AND e.event_scale = $scale"
+            params['scale'] = scale
+
+        query += """
+            WITH e
+            OPTIONAL MATCH (e)-[:CONTAINS]->(sub:Event)
+            WITH e, count(sub) as child_count
+            RETURN e.id as id,
+                   e.canonical_name as canonical_name,
+                   e.event_type as event_type,
+                   e.status as status,
+                   e.confidence as confidence,
+                   e.event_scale as event_scale,
+                   e.earliest_time as event_start,
+                   e.latest_time as event_end,
+                   e.created_at as created_at,
+                   e.updated_at as updated_at,
+                   e.metadata as metadata,
+                   child_count
+            ORDER BY e.created_at DESC
+            LIMIT $limit
+        """
+        params['limit'] = limit
+
+        results = await self.neo4j._execute_read(query, params)
+
+        events = []
+        for row in results:
+            event_dict = {
+                'id': row['id'],
+                'canonical_name': row['canonical_name'],
+                'event_type': row['event_type'],
+                'status': row['status'],
+                'confidence': row['confidence'],
+                'event_scale': row.get('event_scale'),
+                'event_start': neo4j_datetime_to_python(row['event_start']) if row.get('event_start') else None,
+                'event_end': neo4j_datetime_to_python(row['event_end']) if row.get('event_end') else None,
+                'created_at': neo4j_datetime_to_python(row['created_at']) if row.get('created_at') else None,
+                'updated_at': neo4j_datetime_to_python(row['updated_at']) if row.get('updated_at') else None,
+                'metadata': row.get('metadata', {}),
+                'child_count': row['child_count']
+            }
+            events.append(event_dict)
+
+        return events
 

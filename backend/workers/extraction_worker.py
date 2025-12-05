@@ -16,12 +16,15 @@ Decision logic:
 import os
 import uuid
 import logging
-from typing import Tuple
+import time
+import asyncio
+from typing import Tuple, Dict, Optional
 from datetime import datetime
 import asyncpg
 import httpx
 import trafilatura
 from langdetect import detect
+from playwright.async_api import async_playwright, TimeoutError as PlaywrightTimeoutError
 import sys
 import os
 # Add parent directory to path for direct imports
@@ -146,7 +149,49 @@ class ExtractionWorker(BaseWorker):
             result = await self.multi_extractor.extract(url, html)
 
             if not result.success:
-                await self._mark_failed(page_id, f"All extraction methods failed: {result.error_message}")
+                # Try Playwright as last resort before failing
+                logger.warning(f"[{self.worker_name}] ⚠️ Standard extraction failed - trying Playwright fallback")
+                playwright_result = await self._extract_with_playwright(url)
+
+                if not playwright_result or not playwright_result['success']:
+                    await self._mark_failed(page_id, f"All extraction methods failed: {result.error_message}")
+                    return
+
+                # Playwright succeeded! Use its content
+                extracted = playwright_result['content']
+                word_count = playwright_result['word_count']
+
+                # Detect language
+                try:
+                    detected_lang = detect(extracted[:1000])
+                except:
+                    detected_lang = state.get('language', 'en')
+
+                # Get metadata from state
+                existing = await self.page_repo.get_by_id(page_id)
+
+                # Update page with playwright-extracted content
+                await self.page_repo.update_extracted_content(
+                    page_id=page_id,
+                    content_text=extracted,
+                    title=existing.title,
+                    description=existing.description,
+                    author=existing.author,
+                    thumbnail_url=existing.thumbnail_url,
+                    metadata_confidence=existing.metadata_confidence or 0.5,
+                    language=detected_lang,
+                    word_count=word_count,
+                    pub_time=existing.pub_time
+                )
+
+                logger.info(f"[{self.worker_name}] ✅ Playwright fallback succeeded after standard extraction failed: {word_count} words from {url}")
+
+                # Commission semantic analysis
+                semantic_job = {
+                    'page_id': str(page_id),
+                    'url': url
+                }
+                await self.job_queue.enqueue('queue:semantic:high', semantic_job)
                 return
 
             extracted = result.content
@@ -207,16 +252,52 @@ class ExtractionWorker(BaseWorker):
                 pub_time=final_pub_time
             )
 
-            # Check if word count is suspiciously low (likely paywall/teaser)
+            # Check if word count is suspiciously low (likely paywall/JS-heavy page)
             if word_count < 100:
                 logger.warning(
-                    f"[{self.worker_name}] ⚠️ Low word count ({word_count} words) - creating rogue task"
-                )
-                await self.page_repo.create_rogue_task(page_id, url)
-                logger.info(
-                    f"[{self.worker_name}] 🔴 Created rogue task for {url} (low word count - likely paywall)"
+                    f"[{self.worker_name}] ⚠️ Low word count ({word_count} words) - trying Playwright fallback"
                 )
 
+                # Try Playwright as fallback for JS-heavy pages
+                playwright_result = await self._extract_with_playwright(url)
+
+                if playwright_result and playwright_result['success']:
+                    # Playwright succeeded - update with new content
+                    extracted = playwright_result['content']
+                    word_count = playwright_result['word_count']
+
+                    # Re-detect language with new content
+                    try:
+                        detected_lang = detect(extracted[:1000])
+                    except:
+                        pass
+
+                    # Update page with playwright-extracted content
+                    await self.page_repo.update_extracted_content(
+                        page_id=page_id,
+                        content_text=extracted,
+                        title=final_title,
+                        description=final_description,
+                        author=final_author,
+                        thumbnail_url=final_thumbnail,
+                        metadata_confidence=metadata_confidence,
+                        language=detected_lang,
+                        word_count=word_count,
+                        pub_time=final_pub_time
+                    )
+
+                    logger.info(
+                        f"[{self.worker_name}] ✅ Playwright fallback succeeded: "
+                        f"{word_count} words (lang={detected_lang}) from {url}"
+                    )
+                else:
+                    # Both standard and playwright extraction failed
+                    logger.warning(
+                        f"[{self.worker_name}] ❌ Both standard and Playwright extraction failed for {url}"
+                    )
+                    await self._mark_failed(page_id, "Insufficient content after all extraction methods")
+                    return
+            else:
                 logger.info(
                     f"[{self.worker_name}] ✅ Extracted {word_count} words "
                     f"(lang={detected_lang}) from {url}"
@@ -237,7 +318,7 @@ class ExtractionWorker(BaseWorker):
             await self._mark_failed(page_id, str(e))
             raise
 
-    async def _fetch_html(self, url: str, timeout: float = 10.0) -> str:
+    async def _fetch_html(self, url: str, timeout: float = 30.0) -> str:
         """
         Fetch HTML from URL
 
@@ -251,7 +332,7 @@ class ExtractionWorker(BaseWorker):
         try:
             async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
                 response = await client.get(url, headers={
-                    'User-Agent': 'Mozilla/5.0 (compatible; HereNewsBot/2.0; +https://here.news)'
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
                 })
 
                 if response.status_code == 200:
@@ -352,6 +433,93 @@ class ExtractionWorker(BaseWorker):
 
         # All strategies failed - use trafilatura date-only as last resort
         return trafilatura_date
+
+    async def _extract_with_playwright(self, url: str, timeout_ms: int = 30000) -> Optional[Dict]:
+        """
+        Extract content using Playwright browser (fallback for JS-heavy pages)
+
+        Args:
+            url: URL to extract
+            timeout_ms: Browser timeout in milliseconds
+
+        Returns:
+            Dict with content, word_count, success, or None if failed
+        """
+        start_time = time.time()
+
+        try:
+            async with async_playwright() as p:
+                logger.info(f"[{self.worker_name}] 🎭 Trying Playwright fallback for {url}")
+
+                # Launch browser
+                browser = await p.chromium.launch(
+                    headless=True,
+                    args=[
+                        '--no-sandbox',
+                        '--disable-dev-shm-usage',
+                        '--disable-blink-features=AutomationControlled'
+                    ]
+                )
+
+                # Use iPhone device emulation with authentic mobile user agent
+                # (from gen1 - works better than desktop UA for many sites)
+                device = p.devices.get('iPhone 13 Pro', p.devices['iPhone 12 Pro'])
+                # Override user_agent in device dict to avoid duplicate argument error
+                device_config = {**device, 'user_agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.0 Mobile/15E148 Safari/604.1'}
+                context = await browser.new_context(**device_config)
+                page = await context.new_page()
+
+                # Add stealth scripts
+                await page.add_init_script("""
+                    Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+                    Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
+                """)
+
+                try:
+                    # Navigate to URL
+                    await page.goto(url, timeout=timeout_ms, wait_until='domcontentloaded')
+
+                    # Wait for network idle
+                    try:
+                        await page.wait_for_load_state('networkidle', timeout=5000)
+                    except PlaywrightTimeoutError:
+                        pass  # Continue anyway
+
+                    # Wait for JS execution
+                    await asyncio.sleep(2)
+
+                    # Extract text
+                    text_content = await page.inner_text('body')
+
+                    # Clean up text
+                    lines = (line.strip() for line in text_content.splitlines())
+                    chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
+                    cleaned_text = ' '.join(chunk for chunk in chunks if chunk)
+
+                    word_count = len(cleaned_text.split())
+                    extraction_time_ms = (time.time() - start_time) * 1000
+
+                    await browser.close()
+
+                    logger.info(
+                        f"[{self.worker_name}] ✅ Playwright extracted {word_count} words "
+                        f"from {url} ({extraction_time_ms:.0f}ms)"
+                    )
+
+                    return {
+                        'success': word_count >= 100,
+                        'content': cleaned_text,
+                        'word_count': word_count
+                    }
+
+                except PlaywrightTimeoutError:
+                    await browser.close()
+                    logger.warning(f"[{self.worker_name}] ⏱️ Playwright timeout for {url}")
+                    return None
+
+        except Exception as e:
+            logger.error(f"[{self.worker_name}] ❌ Playwright extraction failed: {e}")
+            return None
 
     async def _mark_failed(self, page_id: uuid.UUID, reason: str):
         """

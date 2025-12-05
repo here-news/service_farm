@@ -30,7 +30,7 @@ from semantic_analyzer import EnhancedSemanticAnalyzer
 # Import domain models and repositories
 from models import Entity, Claim
 from models.relationships import ClaimEntityLink
-from repositories import EntityRepository, ClaimRepository
+from repositories import EntityRepository, ClaimRepository, PageRepository
 from services.neo4j_service import Neo4jService
 
 logger = logging.getLogger(__name__)
@@ -64,7 +64,8 @@ class SemanticWorker:
         else:
             self.neo4j = neo4j_service
 
-        # Initialize repositories (handle dual-write to PostgreSQL + Neo4j)
+        # Initialize repositories (handle ALL data access)
+        self.page_repo = PageRepository(db_pool)
         self.entity_repo = EntityRepository(db_pool, self.neo4j)
         self.claim_repo = ClaimRepository(db_pool, self.neo4j)
 
@@ -252,8 +253,9 @@ class SemanticWorker:
                     except (ValueError, AttributeError):
                         pass
 
-            # Generate claim embedding
-            claim_embedding = await self._generate_claim_embedding(claim['text'])
+            # NOTE: Claim embeddings are NOT generated here
+            # They will be generated on-demand in event_service when needed
+            # This saves API calls and only generates embeddings for claims that need them
 
             # Extract entity IDs and names from claim's who/where fields
             entity_ids = []
@@ -266,7 +268,7 @@ class SemanticWorker:
                     if ':' in entity_ref:
                         entity_names.append(entity_ref.split(':', 1)[1])
 
-            # Create Claim domain model
+            # Create Claim domain model (no embedding)
             claim_model = Claim(
                 id=uuid.uuid4(),
                 page_id=page_id,
@@ -274,7 +276,7 @@ class SemanticWorker:
                 event_time=event_time,
                 confidence=claim.get('confidence', 0.5),
                 modality=claim.get('modality', 'observation'),
-                embedding=claim_embedding,
+                embedding=None,  # Generated on-demand
                 metadata={
                     'who': claim.get('who', []),
                     'where': claim.get('where', []),

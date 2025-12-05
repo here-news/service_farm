@@ -8,26 +8,33 @@ Architecture:
 2. Browser extension polls GET /rogue/tasks for pending tasks
 3. Extension extracts metadata in real browser → POST /rogue/tasks/{id}/complete
 4. System uses extracted metadata for preview
+
+Refactored: Uses PageRepository and RogueTaskRepository for all data access
 """
+import os
 import uuid
 import json
 from typing import Optional
-from datetime import datetime, timedelta
+from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 import asyncpg
 
+from repositories import PageRepository, RogueTaskRepository
+
 router = APIRouter()
 
-# Global database pool (initialized on startup)
+# Globals (initialized on startup)
 db_pool = None
+page_repo = None
+rogue_task_repo = None
 
 
-async def init_db_pool():
-    """Initialize database pool"""
-    global db_pool
+async def init_services():
+    """Initialize database pool and repositories"""
+    global db_pool, page_repo, rogue_task_repo
+
     if db_pool is None:
-        import os
         db_pool = await asyncpg.create_pool(
             host=os.getenv('POSTGRES_HOST', 'postgres'),
             port=int(os.getenv('POSTGRES_PORT', 5432)),
@@ -37,7 +44,14 @@ async def init_db_pool():
             min_size=2,
             max_size=10
         )
-    return db_pool
+
+    if page_repo is None:
+        page_repo = PageRepository(db_pool)
+
+    if rogue_task_repo is None:
+        rogue_task_repo = RogueTaskRepository(db_pool)
+
+    return page_repo, rogue_task_repo
 
 
 class RogueTask(BaseModel):
@@ -79,62 +93,37 @@ async def get_rogue_tasks(limit: int = 1, status: Optional[str] = None, recent: 
     Returns:
         List of tasks
     """
-    pool = await init_db_pool()
+    _, rogue_task_repo = await init_services()
 
-    async with pool.acquire() as conn:
-        if recent:
-            # Recent tasks mode - for UI display
-            status_filter = f"AND status = '{status}'" if status else ""
-            tasks = await conn.fetch(f"""
-                SELECT id, page_id, url, status, created_at, completed_at
-                FROM core.rogue_extraction_tasks
-                WHERE 1=1 {status_filter}
-                ORDER BY created_at DESC
-                LIMIT $1
-            """, limit)
+    if recent:
+        # Recent tasks mode - for UI display
+        tasks_data = await rogue_task_repo.get_recent_tasks(limit=limit, status=status)
 
-            return [
-                RogueTask(
-                    id=str(task['id']),
-                    page_id=str(task['page_id']),
-                    url=task['url'],
-                    status=task['status'],
-                    created_at=task['created_at'].isoformat()
-                )
-                for task in tasks
-            ]
+        return [
+            RogueTask(
+                id=str(task['id']),
+                page_id=str(task['page_id']),
+                url=task['url'],
+                status=task['status'],
+                created_at=task['created_at'].isoformat()
+            )
+            for task in tasks_data
+        ]
 
-        else:
-            # Worker mode - get pending and mark as processing
-            tasks = await conn.fetch("""
-                SELECT id, page_id, url, created_at
-                FROM core.rogue_extraction_tasks
-                WHERE status = 'pending'
-                ORDER BY created_at ASC
-                LIMIT $1
-            """, limit)
+    else:
+        # Worker mode - get pending and mark as processing
+        tasks_data = await rogue_task_repo.get_pending_tasks(limit=limit)
 
-            if not tasks:
-                return []
-
-            # Mark as processing with timeout (60 seconds)
-            task_ids = [task['id'] for task in tasks]
-            await conn.execute("""
-                UPDATE core.rogue_extraction_tasks
-                SET status = 'processing',
-                    processing_started_at = NOW()
-                WHERE id = ANY($1::uuid[])
-            """, task_ids)
-
-            return [
-                RogueTask(
-                    id=str(task['id']),
-                    page_id=str(task['page_id']),
-                    url=task['url'],
-                    created_at=task['created_at'].isoformat()
-                )
-                for task in tasks
-            ]
+        return [
+            RogueTask(
+                id=str(task['id']),
+                page_id=str(task['page_id']),
+                url=task['url'],
+                status=task.get('status', 'processing'),
+                created_at=task['created_at'].isoformat()
+            )
+            for task in tasks_data
+        ]
 
 
 @router.post("/rogue/tasks/{task_id}/complete")
@@ -151,113 +140,77 @@ async def complete_rogue_task(task_id: str, metadata: RogueTaskMetadata):
     Returns:
         Success status
     """
-    pool = await init_db_pool()
+    page_repo, rogue_task_repo = await init_services()
 
     try:
         task_uuid = uuid.UUID(task_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid task_id format")
 
-    async with pool.acquire() as conn:
-        # Check task exists and is processing
-        task = await conn.fetchrow("""
-            SELECT page_id, status
-            FROM core.rogue_extraction_tasks
-            WHERE id = $1
-        """, task_uuid)
+    # Get task to verify it exists and get page_id
+    task = await rogue_task_repo.get_by_id(task_uuid)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
 
-        if not task:
-            raise HTTPException(status_code=404, detail="Task not found")
+    if task['status'] not in ['pending', 'processing']:
+        raise HTTPException(status_code=400, detail=f"Task already {task['status']}")
 
-        if task['status'] not in ['pending', 'processing']:
-            raise HTTPException(status_code=400, detail=f"Task already {task['status']}")
+    # Mark task as completed
+    await rogue_task_repo.mark_completed(task_uuid)
 
-        # Update task with metadata (convert to JSON for JSONB column)
-        await conn.execute("""
-            UPDATE core.rogue_extraction_tasks
-            SET status = 'completed',
-                metadata = $2,
-                completed_at = NOW()
-            WHERE id = $1
-        """, task_uuid, json.dumps(metadata.dict()))
+    # Update page with extracted metadata
+    page_id = uuid.UUID(task['page_id'])
+    page = await page_repo.get_by_id(page_id)
 
-        # Update page with extracted data
-        page_id = task['page_id']
+    if not page:
+        raise HTTPException(status_code=404, detail="Page not found")
 
-        update_fields = []
-        params = [page_id]
-        param_idx = 2
+    # Parse published date if provided
+    pub_time = None
+    if metadata.published_date:
+        try:
+            from dateutil import parser as date_parser
+            pub_time = date_parser.parse(metadata.published_date)
+        except:
+            pass  # Skip if date parsing fails
 
-        if metadata.title:
-            update_fields.append(f"title = ${param_idx}")
-            params.append(metadata.title)
-            param_idx += 1
+    # Determine new status based on content quality
+    if metadata.content_text and metadata.word_count >= 100:
+        new_status = 'extraction_complete'
+    else:
+        # At least we have metadata, mark as preview
+        new_status = 'preview'
 
-        if metadata.description:
-            update_fields.append(f"description = ${param_idx}")
-            params.append(metadata.description)
-            param_idx += 1
+    # Update page with extracted content
+    await page_repo.update_extracted_content(
+        page_id=page_id,
+        content_text=metadata.content_text or page.content_text or '',
+        title=metadata.title or page.title or '',
+        description=metadata.description,
+        author=metadata.author,
+        thumbnail_url=metadata.thumbnail,
+        metadata_confidence=0.7,  # Rogue extraction is less reliable
+        language='en',  # Default, could be improved
+        word_count=metadata.word_count,
+        pub_time=pub_time
+    )
 
-        if metadata.author:
-            update_fields.append(f"author = ${param_idx}")
-            params.append(metadata.author)
-            param_idx += 1
+    # Update status separately if needed
+    if new_status != 'extraction_complete':
+        await page_repo.update_status(page_id, new_status)
 
-        if metadata.thumbnail:
-            update_fields.append(f"thumbnail_url = ${param_idx}")
-            params.append(metadata.thumbnail)
-            param_idx += 1
-
-        if metadata.published_date:
-            # Parse published_date and update pub_time
-            try:
-                from dateutil import parser as date_parser
-                pub_time = date_parser.parse(metadata.published_date)
-                update_fields.append(f"pub_time = ${param_idx}")
-                params.append(pub_time)
-                param_idx += 1
-            except:
-                pass  # Skip if date parsing fails
-
-        if metadata.content_text and metadata.word_count >= 100:
-            update_fields.append(f"content_text = ${param_idx}")
-            params.append(metadata.content_text)
-            param_idx += 1
-            update_fields.append(f"word_count = ${param_idx}")
-            params.append(metadata.word_count)
-            param_idx += 1
-            update_fields.append(f"status = ${param_idx}")
-            params.append('extracted')
-            param_idx += 1
-        else:
-            # At least we have metadata, mark as preview
-            if task['status'] != 'extracted':
-                update_fields.append(f"status = ${param_idx}")
-                params.append('preview')
-                param_idx += 1
-
-        update_fields.append("updated_at = NOW()")
-
-        if update_fields:
-            query = f"""
-                UPDATE core.pages
-                SET {', '.join(update_fields)}
-                WHERE id = $1
-            """
-            await conn.execute(query, *params)
-
-        return {
-            "success": True,
-            "task_id": task_id,
-            "page_updated": True,
-            "extracted_fields": {
-                "title": bool(metadata.title),
-                "description": bool(metadata.description),
-                "author": bool(metadata.author),
-                "thumbnail": bool(metadata.thumbnail),
-                "content_text": metadata.word_count > 0
-            }
+    return {
+        "success": True,
+        "task_id": task_id,
+        "page_updated": True,
+        "extracted_fields": {
+            "title": bool(metadata.title),
+            "description": bool(metadata.description),
+            "author": bool(metadata.author),
+            "thumbnail": bool(metadata.thumbnail),
+            "content_text": metadata.word_count > 0
         }
+    }
 
 
 @router.post("/rogue/tasks/{task_id}/fail")
@@ -274,23 +227,16 @@ async def fail_rogue_task(task_id: str, error_message: str):
     Returns:
         Success status
     """
-    pool = await init_db_pool()
+    _, rogue_task_repo = await init_services()
 
     try:
         task_uuid = uuid.UUID(task_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid task_id format")
 
-    async with pool.acquire() as conn:
-        await conn.execute("""
-            UPDATE core.rogue_extraction_tasks
-            SET status = 'failed',
-                error_message = $2,
-                completed_at = NOW()
-            WHERE id = $1
-        """, task_uuid, error_message)
+    await rogue_task_repo.mark_failed(task_uuid, error_message)
 
-        return {"success": True, "task_id": task_id}
+    return {"success": True, "task_id": task_id}
 
 
 @router.get("/rogue/stats")
@@ -300,25 +246,19 @@ async def get_rogue_stats():
 
     Returns counts by status for monitoring
     """
-    pool = await init_db_pool()
+    _, rogue_task_repo = await init_services()
 
-    async with pool.acquire() as conn:
-        stats = await conn.fetch("""
-            SELECT status, COUNT(*) as count
-            FROM core.rogue_extraction_tasks
-            GROUP BY status
-        """)
+    # Get stats by status
+    stats_by_status = await rogue_task_repo.get_stats()
 
-        # Get stuck tasks (processing for > 5 minutes)
-        stuck_count = await conn.fetchval("""
-            SELECT COUNT(*)
-            FROM core.rogue_extraction_tasks
-            WHERE status = 'processing'
-            AND processing_started_at < NOW() - INTERVAL '5 minutes'
-        """)
+    # Get stuck tasks count (processing for > 5 minutes)
+    stuck_count = await rogue_task_repo.get_stuck_count(hours=5/60)  # 5 minutes in hours
 
-        return {
-            "by_status": {row['status']: row['count'] for row in stats},
-            "stuck_tasks": stuck_count,
-            "total": sum(row['count'] for row in stats)
-        }
+    # Calculate total
+    total = sum(stats_by_status.values())
+
+    return {
+        "by_status": stats_by_status,
+        "stuck_tasks": stuck_count,
+        "total": total
+    }

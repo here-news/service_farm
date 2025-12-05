@@ -73,81 +73,46 @@ async def list_events(
     """
     List root events (events without parents) with filters
 
-    Uses Neo4j to find all root events (no incoming CONTAINS relationships)
+    Uses EventRepository to query Neo4j for root events
     """
     event_repo, _, _ = await init_services()
 
-    # Query Neo4j for root events
-    query = """
-        MATCH (e:Event)
-        WHERE NOT exists((e)<-[:CONTAINS]-())
-    """
-
-    params = {}
-
-    if status:
-        query += " AND e.status = $status"
-        params['status'] = status
-
-    if scale:
-        query += " AND e.event_scale = $scale"
-        params['scale'] = scale
-
-    query += """
-        WITH e
-        OPTIONAL MATCH (e)-[:CONTAINS]->(sub:Event)
-        WITH e, count(sub) as child_count
-        RETURN e.id as id,
-               e.canonical_name as canonical_name,
-               e.event_type as event_type,
-               e.event_scale as event_scale,
-               e.status as status,
-               e.confidence as confidence,
-               e.earliest_time as event_start,
-               e.latest_time as event_end,
-               e.created_at as created_at,
-               e.updated_at as updated_at,
-               e.metadata_json as metadata,
-               e.coherence as coherence,
-               child_count
-        ORDER BY e.updated_at DESC
-        LIMIT $limit
-    """
-    params['limit'] = limit
-
-    results = await neo4j_service._execute_read(query, params)
+    # Use repository method instead of direct Neo4j query
+    events_data = await event_repo.list_root_events(status=status, scale=scale, limit=limit)
 
     # Convert to API response format
     import json
     events = []
-    for row in results:
-        metadata = row.get('metadata')
-        if metadata is None:
-            metadata = {}
-        elif isinstance(metadata, str):
+    for row in events_data:
+        metadata = row.get('metadata', {})
+        if isinstance(metadata, str):
             metadata = json.loads(metadata) if metadata else {}
 
-        # Convert Neo4j datetimes to ISO format strings
-        event_start = neo4j_datetime_to_python(row.get('event_start'))
-        event_end = neo4j_datetime_to_python(row.get('event_end'))
-        created_at = neo4j_datetime_to_python(row.get('created_at'))
-        updated_at = neo4j_datetime_to_python(row.get('updated_at'))
+        # Extract coherence and summary from metadata (they might be there)
+        coherence = metadata.get('coherence', row.get('coherence'))
+        summary = metadata.get('summary')
+
+        # Convert datetimes to ISO format strings
+        event_start = row.get('event_start')
+        event_end = row.get('event_end')
+        created_at = row.get('created_at')
+        updated_at = row.get('updated_at')
 
         event_dict = {
             'id': row['id'],
             'canonical_name': row['canonical_name'],
             'event_type': row['event_type'],
-            'event_scale': row['event_scale'],
+            'event_scale': row.get('event_scale'),
             'status': row['status'],
             'confidence': row['confidence'],
             'event_start': event_start.isoformat() if event_start else None,
             'event_end': event_end.isoformat() if event_end else None,
             'created_at': created_at.isoformat() if created_at else None,
             'updated_at': updated_at.isoformat() if updated_at else None,
-            'coherence': row['coherence'],
+            'coherence': coherence,
             'child_count': row['child_count'],
-            'summary': metadata.get('summary'),
-            'claims_count': len(metadata.get('claim_ids', [])),
+            'summary': summary,
+            # Note: claims_count removed - use graph relationships via API instead
         }
         events.append(event_dict)
 

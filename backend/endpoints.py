@@ -2,6 +2,8 @@
 Gen2 /url endpoint - Submit URL for processing
 
 Instant best shot pattern with iframely metadata
+
+Refactored: Uses PageRepository for all data access
 """
 import os
 import uuid
@@ -11,12 +13,15 @@ from urllib.parse import urlparse, urlunparse
 from fastapi import APIRouter, HTTPException
 import asyncpg
 from services.job_queue import JobQueue
+from repositories import PageRepository
+from models.page import Page
 
 router = APIRouter()
 
 # Globals (initialized on startup)
 db_pool = None
 job_queue = None
+page_repo = None
 
 # Iframely config
 IFRAMELY_API_KEY = os.getenv('IFRAMELY_API_KEY', '')
@@ -24,8 +29,8 @@ IFRAMELY_URL = "https://iframe.ly/api/iframely"
 
 
 async def init_services():
-    """Initialize database pool and job queue"""
-    global db_pool, job_queue
+    """Initialize database pool, job queue, and repositories"""
+    global db_pool, job_queue, page_repo
 
     if db_pool is None:
         db_pool = await asyncpg.create_pool(
@@ -42,7 +47,10 @@ async def init_services():
         job_queue = JobQueue(os.getenv('REDIS_URL', 'redis://redis:6379'))
         await job_queue.connect()
 
-    return db_pool, job_queue
+    if page_repo is None:
+        page_repo = PageRepository(db_pool)
+
+    return page_repo, job_queue
 
 
 def normalize_url(url: str) -> str:
@@ -185,7 +193,7 @@ async def submit_artifact(url: str):
     - Currently supports web pages
     - Designed to support videos, images, PDFs, podcasts in future
     """
-    pool, queue = await init_services()
+    page_repo, queue = await init_services()
 
     # Validate URL
     if not url or not url.startswith(('http://', 'https://')):
@@ -193,134 +201,128 @@ async def submit_artifact(url: str):
 
     canonical_url = normalize_url(url)
 
-    async with pool.acquire() as conn:
-        # Check if URL already exists
-        existing = await conn.fetchrow("""
-            SELECT
-                id, url, canonical_url, title, description,
-                author, thumbnail_url, status, language,
-                word_count, pub_time, metadata_confidence,
-                created_at, updated_at
-            FROM core.pages
-            WHERE canonical_url = $1
-        """, canonical_url)
+    # Check if URL already exists using repository
+    existing = await page_repo.get_by_canonical_url(canonical_url)
 
-        if existing:
-            # SCENARIO A: Existing URL - return best shot from DB
-            # Get entity/claim counts
-            entity_count = await conn.fetchval("""
-                SELECT COUNT(DISTINCT entity_id)
-                FROM core.page_entities
-                WHERE page_id = $1
-            """, existing['id'])
+    if existing:
+        # SCENARIO A: Existing URL - return best shot from DB
+        # Get entity/claim counts using repository
+        entity_count = await page_repo.get_entity_count(existing.id)
+        claim_count = await page_repo.get_claim_count(existing.id)
 
-            claim_count = await conn.fetchval("""
-                SELECT COUNT(*)
-                FROM core.claims
-                WHERE page_id = $1
-            """, existing['id'])
+        # Commission background update if needed
+        commissioned = False
+        if existing.status == 'failed':
+            # Extraction failed - retry extraction
+            await queue.enqueue('queue:extraction:high', {
+                'page_id': str(existing.id),
+                'url': url,
+                'retry_count': 0
+            })
+            commissioned = True
+        elif existing.status == 'semantic_failed':
+            # Semantic failed - retry semantic (extraction was OK)
+            await queue.enqueue('queue:semantic:high', {
+                'page_id': str(existing.id),
+                'url': url,
+                'retry_count': 0
+            })
+            commissioned = True
 
-            # Commission background update if needed
-            commissioned = False
-            if existing['status'] == 'failed':
-                # Extraction failed - retry extraction
-                await queue.enqueue('queue:extraction:high', {
-                    'page_id': str(existing['id']),
-                    'url': url,
-                    'retry_count': 0
-                })
-                commissioned = True
-            elif existing['status'] == 'semantic_failed':
-                # Semantic failed - retry semantic (extraction was OK)
-                await queue.enqueue('queue:semantic:high', {
-                    'page_id': str(existing['id']),
-                    'url': url,
-                    'retry_count': 0
-                })
-                commissioned = True
+        return {
+            "page_id": str(existing.id),
+            "url": existing.url,
+            "canonical_url": existing.canonical_url,
+            "title": existing.title,
+            "description": existing.description,
+            "author": existing.author,
+            "thumbnail_url": existing.thumbnail_url,
+            "status": existing.status,
+            "language": existing.language,
+            "word_count": existing.word_count,
+            "entity_count": entity_count,
+            "claim_count": claim_count,
+            "pub_time": existing.pub_time.isoformat() if existing.pub_time else None,
+            "metadata_confidence": existing.metadata_confidence or 0.0,
+            "created_at": existing.created_at.isoformat(),
+            "updated_at": existing.updated_at.isoformat() if existing.updated_at else None,
+            "_commissioned": commissioned  # Did we re-enqueue?
+        }
 
-            return {
-                "page_id": str(existing['id']),
-                "url": existing['url'],
-                "canonical_url": existing['canonical_url'],
-                "title": existing['title'],
-                "description": existing['description'],
-                "author": existing['author'],
-                "thumbnail_url": existing['thumbnail_url'],
-                "status": existing['status'],
-                "language": existing['language'],
-                "word_count": existing['word_count'],
-                "entity_count": entity_count,
-                "claim_count": claim_count,
-                "pub_time": existing['pub_time'].isoformat() if existing['pub_time'] else None,
-                "metadata_confidence": existing['metadata_confidence'] or 0.0,
-                "created_at": existing['created_at'].isoformat(),
-                "updated_at": existing['updated_at'].isoformat() if existing['updated_at'] else None,
-                "_commissioned": commissioned  # Did we re-enqueue?
-            }
+    # SCENARIO B: New URL - create stub with iframely instant metadata
+    page_id = uuid.uuid4()
 
-        # SCENARIO B: New URL - create stub with iframely instant metadata
-        page_id = uuid.uuid4()
+    # Get iframely metadata (< 500ms, 99% success rate in Gen1)
+    iframely_meta = await get_iframely_metadata(url)
 
-        # Get iframely metadata (< 500ms, 99% success rate in Gen1)
-        iframely_meta = await get_iframely_metadata(url)
+    if iframely_meta:
+        # iframely succeeded - use rich metadata
+        title = iframely_meta.get('title')
+        description = iframely_meta.get('description')
+        language = iframely_meta.get('language', 'en')
+        author = iframely_meta.get('author')
+        thumbnail_url = iframely_meta.get('image')
 
-        if iframely_meta:
-            # iframely succeeded - use rich metadata
-            title = iframely_meta.get('title')
-            description = iframely_meta.get('description')
-            language = iframely_meta.get('language', 'en')
-            author = iframely_meta.get('author')
-            thumbnail_url = iframely_meta.get('image')
+        # Use iframely's canonical URL if different (deduplication!)
+        canonical_from_iframely = iframely_meta.get('canonical_url')
+        if canonical_from_iframely and canonical_from_iframely != url:
+            canonical_url = normalize_url(canonical_from_iframely)
 
-            # Use iframely's canonical URL if different (deduplication!)
-            canonical_from_iframely = iframely_meta.get('canonical_url')
-            if canonical_from_iframely and canonical_from_iframely != url:
-                canonical_url = normalize_url(canonical_from_iframely)
+            # Check again if THIS canonical URL exists using repository
+            existing_canonical = await page_repo.get_by_canonical_url(canonical_url)
 
-                # Check again if THIS canonical URL exists
-                existing_canonical = await conn.fetchrow("""
-                    SELECT id, status FROM core.pages WHERE canonical_url = $1
-                """, canonical_url)
+            if existing_canonical:
+                # Redirect to existing page (iframely found duplicate!)
+                print(f"✅ iframely deduplication: {url} → {canonical_url}")
+                # Re-fetch existing page data and return
+                return await submit_artifact(canonical_url)
 
-                if existing_canonical:
-                    # Redirect to existing page (iframely found duplicate!)
-                    print(f"✅ iframely deduplication: {url} → {canonical_url}")
-                    # Re-fetch existing page data and return
-                    return await submit_artifact(canonical_url)
+        # Create page with iframely metadata using repository
+        page = Page(
+            id=page_id,
+            url=url,
+            canonical_url=canonical_url,
+            title=title,
+            description=description,
+            author=author,
+            thumbnail_url=thumbnail_url,
+            language=language,
+            status='preview',
+            word_count=0,
+            metadata_confidence=0.8,  # iframely is pretty reliable
+            content_text=''
+        )
+        await page_repo.create(page)
 
-            # Insert page with iframely metadata
-            await conn.execute("""
-                INSERT INTO core.pages (
-                    id, url, canonical_url, title, description,
-                    author, thumbnail_url, language,
-                    status, created_at
-                )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'preview', NOW())
-            """, page_id, url, canonical_url, title, description,
-                author, thumbnail_url, language)
+        status = 'preview'  # Has metadata, pending extraction
 
-            status = 'preview'  # Has metadata, pending extraction
+    else:
+        # iframely failed - quick domain guess
+        domain = urlparse(url).netloc.lower()
+        language = 'en'  # Default
+        if any(x in domain for x in ['.cn', '.zh', 'chinese']):
+            language = 'zh'
+        elif any(x in domain for x in ['.fr', 'french']):
+            language = 'fr'
 
-        else:
-            # iframely failed - quick domain guess
-            domain = urlparse(url).netloc.lower()
-            language = 'en'  # Default
-            if any(x in domain for x in ['.cn', '.zh', 'chinese']):
-                language = 'zh'
-            elif any(x in domain for x in ['.fr', 'french']):
-                language = 'fr'
+        # Create stub page using repository
+        page = Page(
+            id=page_id,
+            url=url,
+            canonical_url=canonical_url,
+            language=language,
+            status='stub',
+            word_count=0,
+            metadata_confidence=0.0,
+            content_text=''
+        )
+        await page_repo.create(page)
 
-            await conn.execute("""
-                INSERT INTO core.pages (id, url, canonical_url, status, language, created_at)
-                VALUES ($1, $2, $3, 'stub', $4, NOW())
-            """, page_id, url, canonical_url, language)
-
-            title = None
-            description = None
-            author = None
-            thumbnail_url = None
-            status = 'stub'
+        title = None
+        description = None
+        author = None
+        thumbnail_url = None
+        status = 'stub'
 
         # Commission extraction (async, doesn't block response)
         await queue.enqueue('queue:extraction:high', {
@@ -364,123 +366,82 @@ async def get_page_status(page_id: str, include_data: bool = True):
     **Parameters:**
     - include_data: If true, includes claims and entities in response (default: true)
     """
-    pool, _ = await init_services()
+    page_repo, _ = await init_services()
 
     try:
         page_uuid = uuid.UUID(page_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid page_id format")
 
-    async with pool.acquire() as conn:
-        page = await conn.fetchrow("""
-            SELECT
-                id,
-                url,
-                canonical_url,
-                title,
-                description,
-                author,
-                thumbnail_url,
-                status,
-                language,
-                word_count,
-                pub_time,
-                metadata_confidence,
-                created_at,
-                updated_at
-            FROM core.pages
-            WHERE id = $1
-        """, page_uuid)
+    # Use repository to get page
+    page = await page_repo.get_by_id(page_uuid)
 
-        if not page:
-            raise HTTPException(status_code=404, detail="Page not found")
+    if not page:
+        raise HTTPException(status_code=404, detail="Page not found")
 
-        # Get entity count
-        entity_count = await conn.fetchval("""
-            SELECT COUNT(DISTINCT entity_id)
-            FROM core.page_entities
-            WHERE page_id = $1
-        """, page_uuid)
+    # Get entity and claim counts using repository
+    entity_count = await page_repo.get_entity_count(page_uuid)
+    claim_count = await page_repo.get_claim_count(page_uuid)
 
-        # Get claim count
-        claim_count = await conn.fetchval("""
-            SELECT COUNT(*)
-            FROM core.claims
-            WHERE page_id = $1
-        """, page_uuid)
+    # Calculate semantic confidence (0.0-1.0) based on semantic analysis quality
+    # This tells the user how reliable the semantic data (claims/entities) is
+    word_count = page.word_count or 0
+    status = page.status
 
-        # Calculate semantic confidence (0.0-1.0) based on semantic analysis quality
-        # This tells the user how reliable the semantic data (claims/entities) is
-        word_count = page['word_count'] or 0
-        status = page['status']
-
-        if status == 'semantic_complete':
-            # Full semantic analysis succeeded
-            # Confidence scales with content quality
-            if word_count >= 300 and claim_count >= 3 and entity_count >= 3:
-                semantic_confidence = 1.0  # High quality article with rich semantic data
-            elif word_count >= 150 and claim_count >= 1:
-                semantic_confidence = 0.7  # Decent article
-            else:
-                semantic_confidence = 0.5  # Semantic complete but low quality
-        elif status in ['extracted', 'preview'] and word_count >= 100:
-            # Extraction succeeded but semantic pending/not started
-            semantic_confidence = 0.3  # Has potential
-        elif status == 'semantic_failed' and word_count < 100:
-            # Insufficient content - paywall/teaser
-            semantic_confidence = 0.0
-        elif status == 'semantic_failed':
-            # Semantic failed for other reasons (no claims, etc.)
-            semantic_confidence = 0.1
+    if status == 'semantic_complete':
+        # Full semantic analysis succeeded
+        # Confidence scales with content quality
+        if word_count >= 300 and claim_count >= 3 and entity_count >= 3:
+            semantic_confidence = 1.0  # High quality article with rich semantic data
+        elif word_count >= 150 and claim_count >= 1:
+            semantic_confidence = 0.7  # Decent article
         else:
-            # Stub, preview with low word count, or failed
-            semantic_confidence = 0.0
+            semantic_confidence = 0.5  # Semantic complete but low quality
+    elif status in ['extracted', 'preview'] and word_count >= 100:
+        # Extraction succeeded but semantic pending/not started
+        semantic_confidence = 0.3  # Has potential
+    elif status == 'semantic_failed' and word_count < 100:
+        # Insufficient content - paywall/teaser
+        semantic_confidence = 0.0
+    elif status == 'semantic_failed':
+        # Semantic failed for other reasons (no claims, etc.)
+        semantic_confidence = 0.1
+    else:
+        # Stub, preview with low word count, or failed
+        semantic_confidence = 0.0
 
-        result = {
-            "page_id": str(page['id']),
-            "url": page['url'],
-            "canonical_url": page['canonical_url'],
-            "title": page['title'],
-            "description": page['description'],
-            "author": page['author'],
-            "thumbnail_url": page['thumbnail_url'],
-            "status": page['status'],
-            "language": page['language'],
-            "word_count": page['word_count'],
-            "entity_count": entity_count,
-            "claim_count": claim_count,
-            "pub_time": page['pub_time'].isoformat() if page['pub_time'] else None,
-            "metadata_confidence": page['metadata_confidence'] or 0.0,
-            "semantic_confidence": semantic_confidence,  # NEW: semantic analysis quality (0.0=no semantic data, 1.0=rich semantic data)
-            "created_at": page['created_at'].isoformat(),
-            "updated_at": page['updated_at'].isoformat() if page['updated_at'] else None
-        }
+    result = {
+        "page_id": str(page.id),
+        "url": page.url,
+        "canonical_url": page.canonical_url,
+        "title": page.title,
+        "description": page.description,
+        "author": page.author,
+        "thumbnail_url": page.thumbnail_url,
+        "status": page.status,
+        "language": page.language,
+        "word_count": page.word_count,
+        "entity_count": entity_count,
+        "claim_count": claim_count,
+        "pub_time": page.pub_time.isoformat() if page.pub_time else None,
+        "metadata_confidence": page.metadata_confidence or 0.0,
+        "semantic_confidence": semantic_confidence,  # NEW: semantic analysis quality (0.0=no semantic data, 1.0=rich semantic data)
+        "created_at": page.created_at.isoformat(),
+        "updated_at": page.updated_at.isoformat() if page.updated_at else None
+    }
 
-        # Include full claims and entities data if requested and semantic_complete
-        if include_data and page['status'] == 'semantic_complete':
-            # Get entities
-            entities = await conn.fetch("""
-                SELECT e.id, e.canonical_name, e.entity_type, e.semantic_confidence,
-                       e.mention_count, e.profile_summary, e.wikidata_qid,
-                       e.first_seen, e.last_seen, pe.mention_count as page_mentions
-                FROM core.entities e
-                JOIN core.page_entities pe ON e.id = pe.entity_id
-                WHERE pe.page_id = $1
-                ORDER BY pe.mention_count DESC, e.semantic_confidence DESC
-            """, page_uuid)
+    # Include full claims and entities data if requested and semantic_complete
+    if include_data and page.status == 'semantic_complete':
+        # Get entities using repository
+        entities = await page_repo.get_entities(page_uuid)
 
-            # Get claims
-            claims = await conn.fetch("""
-                SELECT id, text, event_time, confidence, modality, metadata, created_at
-                FROM core.claims
-                WHERE page_id = $1
-                ORDER BY confidence DESC
-            """, page_uuid)
+        # Get claims using repository
+        claims = await page_repo.get_claims(page_uuid)
 
-            result['entities'] = [dict(e) for e in entities]
-            result['claims'] = [dict(c) for c in claims]
+        result['entities'] = entities
+        result['claims'] = claims
 
-        return result
+    return result
 
 
 @router.get("/queue/stats")
@@ -503,46 +464,31 @@ async def get_queue_stats():
 @router.get("/claims")
 async def get_claims(page_id: str):
     """Get all claims for a page"""
-    pool, _ = await init_services()
+    page_repo, _ = await init_services()
 
     try:
         page_uuid = uuid.UUID(page_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid page_id format")
 
-    async with pool.acquire() as conn:
-        claims = await conn.fetch("""
-            SELECT id, text, event_time, confidence, modality, metadata, created_at
-            FROM core.claims
-            WHERE page_id = $1
-            ORDER BY confidence DESC
-        """, page_uuid)
-
-        return {
-            "claims": [dict(claim) for claim in claims]
-        }
+    # Use repository to get claims
+    claims = await page_repo.get_claims(page_uuid)
+    return {"claims": claims}
 
 
 @router.get("/entities")
 async def get_entities(page_id: str):
     """Get all entities mentioned in a page"""
-    pool, _ = await init_services()
+    page_repo, _ = await init_services()
 
     try:
         page_uuid = uuid.UUID(page_id)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid page_id format")
 
-    async with pool.acquire() as conn:
-        entities = await conn.fetch("""
-            SELECT DISTINCT e.id, e.canonical_name, e.entity_type, e.confidence,
-                   e.mention_count, e.first_seen, e.last_seen
-            FROM core.entities e
-            JOIN core.page_entities pe ON e.id = pe.entity_id
-            WHERE pe.page_id = $1
-            ORDER BY pe.mention_count DESC, e.confidence DESC
-        """, page_uuid)
+    # Use repository to get entities
+    entities = await page_repo.get_entities(page_uuid)
 
-        return {
-            "entities": [dict(entity) for entity in entities]
-        }
+    return {
+        "entities": entities
+    }

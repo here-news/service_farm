@@ -79,6 +79,11 @@ class EventService:
         # Fetch existing claims for this event (for duplicate detection)
         existing_claims = await self._get_event_claims(event)
 
+        # Generate embeddings on-demand for all claims (existing + new)
+        # This mutates claims in-place and only generates for claims without embeddings
+        all_claims = existing_claims + new_claims
+        await self._generate_claim_embeddings(all_claims)
+
         # Load sub-events (for delegation)
         sub_events = await self.event_repo.get_sub_events(event.id) if hasattr(self.event_repo, 'get_sub_events') else []
 
@@ -90,12 +95,15 @@ class EventService:
                 # Duplicate of existing claim → corroborate
                 logger.debug(f"  ✓ MERGE: {claim.text[:50]}...")
                 await self._merge_duplicate(event, claim, existing_claims)
+                # Link claim to event in Neo4j graph (via repository)
+                await self.event_repo.link_claim(event, claim, relationship_type="SUPPORTS")
                 claims_added.append(claim)
 
             elif decision == ClaimDecision.ADD:
                 # Novel but fits this event's topic
                 logger.debug(f"  ✓ ADD: {claim.text[:50]}...")
-                event.claim_ids.append(claim.id)
+                # Link claim to event in Neo4j graph (via repository)
+                await self.event_repo.link_claim(event, claim, relationship_type="SUPPORTS")
                 claims_added.append(claim)
 
             elif decision == ClaimDecision.DELEGATE:
@@ -289,7 +297,6 @@ class EventService:
             canonical_name=canonical_name,
             event_type=event_type,
             parent_event_id=None,  # Root event
-            claim_ids=[c.id for c in claims],
             confidence=0.3,  # Initial confidence
             coherence=0.5,   # Initial coherence
             event_start=event_start,
@@ -342,7 +349,6 @@ class EventService:
             canonical_name=canonical_name,
             event_type=parent.event_type,  # Inherit from parent
             parent_event_id=parent.id,
-            claim_ids=[c.id for c in claims],
             confidence=0.5,  # Initial confidence
             coherence=0.5,
             event_start=event_start,
@@ -361,11 +367,10 @@ class EventService:
         # Store in repositories
         created_sub_event = await self.event_repo.create(sub_event)
 
-        # Create parent-child relationship in Neo4j
-        await self.event_repo.neo4j.create_event_relationship(
-            parent_id=str(parent.id),
-            child_id=str(sub_event.id),
-            relationship_type="CONTAINS"
+        # Create parent-child relationship in Neo4j (via repository)
+        await self.event_repo.create_sub_event_relationship(
+            parent_id=parent.id,
+            child_id=sub_event.id
         )
 
         # Build graph structure: Event -> Entity relationships
@@ -398,6 +403,43 @@ class EventService:
 
         return float(dot_product / (norm1 * norm2))
 
+    async def _generate_claim_embeddings(self, claims: List[Claim]) -> None:
+        """
+        Generate embeddings on-demand for claims that don't have them
+
+        Mutates claims in-place by setting claim.embedding
+        Uses batch generation for efficiency
+        """
+        # Find claims without embeddings
+        claims_needing_embeddings = [c for c in claims if not c.embedding and c.text]
+
+        if not claims_needing_embeddings:
+            return
+
+        logger.debug(f"Generating embeddings for {len(claims_needing_embeddings)} claims on-demand")
+
+        # Batch generate embeddings (OpenAI supports up to 2048 texts per request)
+        batch_size = 100
+        for i in range(0, len(claims_needing_embeddings), batch_size):
+            batch = claims_needing_embeddings[i:i+batch_size]
+            texts = [c.text for c in batch]
+
+            try:
+                response = await self.openai_client.embeddings.create(
+                    model="text-embedding-3-small",
+                    input=texts
+                )
+
+                # Assign embeddings back to claims
+                for claim, embedding_data in zip(batch, response.data):
+                    claim.embedding = embedding_data.embedding
+
+            except Exception as e:
+                logger.error(f"Failed to generate embeddings batch: {e}")
+                # Set empty embeddings so we don't try again
+                for claim in batch:
+                    claim.embedding = [0.0] * 1536
+
     async def _generate_event_embedding(self, claims: List[Claim]) -> Optional[List[float]]:
         """
         Generate embedding for event from its claims
@@ -415,15 +457,22 @@ class EventService:
         return avg_embedding.tolist()
 
     async def _get_event_claims(self, event: Event) -> List[Claim]:
-        """Fetch all claims for an event"""
-        if not event.claim_ids:
-            return []
+        """
+        Fetch all claims for an event from Neo4j graph relationships
 
-        claims = []
-        for claim_id in event.claim_ids:
-            claim = await self.claim_repo.get_by_id(claim_id)
-            if claim:
-                claims.append(claim)
+        Note: Claims are stored in PostgreSQL, but event-claim relationships
+        are in Neo4j. This queries the graph to get claim IDs, then hydrates
+        from PostgreSQL if needed.
+        """
+        # Get claims from Neo4j graph (minimal data)
+        claims = await self.event_repo.get_event_claims(event.id)
+
+        # For now, we return the minimal claim data from Neo4j
+        # If full claim data (embedding, metadata) is needed, hydrate from PostgreSQL:
+        # for i, claim in enumerate(claims):
+        #     full_claim = await self.claim_repo.get_by_id(claim.id)
+        #     if full_claim:
+        #         claims[i] = full_claim
 
         return claims
 
@@ -666,10 +715,18 @@ Focus on: what happened, when it happened, and key impacts."""
 
         narratives_str = "\n\n".join(sub_narratives)
 
+        # Get parent event's actual start date for the prompt
+        parent_start_str = "Unknown"
+        if parent.event_start:
+            parent_start_py = neo4j_datetime_to_python(parent.event_start)
+            if parent_start_py:
+                parent_start_str = parent_start_py.strftime('%B %d, %Y')
+
         prompt = f"""Synthesize a high-level narrative (2-3 paragraphs) for this complex event from its sub-events:
 
 Event: {parent.canonical_name}
 Type: {parent.event_type}
+Event Start Date: {parent_start_str}
 
 Sub-Events (in chronological order):
 {narratives_str}
@@ -679,8 +736,9 @@ Create a coherent story that:
 2. Shows how sub-events relate to each other temporally
 3. Emphasizes WHEN things happened (use temporal markers: "initially", "following this", "in the aftermath", etc.)
 4. Identifies the key phases/dimensions and their sequence
+5. USE THE EVENT START DATE PROVIDED ABOVE as the date when the main incident occurred
 
-Write in clear, journalistic style with strong temporal flow."""
+Write in clear, journalistic style with strong temporal flow. Do not invent dates - use the Event Start Date provided."""
 
         response = await self.openai_client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
@@ -1240,17 +1298,8 @@ Respond with ONLY the canonical name, no explanation."""
             logger.debug(f"No entities to link for event {event.canonical_name}")
             return
 
-        # Create INVOLVES relationships in Neo4j
-        for entity_id in entity_ids:
-            await self.event_repo.neo4j._execute_write("""
-                MATCH (e:Event {id: $event_id})
-                MATCH (entity:Entity {id: $entity_id})
-                MERGE (e)-[r:INVOLVES]->(entity)
-                ON CREATE SET r.created_at = datetime()
-            """, {
-                'event_id': str(event.id),
-                'entity_id': str(entity_id)
-            })
+        # Create INVOLVES relationships in Neo4j (via repository)
+        await self.event_repo.link_event_to_entities(event.id, entity_ids)
 
         logger.info(f"🔗 Linked event {event.canonical_name} to {len(entity_ids)} entities")
 

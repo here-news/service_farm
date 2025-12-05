@@ -196,10 +196,13 @@ class Neo4jService:
         confidence: float = 0.8,
         event_time: datetime = None,
         page_id: str = None,
-        page_embedding: List[float] = None
+        page_embedding: List[float] = None  # DEPRECATED - not stored in Neo4j
     ) -> str:
         """
         Create or merge Claim node (idempotent)
+
+        Note: page_id/page_embedding are NOT stored in Neo4j
+        Claims already have page_id in PostgreSQL for source tracking
 
         Returns: claim_id
         """
@@ -211,6 +214,7 @@ class Neo4jService:
             c.confidence = $confidence,
             c.event_time = $event_time,
             c.extracted_at = datetime()
+        RETURN c.id as id
         """
 
         params = {
@@ -220,19 +224,6 @@ class Neo4jService:
             'confidence': confidence,
             'event_time': event_time
         }
-
-        # Link to page if provided
-        if page_id:
-            query += """
-            WITH c
-            MERGE (p:Page {id: $page_id})
-            ON CREATE SET p.embedding = $page_embedding
-            CREATE (c)-[:FROM_PAGE]->(p)
-            """
-            params['page_id'] = page_id
-            params['page_embedding'] = page_embedding
-
-        query += " RETURN c.id as id"
 
         result = await self._execute_write(query, params)
 
@@ -567,6 +558,29 @@ class Neo4jService:
         await self._execute_write(query, {
             'claim_id': claim_id,
             'entity_id': entity_id
+        })
+
+    async def link_claim_to_event(
+        self,
+        event_id: str,
+        claim_id: str,
+        relationship_type: str = "SUPPORTS"  # SUPPORTS, CONTRADICTS, UPDATES
+    ):
+        """
+        Link Claim to Event with specified relationship type
+
+        Creates direct graph relationship: Event-[SUPPORTS]->Claim
+        This makes it easy to query all claims for an event via Cypher
+        """
+        query = f"""
+        MATCH (e:Event {{id: $event_id}})
+        MATCH (c:Claim {{id: $claim_id}})
+        MERGE (e)-[:{relationship_type} {{created_at: datetime()}}]->(c)
+        """
+
+        await self._execute_write(query, {
+            'event_id': event_id,
+            'claim_id': claim_id
         })
 
     async def create_causal_relationship(

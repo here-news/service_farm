@@ -49,17 +49,16 @@ class ClaimRepository:
             if entity_names:
                 metadata['entity_names'] = entity_names
 
-        # Convert embedding to pgvector format
-        embedding_str = None
-        if claim.embedding:
-            embedding_str = '[' + ','.join(str(x) for x in claim.embedding) + ']'
+        # NOTE: Embeddings are NOT stored in database
+        # They are generated on-demand from claim.text when needed
+        # This saves storage and embeddings can always be regenerated
 
         async with self.db_pool.acquire() as conn:
             await conn.execute("""
                 INSERT INTO core.claims (
-                    id, page_id, text, event_time, confidence, modality, metadata, embedding
+                    id, page_id, text, event_time, confidence, modality, metadata
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8::vector)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
             """,
                 claim.id,
                 claim.page_id,
@@ -67,8 +66,7 @@ class ClaimRepository:
                 claim.event_time,
                 claim.confidence,
                 claim.modality,
-                json.dumps(metadata),
-                embedding_str
+                json.dumps(metadata)
             )
 
             # Fetch timestamp
