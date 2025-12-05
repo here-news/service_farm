@@ -164,7 +164,11 @@ class SemanticWorker:
                 logger.info(f"💾 Extracted {len(entity_mapping)} unique entities from claims")
 
                 # 5. Store claims with entity_ids in metadata
-                claim_ids = await self._store_claims(conn, page_id, claims, page['url'], entity_mapping)
+                # NOTE: reported_time comes from page.pub_time via JOIN, not stored in claim
+                claim_ids = await self._store_claims(
+                    conn, page_id, claims, page['url'],
+                    entity_mapping
+                )
                 logger.info(f"💾 Stored {len(claim_ids)} claims")
                 logger.info(f"🔗 Linked entities to claims")
 
@@ -224,6 +228,8 @@ class SemanticWorker:
             entity_mapping: Dict mapping entity references (e.g., "PERSON:John") to UUIDs
 
         Returns mapping: {claim_deterministic_id: claim_uuid}
+
+        Note: reported_time is NOT stored - it's queried from page.pub_time via JOIN
         """
         claim_mapping = {}
 
@@ -276,11 +282,13 @@ class SemanticWorker:
                         entity_names.append(entity_ref.split(':', 1)[1])
 
             # Create Claim domain model (no embedding)
+            # NOTE: reported_time will be populated by repository via JOIN with pages
             claim_model = Claim(
                 id=uuid.uuid4(),
                 page_id=page_id,
                 text=claim['text'],
-                event_time=event_time,
+                event_time=event_time,  # When the fact occurred (ground truth)
+                reported_time=None,  # Queried from page.pub_time via JOIN
                 confidence=claim.get('confidence', 0.5),
                 modality=claim.get('modality', 'observation'),
                 embedding=None,  # Generated on-demand

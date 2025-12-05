@@ -22,9 +22,15 @@ class Claim:
     text: str
 
     # Claim properties
-    event_time: Optional[datetime] = None
+    event_time: Optional[datetime] = None  # When the fact occurred (ground truth time)
+    reported_time: Optional[datetime] = None  # When we learned/published it
     confidence: float = 0.8
     modality: str = 'observation'  # observation, prediction, speculation, opinion
+
+    # Update chains (for evolving facts)
+    updates_claim_id: Optional[uuid.UUID] = None  # Points to claim this supersedes
+    is_superseded: bool = False  # True if a newer claim has arrived
+    topic_key: Optional[str] = None  # e.g. "casualty_count", "alarm_level"
 
     # Embedding (stored in PostgreSQL as vector)
     embedding: Optional[List[float]] = None
@@ -44,6 +50,8 @@ class Claim:
             self.id = uuid.UUID(self.id)
         if isinstance(self.page_id, str):
             self.page_id = uuid.UUID(self.page_id)
+        if isinstance(self.updates_claim_id, str):
+            self.updates_claim_id = uuid.UUID(self.updates_claim_id)
 
     @property
     def is_factual(self) -> bool:
@@ -65,3 +73,13 @@ class Claim:
     def entity_names(self) -> List[str]:
         """Extract entity names from metadata JSON (for debugging)"""
         return self.metadata.get('entity_names', [])
+
+    @property
+    def is_update(self) -> bool:
+        """Check if this claim updates another claim"""
+        return self.updates_claim_id is not None
+
+    @property
+    def is_current(self) -> bool:
+        """Check if this is the current (non-superseded) claim"""
+        return not self.is_superseded

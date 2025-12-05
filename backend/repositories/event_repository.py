@@ -424,6 +424,63 @@ class EventRepository:
 
         return claims
 
+    async def get_event_claims_with_timeline_data(self, event_id: uuid.UUID) -> List:
+        """
+        Get all claims for an event WITH reported_time (page pub_time) for timeline generation.
+
+        This joins Neo4j graph data with PostgreSQL claim + page data to get:
+        - event_time (when fact occurred)
+        - reported_time (when we learned it = page.pub_time)
+
+        Returns:
+            List of Claim domain models with reported_time populated
+        """
+        from models.claim import Claim
+
+        # Step 1: Get claim IDs from Neo4j graph
+        neo4j_result = await self.neo4j._execute_read("""
+            MATCH (e:Event {id: $event_id})-[r:SUPPORTS|CONTRADICTS|UPDATES]->(c:Claim)
+            RETURN c.id as claim_id, type(r) as relationship
+        """, {'event_id': str(event_id)})
+
+        if not neo4j_result:
+            return []
+
+        claim_ids = [uuid.UUID(row['claim_id']) for row in neo4j_result]
+
+        # Step 2: Get full claim data from PostgreSQL WITH page pub_time
+        async with self.db_pool.acquire() as conn:
+            rows = await conn.fetch("""
+                SELECT
+                    c.id, c.page_id, c.text, c.event_time, c.confidence,
+                    c.modality, c.metadata, c.embedding, c.created_at,
+                    p.pub_time as reported_time
+                FROM core.claims c
+                JOIN core.pages p ON c.page_id = p.id
+                WHERE c.id = ANY($1::uuid[])
+                ORDER BY c.event_time NULLS LAST, p.pub_time
+            """, claim_ids)
+
+            claims = []
+            for row in rows:
+                metadata = json.loads(row['metadata']) if row['metadata'] else {}
+
+                claim = Claim(
+                    id=row['id'],
+                    page_id=row['page_id'],
+                    text=row['text'],
+                    event_time=row['event_time'],
+                    reported_time=row['reported_time'],  # ← Populated from page.pub_time
+                    confidence=row['confidence'],
+                    modality=row['modality'],
+                    embedding=self._parse_embedding(row['embedding']),
+                    metadata=metadata,
+                    created_at=row['created_at']
+                )
+                claims.append(claim)
+
+            return claims
+
     async def create_sub_event_relationship(self, parent_id: uuid.UUID, child_id: uuid.UUID) -> None:
         """
         Create parent-child relationship between events
