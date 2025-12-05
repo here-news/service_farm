@@ -219,9 +219,9 @@ class EventService:
             scores['entity'] = 0.0
 
         # Signal 2: Temporal proximity
-        if claim.event_time and event.earliest_time:
+        if claim.event_time and event.event_start:
             # Calculate days difference
-            time_diff = abs((claim.event_time - event.earliest_time).total_seconds() / 86400)
+            time_diff = abs((claim.event_time - event.event_start).total_seconds() / 86400)
             # Decay: 1.0 at 0 days, 0.5 at 7 days, 0.1 at 30 days
             scores['temporal'] = max(0.0, 1.0 - (time_diff / 30.0))
         else:
