@@ -315,6 +315,11 @@ class EventService:
         # Store in repositories
         created_event = await self.event_repo.create(event)
 
+        # Link all source claims to this event
+        for claim in claims:
+            await self.event_repo.link_claim(created_event, claim, relationship_type="SUPPORTS")
+        logger.info(f"🔗 Linked {len(claims)} claims to root event")
+
         # Build graph structure: Event -> Entity relationships
         await self._link_event_to_entities(created_event, claims)
 
@@ -372,6 +377,11 @@ class EventService:
             parent_id=parent.id,
             child_id=sub_event.id
         )
+
+        # Link all source claims to this sub-event
+        for claim in claims:
+            await self.event_repo.link_claim(created_sub_event, claim, relationship_type="SUPPORTS")
+        logger.info(f"🔗 Linked {len(claims)} claims to sub-event")
 
         # Build graph structure: Event -> Entity relationships
         await self._link_event_to_entities(created_sub_event, claims)

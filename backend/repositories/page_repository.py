@@ -256,7 +256,7 @@ class PageRepository:
         async with self.db_pool.acquire() as conn:
             count = await conn.fetchval("""
                 SELECT COUNT(DISTINCT entity_id)
-                FROM core.claim_entity_links
+                FROM core.claim_entities
                 WHERE claim_id IN (
                     SELECT id FROM core.claims WHERE page_id = $1
                 )
