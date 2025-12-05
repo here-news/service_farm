@@ -232,10 +232,10 @@ For each claim:
 
      Examples:
      - "Fire broke out at 2:51 p.m." (article published 2025-11-26 09:39)
-       → WHEN = {date: "2025-11-26", time: "14:51:00", precision: "hour"}
+       → WHEN = {{date: "2025-11-26", time: "14:51:00", precision: "hour"}}
 
      - "Meeting scheduled for Wednesday at 3pm" (article published 2025-11-26)
-       → WHEN = {date: "2025-11-26", time: "15:00:00", precision: "hour"}
+       → WHEN = {{date: "2025-11-26", time: "15:00:00", precision: "hour"}}
 
   2. **EXPLICIT DATE (no specific time)** (second priority)
      If claim mentions date without specific time: "on November 26", "on Sept 26, 2019"
@@ -243,10 +243,10 @@ For each claim:
 
      Examples:
      - "Fire broke out at Wang Fuk Court on November 26" (article published 2025-11-26)
-       → WHEN = {date: "2025-11-26", time: null, precision: "day"}
+       → WHEN = {{date: "2025-11-26", time: null, precision: "day"}}
 
      - "JPMorgan agreed to pay $290 million in 2023"
-       → WHEN = {date: "2023", time: null, precision: "year"}
+       → WHEN = {{date: "2023", time: null, precision: "year"}}
 
   3. **RECENT/PRESENT ACTION** (third priority)
      If claim has EXPLICIT present tense or "today" marker: "today X happened", "announced today"
@@ -276,8 +276,8 @@ For each claim:
   • opinion: When opinion was expressed (extract ONLY if explicitly stated)
 
   **Example (article published Dec 4 about Nov 26 fire):**
-  ✅ "Fire broke out at 2:51 p.m. on November 26" → WHEN = {date: "2025-11-26", time: "14:51:00", precision: "hour"}
-  ✅ "Fire broke out on November 26" → WHEN = {date: "2025-11-26", time: null, precision: "day"}
+  ✅ "Fire broke out at 2:51 p.m. on November 26" → WHEN = {{date: "2025-11-26", time: "14:51:00", precision: "hour"}}
+  ✅ "Fire broke out on November 26" → WHEN = {{date: "2025-11-26", time: null, precision: "day"}}
   ✅ "159 people confirmed dead in the fire" → WHEN = null (no time mentioned in claim)
   ❌ WRONG: Using Dec 4 pub_time for claim about Nov 26 event
 
