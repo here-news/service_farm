@@ -158,13 +158,8 @@ async def get_event_tree(event_id: str):
     # Get entities for this event using repository
     entities = await entity_repo.get_by_event_id(event_uuid)
 
-    # Get claims from claim_ids using repository
-    claims = []
-    if event.claim_ids:
-        for claim_id in event.claim_ids:
-            claim = await claim_repo.get_by_id(claim_id)
-            if claim:
-                claims.append(claim)
+    # Get claims linked to this event from Neo4j graph
+    claims = await event_repo.get_event_claims(event_uuid)
 
     # Convert domain models to API response format
     import json
@@ -183,7 +178,7 @@ async def get_event_tree(event_id: str):
             'event_end': e.event_end.isoformat() if e.event_end else None,
             'summary': e.summary,
             'location': e.location,
-            'claims_count': len(e.claim_ids),
+            'claims_count': e.claims_count,
             'created_at': e.created_at.isoformat() if e.created_at else None,
             'updated_at': e.updated_at.isoformat() if e.updated_at else None,
         }
