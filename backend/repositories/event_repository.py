@@ -167,9 +167,9 @@ class EventRepository:
         node = result[0]['e']
 
         # Parse metadata (may contain claim_ids)
-        metadata = node.get('metadata', {})
+        metadata = node.get('metadata_json', {})
         if isinstance(metadata, str):
-            metadata = json.loads(metadata)
+            metadata = json.loads(metadata) if metadata else {}
 
         # Extract claim_ids from metadata
         claim_ids = []

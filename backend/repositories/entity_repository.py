@@ -146,6 +146,7 @@ class EntityRepository:
                    entity.wikidata_qid as wikidata_qid,
                    entity.wikidata_label as wikidata_label,
                    entity.wikidata_description as wikidata_description,
+                   entity.wikidata_image as wikidata_image,
                    entity.profile_summary as profile_summary,
                    entity.status as status,
                    entity.aliases as aliases
@@ -164,6 +165,7 @@ class EntityRepository:
                 wikidata_qid=row.get('wikidata_qid'),
                 wikidata_label=row.get('wikidata_label'),
                 wikidata_description=row.get('wikidata_description'),
+                wikidata_image=row.get('wikidata_image'),
                 status=row.get('status', 'pending'),
                 confidence=row.get('confidence', 0.0),
                 aliases=row.get('aliases', []),

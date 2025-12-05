@@ -364,11 +364,15 @@ class Neo4jService:
 
         Stores: QID, label, description, confidence, aliases, metadata (thumbnail, coords, etc.)
         """
+        # Extract thumbnail_url from metadata to store as top-level property
+        wikidata_image = metadata.get('thumbnail_url') if metadata else None
+
         query = """
         MATCH (e:Entity {id: $entity_id})
         SET e.wikidata_qid = $wikidata_qid,
             e.wikidata_label = $wikidata_label,
             e.wikidata_description = $wikidata_description,
+            e.wikidata_image = $wikidata_image,
             e.confidence = $confidence,
             e.aliases = $aliases,
             e.metadata_json = $metadata_json,
@@ -381,6 +385,7 @@ class Neo4jService:
             'wikidata_qid': wikidata_qid,
             'wikidata_label': wikidata_label,
             'wikidata_description': wikidata_description,
+            'wikidata_image': wikidata_image,
             'confidence': confidence,
             'aliases': aliases,
             'metadata_json': json.dumps(metadata)

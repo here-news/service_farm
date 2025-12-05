@@ -107,7 +107,7 @@ async def list_events(
                e.latest_time as event_end,
                e.created_at as created_at,
                e.updated_at as updated_at,
-               e.metadata as metadata,
+               e.metadata_json as metadata,
                e.coherence as coherence,
                child_count
         ORDER BY e.updated_at DESC
@@ -121,9 +121,11 @@ async def list_events(
     import json
     events = []
     for row in results:
-        metadata = row.get('metadata', '{}')
-        if isinstance(metadata, str):
-            metadata = json.loads(metadata)
+        metadata = row.get('metadata')
+        if metadata is None:
+            metadata = {}
+        elif isinstance(metadata, str):
+            metadata = json.loads(metadata) if metadata else {}
 
         # Convert Neo4j datetimes to ISO format strings
         event_start = neo4j_datetime_to_python(row.get('event_start'))
@@ -242,6 +244,8 @@ async def get_event_tree(event_id: str):
             'wikidata_qid': e.wikidata_qid,
             'wikidata_label': e.wikidata_label,
             'wikidata_description': e.wikidata_description,
+            'wikidata_image': e.wikidata_image,
+            'wikidata_thumbnail': e.wikidata_image,  # Alias for frontend compatibility
         }
 
     # Build response

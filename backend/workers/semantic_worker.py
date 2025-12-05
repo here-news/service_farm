@@ -242,7 +242,15 @@ class SemanticWorker:
                         when['event_time_iso'].replace('Z', '+00:00')
                     )
                 except (ValueError, AttributeError):
-                    pass
+                    # Fallback: try parsing just the date part (handles "2025-11-26TapproximateZ")
+                    try:
+                        date_str = when.get('date')
+                        if date_str:
+                            # Parse date and set time to midnight UTC
+                            event_time = datetime.fromisoformat(date_str + 'T00:00:00+00:00')
+                            logger.debug(f"Parsed date-only timestamp: {date_str} → {event_time}")
+                    except (ValueError, AttributeError):
+                        pass
 
             # Generate claim embedding
             claim_embedding = await self._generate_claim_embedding(claim['text'])

@@ -222,8 +222,33 @@ class WikidataWorker:
                 logger.warning(f"⚠️  Entity {entity_id} not found in Neo4j")
                 return
 
-            if entity.wikidata_qid:
+            if entity.wikidata_qid and entity.wikidata_image:
                 logger.info(f"⏭️  Already enriched: {canonical_name} -> {entity.wikidata_qid}")
+                return
+
+            # If entity has QID but missing image, just fetch image
+            if entity.wikidata_qid and not entity.wikidata_image:
+                logger.info(f"🖼️  Fetching image for existing QID: {entity.wikidata_qid}")
+                thumbnail_url = await self._get_wikidata_image(entity.wikidata_qid)
+
+                if thumbnail_url:
+                    # Update only the image
+                    metadata = entity.metadata or {}
+                    metadata['thumbnail_url'] = thumbnail_url
+
+                    await self.entity_repo.enrich(
+                        entity_id=entity_id,
+                        wikidata_qid=entity.wikidata_qid,
+                        wikidata_label=entity.wikidata_label or canonical_name,
+                        wikidata_description=entity.wikidata_description or '',
+                        confidence=entity.confidence,
+                        aliases=entity.aliases,
+                        metadata=metadata
+                    )
+                    logger.info(f"✅ Added image to {canonical_name} ({entity.wikidata_qid})")
+                else:
+                    logger.info(f"ℹ️  No image found for {entity.wikidata_qid}")
+
                 return
 
             # Stage 1: Search Wikidata for candidates
