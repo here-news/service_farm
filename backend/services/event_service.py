@@ -253,7 +253,7 @@ class EventService:
             # Get entity from repo to check type and name
             entity = await self.entity_repo.get_by_id(entity_id)
             if entity and entity.entity_type in ['LOCATION', 'GPE']:
-                if entity.name.lower() in claim_text_lower:
+                if entity.canonical_name.lower() in claim_text_lower:
                     location_mentions += 1
         scores['spatial'] = min(1.0, location_mentions / 2.0)  # Normalize: 2+ locations = 1.0
 

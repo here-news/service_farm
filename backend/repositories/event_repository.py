@@ -392,36 +392,59 @@ class EventRepository:
 
     async def get_event_claims(self, event_id: uuid.UUID) -> List:
         """
-        Get all claims linked to an event from Neo4j graph
+        Get all claims linked to an event from Neo4j graph, hydrated from PostgreSQL
 
         Returns:
-            List of Claim domain models
+            List of Claim domain models with entity_ids populated
         """
         # Import here to avoid circular dependency
         from models.claim import Claim
 
+        # Step 1: Get claim IDs from Neo4j graph
         result = await self.neo4j._execute_read("""
             MATCH (e:Event {id: $event_id})-[r:SUPPORTS|CONTRADICTS|UPDATES]->(c:Claim)
-            RETURN c.id as id, c.text as text, c.modality as modality,
-                   c.confidence as confidence, c.event_time as event_time,
-                   type(r) as relationship
+            RETURN c.id as id
             ORDER BY c.event_time
         """, {'event_id': str(event_id)})
 
+        claim_ids = [uuid.UUID(row['id']) for row in result]
+
+        if not claim_ids:
+            return []
+
+        # Step 2: Fetch full claim data from PostgreSQL (includes entity_ids in metadata)
+        async with self.db_pool.acquire() as conn:
+            rows = await conn.fetch("""
+                SELECT id, page_id, text, modality, confidence, event_time, metadata
+                FROM core.claims
+                WHERE id = ANY($1)
+            """, claim_ids)
+
+        # Build claims with full metadata (including entity_ids)
         claims = []
-        for row in result:
-            # Note: We only have minimal claim data from Neo4j
-            # Full claim data (embedding, metadata) lives in PostgreSQL
+        for row in rows:
+            # Handle metadata - could be dict, str (JSON), or None
+            metadata = row['metadata']
+            if metadata is None:
+                metadata = {}
+            elif isinstance(metadata, str):
+                try:
+                    metadata = json.loads(metadata)
+                except json.JSONDecodeError:
+                    metadata = {}
+
             claim = Claim(
-                id=uuid.UUID(row['id']),
-                page_id=uuid.UUID('00000000-0000-0000-0000-000000000000'),  # Placeholder
+                id=row['id'],
+                page_id=row['page_id'],
                 text=row['text'],
                 modality=row.get('modality', 'observation'),
                 confidence=row.get('confidence', 0.8),
-                event_time=neo4j_datetime_to_python(row['event_time']) if row.get('event_time') else None
+                event_time=row['event_time'],
+                metadata=metadata
             )
             claims.append(claim)
 
+        logger.debug(f"Fetched {len(claims)} claims for event {event_id} with entity_ids")
         return claims
 
     async def get_event_claims_with_timeline_data(self, event_id: uuid.UUID) -> List:
