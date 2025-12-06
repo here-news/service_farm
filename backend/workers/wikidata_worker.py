@@ -177,6 +177,10 @@ class WikidataWorker:
             }
         )
 
+        retry_count = 0
+        max_retries = 5
+        base_backoff = 2  # seconds
+
         try:
             while True:
                 try:
@@ -184,9 +188,33 @@ class WikidataWorker:
 
                     if job:
                         await self.process_job(job)
+                        # Reset retry counter on successful processing
+                        retry_count = 0
+
+                except (asyncpg.PostgresConnectionError,
+                        asyncpg.InterfaceError,
+                        ConnectionRefusedError,
+                        ConnectionResetError) as e:
+                    # DB connection errors - use exponential backoff
+                    retry_count += 1
+                    if retry_count <= max_retries:
+                        backoff = base_backoff * (2 ** (retry_count - 1))
+                        logger.warning(
+                            f"⚠️  DB connection error (retry {retry_count}/{max_retries}): {e}"
+                        )
+                        logger.info(f"🔄 Retrying in {backoff}s...")
+                        await asyncio.sleep(backoff)
+                    else:
+                        logger.error(
+                            f"❌ Max retries ({max_retries}) exceeded for DB connection, resetting counter"
+                        )
+                        retry_count = 0
+                        await asyncio.sleep(base_backoff)
 
                 except Exception as e:
+                    # Other errors - log and continue with short delay
                     logger.error(f"❌ Job processing error: {e}", exc_info=True)
+                    retry_count = 0
                     await asyncio.sleep(5)
 
         finally:
@@ -313,7 +341,7 @@ class WikidataWorker:
 
             logger.info(f"✓ {len(typed_candidates)} passed type filtering")
 
-            # Stage 4: Score using structural signals
+            # Stage 4: Score using structural signals + context
             scored_candidates = []
             for idx, candidate in enumerate(typed_candidates, start=1):
                 structural_score = await self._score_entity_structural(
@@ -322,14 +350,28 @@ class WikidataWorker:
                     total_candidates=len(typed_candidates)
                 )
 
+                # Add context-aware scoring if available
+                context_score = 0.0
+                if context:
+                    context_score = await self._score_entity_context(
+                        entity_data=candidate['entity_data'],
+                        context=context,
+                        canonical_name=canonical_name
+                    )
+
+                # Combined score: structural (70%) + context (30%)
+                total_score = structural_score * 0.7 + context_score * 0.3
+
                 scored_candidates.append({
                     **candidate,
                     'structural_score': structural_score,
+                    'context_score': context_score,
+                    'total_score': total_score,
                     'search_rank': idx
                 })
 
-            # Sort by score (highest first)
-            scored_candidates.sort(key=lambda x: x['structural_score'], reverse=True)
+            # Sort by total score (highest first)
+            scored_candidates.sort(key=lambda x: x['total_score'], reverse=True)
 
             # Stage 5: Calculate confidence and ambiguity
             best_candidate = scored_candidates[0]
@@ -337,21 +379,22 @@ class WikidataWorker:
 
             if len(scored_candidates) > 1:
                 second_best = scored_candidates[1]
-                score_diff = best_candidate['structural_score'] - second_best['structural_score']
+                score_diff = best_candidate['total_score'] - second_best['total_score']
                 # Ambiguity: 0.0 = clear winner (diff > 10), 1.0 = tie (diff < 2)
                 ambiguity_score = max(0.0, min(1.0, (10.0 - score_diff) / 10.0))
 
-            # Confidence = structural score normalized + ambiguity penalty
-            # Max structural score ≈ 55 (rank 10 + sitelinks 15 + claims 10 + primary 20)
-            confidence = min(1.0, best_candidate['structural_score'] / 55.0)
+            # Confidence = total score normalized + ambiguity penalty
+            # Max structural score ≈ 55, max context score ≈ 30, so max total ≈ 55*0.7 + 30*0.3 = 47.5
+            confidence = min(1.0, best_candidate['total_score'] / 47.5)
             confidence *= (1.0 - ambiguity_score * 0.3)  # Ambiguity penalty
 
             # Log ranking for transparency (BEFORE confidence check for debugging)
             logger.info(f"🏆 Candidate ranking:")
             for i, cand in enumerate(scored_candidates[:3], 1):
+                ctx_info = f", ctx={cand['context_score']:.1f}" if context else ""
                 logger.info(
                     f"   {i}. {cand['qid']} - {cand['description'][:60]} "
-                    f"(score: {cand['structural_score']:.1f})"
+                    f"(struct={cand['structural_score']:.1f}{ctx_info}, total={cand['total_score']:.1f})"
                 )
 
             # Stage 6: Confidence threshold check
@@ -364,11 +407,13 @@ class WikidataWorker:
                     f"{best_candidate['qid']} (confidence={confidence:.2f}, "
                     f"threshold={MIN_CONFIDENCE_THRESHOLD})"
                 )
+                ctx_info = f", context={best_candidate['context_score']:.1f}" if context else ""
                 logger.info(
-                    f"   Structural breakdown: sitelinks={ed.get('sitelinks_count', 0)}, "
+                    f"   Score breakdown: struct={best_candidate['structural_score']:.1f}/55.0{ctx_info}, "
+                    f"total={best_candidate['total_score']:.1f}/47.5 | "
+                    f"sitelinks={ed.get('sitelinks_count', 0)}, "
                     f"claims={ed.get('claims_count', 0)}, "
-                    f"P31_instance_of={instance_qids}, "
-                    f"total_score={best_candidate['structural_score']:.1f}/55.0"
+                    f"P31={instance_qids}"
                 )
                 await self.entity_repo.mark_checked(entity_id)
                 return
@@ -695,6 +740,99 @@ class WikidataWorker:
             pass
 
         return None
+
+    async def _score_entity_context(
+        self,
+        entity_data: Dict[str, Any],
+        context: Dict[str, Any],
+        canonical_name: str
+    ) -> float:
+        """
+        Score Wikidata entity using context from claims
+
+        Uses entity description and mention context to compare against
+        Wikidata description for semantic disambiguation.
+
+        Context format:
+        {
+            'description': 'LLM-generated entity description',
+            'mentions': ['claim text 1', 'claim text 2', ...]
+        }
+
+        Signals:
+        1. Description similarity (entity description vs Wikidata description)
+        2. Mention context (does Wikidata description appear in mentions?)
+        3. Name alignment (does canonical name match label variations?)
+
+        Returns:
+            float: Context score (0-30, higher = better match)
+        """
+        score = 0.0
+
+        entity_description = context.get('description', '')
+        mentions = context.get('mentions', [])
+        wikidata_desc = entity_data.get('description', '').lower()
+
+        # Signal 1: Description similarity (0-15 points)
+        if entity_description and wikidata_desc:
+            # Use fuzzy matching to compare descriptions
+            from rapidfuzz import fuzz
+
+            # Partial ratio handles substring matches
+            desc_similarity = fuzz.partial_ratio(
+                entity_description.lower(),
+                wikidata_desc
+            ) / 100.0
+
+            # Token set ratio handles word order differences
+            token_similarity = fuzz.token_set_ratio(
+                entity_description.lower(),
+                wikidata_desc
+            ) / 100.0
+
+            # Take best of both
+            best_similarity = max(desc_similarity, token_similarity)
+            score += best_similarity * 15.0
+
+            logger.debug(
+                f"      Context: desc_sim={best_similarity:.2f} "
+                f"(entity='{entity_description[:40]}' vs wd='{wikidata_desc[:40]}')"
+            )
+
+        # Signal 2: Mention context (0-10 points)
+        # Check if Wikidata description keywords appear in claim mentions
+        if mentions and wikidata_desc:
+            # Extract key terms from Wikidata description (skip common words)
+            stop_words = {'the', 'a', 'an', 'of', 'in', 'on', 'at', 'to', 'for', 'is', 'was', 'are', 'were'}
+            wd_terms = set(wikidata_desc.split()) - stop_words
+
+            if wd_terms:
+                # Count how many mentions contain Wikidata description terms
+                matching_mentions = 0
+                for mention in mentions[:5]:  # Check first 5 mentions
+                    mention_lower = mention.lower()
+                    if any(term in mention_lower for term in wd_terms):
+                        matching_mentions += 1
+
+                # Score based on proportion of matching mentions
+                mention_score = min(1.0, matching_mentions / min(len(mentions), 5)) * 10.0
+                score += mention_score
+
+                logger.debug(
+                    f"      Context: mention_match={matching_mentions}/{min(len(mentions), 5)} "
+                    f"(score={mention_score:.1f})"
+                )
+
+        # Signal 3: Name alignment (0-5 points)
+        # Boost if canonical name closely matches Wikidata label
+        wd_label = entity_data.get('qid', '')  # We already filtered by label similarity
+        # This is already captured by label filtering, so just a small boost for exact matches
+        if canonical_name.lower() == wikidata_desc.split(',')[0].lower():
+            score += 5.0
+            logger.debug(f"      Context: exact_name_match bonus (+5.0)")
+
+        logger.debug(f"      Total context score: {score:.1f}/30.0")
+        return score
 
     async def _score_entity_structural(
         self,
