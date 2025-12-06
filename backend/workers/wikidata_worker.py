@@ -143,7 +143,7 @@ ENTITY_TYPE_FILTERS = {
 MAX_SUBCLASS_DEPTH = 5
 
 # Minimum confidence threshold for linking
-MIN_CONFIDENCE_THRESHOLD = 0.65  # Conservative: only link when reasonably confident
+MIN_CONFIDENCE_THRESHOLD = 0.60  # Moderate threshold for context-aware matching (lowered from 0.65)
 HIGH_AMBIGUITY_THRESHOLD = 0.5   # Flag for review if ambiguity > 0.5
 
 
@@ -309,8 +309,23 @@ class WikidataWorker:
 
                 return
 
-            # Stage 1: Search Wikidata for candidates
-            candidates = await self._search_wikidata(canonical_name)
+            # Stage 1: Search Wikidata for candidates (full-text search with location)
+            # If context mentions a location, use full-text search to find entities by description
+            location = self._extract_location_from_context(context) if context else None
+
+            if location:
+                enriched_query = f"{canonical_name} {location}"
+                logger.info(f"🔍 Full-text search with location: '{enriched_query}'")
+                # Use full-text search which searches descriptions, not just labels
+                candidates = await self._search_wikidata(enriched_query, use_fulltext=True)
+
+                # Fallback: If full-text search fails, try entity search (label-based)
+                if not candidates:
+                    logger.info(f"   No results from full-text, trying label search")
+                    candidates = await self._search_wikidata(canonical_name, use_fulltext=False)
+            else:
+                # No location context - use standard entity search (label-based)
+                candidates = await self._search_wikidata(canonical_name, use_fulltext=False)
 
             if not candidates:
                 logger.warning(f"⚠️  No Wikidata candidates for '{canonical_name}'")
@@ -319,9 +334,9 @@ class WikidataWorker:
 
             logger.info(f"📋 Found {len(candidates)} candidates")
 
-            # Stage 2: Filter by label similarity
-            filtered_candidates = self._filter_by_label_match(
-                candidates, canonical_name
+            # Stage 2: Filter by label similarity (with alias lookup for PERSON)
+            filtered_candidates = await self._filter_by_label_match(
+                candidates, canonical_name, entity_type
             )
 
             if not filtered_candidates:
@@ -389,8 +404,10 @@ class WikidataWorker:
                         canonical_name=canonical_name
                     )
 
-                # Combined score: structural (70%) + context (30%)
-                total_score = structural_score * 0.7 + context_score * 0.3
+                # Hybrid scoring: structural first, then context confirmation
+                # Stage 1: Pure structural (Wikidata signals) - cheap, reliable
+                # Stage 2: Context boost (semantic) - expensive, only for disambiguation
+                total_score = structural_score  # Base score from Wikidata
 
                 scored_candidates.append({
                     **candidate,
@@ -400,59 +417,130 @@ class WikidataWorker:
                     'search_rank': idx
                 })
 
-            # Sort by total score (highest first)
-            scored_candidates.sort(key=lambda x: x['total_score'], reverse=True)
+            # Stage 5: Bayesian inference (structural prior + context likelihood)
 
-            # Stage 5: Calculate confidence and ambiguity
-            best_candidate = scored_candidates[0]
-            ambiguity_score = 0.0
+            # Normalize structural scores to get priors P(candidate)
+            # Use softmax to convert scores to probability distribution
+            import math
 
-            if len(scored_candidates) > 1:
-                second_best = scored_candidates[1]
-                score_diff = best_candidate['total_score'] - second_best['total_score']
-                # Ambiguity: 0.0 = clear winner (diff > 10), 1.0 = tie (diff < 2)
-                ambiguity_score = max(0.0, min(1.0, (10.0 - score_diff) / 10.0))
+            max_struct = max(c['structural_score'] for c in scored_candidates)
+            exp_scores = [math.exp(c['structural_score'] - max_struct) for c in scored_candidates]
+            sum_exp = sum(exp_scores)
 
-            # Confidence = total score normalized + ambiguity penalty
-            # Max structural score ≈ 55, max context score ≈ 30, so max total ≈ 55*0.7 + 30*0.3 = 47.5
-            confidence = min(1.0, best_candidate['total_score'] / 47.5)
-            confidence *= (1.0 - ambiguity_score * 0.3)  # Ambiguity penalty
+            for i, cand in enumerate(scored_candidates):
+                cand['prior'] = exp_scores[i] / sum_exp  # P(candidate) from structural
 
-            # Log ranking for transparency (BEFORE confidence check for debugging)
-            logger.info(f"🏆 Candidate ranking:")
+            if context:
+                # Bayesian update: P(candidate|context) ∝ P(context|candidate) × P(candidate)
+                # P(context|candidate) = context_score normalized as likelihood
+
+                logger.info(f"📊 Bayesian inference with {len(scored_candidates)} candidates:")
+
+                # Normalize context scores to likelihoods P(context|candidate)
+                # Use softmax to handle negative context scores
+                max_ctx = max(c['context_score'] for c in scored_candidates)
+                exp_ctx = [math.exp(c['context_score'] - max_ctx) for c in scored_candidates]
+                sum_exp_ctx = sum(exp_ctx)
+
+                # Calculate posterior: P(candidate|context) ∝ P(context|candidate) × P(candidate)
+                posteriors = []
+                for i, cand in enumerate(scored_candidates):
+                    likelihood = exp_ctx[i] / sum_exp_ctx  # P(context|candidate)
+                    posterior = likelihood * cand['prior']  # Unnormalized posterior
+                    posteriors.append(posterior)
+
+                # Normalize posteriors to sum to 1
+                sum_posterior = sum(posteriors)
+                for i, cand in enumerate(scored_candidates):
+                    cand['posterior'] = posteriors[i] / sum_posterior  # P(candidate|context)
+                    cand['total_score'] = cand['posterior']  # Use posterior as total score
+
+                    logger.info(
+                        f"   {cand['qid']}: prior={cand['prior']:.3f}, "
+                        f"ctx_score={cand['context_score']:.1f}, "
+                        f"posterior={cand['posterior']:.3f}"
+                    )
+
+                # Sort by posterior probability
+                scored_candidates.sort(key=lambda x: x['posterior'], reverse=True)
+                best_candidate = scored_candidates[0]
+
+                # Decision: Accept if posterior > threshold (e.g., 0.7)
+                # This implements "given context, we should be able to solve it"
+                POSTERIOR_THRESHOLD = 0.70
+
+                if best_candidate['posterior'] >= POSTERIOR_THRESHOLD:
+                    confidence = best_candidate['posterior']  # Use posterior as confidence
+                    logger.info(f"   ✅ Bayesian decision: P={confidence:.3f} >= {POSTERIOR_THRESHOLD}")
+                else:
+                    confidence = 0.0  # Not confident enough even with context
+                    logger.info(
+                        f"   ❌ Bayesian rejection: P={best_candidate['posterior']:.3f} < {POSTERIOR_THRESHOLD}"
+                    )
+                    if len(scored_candidates) > 1:
+                        logger.info(
+                            f"      Ambiguous: top 2 posteriors: "
+                            f"{best_candidate['posterior']:.3f} vs {scored_candidates[1]['posterior']:.3f}"
+                        )
+
+            else:
+                # No context - use structural prior only
+                logger.info(f"⚠️  No context available, using structural prior only")
+
+                # Sort by prior (structural)
+                scored_candidates.sort(key=lambda x: x['prior'], reverse=True)
+                best_candidate = scored_candidates[0]
+
+                for cand in scored_candidates:
+                    cand['total_score'] = cand['prior']
+
+                # Accept if prior is strong enough (e.g., > 0.6)
+                PRIOR_THRESHOLD = 0.60
+                if best_candidate['prior'] >= PRIOR_THRESHOLD:
+                    confidence = best_candidate['prior']
+                    logger.info(f"   ✅ Structural prior: P={confidence:.3f} >= {PRIOR_THRESHOLD}")
+                else:
+                    confidence = 0.0
+                    logger.info(f"   ❌ Structural prior too weak: P={best_candidate['prior']:.3f} < {PRIOR_THRESHOLD}")
+
+            # Log final ranking
+            logger.info(f"🏆 Final ranking:")
             for i, cand in enumerate(scored_candidates[:3], 1):
-                ctx_info = f", ctx={cand['context_score']:.1f}" if context else ""
+                prob_str = f"P={cand.get('posterior', cand.get('prior', 0.0)):.3f}"
                 logger.info(
-                    f"   {i}. {cand['qid']} - {cand['description'][:60]} "
-                    f"(struct={cand['structural_score']:.1f}{ctx_info}, total={cand['total_score']:.1f})"
+                    f"   {i}. {cand['qid']} - {cand['description'][:60]} ({prob_str})"
                 )
 
-            # Stage 6: Confidence threshold check
-            if confidence < MIN_CONFIDENCE_THRESHOLD:
-                # Show scoring breakdown for low confidence cases
+            # Stage 6: Confidence threshold check (Bayesian decision already made)
+            if confidence == 0.0:
+                # Bayesian inference rejected this match
                 ed = best_candidate['entity_data']
-                instance_qids = ed.get('instance_of_qids', [])
                 logger.warning(
-                    f"⚠️  Low confidence for '{canonical_name}': "
-                    f"{best_candidate['qid']} (confidence={confidence:.2f}, "
-                    f"threshold={MIN_CONFIDENCE_THRESHOLD})"
-                )
-                ctx_info = f", context={best_candidate['context_score']:.1f}" if context else ""
-                logger.info(
-                    f"   Score breakdown: struct={best_candidate['structural_score']:.1f}/55.0{ctx_info}, "
-                    f"total={best_candidate['total_score']:.1f}/47.5 | "
-                    f"sitelinks={ed.get('sitelinks_count', 0)}, "
-                    f"claims={ed.get('claims_count', 0)}, "
-                    f"P31={instance_qids}"
+                    f"⚠️  Rejected '{canonical_name}': {best_candidate['qid']} "
+                    f"(posterior={best_candidate.get('posterior', 0.0):.3f} too low)"
                 )
                 await self.entity_repo.mark_checked(entity_id)
                 return
 
-            if ambiguity_score > HIGH_AMBIGUITY_THRESHOLD:
-                logger.warning(
-                    f"📌 High ambiguity: {ambiguity_score:.2f} "
-                    f"(score diff: {score_diff:.1f})"
+            # If we got here, Bayesian inference accepted the match (confidence > 0)
+            # confidence is already set to posterior probability
+
+            if confidence < 0.85:  # Log cases with moderate confidence
+                logger.info(
+                    f"📌 Moderate confidence: P={confidence:.3f} "
+                    f"(accepted but consider review)"
                 )
+
+            # Calculate ambiguity from posterior distribution
+            # Low ambiguity = winner has high posterior and runner-up is far behind
+            # High ambiguity = multiple candidates have similar posteriors
+            if len(scored_candidates) > 1:
+                top_posterior = scored_candidates[0].get('posterior', scored_candidates[0].get('prior', 0.0))
+                second_posterior = scored_candidates[1].get('posterior', scored_candidates[1].get('prior', 0.0))
+                # Ambiguity = how close is the runner-up? (0.0 = clear winner, 1.0 = tie)
+                ambiguity_score = second_posterior / top_posterior if top_posterior > 0 else 0.0
+            else:
+                ambiguity_score = 0.0  # Single candidate = unambiguous
 
             # Stage 7: Fetch additional properties (image, coords)
             entity_data = best_candidate['entity_data']
@@ -494,69 +582,170 @@ class WikidataWorker:
         except Exception as e:
             logger.error(f"❌ Failed to enrich {canonical_name}: {e}", exc_info=True)
 
-    async def _search_wikidata(self, name: str, language: str = 'en') -> List[Dict]:
+    def _extract_location_from_context(self, context: Dict[str, Any]) -> Optional[str]:
+        """
+        Extract geographic location from entity description
+
+        Examples:
+        - "Hong Kong political figure" → "Hong Kong"
+        - "American mathematician" → "American"
+        - "governmental agency" → None
+
+        Returns single location term or None
+        """
+        if not context:
+            return None
+
+        description = context.get('description', '')
+        if not description:
+            return None
+
+        # Common geographic indicators (places, countries, regions)
+        # These are likely to be in Wikidata labels/aliases
+        locations = [
+            'Hong Kong', 'China', 'United States', 'American', 'British', 'Japanese',
+            'Korean', 'German', 'French', 'Canadian', 'Australian', 'Indian',
+            'European', 'Asian', 'African', 'London', 'Tokyo', 'Singapore',
+            'Beijing', 'Shanghai', 'Taiwan', 'Macau'
+        ]
+
+        desc_lower = description.lower()
+        for loc in locations:
+            if loc.lower() in desc_lower:
+                return loc
+
+        return None
+
+    async def _search_wikidata(self, name: str, language: str = 'en', use_fulltext: bool = False) -> List[Dict]:
         """
         Search Wikidata for entity candidates
+
+        Args:
+            name: Search query
+            language: Language code
+            use_fulltext: If True, use full-text search (searches descriptions, not just labels)
 
         Returns list of candidates with QID, label, description
         """
         if not self.session:
             raise RuntimeError("Session not initialized")
 
-        params = {
-            'action': 'wbsearchentities',
-            'format': 'json',
-            'language': language,
-            'search': name,
-            'limit': 10,
-            'type': 'item'
-        }
-
         try:
-            async with self.session.get(self.WIKIDATA_API, params=params) as resp:
-                if resp.status != 200:
-                    logger.error(f"Wikidata API error: {resp.status}")
-                    return []
+            if use_fulltext:
+                # Full-text search - searches entity descriptions and content
+                # Better for context-enhanced queries like "John Lee Hong Kong"
+                params = {
+                    'action': 'query',
+                    'list': 'search',
+                    'srsearch': name,
+                    'format': 'json',
+                    'srlimit': 10
+                }
 
-                data = await resp.json()
-                results = data.get('search', [])
+                async with self.session.get(self.WIKIDATA_API, params=params) as resp:
+                    if resp.status != 200:
+                        logger.error(f"Wikidata full-text search error: {resp.status}")
+                        return []
 
-                candidates = []
-                for result in results:
-                    # Quality check: skip meta entities
-                    description = result.get('description', '')
-                    generic_terms = [
-                        'wikimedia', 'disambiguation', 'category',
-                        'template', 'list of', 'wikipedia'
-                    ]
-                    if any(term in description.lower() for term in generic_terms):
-                        continue
+                    data = await resp.json()
+                    results = data.get('query', {}).get('search', [])
 
-                    candidates.append({
-                        'qid': result['id'],
-                        'label': result.get('label', ''),
-                        'description': description
-                    })
+                    # Extract QIDs and fetch entity details
+                    qids = [r['title'] for r in results if r['title'].startswith('Q')]
 
-                return candidates
+                    if not qids:
+                        return []
+
+                    # Batch fetch entity details
+                    candidates = []
+                    for qid in qids[:10]:
+                        entity_params = {
+                            'action': 'wbgetentities',
+                            'ids': qid,
+                            'format': 'json',
+                            'languages': language,
+                            'props': 'labels|descriptions'
+                        }
+
+                        async with self.session.get(self.WIKIDATA_API, params=entity_params) as entity_resp:
+                            if entity_resp.status == 200:
+                                entity_data = await entity_resp.json()
+                                if 'entities' in entity_data and qid in entity_data['entities']:
+                                    entity = entity_data['entities'][qid]
+                                    label = entity.get('labels', {}).get(language, {}).get('value', '')
+                                    description = entity.get('descriptions', {}).get(language, {}).get('value', '')
+
+                                    # Quality check: skip meta entities
+                                    generic_terms = [
+                                        'wikimedia', 'disambiguation', 'category',
+                                        'template', 'list of', 'wikipedia', 'scientific article'
+                                    ]
+                                    if description and not any(term in description.lower() for term in generic_terms):
+                                        candidates.append({
+                                            'qid': qid,
+                                            'label': label or qid,
+                                            'description': description
+                                        })
+
+                    return candidates
+
+            else:
+                # Entity search - searches only labels/aliases
+                params = {
+                    'action': 'wbsearchentities',
+                    'format': 'json',
+                    'language': language,
+                    'search': name,
+                    'limit': 10,
+                    'type': 'item'
+                }
+
+                async with self.session.get(self.WIKIDATA_API, params=params) as resp:
+                    if resp.status != 200:
+                        logger.error(f"Wikidata API error: {resp.status}")
+                        return []
+
+                    data = await resp.json()
+                    results = data.get('search', [])
+
+                    candidates = []
+                    for result in results:
+                        # Quality check: skip meta entities
+                        description = result.get('description', '')
+                        generic_terms = [
+                            'wikimedia', 'disambiguation', 'category',
+                            'template', 'list of', 'wikipedia'
+                        ]
+                        if any(term in description.lower() for term in generic_terms):
+                            continue
+
+                        candidates.append({
+                            'qid': result['id'],
+                            'label': result.get('label', ''),
+                            'description': description
+                        })
+
+                    return candidates
 
         except Exception as e:
             logger.error(f"Wikidata search error: {e}")
             return []
 
-    def _filter_by_label_match(
-        self, candidates: List[Dict], canonical_name: str
+    async def _filter_by_label_match(
+        self, candidates: List[Dict], canonical_name: str, entity_type: str = None
     ) -> List[Dict]:
         """
         Filter candidates by label similarity
 
-        Uses fuzzy matching to handle minor variations
+        For PERSON entities, also checks Wikidata aliases if label doesn't match
+        (fixes issue where "John Lee" wouldn't match "John Lee Ka-chiu")
         """
         filtered = []
         canonical_lower = canonical_name.lower().strip()
 
         for candidate in candidates:
             label = candidate['label'].lower().strip()
+            matched = False
 
             # Exact match
             if label == canonical_lower:
@@ -572,6 +761,26 @@ class WikidataWorker:
             if fuzz.ratio(canonical_lower, label) >= 85:
                 filtered.append(candidate)
                 continue
+
+            # For PERSON entities: Check aliases if label didn't match
+            # This handles cases like "John Lee" vs "John Lee Ka-chiu"
+            if entity_type == 'PERSON':
+                qid = candidate['qid']
+                aliases_dict = await self._fetch_wikidata_aliases(qid, languages=['en', 'zh'])
+
+                if aliases_dict:
+                    for lang, aliases in aliases_dict.items():
+                        for alias in aliases:
+                            alias_lower = alias.lower().strip()
+                            if (alias_lower == canonical_lower or
+                                canonical_lower in alias_lower or
+                                alias_lower in canonical_lower):
+                                logger.debug(f"      ✅ Alias match: '{alias}' ({lang}) for {qid}")
+                                filtered.append(candidate)
+                                matched = True
+                                break
+                        if matched:
+                            break
 
         return filtered
 
@@ -780,88 +989,32 @@ class WikidataWorker:
         """
         Score Wikidata entity using context from claims
 
-        Uses entity description and mention context to compare against
-        Wikidata description for semantic disambiguation.
-
-        Context format:
-        {
-            'description': 'LLM-generated entity description',
-            'mentions': ['claim text 1', 'claim text 2', ...]
-        }
-
-        Signals:
-        1. Description similarity (entity description vs Wikidata description)
-        2. Mention context (does Wikidata description appear in mentions?)
-        3. Name alignment (does canonical name match label variations?)
+        Uses entity description to compare against Wikidata description.
 
         Returns:
-            float: Context score (0-30, higher = better match)
+            float: Context score (0-10, higher = better match)
         """
         score = 0.0
 
         entity_description = context.get('description', '')
-        mentions = context.get('mentions', [])
         wikidata_desc = entity_data.get('description', '').lower()
 
-        # Signal 1: Description similarity (0-15 points)
+        # Simplified: Just check if key terms from entity description appear in Wikidata description
         if entity_description and wikidata_desc:
-            # Use fuzzy matching to compare descriptions
             from rapidfuzz import fuzz
 
-            # Partial ratio handles substring matches
-            desc_similarity = fuzz.partial_ratio(
+            # Token set ratio handles word order and subset matches well
+            similarity = fuzz.token_set_ratio(
                 entity_description.lower(),
                 wikidata_desc
             ) / 100.0
 
-            # Token set ratio handles word order differences
-            token_similarity = fuzz.token_set_ratio(
-                entity_description.lower(),
-                wikidata_desc
-            ) / 100.0
-
-            # Take best of both
-            best_similarity = max(desc_similarity, token_similarity)
-            score += best_similarity * 15.0
+            score = similarity * 10.0
 
             logger.debug(
-                f"      Context: desc_sim={best_similarity:.2f} "
-                f"(entity='{entity_description[:40]}' vs wd='{wikidata_desc[:40]}')"
+                f"      Context: similarity={similarity:.2f} -> score={score:.1f}/10.0"
             )
 
-        # Signal 2: Mention context (0-10 points)
-        # Check if Wikidata description keywords appear in claim mentions
-        if mentions and wikidata_desc:
-            # Extract key terms from Wikidata description (skip common words)
-            stop_words = {'the', 'a', 'an', 'of', 'in', 'on', 'at', 'to', 'for', 'is', 'was', 'are', 'were'}
-            wd_terms = set(wikidata_desc.split()) - stop_words
-
-            if wd_terms:
-                # Count how many mentions contain Wikidata description terms
-                matching_mentions = 0
-                for mention in mentions[:5]:  # Check first 5 mentions
-                    mention_lower = mention.lower()
-                    if any(term in mention_lower for term in wd_terms):
-                        matching_mentions += 1
-
-                # Score based on proportion of matching mentions
-                mention_score = min(1.0, matching_mentions / min(len(mentions), 5)) * 10.0
-                score += mention_score
-
-                logger.debug(
-                    f"      Context: mention_match={matching_mentions}/{min(len(mentions), 5)} "
-                    f"(score={mention_score:.1f})"
-                )
-
-        # Signal 3: Name alignment (0-5 points)
-        # Boost if canonical name closely matches Wikidata label
-        wd_label = entity_data.get('qid', '')  # We already filtered by label similarity
-        # This is already captured by label filtering, so just a small boost for exact matches
-        if canonical_name.lower() == wikidata_desc.split(',')[0].lower():
-            score += 5.0
-            logger.debug(f"      Context: exact_name_match bonus (+5.0)")
-
-        logger.debug(f"      Total context score: {score:.1f}/30.0")
         return score
 
     async def _score_entity_structural(
