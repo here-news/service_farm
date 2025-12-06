@@ -31,6 +31,7 @@ from datetime import datetime
 
 import aiohttp
 import asyncpg
+from openai import AsyncOpenAI
 from rapidfuzz import fuzz
 
 import sys
@@ -178,6 +179,12 @@ class WikidataWorker:
         # Initialize Neo4j and repository
         self.neo4j = neo4j_service or Neo4jService()
         self.entity_repo = EntityRepository(db_pool, self.neo4j)
+
+        # OpenAI client for embedding-based similarity
+        self.openai_client = AsyncOpenAI()
+
+        # Cache for embeddings to avoid repeated API calls
+        self.embedding_cache: Dict[str, List[float]] = {}
 
     async def start(self):
         """Start worker loop with enrichment and periodic merging"""
@@ -420,11 +427,14 @@ class WikidataWorker:
             # Stage 5: Bayesian inference (structural prior + context likelihood)
 
             # Normalize structural scores to get priors P(candidate)
-            # Use softmax to convert scores to probability distribution
+            # Use softmax with temperature to convert scores to probability distribution
+            # Higher temperature → flatter distribution → context has more influence
             import math
 
+            TEMPERATURE = 5.0  # Flatten prior distribution to allow context to matter
+
             max_struct = max(c['structural_score'] for c in scored_candidates)
-            exp_scores = [math.exp(c['structural_score'] - max_struct) for c in scored_candidates]
+            exp_scores = [math.exp((c['structural_score'] - max_struct) / TEMPERATURE) for c in scored_candidates]
             sum_exp = sum(exp_scores)
 
             for i, cand in enumerate(scored_candidates):
@@ -432,34 +442,36 @@ class WikidataWorker:
 
             if context:
                 # Bayesian update: P(candidate|context) ∝ P(context|candidate) × P(candidate)
-                # P(context|candidate) = context_score normalized as likelihood
+                # context_score is embedding similarity (0-1), use directly as likelihood
 
                 logger.info(f"📊 Bayesian inference with {len(scored_candidates)} candidates:")
 
-                # Normalize context scores to likelihoods P(context|candidate)
-                # Use softmax to handle negative context scores
-                max_ctx = max(c['context_score'] for c in scored_candidates)
-                exp_ctx = [math.exp(c['context_score'] - max_ctx) for c in scored_candidates]
-                sum_exp_ctx = sum(exp_ctx)
-
                 # Calculate posterior: P(candidate|context) ∝ P(context|candidate) × P(candidate)
+                # context_score (similarity 0-1) is used as likelihood P(context|candidate)
                 posteriors = []
-                for i, cand in enumerate(scored_candidates):
-                    likelihood = exp_ctx[i] / sum_exp_ctx  # P(context|candidate)
+                for cand in scored_candidates:
+                    likelihood = cand['context_score']  # Similarity score (0-1)
+                    cand['likelihood'] = likelihood
                     posterior = likelihood * cand['prior']  # Unnormalized posterior
                     posteriors.append(posterior)
 
                 # Normalize posteriors to sum to 1
                 sum_posterior = sum(posteriors)
-                for i, cand in enumerate(scored_candidates):
-                    cand['posterior'] = posteriors[i] / sum_posterior  # P(candidate|context)
-                    cand['total_score'] = cand['posterior']  # Use posterior as total score
+                if sum_posterior > 0:
+                    for i, cand in enumerate(scored_candidates):
+                        cand['posterior'] = posteriors[i] / sum_posterior  # P(candidate|context)
+                        cand['total_score'] = cand['posterior']  # Use posterior as total score
 
-                    logger.info(
-                        f"   {cand['qid']}: prior={cand['prior']:.3f}, "
-                        f"ctx_score={cand['context_score']:.1f}, "
-                        f"posterior={cand['posterior']:.3f}"
-                    )
+                        logger.info(
+                            f"   {cand['qid']}: prior={cand['prior']:.3f}, "
+                            f"sim={cand['context_score']:.3f}, lik={cand['likelihood']:.3f}, "
+                            f"post={cand['posterior']:.3f}"
+                        )
+                else:
+                    # All posteriors are 0, fall back to priors
+                    for cand in scored_candidates:
+                        cand['posterior'] = cand['prior']
+                        cand['total_score'] = cand['prior']
 
                 # Sort by posterior probability
                 scored_candidates.sort(key=lambda x: x['posterior'], reverse=True)
@@ -584,24 +596,34 @@ class WikidataWorker:
 
     def _extract_location_from_context(self, context: Dict[str, Any]) -> Optional[str]:
         """
-        Extract geographic location from entity description
+        Extract geographic location from entity context
 
-        Examples:
-        - "Hong Kong political figure" → "Hong Kong"
-        - "American mathematician" → "American"
-        - "governmental agency" → None
+        Checks:
+        1. Explicit 'location' field in context (from news source config)
+        2. Geographic keywords in description
+        3. Geographic keywords in mentions
 
         Returns single location term or None
         """
         if not context:
             return None
 
+        # Check explicit location field first (set by news source)
+        if context.get('location'):
+            return context['location']
+
         description = context.get('description', '')
-        if not description:
+        mentions = context.get('mentions', [])
+
+        # Combine description and mentions for location search
+        text_to_search = description
+        if mentions:
+            text_to_search += ' ' + ' '.join(mentions)
+
+        if not text_to_search:
             return None
 
         # Common geographic indicators (places, countries, regions)
-        # These are likely to be in Wikidata labels/aliases
         locations = [
             'Hong Kong', 'China', 'United States', 'American', 'British', 'Japanese',
             'Korean', 'German', 'French', 'Canadian', 'Australian', 'Indian',
@@ -609,9 +631,9 @@ class WikidataWorker:
             'Beijing', 'Shanghai', 'Taiwan', 'Macau'
         ]
 
-        desc_lower = description.lower()
+        text_lower = text_to_search.lower()
         for loc in locations:
-            if loc.lower() in desc_lower:
+            if loc.lower() in text_lower:
                 return loc
 
         return None
@@ -980,6 +1002,45 @@ class WikidataWorker:
 
         return None
 
+    async def _get_embedding(self, text: str) -> Optional[List[float]]:
+        """
+        Get embedding for text, using cache to avoid repeated API calls.
+        """
+        if not text:
+            return None
+
+        # Check cache first
+        cache_key = text[:200]  # Use first 200 chars as key
+        if cache_key in self.embedding_cache:
+            return self.embedding_cache[cache_key]
+
+        try:
+            response = await self.openai_client.embeddings.create(
+                model="text-embedding-3-small",
+                input=text[:8000]  # Token limit
+            )
+            embedding = response.data[0].embedding
+
+            # Cache the result
+            self.embedding_cache[cache_key] = embedding
+            return embedding
+        except Exception as e:
+            logger.warning(f"Failed to get embedding: {e}")
+            return None
+
+    def _cosine_similarity(self, vec1: List[float], vec2: List[float]) -> float:
+        """Calculate cosine similarity between two vectors."""
+        import math
+
+        dot_product = sum(a * b for a, b in zip(vec1, vec2))
+        norm1 = math.sqrt(sum(a * a for a in vec1))
+        norm2 = math.sqrt(sum(b * b for b in vec2))
+
+        if norm1 == 0 or norm2 == 0:
+            return 0.0
+
+        return dot_product / (norm1 * norm2)
+
     async def _score_entity_context(
         self,
         entity_data: Dict[str, Any],
@@ -987,35 +1048,38 @@ class WikidataWorker:
         canonical_name: str
     ) -> float:
         """
-        Score Wikidata entity using context from claims
+        Score Wikidata entity using embedding-based semantic similarity.
 
-        Uses entity description to compare against Wikidata description.
+        Compares entity description embedding with Wikidata description embedding.
+        No hardcoded patterns - purely data-driven semantic matching.
 
         Returns:
-            float: Context score (0-10, higher = better match)
+            float: Similarity score (0 to 1, higher = better match)
         """
-        score = 0.0
-
         entity_description = context.get('description', '')
-        wikidata_desc = entity_data.get('description', '').lower()
+        wikidata_desc = entity_data.get('description', '')
 
-        # Simplified: Just check if key terms from entity description appear in Wikidata description
-        if entity_description and wikidata_desc:
-            from rapidfuzz import fuzz
+        if not entity_description or not wikidata_desc:
+            logger.debug(f"      No description for comparison")
+            return 0.5  # Neutral if no descriptions
 
-            # Token set ratio handles word order and subset matches well
-            similarity = fuzz.token_set_ratio(
-                entity_description.lower(),
-                wikidata_desc
-            ) / 100.0
+        # Get embeddings for both descriptions
+        entity_emb = await self._get_embedding(entity_description)
+        wiki_emb = await self._get_embedding(wikidata_desc)
 
-            score = similarity * 10.0
+        if not entity_emb or not wiki_emb:
+            logger.debug(f"      Failed to get embeddings")
+            return 0.5  # Neutral if embedding failed
 
-            logger.debug(
-                f"      Context: similarity={similarity:.2f} -> score={score:.1f}/10.0"
-            )
+        # Calculate cosine similarity
+        similarity = self._cosine_similarity(entity_emb, wiki_emb)
 
-        return score
+        logger.info(
+            f"      Similarity: {similarity:.3f} | "
+            f"entity='{entity_description[:35]}...' vs wiki='{wikidata_desc[:35]}...'"
+        )
+
+        return similarity
 
     async def _score_entity_structural(
         self,

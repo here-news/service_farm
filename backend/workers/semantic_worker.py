@@ -144,13 +144,11 @@ class SemanticWorker:
 
                 claims = result.get('claims', [])
                 excluded_claims = result.get('excluded_claims', [])
-                entities_dict = result.get('entities', {})
+                entity_descriptions = result.get('entity_descriptions', {})  # {"PERSON:Name": "description", ...}
                 gist = result.get('gist', '')
 
                 logger.info(f"✅ Extracted {len(claims)} claims, excluded {len(excluded_claims)} claims")
-                logger.info(f"📊 Entities: {len(entities_dict.get('people', []))} people, "
-                           f"{len(entities_dict.get('organizations', []))} orgs, "
-                           f"{len(entities_dict.get('locations', []))} locations")
+                logger.info(f"📊 Entity descriptions from gpt-4o: {len(entity_descriptions)}")
 
                 if len(claims) == 0:
                     logger.warning(f"⚠️ No valid claims extracted from {url}")
@@ -176,9 +174,10 @@ class SemanticWorker:
                 await self._link_entities_to_page(conn, page_id, entity_mapping, claims)
                 logger.info(f"🔗 Linked entities to page")
 
-                # 8. Generate basic entity descriptions from context
-                await self._generate_entity_descriptions(conn, entity_mapping, claims)
-                logger.info(f"📝 Generated entity descriptions")
+                # 8. Use entity descriptions from gpt-4o claim extraction (no extra LLM call)
+                # entity_descriptions already contains {"PERSON:Name": "description", ...} from gpt-4o
+                await self._apply_entity_descriptions(entity_mapping, entity_descriptions)
+                logger.info(f"📝 Applied {len(entity_descriptions)} entity descriptions from claim extraction")
 
                 # 9. Queue Wikidata enrichment for all new entities
                 await self._queue_wikidata_enrichment(conn, entity_mapping, claims)
@@ -576,11 +575,37 @@ class SemanticWorker:
         pass
 
 
+    async def _apply_entity_descriptions(
+        self, entity_mapping: Dict[str, uuid.UUID],
+        entity_descriptions: Dict[str, str]
+    ):
+        """
+        Apply entity descriptions extracted by gpt-4o during claim extraction.
+        No additional LLM calls needed - descriptions come from the same gpt-4o call.
+        """
+        if not entity_descriptions:
+            logger.info("No entity descriptions provided from claim extraction")
+            return
+
+        logger.info(f"Entity descriptions from gpt-4o: {list(entity_descriptions.keys())}")
+        logger.info(f"Entities to update: {list(entity_mapping.keys())}")
+
+        for entity_ref, entity_uuid in entity_mapping.items():
+            # entity_ref is like "PERSON:Samuel Chu"
+            description = entity_descriptions.get(entity_ref)
+
+            if description:
+                # Store in Neo4j
+                await self.entity_repo.update_profile(entity_uuid, description)
+                logger.info(f"📝 Applied: {entity_ref} -> {description[:50]}...")
+            else:
+                logger.info(f"⚠️ No description for {entity_ref}")
+
     async def _generate_entity_descriptions(
         self, conn: asyncpg.Connection, entity_mapping: Dict[str, uuid.UUID],
-        claims: List[Dict]
+        claims: List[Dict], page_context: Dict[str, str] = None
     ):
-        """Generate entity descriptions using LLM based on claim contexts"""
+        """DEPRECATED: Previously used gpt-4o-mini. Now using gpt-4o descriptions from claim extraction."""
         entity_contexts = {}
 
         # Collect all claims mentioning each entity
@@ -597,6 +622,29 @@ class SemanticWorker:
                     entity_contexts[entity_ref] = []
                 entity_contexts[entity_ref].append(claim['text'])
 
+        # Extract location hint from page context
+        page_location_hint = ""
+        if page_context:
+            domain = page_context.get('domain', '')
+            site_name = page_context.get('site_name', '')
+            title = page_context.get('title', '')
+
+            # Infer location from domain/site
+            if 'hk' in domain or 'hongkong' in domain.lower() or 'scmp' in domain:
+                page_location_hint = "Hong Kong"
+            elif 'china' in domain.lower() or '.cn' in domain:
+                page_location_hint = "China"
+            elif '.uk' in domain or 'bbc' in domain:
+                page_location_hint = "UK"
+            elif '.jp' in domain:
+                page_location_hint = "Japan"
+
+            # Also check site_name and title
+            for loc in ['Hong Kong', 'China', 'Taiwan', 'Singapore', 'UK', 'US', 'Japan']:
+                if loc.lower() in (site_name or '').lower() or loc.lower() in (title or '').lower():
+                    page_location_hint = loc
+                    break
+
         # Generate LLM-based descriptions (batch to save API calls)
         for entity_ref, entity_uuid in entity_mapping.items():
             if entity_ref not in entity_contexts:
@@ -608,19 +656,54 @@ class SemanticWorker:
             # Use LLM to generate concise description
             context_text = '\n'.join(contexts[:3])  # Use up to 3 claims for context
 
-            try:
-                response = await self.openai_client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=[{
-                        "role": "user",
-                        "content": f"""Based on these mentions of "{entity_name}", write a single concise sentence describing what/who this entity is (max 20 words):
+            # Add page context hint
+            article_context = ""
+            if page_context and page_context.get('title'):
+                article_context = f"\nArticle: {page_context['title']}"
+            if page_location_hint:
+                article_context += f"\nArticle location context: {page_location_hint}"
 
-{context_text}
+            try:
+                # Build prompt based on entity type
+                if entity_type == 'PERSON':
+                    prompt = f"""Based on these mentions, describe WHO "{entity_name}" is.
+IMPORTANT: Include their LOCATION (country/city) and ROLE/OCCUPATION. If location is not explicit in mentions but article is from a specific region, assume that location.
+
+Mentions:
+{context_text}{article_context}
+
+Format: "[Location] [role/occupation] who [key action/characteristic]"
+Examples:
+- "Hong Kong activist who campaigns for democracy"
+- "American politician serving as senator"
+- "British journalist covering financial news"
+
+Only return the description (max 20 words), nothing else."""
+                elif entity_type in ('ORGANIZATION', 'LOCATION'):
+                    prompt = f"""Based on these mentions, describe WHAT "{entity_name}" is.
+IMPORTANT: Include LOCATION (country/city) and TYPE/FUNCTION. If location is not explicit but article is from a specific region, assume that location.
+
+Mentions:
+{context_text}{article_context}
+
+Format: "[Location] [type] that [primary function]"
+Examples:
+- "Hong Kong government department overseeing building safety"
+- "American technology company developing electric vehicles"
+- "District in northern Hong Kong"
+
+Only return the description (max 20 words), nothing else."""
+                else:
+                    prompt = f"""Based on these mentions of "{entity_name}", write a single concise sentence describing what/who this entity is (max 20 words):
+
+{context_text}{article_context}
 
 Format: "A/An [type] that/who [brief description]"
-Example: "An American political journalism organization"
 Only return the description, nothing else."""
-                    }],
+
+                response = await self.openai_client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[{"role": "user", "content": prompt}],
                     temperature=0.3,
                     max_tokens=60
                 )

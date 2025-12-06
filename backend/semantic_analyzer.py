@@ -94,8 +94,15 @@ class EnhancedSemanticAnalyzer:
                     claim['excluded_reason'] = f"Confidence too low ({adjusted_confidence:.2f}): {', '.join(failed_checks)}"
                     excluded_claims.append(claim)
 
-            # Extract entities only from admitted claims
+            # Extract entities only from admitted claims (for backwards compatibility)
             entities = self._extract_entities_from_claims(admitted_claims)
+
+            # Get entity descriptions from gpt-4o (new format: {"PERSON:Name": "description", ...})
+            entity_descriptions = claims_response.get('entities', {})
+            # Filter to only keep description entries (not the old format lists)
+            if isinstance(entity_descriptions, dict):
+                entity_descriptions = {k: v for k, v in entity_descriptions.items()
+                                       if isinstance(v, str) and ':' in k}
 
             # Extract primary event time from claims
             primary_event_time = self._extract_primary_event_time(admitted_claims, page_meta)
@@ -109,10 +116,14 @@ class EnhancedSemanticAnalyzer:
             if about_text:
                 about_embedding = await self.generate_about_embedding(about_text)
 
+            # Log entity descriptions for debugging
+            logger.info(f"📝 Entity descriptions from gpt-4o: {list(entity_descriptions.keys()) if entity_descriptions else 'none'}")
+
             return {
                 "claims": admitted_claims,
                 "excluded_claims": excluded_claims,
-                "entities": entities,
+                "entities": entities,  # OLD format for backward compatibility
+                "entity_descriptions": entity_descriptions,  # NEW format: {"PERSON:Name": "description"}
                 "gist": claims_response.get('gist', 'No summary available'),
                 "confidence": claims_response.get('overall_confidence', 0.5),
                 "notes_unsupported": claims_response.get('notes_unsupported', []),
@@ -200,13 +211,18 @@ For each claim:
   ✅ CORRECT: "ORG:Israel Defense Forces", "ORG:Fire Services Department", "PERSON:John Lee Ka-chiu"
   ❌ WRONG: "ORG:Military", "ORG:Government", "ORG:Officials", "ORG:Police", "ORG:Authorities", "ORG:Firefighters"
 
+  **FOR reported_speech/opinion: The speaker/source MUST be in WHO!**
+  ✅ "Jane Smith says X" → WHO = ["PERSON:Jane Smith"]
+  ✅ "Activist Tom Wong said..." → WHO = ["PERSON:Tom Wong"]
+  ✅ "Critics argue..." + article names specific critic → WHO = ["PERSON:CriticName"]
+
   **CRITICAL RULE: If article only says generic terms like "authorities", "officials", "police", "firefighters" WITHOUT naming the specific organization, LEAVE WHO EMPTY or use ONLY the named person if given**
 
   Examples:
   ✅ "Authorities said..." + article mentions "Hong Kong Fire Services Department" → "ORG:Hong Kong Fire Services Department"
   ✅ "Fire chief John Lee said..." → "PERSON:John Lee"
   ❌ "Officials confirmed..." + no org name in article → WHO = [] (empty, don't extract!)
-  ❌ "The BBC reported..." → WHO = [] (news orgs are sources, not event participants)
+  ❌ "The BBC reported..." → WHO = [] (news orgs are NEWS SOURCES, not speakers to extract)
 
 - WHERE: Specific places at ALL granularities (GPE:/LOCATION: prefix)
   ⚠️  Extract ALL location levels: buildings, streets, venues, neighborhoods, cities, regions, countries
@@ -343,10 +359,20 @@ Return JSON:
             "confidence": 0.85
         }}
     ],
+    "entities": {{
+        "PERSON:Name": "Location + role/occupation who key_action (e.g., 'Hong Kong activist who campaigns for democracy')",
+        "ORG:Name": "Location + type that function (e.g., 'Hong Kong government department overseeing building safety')"
+    }},
     "gist": "One sentence summary IN ENGLISH",
     "overall_confidence": 0.8,
     "notes_unsupported": ["Weak statements not meeting standards"]
 }}
+
+ENTITIES FIELD: For each unique entity in who/where fields, provide a concise description (max 15 words):
+- PERSON: "[Location] [role] who [action]" - e.g., "Hong Kong activist who campaigns for democracy"
+- ORG: "[Location] [type] that [function]" - e.g., "US tech company developing AI"
+- GPE/LOCATION: "[Type] in [parent location]" - e.g., "District in northern Hong Kong"
+IMPORTANT: Always include the entity's location/country when known or inferable from article context.
 
 Only include claims passing ALL 6 criteria above. Use notes_unsupported for interesting but weak statements."""
 
@@ -973,6 +999,7 @@ Only include claims passing ALL 6 criteria above. Use notes_unsupported for inte
                 "locations": [],
                 "time_references": []
             },
+            "entity_descriptions": {},  # NEW format: {"PERSON:Name": "description"}
             "gist": "No content extracted",
             "confidence": 0.0,
             "notes_unsupported": [reason],

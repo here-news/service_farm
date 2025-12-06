@@ -390,7 +390,7 @@ class Neo4jService:
         """
         query = """
         MATCH (e:Entity {id: $entity_id})
-        SET e.status = 'checked',
+        SET e.checked = true,
             e.updated_at = datetime()
         """
 
