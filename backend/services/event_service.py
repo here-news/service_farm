@@ -382,11 +382,14 @@ class EventService:
         # Generate narrative from claims (BEFORE embedding generation)
         summary = await self._generate_event_narrative(temp_event, claims)
         logger.info(f"📝 Generated initial narrative for root event")
+        logger.info(f"📄 Summary length: {len(summary) if summary else 0} chars")
 
         # Generate event embedding from summary text (semantic representation)
         embedding = await self._generate_event_embedding(summary)
         if embedding:
             logger.info(f"📊 Generated event embedding from summary ({len(embedding)} dims)")
+        else:
+            logger.warning(f"⚠️  Failed to generate event embedding - summary was: {summary[:100] if summary else 'None'}")
 
         # Create final event with summary and embedding
         event = Event(
@@ -578,15 +581,21 @@ class EventService:
             logger.warning("Cannot generate event embedding without summary text")
             return None
 
+        logger.debug(f"Generating embedding for summary ({len(summary_text)} chars)")
+
         try:
             response = await self.openai_client.embeddings.create(
                 model="text-embedding-3-small",
                 input=summary_text
             )
-            return response.data[0].embedding
+            embedding = response.data[0].embedding
+            logger.debug(f"✅ Successfully generated embedding: {len(embedding)} dims")
+            return embedding
 
         except Exception as e:
-            logger.error(f"Failed to generate event embedding: {e}")
+            logger.error(f"❌ Failed to generate event embedding: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
             return None
 
     async def _get_event_claims(self, event: Event) -> List[Claim]:
