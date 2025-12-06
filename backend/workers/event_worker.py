@@ -15,9 +15,10 @@ import json
 import logging
 import os
 import uuid
-from typing import Optional
+from typing import Optional, List
 
 import asyncpg
+import numpy as np
 
 import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -118,16 +119,24 @@ class EventWorker:
 
         logger.info(f"🎯 Claims reference {len(all_entity_ids)} unique entities")
 
-        # 3. Find candidate events
+        # 3. Generate embedding from claims for semantic similarity matching
+        page_embedding = await self._generate_page_embedding_from_claims(claims)
+        if page_embedding:
+            logger.info(f"📊 Generated page embedding from {len(claims)} claims")
+        else:
+            logger.warning(f"⚠️  Failed to generate page embedding")
+
+        # 4. Find candidate events (using entities + embeddings + time)
         reference_time = claims[0].event_time if claims and claims[0].event_time else None
 
         candidates = await self.event_repo.find_candidates(
             entity_ids=all_entity_ids,
             reference_time=reference_time,
-            time_window_days=7
+            time_window_days=7,
+            page_embedding=page_embedding
         )
 
-        # 4. Decision: attach to existing event or create new
+        # 5. Decision: attach to existing event or create new
         if candidates:
             best_event, best_score = candidates[0]
             logger.info(f"🔍 Best candidate: {best_event.canonical_name} (score: {best_score:.2f})")
@@ -157,6 +166,51 @@ class EventWorker:
             logger.info(f"📝 No candidate events found, creating new root event")
             event = await self.event_service.create_root_event(claims)
             logger.info(f"✨ Created root event: {event.canonical_name}")
+
+    async def _generate_page_embedding_from_claims(self, claims: List) -> Optional[List[float]]:
+        """
+        Generate embedding for page from its claims
+
+        Strategy: Combine claim texts into coherent description of page content,
+        then generate semantic embedding. This represents "what is this page about?"
+
+        Similar to event embedding generation - semantic representation enables
+        matching between new pages and existing events.
+
+        Args:
+            claims: List of claims from the page
+
+        Returns:
+            Embedding vector or None if generation fails
+        """
+        if not claims:
+            return None
+
+        # Combine claim texts (limit to ~8k chars to avoid token limits)
+        claim_texts = [c.text for c in claims if c.text]
+        if not claim_texts:
+            return None
+
+        # Concatenate claims with newlines (truncate if too long)
+        combined_text = "\n".join(claim_texts)
+        if len(combined_text) > 8000:
+            combined_text = combined_text[:8000] + "..."
+
+        try:
+            # Use OpenAI embedding API (same as EventService)
+            from openai import AsyncOpenAI
+            client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+            response = await client.embeddings.create(
+                model="text-embedding-3-small",
+                input=combined_text
+            )
+
+            return response.data[0].embedding
+
+        except Exception as e:
+            logger.error(f"Failed to generate page embedding: {e}")
+            return None
 
 
 async def main():

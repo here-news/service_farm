@@ -18,6 +18,7 @@ from models.claim import Claim
 from repositories.event_repository import EventRepository
 from repositories.claim_repository import ClaimRepository
 from repositories.entity_repository import EntityRepository
+from services.update_detector import UpdateDetector
 from utils.datetime_utils import neo4j_datetime_to_python
 
 logger = logging.getLogger(__name__)
@@ -47,6 +48,9 @@ class EventService:
 
         # LLM client for intelligent reasoning
         self.openai_client = openai_client or AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+        # Update detector for systematic metric evolution detection
+        self.update_detector = UpdateDetector()
 
         # Thresholds (from RECURSIVE_EVENT_DESIGN.md)
         self.DUPLICATE_THRESHOLD = 0.9       # Semantic similarity for duplicates
@@ -359,29 +363,45 @@ class EventService:
         # Calculate temporal bounds
         event_start, event_end = self._calculate_temporal_bounds(claims)
 
-        # Generate event embedding
-        embedding = await self._generate_event_embedding(claims)
-
-        # Create event
-        event = Event(
+        # Create temporary event for narrative generation (needs temporal bounds + name)
+        temp_event = Event(
             id=uuid.uuid4(),
             canonical_name=canonical_name,
             event_type=event_type,
-            parent_event_id=None,  # Root event
-            confidence=0.3,  # Initial confidence
-            coherence=0.5,   # Initial coherence
+            parent_event_id=None,
+            confidence=0.3,
+            coherence=0.5,
             event_start=event_start,
             event_end=event_end,
-            status='provisional',
-            embedding=embedding
+            status='provisional'
         )
 
         # Calculate initial metrics
-        await self._update_event_metrics(event, claims)
+        await self._update_event_metrics(temp_event, claims)
 
-        # Generate narrative from claims
-        event.summary = await self._generate_event_narrative(event, claims)
+        # Generate narrative from claims (BEFORE embedding generation)
+        summary = await self._generate_event_narrative(temp_event, claims)
         logger.info(f"📝 Generated initial narrative for root event")
+
+        # Generate event embedding from summary text (semantic representation)
+        embedding = await self._generate_event_embedding(summary)
+        if embedding:
+            logger.info(f"📊 Generated event embedding from summary ({len(embedding)} dims)")
+
+        # Create final event with summary and embedding
+        event = Event(
+            id=temp_event.id,
+            canonical_name=canonical_name,
+            event_type=event_type,
+            parent_event_id=None,  # Root event
+            confidence=temp_event.confidence,
+            coherence=temp_event.coherence,
+            event_start=event_start,
+            event_end=event_end,
+            status='provisional',
+            summary=summary,
+            embedding=embedding
+        )
 
         # Store in repositories
         created_event = await self.event_repo.create(event)
@@ -416,11 +436,8 @@ class EventService:
         # Calculate temporal bounds
         event_start, event_end = self._calculate_temporal_bounds(claims)
 
-        # Generate embedding
-        embedding = await self._generate_event_embedding(claims)
-
-        # Create sub-event
-        sub_event = Event(
+        # Create temporary sub-event for narrative generation
+        temp_sub_event = Event(
             id=uuid.uuid4(),
             canonical_name=canonical_name,
             event_type=parent.event_type,  # Inherit from parent
@@ -429,16 +446,35 @@ class EventService:
             coherence=0.5,
             event_start=event_start,
             event_end=event_end,
-            status='provisional',
-            embedding=embedding
+            status='provisional'
         )
 
         # Calculate metrics
-        await self._update_event_metrics(sub_event, claims)
+        await self._update_event_metrics(temp_sub_event, claims)
 
-        # Generate narrative from claims
-        sub_event.summary = await self._generate_event_narrative(sub_event, claims)
+        # Generate narrative from claims (BEFORE embedding generation)
+        summary = await self._generate_event_narrative(temp_sub_event, claims)
         logger.info(f"📝 Generated narrative for sub-event")
+
+        # Generate event embedding from summary text (semantic representation)
+        embedding = await self._generate_event_embedding(summary)
+        if embedding:
+            logger.info(f"📊 Generated sub-event embedding from summary ({len(embedding)} dims)")
+
+        # Create final sub-event with summary and embedding
+        sub_event = Event(
+            id=temp_sub_event.id,
+            canonical_name=canonical_name,
+            event_type=parent.event_type,  # Inherit from parent
+            parent_event_id=parent.id,
+            confidence=temp_sub_event.confidence,
+            coherence=temp_sub_event.coherence,
+            event_start=event_start,
+            event_end=event_end,
+            status='provisional',
+            summary=summary,
+            embedding=embedding
+        )
 
         # Store in repositories
         created_sub_event = await self.event_repo.create(sub_event)
@@ -521,21 +557,37 @@ class EventService:
                 for claim in batch:
                     claim.embedding = [0.0] * 1536
 
-    async def _generate_event_embedding(self, claims: List[Claim]) -> Optional[List[float]]:
+    async def _generate_event_embedding(self, summary_text: str) -> Optional[List[float]]:
         """
-        Generate embedding for event from its claims
+        Generate embedding for event from its summary text
 
-        Strategy: Average claim embeddings (simple but effective)
-        Can be enhanced with LLM-based generation later
+        Strategy: Create semantic embedding from event summary/narrative
+        This captures the coherent meaning of what the event IS,
+        rather than averaging individual claim embeddings.
+
+        Similar to gen1 story matching - semantic similarity between
+        "what is this event about?" enables proper matching.
+
+        Args:
+            summary_text: Event summary/narrative text
+
+        Returns:
+            Embedding vector or None if generation fails
         """
-        claim_embeddings = [c.embedding for c in claims if c.embedding]
-
-        if not claim_embeddings:
+        if not summary_text:
+            logger.warning("Cannot generate event embedding without summary text")
             return None
 
-        # Average embeddings
-        avg_embedding = np.mean(claim_embeddings, axis=0)
-        return avg_embedding.tolist()
+        try:
+            response = await self.openai_client.embeddings.create(
+                model="text-embedding-3-small",
+                input=summary_text
+            )
+            return response.data[0].embedding
+
+        except Exception as e:
+            logger.error(f"Failed to generate event embedding: {e}")
+            return None
 
     async def _get_event_claims(self, event: Event) -> List[Claim]:
         """
@@ -643,7 +695,7 @@ class EventService:
         """
         Check if claim is an UPDATE of an existing metric (e.g., death toll increasing)
 
-        Universal principle: "40 dead" → "128 dead" is an UPDATE, not a duplicate
+        Uses UpdateDetector for systematic pattern detection instead of hardcoded regexes.
 
         Args:
             claim: New claim to check
@@ -652,40 +704,23 @@ class EventService:
         Returns:
             (metric_type, old_value, new_value) if update detected, None otherwise
         """
-        import re
+        # Detect topic for new claim
+        topic_key = self.update_detector.detect_topic_key(claim)
+        if not topic_key:
+            return None
 
-        # Extract numeric metrics from new claim
-        claim_lower = claim.text.lower()
+        new_value = self.update_detector.extract_numeric_value(claim, topic_key)
+        if new_value is None:
+            return None
 
-        # Common metric patterns
-        metric_patterns = [
-            (r'(\d+)\s+(?:people\s+)?(?:have\s+)?died', 'deaths'),
-            (r'(?:death\s+toll|fatalities):\s*(\d+)', 'deaths'),
-            (r'(?:death\s+toll|fatalities)\s+(?:has\s+)?(?:risen\s+to|reached|climbed to|now)\s+(\d+)', 'deaths'),
-            (r'(?:at\s+least|more than)\s+(\d+)\s+(?:people\s+)?died', 'deaths'),
-            (r'(\d+)\s+(?:people\s+)?(?:are\s+)?missing', 'missing'),
-            (r'(\d+)\s+(?:people\s+)?(?:were\s+)?injured', 'injured'),
-            (r'(\d+)\s+(?:people\s+)?evacuated', 'evacuated'),
-        ]
-
-        # Extract metrics from new claim
-        for pattern, metric_type in metric_patterns:
-            match = re.search(pattern, claim_lower)
-            if match:
-                new_value = int(match.group(1))
-
-                # Check if any existing claim has the same metric type with different value
-                for existing in existing_claims:
-                    existing_lower = existing.text.lower()
-                    existing_match = re.search(pattern, existing_lower)
-
-                    if existing_match:
-                        old_value = int(existing_match.group(1))
-
-                        # If values are different, this is an update
-                        if new_value != old_value:
-                            logger.debug(f"📈 Found metric update: {metric_type} {old_value} → {new_value}")
-                            return (metric_type, old_value, new_value)
+        # Check if any existing claim has same topic with different value
+        for existing in existing_claims:
+            existing_topic = self.update_detector.detect_topic_key(existing)
+            if existing_topic == topic_key:
+                old_value = self.update_detector.extract_numeric_value(existing, topic_key)
+                if old_value is not None and old_value != new_value:
+                    logger.debug(f"📈 Found metric update: {topic_key} {old_value} → {new_value}")
+                    return (topic_key, old_value, new_value)
 
         return None
 
@@ -964,15 +999,13 @@ Write in clear, journalistic style with strong temporal flow. Do not invent date
         # Hierarchical clustering
         linkage_matrix = linkage(distances, method='average')
 
-        # Cut tree to get clusters (adaptive threshold based on claim count)
-        if len(valid_claims) <= 3:
-            num_clusters = 2
-        elif len(valid_claims) <= 5:
-            num_clusters = 3
-        else:
-            num_clusters = min(5, len(valid_claims) // 2)
+        # Cut tree using distance threshold (let natural clusters emerge)
+        # Distance threshold of 0.3 in cosine distance space
+        # (closer = more similar, let semantically similar claims stay together)
+        distance_threshold = 0.3
+        cluster_labels = fcluster(linkage_matrix, distance_threshold, criterion='distance')
 
-        cluster_labels = fcluster(linkage_matrix, num_clusters, criterion='maxclust')
+        logger.info(f"📊 Natural clustering: {len(valid_claims)} claims → {len(set(cluster_labels))} clusters (distance threshold={distance_threshold})")
 
         # Group claims by cluster
         clusters = {}
