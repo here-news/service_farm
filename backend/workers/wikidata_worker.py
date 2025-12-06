@@ -149,10 +149,20 @@ HIGH_AMBIGUITY_THRESHOLD = 0.5   # Flag for review if ambiguity > 0.5
 
 class WikidataWorker:
     """
-    Worker that enriches entities with Wikidata QIDs using robust disambiguation
+    Worker that enriches entities with Wikidata QIDs and merges duplicates
+
+    Combines two responsibilities:
+    1. Entity enrichment - Links entities to Wikidata QIDs with context-aware disambiguation
+    2. Entity merging - Consolidates duplicate entities sharing same QID
+
+    This unified approach ensures:
+    - Merge runs after enrichment batches (efficient)
+    - No separate worker to manage
+    - Natural flow: enrich → merge
     """
 
     WIKIDATA_API = "https://www.wikidata.org/w/api.php"
+    MERGE_BATCH_SIZE = 10  # Run merge after every N enrichments
 
     def __init__(self, db_pool: asyncpg.Pool, job_queue: JobQueue, neo4j_service: Neo4jService = None, worker_id: int = 1):
         self.db_pool = db_pool
@@ -162,13 +172,16 @@ class WikidataWorker:
         # Cache for P279 (subclass of) chains to avoid repeated API calls
         self.subclass_cache: Dict[str, set] = {}
 
+        # Track enrichments to trigger merge
+        self.enrichments_since_merge = 0
+
         # Initialize Neo4j and repository
         self.neo4j = neo4j_service or Neo4jService()
         self.entity_repo = EntityRepository(db_pool, self.neo4j)
 
     async def start(self):
-        """Start worker loop"""
-        logger.info(f"🔗 wikidata-worker-{self.worker_id} started (high-accuracy mode)")
+        """Start worker loop with enrichment and periodic merging"""
+        logger.info(f"🔗 wikidata-worker-{self.worker_id} started (enrichment + merge mode)")
 
         self.session = aiohttp.ClientSession(
             timeout=aiohttp.ClientTimeout(total=30),
@@ -180,6 +193,8 @@ class WikidataWorker:
         retry_count = 0
         max_retries = 5
         base_backoff = 2  # seconds
+        last_merge_time = asyncio.get_event_loop().time()
+        merge_interval = 300  # Run merge every 5 minutes if idle
 
         try:
             while True:
@@ -190,6 +205,21 @@ class WikidataWorker:
                         await self.process_job(job)
                         # Reset retry counter on successful processing
                         retry_count = 0
+
+                        # Trigger merge after batch of enrichments
+                        self.enrichments_since_merge += 1
+                        if self.enrichments_since_merge >= self.MERGE_BATCH_SIZE:
+                            logger.info(f"🔄 Triggering merge after {self.enrichments_since_merge} enrichments")
+                            await self.run_merge_pass()
+                            self.enrichments_since_merge = 0
+                            last_merge_time = asyncio.get_event_loop().time()
+                    else:
+                        # No job - check if we should run periodic merge
+                        current_time = asyncio.get_event_loop().time()
+                        if current_time - last_merge_time >= merge_interval:
+                            logger.info(f"⏰ Running periodic merge check...")
+                            await self.run_merge_pass()
+                            last_merge_time = current_time
 
                 except (asyncpg.PostgresConnectionError,
                         asyncpg.InterfaceError,
@@ -1001,6 +1031,95 @@ class WikidataWorker:
                 return True
 
         return False
+
+    async def run_merge_pass(self):
+        """
+        Find and merge all duplicate entities using Neo4j
+
+        Consolidates entities that share the same Wikidata QID.
+        This handles variants like:
+        - "Police" and "Hong Kong Police" (both → Q25859)
+        - "Fire Department" and "Fire Services Department" (both → Q1595073)
+        """
+        try:
+            # Find all QIDs with multiple entities from Neo4j
+            duplicates = await self.neo4j.find_duplicate_entities()
+
+            if not duplicates:
+                logger.info("✓ No duplicate entities found")
+                return
+
+            logger.info(f"🔍 Found {len(duplicates)} QIDs with duplicate entities")
+
+            merged_count = 0
+            for dup_group in duplicates:
+                qid = dup_group['wikidata_qid']
+                entity_ids = dup_group['entity_ids']
+                names = dup_group['names']
+                mention_counts = dup_group['mention_counts']
+
+                # Pick canonical entity (most mentions, or longest name if tie)
+                canonical_idx = self._pick_canonical(names, mention_counts)
+                canonical_id = entity_ids[canonical_idx]
+                canonical_name = names[canonical_idx]
+
+                # IDs to merge into canonical
+                duplicate_ids = [eid for i, eid in enumerate(entity_ids) if i != canonical_idx]
+
+                logger.info(
+                    f"🔗 Merging {qid}: {len(duplicate_ids)} variants → '{canonical_name}'"
+                )
+                for i, (name, count) in enumerate(zip(names, mention_counts)):
+                    if i != canonical_idx:
+                        logger.info(f"   ← '{name}' ({count} mentions)")
+
+                # Perform merge in Neo4j
+                total_mentions = sum(mention_counts)
+                await self.neo4j.merge_entities(
+                    canonical_id=canonical_id,
+                    duplicate_ids=duplicate_ids,
+                    total_mentions=total_mentions
+                )
+
+                logger.info(f"✅ Merged → {canonical_name} (total: {total_mentions} mentions)")
+                merged_count += len(duplicate_ids)
+
+            logger.info(f"✓ Merge pass complete: {merged_count} entities merged")
+
+        except Exception as e:
+            logger.error(f"❌ Merge pass failed: {e}", exc_info=True)
+
+    def _pick_canonical(self, names: List[str], mention_counts: List[int]) -> int:
+        """
+        Pick the best canonical entity from duplicates
+
+        Priority:
+        1. Most mentions (entity used most frequently)
+        2. Longest name (usually more specific)
+        3. First alphabetically
+
+        Args:
+            names: List of entity names
+            mention_counts: List of mention counts for each entity
+
+        Returns:
+            Index of the canonical entity
+        """
+        # Find max mentions
+        max_mentions = max(mention_counts)
+
+        # Filter to entities with max mentions
+        candidates = [
+            (i, name, count)
+            for i, (name, count) in enumerate(zip(names, mention_counts))
+            if count == max_mentions
+        ]
+
+        # If tie, pick longest name (more specific)
+        if len(candidates) > 1:
+            candidates.sort(key=lambda x: (len(x[1]), x[1]), reverse=True)
+
+        return candidates[0][0]
 
 
 async def main():

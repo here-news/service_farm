@@ -215,35 +215,13 @@ services:
         condition: service_healthy
     command: python run_semantic_worker.py
 
-  # Wikidata Enrichment Worker (1 instance for entity linking)
+  # Wikidata + Entity Merge Worker (1 instance)
+  # Enriches entities with Wikidata QIDs and consolidates duplicates
   worker-wikidata:
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: herenews-worker-wikidata
-    environment:
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
-      POSTGRES_DB: herenews
-      POSTGRES_USER: herenews_user
-      POSTGRES_PASSWORD: herenews_pass
-      REDIS_URL: redis://redis:6379
-      WORKER_ID: "1"
-    volumes:
-      - ./backend:/app
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    command: python run_wikidata_worker.py
-
-  # Entity Merge Worker (1 instance) - Consolidates duplicate entities by QID
-  worker-entity-merge:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: herenews-worker-entity-merge
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
@@ -264,7 +242,7 @@ services:
         condition: service_healthy
       neo4j:
         condition: service_healthy
-    command: python run_entity_merge_worker.py
+    command: python run_wikidata_worker.py
 
   # Event Worker (1 instance) - Neo4j-based graph scaffold
   worker-event:
