@@ -144,8 +144,10 @@ ENTITY_TYPE_FILTERS = {
 MAX_SUBCLASS_DEPTH = 5
 
 # Minimum confidence threshold for linking
-MIN_CONFIDENCE_THRESHOLD = 0.60  # Moderate threshold for context-aware matching (lowered from 0.65)
-HIGH_AMBIGUITY_THRESHOLD = 0.5   # Flag for review if ambiguity > 0.5
+# Our graph is source of truth, Wikidata is optional enrichment
+# Semantic scoring with rich context (description + mentions) handles disambiguation
+MIN_CONFIDENCE_THRESHOLD = 0.70  # Reasonable threshold with good semantic scoring
+HIGH_AMBIGUITY_THRESHOLD = 0.4   # Flag ambiguous if top candidates are close
 
 
 class WikidataWorker:
@@ -316,23 +318,11 @@ class WikidataWorker:
 
                 return
 
-            # Stage 1: Search Wikidata for candidates (full-text search with location)
-            # If context mentions a location, use full-text search to find entities by description
-            location = self._extract_location_from_context(context) if context else None
-
-            if location:
-                enriched_query = f"{canonical_name} {location}"
-                logger.info(f"🔍 Full-text search with location: '{enriched_query}'")
-                # Use full-text search which searches descriptions, not just labels
-                candidates = await self._search_wikidata(enriched_query, use_fulltext=True)
-
-                # Fallback: If full-text search fails, try entity search (label-based)
-                if not candidates:
-                    logger.info(f"   No results from full-text, trying label search")
-                    candidates = await self._search_wikidata(canonical_name, use_fulltext=False)
-            else:
-                # No location context - use standard entity search (label-based)
-                candidates = await self._search_wikidata(canonical_name, use_fulltext=False)
+            # Stage 1: Search Wikidata using CirrusSearch (full-text)
+            # CirrusSearch finds "Michael Mo Kwan Tai" when searching "Michael Mo"
+            # This is what the Wikidata web interface uses
+            logger.info(f"🔍 Searching: '{canonical_name}'")
+            candidates = await self._search_wikidata_cirrus(canonical_name)
 
             if not candidates:
                 logger.warning(f"⚠️  No Wikidata candidates for '{canonical_name}'")
@@ -394,6 +384,8 @@ class WikidataWorker:
             logger.info(f"✓ {len(typed_candidates)} passed type filtering")
 
             # Stage 4: Score using structural signals + context
+            # NOTE: Semantic scoring with rich context (description + mentions) handles disambiguation
+            # No need for ad-hoc geographic filters - embeddings capture this naturally
             scored_candidates = []
             for idx, candidate in enumerate(typed_candidates, start=1):
                 structural_score = await self._score_entity_structural(
@@ -477,8 +469,8 @@ class WikidataWorker:
                 scored_candidates.sort(key=lambda x: x['posterior'], reverse=True)
                 best_candidate = scored_candidates[0]
 
-                # Decision: Accept if posterior > threshold (e.g., 0.7)
-                # This implements "given context, we should be able to solve it"
+                # Decision: Accept if posterior is confident
+                # Semantic scoring with context should naturally boost correct matches
                 POSTERIOR_THRESHOLD = 0.70
 
                 if best_candidate['posterior'] >= POSTERIOR_THRESHOLD:
@@ -594,173 +586,98 @@ class WikidataWorker:
         except Exception as e:
             logger.error(f"❌ Failed to enrich {canonical_name}: {e}", exc_info=True)
 
-    def _extract_location_from_context(self, context: Dict[str, Any]) -> Optional[str]:
+    async def _search_wikidata_cirrus(self, name: str, limit: int = 15) -> List[Dict]:
         """
-        Extract geographic location from entity context
+        Search Wikidata using CirrusSearch (full-text search).
 
-        Checks:
-        1. Explicit 'location' field in context (from news source config)
-        2. Geographic keywords in description
-        3. Geographic keywords in mentions
+        This is the same search the Wikidata web interface uses.
+        It finds "Michael Mo Kwan Tai" when searching "Michael Mo" because
+        it searches across all entity text, not just labels.
 
-        Returns single location term or None
-        """
-        if not context:
-            return None
-
-        # Check explicit location field first (set by news source)
-        if context.get('location'):
-            return context['location']
-
-        description = context.get('description', '')
-        mentions = context.get('mentions', [])
-
-        # Combine description and mentions for location search
-        text_to_search = description
-        if mentions:
-            text_to_search += ' ' + ' '.join(mentions)
-
-        if not text_to_search:
-            return None
-
-        # Common geographic indicators (places, countries, regions)
-        locations = [
-            'Hong Kong', 'China', 'United States', 'American', 'British', 'Japanese',
-            'Korean', 'German', 'French', 'Canadian', 'Australian', 'Indian',
-            'European', 'Asian', 'African', 'London', 'Tokyo', 'Singapore',
-            'Beijing', 'Shanghai', 'Taiwan', 'Macau'
-        ]
-
-        text_lower = text_to_search.lower()
-        for loc in locations:
-            if loc.lower() in text_lower:
-                return loc
-
-        return None
-
-    async def _search_wikidata(self, name: str, language: str = 'en', use_fulltext: bool = False) -> List[Dict]:
-        """
-        Search Wikidata for entity candidates
-
-        Args:
-            name: Search query
-            language: Language code
-            use_fulltext: If True, use full-text search (searches descriptions, not just labels)
-
-        Returns list of candidates with QID, label, description
+        Returns list of candidates with QID, label, description.
         """
         if not self.session:
-            raise RuntimeError("Session not initialized")
+            return []
+
+        params = {
+            'action': 'query',
+            'list': 'search',
+            'srsearch': name,
+            'srnamespace': 0,  # Main namespace (items)
+            'format': 'json',
+            'srlimit': limit
+        }
 
         try:
-            if use_fulltext:
-                # Full-text search - searches entity descriptions and content
-                # Better for context-enhanced queries like "John Lee Hong Kong"
-                params = {
-                    'action': 'query',
-                    'list': 'search',
-                    'srsearch': name,
-                    'format': 'json',
-                    'srlimit': 10
-                }
+            async with self.session.get(self.WIKIDATA_API, params=params) as resp:
+                if resp.status != 200:
+                    logger.error(f"CirrusSearch error: {resp.status}")
+                    return []
 
-                async with self.session.get(self.WIKIDATA_API, params=params) as resp:
-                    if resp.status != 200:
-                        logger.error(f"Wikidata full-text search error: {resp.status}")
-                        return []
+                data = await resp.json()
+                results = data.get('query', {}).get('search', [])
 
-                    data = await resp.json()
-                    results = data.get('query', {}).get('search', [])
+                if not results:
+                    return []
 
-                    # Extract QIDs and fetch entity details
-                    qids = [r['title'] for r in results if r['title'].startswith('Q')]
+                # Extract QIDs and fetch entity details
+                qids = [r['title'] for r in results if r['title'].startswith('Q')]
 
-                    if not qids:
-                        return []
+                if not qids:
+                    return []
 
-                    # Batch fetch entity details
-                    candidates = []
-                    for qid in qids[:10]:
-                        entity_params = {
-                            'action': 'wbgetentities',
-                            'ids': qid,
-                            'format': 'json',
-                            'languages': language,
-                            'props': 'labels|descriptions'
-                        }
+                # Batch fetch entity details (labels and descriptions)
+                candidates = []
+                for qid in qids:
+                    entity_params = {
+                        'action': 'wbgetentities',
+                        'ids': qid,
+                        'format': 'json',
+                        'languages': 'en',
+                        'props': 'labels|descriptions'
+                    }
 
-                        async with self.session.get(self.WIKIDATA_API, params=entity_params) as entity_resp:
-                            if entity_resp.status == 200:
-                                entity_data = await entity_resp.json()
-                                if 'entities' in entity_data and qid in entity_data['entities']:
-                                    entity = entity_data['entities'][qid]
-                                    label = entity.get('labels', {}).get(language, {}).get('value', '')
-                                    description = entity.get('descriptions', {}).get(language, {}).get('value', '')
+                    async with self.session.get(self.WIKIDATA_API, params=entity_params) as entity_resp:
+                        if entity_resp.status == 200:
+                            entity_data = await entity_resp.json()
+                            if 'entities' in entity_data and qid in entity_data['entities']:
+                                entity = entity_data['entities'][qid]
+                                label = entity.get('labels', {}).get('en', {}).get('value', '')
+                                description = entity.get('descriptions', {}).get('en', {}).get('value', '')
 
-                                    # Quality check: skip meta entities
-                                    generic_terms = [
-                                        'wikimedia', 'disambiguation', 'category',
-                                        'template', 'list of', 'wikipedia', 'scientific article'
-                                    ]
-                                    if description and not any(term in description.lower() for term in generic_terms):
-                                        candidates.append({
-                                            'qid': qid,
-                                            'label': label or qid,
-                                            'description': description
-                                        })
+                                # Skip meta entities
+                                generic_terms = [
+                                    'wikimedia', 'disambiguation', 'category',
+                                    'template', 'list of', 'wikipedia', 'scientific article'
+                                ]
+                                if description and any(term in description.lower() for term in generic_terms):
+                                    continue
 
-                    return candidates
+                                candidates.append({
+                                    'qid': qid,
+                                    'label': label or qid,
+                                    'description': description or ''
+                                })
 
-            else:
-                # Entity search - searches only labels/aliases
-                params = {
-                    'action': 'wbsearchentities',
-                    'format': 'json',
-                    'language': language,
-                    'search': name,
-                    'limit': 10,
-                    'type': 'item'
-                }
-
-                async with self.session.get(self.WIKIDATA_API, params=params) as resp:
-                    if resp.status != 200:
-                        logger.error(f"Wikidata API error: {resp.status}")
-                        return []
-
-                    data = await resp.json()
-                    results = data.get('search', [])
-
-                    candidates = []
-                    for result in results:
-                        # Quality check: skip meta entities
-                        description = result.get('description', '')
-                        generic_terms = [
-                            'wikimedia', 'disambiguation', 'category',
-                            'template', 'list of', 'wikipedia'
-                        ]
-                        if any(term in description.lower() for term in generic_terms):
-                            continue
-
-                        candidates.append({
-                            'qid': result['id'],
-                            'label': result.get('label', ''),
-                            'description': description
-                        })
-
-                    return candidates
+                logger.info(f"   CirrusSearch found {len(candidates)} candidates")
+                return candidates
 
         except Exception as e:
-            logger.error(f"Wikidata search error: {e}")
+            logger.error(f"CirrusSearch error: {e}")
             return []
 
     async def _filter_by_label_match(
         self, candidates: List[Dict], canonical_name: str, entity_type: str = None
     ) -> List[Dict]:
         """
-        Filter candidates by label similarity
+        Filter candidates by label similarity.
 
-        For PERSON entities, also checks Wikidata aliases if label doesn't match
-        (fixes issue where "John Lee" wouldn't match "John Lee Ka-chiu")
+        Uses exact match and fuzzy matching only - NO substring matching.
+        Substring loses semantic value ("Michael Mo" in "Michael Moorcock" is meaningless).
+
+        For PERSON entities:
+        - Uses token_set_ratio (handles extra name parts: "Michael Mo" matches "Michael Mo Kwan Tai")
+        - Also checks Wikidata aliases if label didn't match
         """
         filtered = []
         canonical_lower = canonical_name.lower().strip()
@@ -774,12 +691,20 @@ class WikidataWorker:
                 filtered.append(candidate)
                 continue
 
-            # Substring match
-            if canonical_lower in label or label in canonical_lower:
-                filtered.append(candidate)
-                continue
+            # For PERSON entities, use token_set_ratio which handles:
+            # - Extra name parts: "Michael Mo" matches "Michael Mo Kwan Tai" (100%)
+            # - Reordered tokens: "Mo Michael" matches "Michael Mo" (100%)
+            # This is semantically meaningful for names (unlike substring matching)
+            if entity_type == 'PERSON':
+                # token_set_ratio: treats strings as sets of tokens
+                # "Michael Mo" vs "Michael Mo Kwan Tai" → 100% (all query tokens present)
+                token_score = fuzz.token_set_ratio(canonical_lower, label)
+                if token_score >= 90:
+                    logger.debug(f"      ✅ Token set match: '{label}' score={token_score}")
+                    filtered.append(candidate)
+                    continue
 
-            # Fuzzy match (85% threshold)
+            # Standard fuzzy match (85% threshold) - for non-PERSON or stricter matching
             if fuzz.ratio(canonical_lower, label) >= 85:
                 filtered.append(candidate)
                 continue
@@ -794,10 +719,10 @@ class WikidataWorker:
                     for lang, aliases in aliases_dict.items():
                         for alias in aliases:
                             alias_lower = alias.lower().strip()
-                            if (alias_lower == canonical_lower or
-                                canonical_lower in alias_lower or
-                                alias_lower in canonical_lower):
-                                logger.debug(f"      ✅ Alias match: '{alias}' ({lang}) for {qid}")
+                            # Use token_set_ratio for alias matching too
+                            alias_score = fuzz.token_set_ratio(canonical_lower, alias_lower)
+                            if alias_score >= 90:
+                                logger.debug(f"      ✅ Alias token match: '{alias}' ({lang}) for {qid}, score={alias_score}")
                                 filtered.append(candidate)
                                 matched = True
                                 break
@@ -1050,33 +975,44 @@ class WikidataWorker:
         """
         Score Wikidata entity using embedding-based semantic similarity.
 
-        Compares entity description embedding with Wikidata description embedding.
-        No hardcoded patterns - purely data-driven semantic matching.
+        Combines:
+        1. Entity description (profile_summary) vs Wikidata description
+        2. Claim mentions context vs Wikidata description
+
+        This leverages our rich semantic analysis from claims to disambiguate.
 
         Returns:
             float: Similarity score (0 to 1, higher = better match)
         """
         entity_description = context.get('description', '')
+        mentions = context.get('mentions', [])
         wikidata_desc = entity_data.get('description', '')
 
-        if not entity_description or not wikidata_desc:
+        # Build rich context from description + mentions
+        full_context = entity_description
+        if mentions:
+            # Add claim mentions for richer context
+            mentions_text = ' '.join(mentions[:3])  # Use top 3 mentions
+            full_context = f"{entity_description} Context: {mentions_text}"
+
+        if not full_context.strip() or not wikidata_desc:
             logger.debug(f"      No description for comparison")
             return 0.5  # Neutral if no descriptions
 
-        # Get embeddings for both descriptions
-        entity_emb = await self._get_embedding(entity_description)
+        # Get embeddings
+        context_emb = await self._get_embedding(full_context)
         wiki_emb = await self._get_embedding(wikidata_desc)
 
-        if not entity_emb or not wiki_emb:
+        if not context_emb or not wiki_emb:
             logger.debug(f"      Failed to get embeddings")
             return 0.5  # Neutral if embedding failed
 
         # Calculate cosine similarity
-        similarity = self._cosine_similarity(entity_emb, wiki_emb)
+        similarity = self._cosine_similarity(context_emb, wiki_emb)
 
         logger.info(
             f"      Similarity: {similarity:.3f} | "
-            f"entity='{entity_description[:35]}...' vs wiki='{wikidata_desc[:35]}...'"
+            f"context='{full_context[:50]}...' vs wiki='{wikidata_desc[:35]}...'"
         )
 
         return similarity

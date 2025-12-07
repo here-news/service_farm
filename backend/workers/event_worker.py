@@ -141,9 +141,9 @@ class EventWorker:
             best_event, best_score = candidates[0]
             logger.info(f"🔍 Best candidate: {best_event.canonical_name} (score: {best_score:.2f})")
 
-            # Lower threshold to 0.3 to allow "related but different aspect" articles through
-            # These will be caught by temporal aftermath detection in examine_claims()
-            if best_score > 0.3:
+            # Threshold 0.25 to allow related articles through - borderline cases (e.g. 0.29)
+            # should still be examined rather than creating duplicate root events
+            if best_score > 0.25:
                 # Potential match - examine claims to determine relationship
                 logger.info(f"🎯 Examining claims against existing event...")
                 result = await self.event_service.examine_claims(best_event, claims)
@@ -158,7 +158,7 @@ class EventWorker:
                         logger.info(f"   🌿 Created sub-event: {sub_event.canonical_name}")
             else:
                 # Very low match score - likely unrelated
-                logger.info(f"⚠️  Match score {best_score:.2f} < 0.3, creating new root event")
+                logger.info(f"⚠️  Match score {best_score:.2f} < 0.25, creating new root event")
                 event = await self.event_service.create_root_event(claims)
                 logger.info(f"✨ Created root event: {event.canonical_name}")
         else:

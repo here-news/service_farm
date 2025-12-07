@@ -59,9 +59,11 @@ class EventService:
         self.SUB_EVENT_THRESHOLD = 0.3       # Min overlap for yielding sub-event
 
         # Multi-signal scoring thresholds (issue #3)
-        self.ATTACH_THRESHOLD = 0.7          # High confidence → ATTACH
-        self.YIELD_THRESHOLD = 0.4           # Medium confidence → YIELD for sub-event
-        self.DELEGATE_THRESHOLD = 0.25       # Low confidence → try siblings
+        # EXPERIMENT: Attach more, yield less - let clustering happen later
+        self.ATTACH_THRESHOLD = 0.35         # Lower bar → attach more claims directly
+        self.YIELD_THRESHOLD = 0.65          # Higher bar → fewer sub-events during ingestion
+        self.DELEGATE_THRESHOLD = 0.20       # Low confidence → try siblings
+        self.MIN_CLAIMS_FOR_SUBEVENT = 3     # Don't create sub-event with fewer claims
         # Below DELEGATE_THRESHOLD → REJECT
 
         # Signal weights for ensemble scoring
@@ -151,28 +153,39 @@ class EventService:
 
         # Second pass: cluster and create sub-events for yielded claims
         if yielded_claims:
-            if len(yielded_claims) == 1:
-                # Single claim → create simple sub-event
-                sub_event = await self._create_sub_event(event, yielded_claims)
-                sub_events_created.append(sub_event)
+            if len(yielded_claims) < self.MIN_CLAIMS_FOR_SUBEVENT:
+                # Too few claims for sub-event → just attach to parent event
+                logger.info(f"📎 Attaching {len(yielded_claims)} yielded claims to parent (below min {self.MIN_CLAIMS_FOR_SUBEVENT})")
+                for claim in yielded_claims:
+                    await self.event_repo.link_claim(event, claim)
                 claims_added.extend(yielded_claims)
             else:
                 # Multiple claims → cluster by theme, create intermediate events
                 logger.info(f"🧩 Clustering {len(yielded_claims)} yielded claims by theme...")
                 clusters = await self._cluster_claims_by_theme(event, yielded_claims)
 
+                leftover_claims = []
                 for cluster in clusters:
+                    if len(cluster['claims']) < self.MIN_CLAIMS_FOR_SUBEVENT:
+                        # Too few claims in cluster → attach to parent instead
+                        leftover_claims.extend(cluster['claims'])
+                        continue
+
                     # Create intermediate sub-event for this cluster
                     sub_event = await self._create_sub_event(event, cluster['claims'])
-                    sub_events_created.append(sub_event)
+                    if sub_event:
+                        sub_events_created.append(sub_event)
+                        claims_added.extend(cluster['claims'])
+                    else:
+                        # Sub-event creation refused, attach to parent
+                        leftover_claims.extend(cluster['claims'])
 
-                    # Recursively examine claims within the cluster
-                    if len(cluster['claims']) > 1:
-                        result = await self.examine_claims(sub_event, cluster['claims'])
-                        # Nested sub-events are already tracked in result
-                        sub_events_created.extend(result.sub_events_created)
-
-                    claims_added.extend(cluster['claims'])
+                # Attach leftover claims directly to parent event
+                if leftover_claims:
+                    logger.info(f"📎 Attaching {len(leftover_claims)} leftover claims to parent (clusters too small)")
+                    for claim in leftover_claims:
+                        await self.event_repo.link_claim(event, claim)
+                    claims_added.extend(leftover_claims)
 
         # Update event metrics if claims were added
         if claims_added:
@@ -420,7 +433,7 @@ class EventService:
         logger.info(f"✨ Created root event: {canonical_name} ({created_event.id})")
         return created_event
 
-    async def _create_sub_event(self, parent: Event, claims: List[Claim]) -> Event:
+    async def _create_sub_event(self, parent: Event, claims: List[Claim]) -> Optional[Event]:
         """
         Create sub-event under parent
 
@@ -429,9 +442,48 @@ class EventService:
             claims: Claims for the sub-event
 
         Returns:
-            Created sub-event
+            Created sub-event, or None if too few claims
         """
-        logger.info(f"🌿 Creating sub-event under {parent.canonical_name}")
+        # Guard: Don't create sub-events with too few claims
+        if len(claims) < self.MIN_CLAIMS_FOR_SUBEVENT:
+            logger.warning(f"⚠️ Refusing to create sub-event with only {len(claims)} claims (min={self.MIN_CLAIMS_FOR_SUBEVENT})")
+            return None
+
+        # Check for similar existing sub-events to merge into
+        existing_sub_events = await self.event_repo.get_sub_events(parent.id)
+        if existing_sub_events:
+            # Generate embedding for new claims to compare
+            claims_text = " ".join([c.text for c in claims[:5]])  # Sample for embedding
+            new_embedding = await self._generate_event_embedding(claims_text)
+
+            if new_embedding:
+                best_match = None
+                best_similarity = 0.0
+                MERGE_THRESHOLD = 0.70  # Lowered from 0.75
+
+                logger.info(f"🔍 Checking {len(existing_sub_events)} existing sub-events for merge...")
+                for sub_event in existing_sub_events:
+                    if sub_event.embedding:
+                        similarity = self._cosine_similarity(new_embedding, sub_event.embedding)
+                        logger.info(f"  📐 '{sub_event.canonical_name}': {similarity:.3f}")
+                        if similarity > best_similarity:
+                            best_similarity = similarity
+                            best_match = sub_event
+                    else:
+                        logger.debug(f"  ⚠️ No embedding for sub-event '{sub_event.canonical_name}'")
+
+                if best_match and best_similarity >= MERGE_THRESHOLD:
+                    logger.info(f"🔀 Merging {len(claims)} claims into existing sub-event '{best_match.canonical_name}' (similarity={best_similarity:.2f})")
+                    # Add claims to existing sub-event instead of creating new one
+                    for claim in claims:
+                        await self.event_repo.link_claim(best_match, claim, relationship_type="SUPPORTS")
+                    # Update metrics
+                    existing_claims = await self.event_repo.get_event_claims(best_match.id)
+                    await self._update_event_metrics(best_match, existing_claims)
+                    await self.event_repo.update(best_match)
+                    return best_match  # Return existing sub-event
+
+        logger.info(f"🌿 Creating sub-event under {parent.canonical_name} with {len(claims)} claims")
 
         # Generate sub-event name
         canonical_name = await self._generate_event_name(claims, parent=parent)
@@ -521,6 +573,19 @@ class EventService:
         if norm1 == 0 or norm2 == 0:
             return 0.0
 
+        return float(dot_product / (norm1 * norm2))
+
+    def _cosine_similarity(self, vec1: List[float], vec2: List[float]) -> float:
+        """Calculate cosine similarity between two vectors"""
+        if not vec1 or not vec2:
+            return 0.0
+        arr1 = np.array(vec1)
+        arr2 = np.array(vec2)
+        dot_product = np.dot(arr1, arr2)
+        norm1 = np.linalg.norm(arr1)
+        norm2 = np.linalg.norm(arr2)
+        if norm1 == 0 or norm2 == 0:
+            return 0.0
         return float(dot_product / (norm1 * norm2))
 
     async def _generate_claim_embeddings(self, claims: List[Claim]) -> None:

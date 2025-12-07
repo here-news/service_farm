@@ -471,22 +471,36 @@ class SemanticWorker:
         entity_type: str, language: str
     ) -> uuid.UUID:
         """
-        Upsert entity using EntityRepository (dual-write to PostgreSQL + Neo4j)
+        Upsert entity with local dedup using fuzzy matching.
 
-        Uses UNIQUE constraint on (canonical_name, entity_type)
+        Strategy:
+        1. Try exact match first (fast path)
+        2. If no exact match, search for similar entities using fuzzy matching
+        3. Only create new entity if no similar match found
+
+        This prevents duplicates like "Hong Kong Labor Department" vs
+        "Hong Kong labor department" from being created.
         """
-        # Use entity_type as-is (PERSON, ORGANIZATION, LOCATION)
-        # No type mapping needed - keep consistent types across system
-
-        # Try to find existing entity
+        # 1. Try exact match first (fast path)
         existing = await self.entity_repo.get_by_canonical_name(canonical_name, entity_type)
-
         if existing:
-            # Update mention count
             await self.entity_repo.increment_mention_count(existing.id)
             return existing.id
 
-        # Create new entity using domain model
+        # 2. Try fuzzy matching to find similar existing entity
+        similar = await self.entity_repo.find_similar_entity(
+            canonical_name=canonical_name,
+            entity_type=entity_type,
+            threshold=85.0  # 85% similarity threshold
+        )
+
+        if similar:
+            similar_entity, similarity_score = similar
+            logger.info(f"🔗 Dedup: '{canonical_name}' → '{similar_entity.canonical_name}' ({similarity_score:.0f}%)")
+            await self.entity_repo.increment_mention_count(similar_entity.id)
+            return similar_entity.id
+
+        # 3. No match found - create new entity
         entity = Entity(
             id=uuid.uuid4(),
             canonical_name=canonical_name,
@@ -500,8 +514,8 @@ class SemanticWorker:
             }
         )
 
-        # Repository handles dual-write (PostgreSQL + Neo4j)
         created_entity = await self.entity_repo.create(entity)
+        logger.debug(f"✨ Created new entity: {canonical_name} ({entity_type})")
         return created_entity.id
 
 

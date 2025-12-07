@@ -233,16 +233,16 @@ class EventRepository:
         self,
         entity_ids: Set[uuid.UUID],
         reference_time: datetime,
-        time_window_days: int = 7,
+        time_window_days: int = 14,
         page_embedding: Optional[List[float]] = None
     ) -> List[Tuple[Event, float]]:
         """
         Find candidate events that might match new information
 
-        Scoring:
-        - Entity overlap: 40%
-        - Time proximity: 30%
-        - Semantic similarity: 30%
+        Scoring (emphasizing semantic for reliability):
+        - Entity overlap: 25% (entities may have duplicates)
+        - Time proximity: 15% (time extraction can be unreliable)
+        - Semantic similarity: 60% (embedding captures thematic similarity well)
 
         Args:
             entity_ids: Entity IDs to match against
@@ -316,15 +316,16 @@ class EventRepository:
                 if norm1 > 0 and norm2 > 0:
                     semantic_score = float(dot_product / (norm1 * norm2))
 
-            # Combined score
+            # Combined score - emphasize semantic similarity since time extraction can be unreliable
+            # and entities may have duplicates. Semantic embedding captures thematic similarity well.
             match_score = (
-                0.4 * entity_overlap_score +
-                0.3 * time_score +
-                0.3 * semantic_score
+                0.25 * entity_overlap_score +
+                0.15 * time_score +
+                0.60 * semantic_score
             )
 
             logger.debug(
-                f"Candidate: {event.canonical_name} - "
+                f"📊 Candidate: {event.canonical_name} - "
                 f"entity={entity_overlap_score:.2f}, time={time_score:.2f}, "
                 f"semantic={semantic_score:.2f}, total={match_score:.2f}"
             )

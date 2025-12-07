@@ -7,11 +7,19 @@ Storage strategy:
 
 Entities are fundamentally graph nodes, so Neo4j is the source of truth.
 PostgreSQL only stores large text fields (descriptions) from enrichment workers.
+
+Local Dedup Strategy:
+- Before creating new entity, search graph for similar entities
+- Use normalized string matching (case-insensitive, strip punctuation)
+- Use fuzzy matching (>90% similarity) for near-duplicates
+- This prevents duplicates at creation time, before Wikidata enrichment
 """
 import uuid
 import logging
-from typing import Optional, List
+import re
+from typing import Optional, List, Tuple
 import asyncpg
+from rapidfuzz import fuzz
 
 from models.entity import Entity
 from services.neo4j_service import Neo4jService
@@ -212,6 +220,138 @@ class EntityRepository:
             metadata={}
         )
 
+    @staticmethod
+    def _normalize_name(name: str) -> str:
+        """
+        Normalize entity name for matching:
+        - lowercase
+        - remove possessives ('s, 's)
+        - remove extra whitespace
+        - strip punctuation except hyphens
+        """
+        normalized = name.lower()
+        # Remove possessives
+        normalized = re.sub(r"['']s\b", "", normalized)
+        # Remove punctuation except hyphens (keep "Hong Kong" structure)
+        normalized = re.sub(r"[^\w\s\-]", "", normalized)
+        # Collapse whitespace
+        normalized = re.sub(r"\s+", " ", normalized).strip()
+        return normalized
+
+    async def find_similar_entity(
+        self, canonical_name: str, entity_type: str, threshold: float = 85.0
+    ) -> Optional[Tuple[Entity, float]]:
+        """
+        Find most similar existing entity in graph using fuzzy matching.
+
+        Strategy:
+        1. Normalize input name
+        2. Fetch all entities of same type from Neo4j (including aliases, wikidata_label)
+        3. Match against canonical_name, wikidata_label, AND aliases
+        4. Use token_set_ratio for PERSON (handles extra name parts)
+        5. Return best match if above threshold
+
+        This enables local matching after Wikidata enrichment:
+        - "Michael Mo Kwan Tai" matches entity with canonical_name "Michael Mo"
+          because wikidata_label "Michael Mo Kwan Tai" is stored and checked
+
+        Args:
+            canonical_name: Name to match
+            entity_type: Entity type (PERSON, ORGANIZATION, LOCATION)
+            threshold: Minimum similarity score (0-100), default 85
+
+        Returns:
+            Tuple of (matching Entity, similarity score) or None if no match
+        """
+        normalized_input = self._normalize_name(canonical_name)
+
+        # Fetch all entities of this type from Neo4j, including enrichment data
+        # TODO: For large graphs, consider using Neo4j full-text search index
+        results = await self.neo4j._execute_read("""
+            MATCH (e:Entity {entity_type: $entity_type})
+            RETURN e.id as id,
+                   e.canonical_name as canonical_name,
+                   e.entity_type as entity_type,
+                   e.mention_count as mention_count,
+                   e.wikidata_qid as wikidata_qid,
+                   e.wikidata_label as wikidata_label,
+                   e.aliases as aliases,
+                   e.status as status
+            LIMIT 1000
+        """, {'entity_type': entity_type})
+
+        if not results:
+            return None
+
+        best_match = None
+        best_score = 0.0
+        best_match_source = None  # Track what matched (canonical, wikidata_label, alias)
+
+        for row in results:
+            # Collect all names to check: canonical_name, wikidata_label, aliases
+            names_to_check = [row['canonical_name']]
+
+            if row.get('wikidata_label'):
+                names_to_check.append(row['wikidata_label'])
+
+            if row.get('aliases'):
+                names_to_check.extend(row['aliases'])
+
+            for name_variant in names_to_check:
+                if not name_variant:
+                    continue
+
+                normalized_existing = self._normalize_name(name_variant)
+
+                # Exact normalized match is 100%
+                if normalized_input == normalized_existing:
+                    entity = Entity(
+                        id=uuid.UUID(row['id']),
+                        canonical_name=row['canonical_name'],
+                        entity_type=row['entity_type'],
+                        mention_count=row.get('mention_count', 0),
+                        wikidata_qid=row.get('wikidata_qid'),
+                        status=row.get('status', 'pending'),
+                        aliases=row.get('aliases', []),
+                        metadata={}
+                    )
+                    match_source = "canonical" if name_variant == row['canonical_name'] else (
+                        "wikidata_label" if name_variant == row.get('wikidata_label') else "alias"
+                    )
+                    logger.debug(f"🔗 Exact match via {match_source}: '{canonical_name}' → '{row['canonical_name']}'")
+                    return (entity, 100.0)
+
+                # For PERSON entities, use token_set_ratio (handles extra name parts)
+                # "Michael Mo" matches "Michael Mo Kwan Tai" (100% - all tokens present)
+                if entity_type == 'PERSON':
+                    score = fuzz.token_set_ratio(normalized_input, normalized_existing)
+                else:
+                    # For non-PERSON, use token_sort_ratio (word order independence)
+                    score = fuzz.token_sort_ratio(normalized_input, normalized_existing)
+
+                if score > best_score:
+                    best_score = score
+                    best_match = row
+                    best_match_source = "canonical" if name_variant == row['canonical_name'] else (
+                        "wikidata_label" if name_variant == row.get('wikidata_label') else "alias"
+                    )
+
+        if best_match and best_score >= threshold:
+            entity = Entity(
+                id=uuid.UUID(best_match['id']),
+                canonical_name=best_match['canonical_name'],
+                entity_type=best_match['entity_type'],
+                mention_count=best_match.get('mention_count', 0),
+                wikidata_qid=best_match.get('wikidata_qid'),
+                status=best_match.get('status', 'pending'),
+                aliases=best_match.get('aliases', []),
+                metadata={}
+            )
+            logger.info(f"🔗 Fuzzy match via {best_match_source} ({best_score:.0f}%): '{canonical_name}' → '{entity.canonical_name}'")
+            return (entity, best_score)
+
+        return None
+
     async def increment_mention_count(self, entity_id: uuid.UUID) -> int:
         """
         Increment mention count (handled automatically by Neo4j MERGE)
@@ -285,3 +425,144 @@ class EntityRepository:
             profile_summary=profile_summary
         )
         logger.debug(f"📝 Updated profile for entity {entity_id}")
+
+    async def find_and_merge_duplicates(self) -> dict:
+        """
+        Find and merge duplicate entities based on normalized names.
+
+        Strategy:
+        1. Fetch all entities from Neo4j
+        2. Group by (normalized_name, entity_type)
+        3. For each group with >1 entities:
+           - Keep first entity as canonical
+           - Transfer all relationships from duplicates to canonical
+           - Delete duplicate entities
+
+        Returns:
+            Dict with merge statistics
+        """
+        stats = {'groups_found': 0, 'entities_merged': 0, 'relationships_transferred': 0}
+
+        # Fetch all entities
+        results = await self.neo4j._execute_read("""
+            MATCH (e:Entity)
+            RETURN e.id as id,
+                   e.canonical_name as canonical_name,
+                   e.entity_type as entity_type,
+                   e.mention_count as mention_count
+            ORDER BY e.mention_count DESC
+        """, {})
+
+        if not results:
+            return stats
+
+        # Group by normalized name + type
+        from collections import defaultdict
+        groups = defaultdict(list)
+
+        for row in results:
+            normalized = self._normalize_name(row['canonical_name'])
+            key = (normalized, row['entity_type'])
+            groups[key].append(row)
+
+        # Process groups with duplicates
+        for key, entities in groups.items():
+            if len(entities) <= 1:
+                continue
+
+            stats['groups_found'] += 1
+
+            # Keep first entity (highest mention_count due to ORDER BY)
+            canonical = entities[0]
+            duplicates = entities[1:]
+
+            logger.info(f"🔄 Merging {len(duplicates)} duplicates → '{canonical['canonical_name']}'")
+
+            for dup in duplicates:
+                # Transfer all relationships from duplicate to canonical
+                # This includes: INVOLVES (events), MENTIONED_IN (claims), etc.
+                transfer_result = await self.neo4j._execute_write("""
+                    MATCH (dup:Entity {id: $dup_id})
+                    MATCH (canonical:Entity {id: $canonical_id})
+
+                    // Transfer incoming relationships
+                    OPTIONAL MATCH (dup)<-[r_in]->(other)
+                    WHERE NOT other:Entity OR other.id <> $canonical_id
+                    WITH dup, canonical, collect({rel: r_in, other: other}) as in_rels
+
+                    // For each relationship, create equivalent to canonical
+                    UNWIND in_rels as rel_data
+                    WITH dup, canonical, rel_data
+                    WHERE rel_data.rel IS NOT NULL
+                    CALL apoc.do.when(
+                        rel_data.rel IS NOT NULL,
+                        'MERGE (canonical)<-[new_rel:' + type(rel_data.rel) + ']-(other)
+                         SET new_rel = properties(old_rel)
+                         RETURN 1 as count',
+                        'RETURN 0 as count',
+                        {canonical: canonical, other: rel_data.other, old_rel: rel_data.rel}
+                    ) YIELD value
+
+                    WITH dup, canonical, count(value) as transferred
+
+                    // Delete duplicate entity and its relationships
+                    DETACH DELETE dup
+
+                    RETURN transferred
+                """, {
+                    'dup_id': dup['id'],
+                    'canonical_id': canonical['id']
+                })
+
+                stats['entities_merged'] += 1
+                logger.info(f"   ✓ Merged '{dup['canonical_name']}' → '{canonical['canonical_name']}'")
+
+        return stats
+
+    async def find_duplicates_preview(self) -> List[dict]:
+        """
+        Preview duplicate entities without merging.
+
+        Returns:
+            List of duplicate groups with entity details
+        """
+        results = await self.neo4j._execute_read("""
+            MATCH (e:Entity)
+            RETURN e.id as id,
+                   e.canonical_name as canonical_name,
+                   e.entity_type as entity_type,
+                   e.mention_count as mention_count,
+                   e.wikidata_qid as wikidata_qid
+            ORDER BY e.canonical_name
+        """, {})
+
+        if not results:
+            return []
+
+        # Group by normalized name + type
+        from collections import defaultdict
+        groups = defaultdict(list)
+
+        for row in results:
+            normalized = self._normalize_name(row['canonical_name'])
+            key = (normalized, row['entity_type'])
+            groups[key].append({
+                'id': row['id'],
+                'canonical_name': row['canonical_name'],
+                'entity_type': row['entity_type'],
+                'mention_count': row.get('mention_count', 0),
+                'wikidata_qid': row.get('wikidata_qid')
+            })
+
+        # Return only groups with duplicates
+        duplicates = []
+        for key, entities in groups.items():
+            if len(entities) > 1:
+                duplicates.append({
+                    'normalized_name': key[0],
+                    'entity_type': key[1],
+                    'count': len(entities),
+                    'entities': entities
+                })
+
+        return sorted(duplicates, key=lambda x: -x['count'])
