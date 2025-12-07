@@ -77,8 +77,53 @@ class ClaimRepository:
             claim.created_at = row['created_at']
             claim.metadata = metadata  # Update claim with entity references
 
+        # Create Claim node in Neo4j and link to entities
+        if entity_ids:
+            await self._create_claim_graph(claim, entity_ids)
+
         logger.debug(f"📝 Created claim: {claim.text[:50]}... (entities: {len(entity_ids or [])})")
         return claim
+
+    async def _create_claim_graph(self, claim: Claim, entity_ids: List[uuid.UUID]) -> None:
+        """
+        Create Claim node in Neo4j and link to entities via MENTIONS relationship.
+
+        This enables graph queries like:
+        - Find all claims mentioning an entity
+        - Find entities co-mentioned in claims
+        - Build event-entity relationships through claims
+        """
+        # Create Claim node
+        await self.neo4j._execute_write("""
+            MERGE (c:Claim {id: $claim_id})
+            ON CREATE SET
+                c.text = $text,
+                c.event_time = $event_time,
+                c.confidence = $confidence,
+                c.created_at = datetime()
+            ON MATCH SET
+                c.text = $text,
+                c.confidence = $confidence
+        """, {
+            'claim_id': str(claim.id),
+            'text': claim.text[:500],  # Truncate for graph storage
+            'event_time': claim.event_time.isoformat() if claim.event_time else None,
+            'confidence': claim.confidence
+        })
+
+        # Create MENTIONS relationships to entities
+        for entity_id in entity_ids:
+            await self.neo4j._execute_write("""
+                MATCH (c:Claim {id: $claim_id})
+                MATCH (e:Entity {id: $entity_id})
+                MERGE (c)-[r:MENTIONS]->(e)
+                ON CREATE SET r.created_at = datetime()
+            """, {
+                'claim_id': str(claim.id),
+                'entity_id': str(entity_id)
+            })
+
+        logger.debug(f"🔗 Created Claim node with {len(entity_ids)} MENTIONS relationships")
 
     async def hydrate_entities(self, claim: Claim) -> Claim:
         """
