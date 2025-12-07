@@ -389,6 +389,20 @@ class EventRepository:
             relationship_type=relationship_type
         )
 
+        # Also link entities from this claim to the event via INVOLVES
+        # This ensures all entities mentioned in claims are linked to the event
+        if hasattr(claim, 'entity_ids') and claim.entity_ids:
+            for entity_id in claim.entity_ids:
+                await self.neo4j._execute_write("""
+                    MATCH (e:Event {id: $event_id})
+                    MATCH (entity:Entity {id: $entity_id})
+                    MERGE (e)-[r:INVOLVES]->(entity)
+                    ON CREATE SET r.created_at = datetime()
+                """, {
+                    'event_id': str(event.id),
+                    'entity_id': str(entity_id)
+                })
+
         logger.debug(f"🔗 Linked claim {claim.id} to event {event.canonical_name}")
 
     async def get_event_claims(self, event_id: uuid.UUID) -> List:
