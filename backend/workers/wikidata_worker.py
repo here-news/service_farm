@@ -279,6 +279,11 @@ class WikidataWorker:
         entity_type = job['entity_type']
         context = job.get('context', {})
 
+        # Skip generic/unenrichable entity names
+        if self._is_generic_entity(canonical_name, entity_type):
+            logger.info(f"⏭️  Skipping generic entity: '{canonical_name}'")
+            return
+
         logger.info(f"🔍 Processing: {canonical_name} ({entity_type})")
 
         try:
@@ -585,6 +590,42 @@ class WikidataWorker:
 
         except Exception as e:
             logger.error(f"❌ Failed to enrich {canonical_name}: {e}", exc_info=True)
+
+    def _is_generic_entity(self, canonical_name: str, entity_type: str) -> bool:
+        """
+        Check if entity name is too generic to enrich via Wikidata.
+
+        Generic entities will match random Wikidata items and create false positives.
+        Examples: "Block 6", "the government", "police", "officials"
+        """
+        name_lower = canonical_name.lower().strip()
+        words = name_lower.split()
+
+        # Too short (less than 2 characters or single short word)
+        if len(name_lower) < 3:
+            return True
+
+        # Single word that's too generic
+        generic_single_words = {
+            'police', 'government', 'officials', 'authorities', 'residents',
+            'firefighters', 'investigators', 'victims', 'witnesses', 'sources',
+            'media', 'press', 'public', 'people', 'workers', 'staff'
+        }
+        if len(words) == 1 and name_lower in generic_single_words:
+            return True
+
+        # Building/location components without proper names
+        # "Block 6", "Floor 3", "Room 101" - these are too generic
+        generic_location_patterns = ['block', 'floor', 'room', 'unit', 'level', 'section']
+        if entity_type == 'LOCATION' and len(words) == 2:
+            if words[0] in generic_location_patterns and words[1].isdigit():
+                return True
+
+        # "the X" patterns that are too generic
+        if words[0] == 'the' and len(words) <= 2:
+            return True
+
+        return False
 
     async def _search_wikidata_cirrus(self, name: str, limit: int = 15) -> List[Dict]:
         """
