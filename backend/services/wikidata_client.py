@@ -140,14 +140,9 @@ class WikidataClient:
             return None
 
         try:
-            # Search Wikidata WITH context for better disambiguation
-            # e.g., "John Lee Hong Kong" finds the right John Lee first
-            search_query = f"{name} {context}".strip() if context else name
-            candidates = await self._search_wikidata(search_query)
-
-            if not candidates:
-                # Fallback: try name only
-                candidates = await self._search_wikidata(name)
+            # Search Wikidata with NAME ONLY
+            # Context is used for scoring, not searching
+            candidates = await self._search_wikidata(name)
 
             if not candidates:
                 # Try with aliases

@@ -1118,9 +1118,12 @@ Your task:
 
 For each MENTION:
 - Assign a unique ID (m1, m2, m3...)
-- Capture the surface form (exact text)
+- Use the CANONICAL/OFFICIAL name (what you'd find in Wikipedia/Wikidata), not just the surface text
+  • For locations: include type suffix if commonly used (District, Province, City)
+  • For organizations: use full official name including country/region prefix
+  • For people: use full name with all name parts
 - Identify the type hint (PERSON, ORGANIZATION, LOCATION)
-- Extract surrounding context (the sentence/phrase where it appears)
+- Put the original surface text in aliases if different from canonical name
 
 For each CLAIM:
 - Reference mentions by their IDs (not by name strings)
