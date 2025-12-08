@@ -356,10 +356,15 @@ class WikidataClient:
         entity_data = await self._fetch_entity_data(qids)
 
         filtered = []
+        candidates_with_p31 = 0
+
         for cand in candidates:
             qid = cand['qid']
             ed = entity_data.get(qid, {})
             instance_of_qids = ed.get('instance_of_qids', [])
+
+            if instance_of_qids:
+                candidates_with_p31 += 1
 
             # Check if candidate's type matches expected via hierarchy
             if await self._check_type_match(instance_of_qids, expected_types):
@@ -371,9 +376,15 @@ class WikidataClient:
         if filtered:
             return filtered
 
-        # Fallback: return top 3 if no type matches (may be missing P31 data)
-        logger.debug(f"  ⚠️  No type matches, falling back to top 3 candidates")
-        return candidates[:3]
+        # Only fallback if most candidates had missing P31 data
+        # If candidates had P31 but wrong type, reject all (don't match a plant to a person!)
+        if candidates_with_p31 < len(candidates) / 2:
+            logger.debug(f"  ⚠️  No type matches but P31 data missing, falling back to top 3")
+            return candidates[:3]
+
+        # Most candidates had P31 but none matched - no fallback
+        logger.debug(f"  ❌ No type matches (all candidates have wrong P31 types)")
+        return []
 
     async def _check_type_match(self, instance_of_qids: List[str], expected_types: set) -> bool:
         """
