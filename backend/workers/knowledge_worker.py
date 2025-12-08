@@ -189,7 +189,12 @@ class KnowledgeWorker:
                 for mention_id, match in identification.mention_to_entity.items():
                     if not match.is_new and match.wikidata_qid:
                         # Matched entity got a new QID from Wikidata - update it
-                        await self._update_entity_qid(match.entity_id, match.wikidata_qid)
+                        # Also store the wikidata_label (canonical name from Wikidata)
+                        await self._update_entity_qid(
+                            match.entity_id,
+                            match.wikidata_qid,
+                            wikidata_label=match.canonical_name
+                        )
 
                 # =========================================================
                 # STAGE 4: Linking (all UUIDs)
@@ -517,9 +522,14 @@ class KnowledgeWorker:
             'alias': alias
         })
 
-    async def _update_entity_qid(self, entity_id: uuid.UUID, qid: str):
+    async def _update_entity_qid(
+        self,
+        entity_id: uuid.UUID,
+        qid: str,
+        wikidata_label: str = None
+    ):
         """
-        Update entity with Wikidata QID (enrichment during identification).
+        Update entity with Wikidata QID and label (enrichment during identification).
 
         If another entity already has this QID, merge the current entity into it
         (transfer relationships and delete duplicate).
@@ -564,16 +574,19 @@ class KnowledgeWorker:
             })
             logger.info(f"✅ Merged entity {entity_id} → {existing_id}")
         else:
-            # No conflict - just update the QID
+            # No conflict - update QID and wikidata_label
             await self.neo4j._execute_write("""
                 MATCH (e:Entity {id: $entity_id})
                 WHERE e.wikidata_qid IS NULL
-                SET e.wikidata_qid = $qid, e.updated_at = datetime()
+                SET e.wikidata_qid = $qid,
+                    e.wikidata_label = $wikidata_label,
+                    e.updated_at = datetime()
             """, {
                 'entity_id': str(entity_id),
-                'qid': qid
+                'qid': qid,
+                'wikidata_label': wikidata_label
             })
-            logger.info(f"🔗 Updated entity QID: {entity_id} → {qid}")
+            logger.info(f"🔗 Updated entity QID: {entity_id} → {qid} ({wikidata_label})")
 
     async def _verify_integrity(
         self,

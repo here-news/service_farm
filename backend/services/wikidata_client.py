@@ -82,9 +82,14 @@ class WikidataClient:
     """
 
     # Bayesian thresholds (probability-based)
-    POSTERIOR_THRESHOLD = 0.70  # With context - higher bar
+    POSTERIOR_THRESHOLD = 0.70  # With context - higher bar (absolute)
     PRIOR_THRESHOLD = 0.60      # Without context - structural only
     TEMPERATURE = 5.0           # Softmax temperature - higher = flatter priors
+
+    # Relative threshold: accept if best is significantly better than 2nd best
+    # even when absolute threshold isn't met
+    RELATIVE_THRESHOLD = 1.3    # best/second ratio required
+    MIN_POSTERIOR = 0.35        # minimum absolute to consider relative
 
     def __init__(self):
         self.session: Optional[aiohttp.ClientSession] = None
@@ -135,8 +140,14 @@ class WikidataClient:
             return None
 
         try:
-            # Search Wikidata
-            candidates = await self._search_wikidata(name)
+            # Search Wikidata WITH context for better disambiguation
+            # e.g., "John Lee Hong Kong" finds the right John Lee first
+            search_query = f"{name} {context}".strip() if context else name
+            candidates = await self._search_wikidata(search_query)
+
+            if not candidates:
+                # Fallback: try name only
+                candidates = await self._search_wikidata(name)
 
             if not candidates:
                 # Try with aliases
@@ -173,14 +184,20 @@ class WikidataClient:
             return None
 
     async def _search_wikidata(self, name: str) -> List[Dict]:
-        """Search Wikidata API for candidates."""
+        """
+        Search Wikidata using CirrusSearch (full-text search).
+
+        This is the same search the Wikidata web interface uses.
+        More powerful than wbsearchentities - finds partial matches.
+        """
+        # Stage 1: CirrusSearch to find candidate QIDs
         params = {
-            'action': 'wbsearchentities',
-            'search': name,
-            'language': 'en',
+            'action': 'query',
+            'list': 'search',
+            'srsearch': name,
+            'srnamespace': 0,
             'format': 'json',
-            'limit': 10,
-            'type': 'item'
+            'srlimit': 15
         }
 
         try:
@@ -189,23 +206,65 @@ class WikidataClient:
                     return []
 
                 data = await resp.json()
+                results = data.get('query', {}).get('search', [])
 
-                candidates = []
-                for item in data.get('search', []):
-                    candidates.append({
-                        'qid': item['id'],
-                        'label': item.get('label', ''),
-                        'description': item.get('description', ''),
-                        'aliases': item.get('aliases', [])
-                    })
+                if not results:
+                    return []
 
-                return candidates
+                # Extract QIDs
+                qids = [r['title'] for r in results if r['title'].startswith('Q')]
+                if not qids:
+                    return []
+
+                # Stage 2: Fetch labels and descriptions for QIDs
+                return await self._fetch_entity_labels(qids)
 
         except asyncio.TimeoutError:
             logger.warning(f"Wikidata search timeout for: {name}")
             return []
         except Exception as e:
             logger.warning(f"Wikidata API error: {e}")
+            return []
+
+    async def _fetch_entity_labels(self, qids: List[str]) -> List[Dict]:
+        """Fetch labels and descriptions for a list of QIDs."""
+        params = {
+            'action': 'wbgetentities',
+            'ids': '|'.join(qids[:15]),
+            'format': 'json',
+            'props': 'labels|descriptions|aliases',
+            'languages': 'en'
+        }
+
+        try:
+            async with self.session.get(self.api_url, params=params, timeout=10) as resp:
+                if resp.status != 200:
+                    return []
+
+                data = await resp.json()
+                entities = data.get('entities', {})
+
+                candidates = []
+                for qid in qids:
+                    if qid not in entities or 'missing' in entities[qid]:
+                        continue
+
+                    entity = entities[qid]
+                    label = entity.get('labels', {}).get('en', {}).get('value', '')
+                    description = entity.get('descriptions', {}).get('en', {}).get('value', '')
+                    aliases = [a['value'] for a in entity.get('aliases', {}).get('en', [])]
+
+                    candidates.append({
+                        'qid': qid,
+                        'label': label,
+                        'description': description,
+                        'aliases': aliases
+                    })
+
+                return candidates
+
+        except Exception as e:
+            logger.warning(f"Failed to fetch entity labels: {e}")
             return []
 
     async def _fetch_entity_data(self, qids: List[str]) -> Dict[str, Dict]:
@@ -421,6 +480,8 @@ class WikidataClient:
         total_candidates = len(candidates)
 
         # === Stage 1: Compute raw structural scores ===
+        # Focus on NAME MATCH + SEARCH RANK, NOT global popularity (sitelinks)
+        # Sitelinks create false confidence for famous but irrelevant entities
         for idx, cand in enumerate(candidates):
             qid = cand['qid']
             ed = entity_data.get(qid, {})
@@ -435,21 +496,16 @@ class WikidataClient:
             # Search rank (0-10) - Wikidata's relevance ordering
             rank_score = ((total_candidates - idx) / total_candidates) * 10.0
 
-            # Sitelinks (0-15) - notability signal
-            sitelinks_count = ed.get('sitelinks_count', 0)
-            sitelinks_score = min(sitelinks_count / 50.0, 1.0) * 15.0
+            # NO sitelinks - global popularity ≠ relevance to THIS context
+            # NO claims_count - data richness ≠ relevance
 
-            # Claims (0-10) - data richness
-            claims_count = ed.get('claims_count', 0)
-            claims_score = min(claims_count / 100.0, 1.0) * 10.0
-
-            structural_score = label_score + rank_score + sitelinks_score + claims_score
+            structural_score = label_score + rank_score
 
             scored.append({
                 **cand,
                 'structural_score': structural_score,
-                'sitelinks_count': sitelinks_count,
-                'claims_count': claims_count,
+                'sitelinks_count': ed.get('sitelinks_count', 0),
+                'claims_count': ed.get('claims_count', 0),
             })
 
         # === Stage 2: Convert structural scores to priors via softmax ===
@@ -507,7 +563,26 @@ class WikidataClient:
 
         best = scored[0]
         best['confidence'] = best['posterior']
-        best['accepted'] = best['posterior'] >= threshold
+
+        # === Acceptance logic ===
+        # 1. Absolute threshold: accept if posterior >= threshold
+        # 2. Relative threshold: accept if best >> second best (even if below absolute)
+        if best['posterior'] >= threshold:
+            best['accepted'] = True
+            accept_reason = "absolute"
+        elif len(scored) > 1 and best['posterior'] >= self.MIN_POSTERIOR:
+            # Check relative threshold: best must be significantly better than second
+            second = scored[1]['posterior']
+            ratio = best['posterior'] / second if second > 0 else float('inf')
+            if ratio >= self.RELATIVE_THRESHOLD:
+                best['accepted'] = True
+                accept_reason = f"relative ({ratio:.2f}x)"
+            else:
+                best['accepted'] = False
+                accept_reason = None
+        else:
+            best['accepted'] = False
+            accept_reason = None
 
         # === Logging ===
         logger.info(f"📊 Bayesian disambiguation for '{name}' ({len(scored)} candidates):")
@@ -520,12 +595,14 @@ class WikidataClient:
             )
 
         if best['accepted']:
-            logger.info(f"  → Accepted: P={best['posterior']:.3f} >= {threshold}")
+            logger.info(f"  → Accepted ({accept_reason}): P={best['posterior']:.3f}")
         else:
             logger.info(f"  → Rejected: P={best['posterior']:.3f} < {threshold}")
             if len(scored) > 1:
+                second_post = scored[1]['posterior']
+                ratio = best['posterior'] / second_post if second_post > 0 else 0
                 logger.info(
-                    f"     Ambiguous: {best['posterior']:.3f} vs {scored[1]['posterior']:.3f}"
+                    f"     Ambiguous: {best['posterior']:.3f} vs {second_post:.3f} (ratio={ratio:.2f})"
                 )
 
         return best
