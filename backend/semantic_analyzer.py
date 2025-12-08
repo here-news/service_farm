@@ -119,11 +119,19 @@ class EnhancedSemanticAnalyzer:
             # Log entity descriptions for debugging
             logger.info(f"📝 Entity descriptions from gpt-4o: {list(entity_descriptions.keys()) if entity_descriptions else 'none'}")
 
+            # Extract entity relationships from LLM response
+            entity_relationships = claims_response.get('entity_relationships', [])
+            if entity_relationships:
+                logger.info(f"🔗 Entity relationships extracted: {len(entity_relationships)}")
+                for rel in entity_relationships[:3]:  # Log first 3
+                    logger.info(f"   {rel.get('subject')} --[{rel.get('predicate')}]--> {rel.get('object')}")
+
             return {
                 "claims": admitted_claims,
                 "excluded_claims": excluded_claims,
                 "entities": entities,  # OLD format for backward compatibility
                 "entity_descriptions": entity_descriptions,  # NEW format: {"PERSON:Name": "description"}
+                "entity_relationships": entity_relationships,  # NEW: hierarchical entity relationships
                 "gist": claims_response.get('gist', 'No summary available'),
                 "confidence": claims_response.get('overall_confidence', 0.5),
                 "notes_unsupported": claims_response.get('notes_unsupported', []),
@@ -363,6 +371,13 @@ Return JSON:
         "PERSON:Name": "Location + role/occupation who key_action (e.g., 'Hong Kong activist who campaigns for democracy')",
         "ORG:Name": "Location + type that function (e.g., 'Hong Kong government department overseeing building safety')"
     }},
+    "entity_relationships": [
+        {{
+            "subject": "TYPE:Entity1",
+            "predicate": "RELATIONSHIP_TYPE",
+            "object": "TYPE:Entity2"
+        }}
+    ],
     "gist": "One sentence summary IN ENGLISH",
     "overall_confidence": 0.8,
     "notes_unsupported": ["Weak statements not meeting standards"]
@@ -373,6 +388,22 @@ ENTITIES FIELD: For each unique entity in who/where fields, provide a concise de
 - ORG: "[Location] [type] that [function]" - e.g., "US tech company developing AI"
 - GPE/LOCATION: "[Type] in [parent location]" - e.g., "District in northern Hong Kong"
 IMPORTANT: Always include the entity's location/country when known or inferable from article context.
+
+ENTITY_RELATIONSHIPS FIELD: Extract relationships between entities mentioned in the article.
+Relationship types:
+- PART_OF: Physical containment (block in building, room in floor, floor in building, district in city)
+  Examples: "LOCATION:Block 6" PART_OF "LOCATION:Wang Fuk Court", "LOCATION:16th Floor" PART_OF "LOCATION:Block 7"
+- LOCATED_IN: Geographic containment (building in city, neighborhood in district, city in country)
+  Examples: "LOCATION:Wang Fuk Court" LOCATED_IN "GPE:Sha Tin", "GPE:Sha Tin" LOCATED_IN "GPE:Hong Kong"
+- WORKS_FOR: Employment relationship (person works for organization)
+  Examples: "PERSON:John Lee" WORKS_FOR "ORG:Hong Kong Government"
+- MEMBER_OF: Membership (person is member of organization/group)
+  Examples: "PERSON:Jane Chan" MEMBER_OF "ORG:Democratic Party"
+- AFFILIATED_WITH: Other organizational affiliation
+
+Extract relationships even if implied (not explicitly stated).
+For buildings with blocks/floors/units, infer PART_OF relationships from context.
+Use FULL entity references with TYPE: prefix (e.g., "LOCATION:Block 6", not just "Block 6").
 
 Only include claims passing ALL 6 criteria above. Use notes_unsupported for interesting but weak statements."""
 
@@ -1000,11 +1031,282 @@ Only include claims passing ALL 6 criteria above. Use notes_unsupported for inte
                 "time_references": []
             },
             "entity_descriptions": {},  # NEW format: {"PERSON:Name": "description"}
+            "entity_relationships": [],  # NEW: hierarchical entity relationships
             "gist": "No content extracted",
             "confidence": 0.0,
             "notes_unsupported": [reason],
             "token_usage": {}
         }
+
+    # =========================================================================
+    # NEW: Mention-based extraction for Knowledge Worker pipeline
+    # =========================================================================
+
+    async def extract_with_mentions(
+        self,
+        page_meta: Dict[str, Any],
+        page_text: List[Dict[str, str]],
+        url: str,
+        lang: str = "en"
+    ) -> 'ExtractionResult':
+        """
+        Extract claims with mentions (not entities) for the Knowledge Worker pipeline.
+
+        This is the new extraction method that outputs:
+        - Mentions: Raw entity references with context (ephemeral)
+        - Claims: Reference mentions by local ID
+        - MentionRelationships: Structural relationships between mentions
+
+        The output is passed to IdentificationService for entity resolution.
+
+        Args:
+            page_meta: {title, byline, pub_time, site}
+            page_text: [{selector, text}] - content blocks
+            url: canonical URL
+            lang: language code
+
+        Returns:
+            ExtractionResult with mentions, claims, and relationships
+        """
+        from models.mention import Mention, MentionRelationship, ExtractionResult
+
+        try:
+            if not page_text:
+                return ExtractionResult(gist="No content provided", confidence=0.0)
+
+            # Prepare content
+            full_text = self._prepare_content(page_meta, page_text)
+
+            # Extract with mention-based prompt
+            result = await self._extract_mentions_llm(full_text, page_meta, url, lang)
+
+            return result
+
+        except Exception as e:
+            logger.error(f"❌ Mention extraction failed: {e}", exc_info=True)
+            return ExtractionResult(
+                gist=f"Extraction failed: {str(e)}",
+                confidence=0.0
+            )
+
+    async def _extract_mentions_llm(
+        self,
+        content: str,
+        page_meta: Dict[str, Any],
+        url: str,
+        lang: str = "en"
+    ) -> 'ExtractionResult':
+        """
+        LLM call for mention-based extraction.
+
+        Key difference from old approach:
+        - LLM outputs mentions with local IDs (m1, m2, etc.)
+        - Claims reference mentions by ID, not by "TYPE:Name"
+        - Context is preserved for each mention (helps identification)
+        """
+        from models.mention import Mention, MentionRelationship, ExtractionResult
+
+        system_prompt = f"""You are a fact extractor for structured journalism. Extract atomic claims with entity mentions.
+
+Source language: {lang}
+**CRITICAL: Extract ALL claims in English, regardless of source language.**
+
+Your task:
+1. Identify all entity MENTIONS in the text (people, organizations, locations)
+2. Extract claims that reference these mentions
+3. Identify structural relationships between mentions (PART_OF, LOCATED_IN, etc.)
+
+For each MENTION:
+- Assign a unique ID (m1, m2, m3...)
+- Capture the surface form (exact text)
+- Identify the type hint (PERSON, ORGANIZATION, LOCATION)
+- Extract surrounding context (the sentence/phrase where it appears)
+
+For each CLAIM:
+- Reference mentions by their IDs (not by name strings)
+- Include temporal information when available
+- Classify modality (observation, reported_speech, allegation, opinion)
+
+For RELATIONSHIPS between mentions:
+- PART_OF: Physical containment (block in building, floor in building)
+- LOCATED_IN: Geographic containment (building in city, city in country)
+- WORKS_FOR: Employment (person works for organization)
+- MEMBER_OF: Membership (person in group/party)
+- AFFILIATED_WITH: Other affiliation
+
+Extract up to 15 claims. Prioritize important facts."""
+
+        user_prompt = f"""Extract mentions and claims from this content:
+
+METADATA:
+Title: {page_meta.get('title', 'Unknown')}
+Site: {page_meta.get('site', 'Unknown')}
+Published: {page_meta.get('pub_time', 'Unknown')}
+
+CONTENT:
+{content}
+
+Return JSON:
+{{
+    "mentions": [
+        {{
+            "id": "m1",
+            "surface_form": "Building A",
+            "type_hint": "LOCATION",
+            "context": "the fire spread to Building A, also known as the East Tower",
+            "description": "Residential tower in the Greenview housing complex",
+            "aliases": ["East Tower"]
+        }},
+        {{
+            "id": "m2",
+            "surface_form": "Greenview Estate",
+            "type_hint": "LOCATION",
+            "context": "Greenview Estate, a public housing complex in the northern district",
+            "description": "Public housing estate with multiple residential towers",
+            "aliases": []
+        }},
+        {{
+            "id": "m3",
+            "surface_form": "John Smith",
+            "type_hint": "PERSON",
+            "context": "rescue worker John Smith, a 15-year veteran of the department",
+            "description": "Senior rescue worker with 15 years experience",
+            "aliases": []
+        }}
+    ],
+    "claims": [
+        {{
+            "text": "The fire spread to Building A of Greenview Estate",
+            "who": [],
+            "where": ["m1", "m2"],
+            "when": {{
+                "date": "2025-01-15",
+                "time": "14:30:00",
+                "precision": "hour",
+                "timezone": "+00:00"
+            }},
+            "modality": "observation",
+            "evidence_references": [],
+            "confidence": 0.9
+        }}
+    ],
+    "mention_relationships": [
+        {{"subject": "m1", "predicate": "PART_OF", "object": "m2"}}
+    ],
+    "gist": "One sentence summary IN ENGLISH",
+    "overall_confidence": 0.8,
+    "extraction_quality": 0.9
+}}
+
+EXTRACTION_QUALITY (0.0-1.0):
+Rate the quality of extracted mentions:
+- 1.0: All mentions are proper named entities (specific people, organizations, places)
+- 0.7: Most mentions are proper names, a few generic terms
+- 0.5: Mix of proper names and generic descriptions
+- 0.3: Mostly generic terms ("authorities", "residents", "the building")
+- 0.0: No proper named entities found, only generic descriptions
+
+Only extract PROPER NAMED ENTITIES, not generic terms like:
+- "authorities", "officials", "police" (use specific dept name if available)
+- "residents", "victims", "survivors", "families"
+- "the building", "apartment building", "first floor"
+- Days of week, generic times ("Friday", "Wednesday afternoon")
+- Numbers as entities ("128 people", "thousands")
+
+MENTION FIELDS:
+- id: Unique identifier (m1, m2, m3...)
+- surface_form: Primary name as it appears in text
+- type_hint: PERSON, ORGANIZATION, or LOCATION
+- context: Verbatim sentence/phrase from article containing this mention
+- description: What/who this entity is (role, type, key characteristic)
+- aliases: Other names for the SAME entity found in the text
+  Example: "Building A, also known as East Tower" → surface_form="Building A", aliases=["East Tower"]
+
+IMPORTANT:
+- When text says "X, also known as Y" or "X (called Y)" → put Y in aliases, not as separate mention
+- Each unique real-world entity should have ONE mention with all its aliases
+- Claims reference mentions by ID in who/where arrays
+- Include ALL locations at every granularity (building, district, city, country)
+- Extract PART_OF relationships (unit in building, building in complex)
+- Extract LOCATED_IN relationships (complex in district, district in city)"""
+
+        try:
+            response = await asyncio.to_thread(
+                self._with_retry,
+                self.openai_client.chat.completions.create,
+                model="gpt-4o",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                response_format={"type": "json_object"},
+                temperature=0.2,
+                max_tokens=4000
+            )
+
+            raw_response = response.choices[0].message.content
+            logger.info(f"📥 Mention extraction response ({len(raw_response)} chars)")
+
+            result = json.loads(raw_response)
+
+            # Convert to ExtractionResult
+            mentions = []
+            for m in result.get('mentions', []):
+                mentions.append(Mention(
+                    id=m.get('id', ''),
+                    surface_form=m.get('surface_form', ''),
+                    type_hint=m.get('type_hint', 'UNKNOWN'),
+                    context=m.get('context', ''),
+                    description=m.get('description', ''),
+                    aliases=m.get('aliases', [])
+                ))
+
+            relationships = []
+            for r in result.get('mention_relationships', []):
+                relationships.append(MentionRelationship(
+                    subject_id=r.get('subject', ''),
+                    predicate=r.get('predicate', ''),
+                    object_id=r.get('object', '')
+                ))
+
+            # Claims stay as dicts for now (will be converted to Claim models later)
+            claims = result.get('claims', [])
+
+            # Link claims to mentions
+            for i, claim in enumerate(claims):
+                for m in mentions:
+                    if m.id in claim.get('who', []) or m.id in claim.get('where', []):
+                        m.claim_indices.append(i)
+
+            token_usage = {
+                "prompt_tokens": response.usage.prompt_tokens,
+                "completion_tokens": response.usage.completion_tokens,
+                "total_tokens": response.usage.total_tokens,
+                "model": "gpt-4o"
+            }
+
+            logger.info(f"✅ Extracted {len(mentions)} mentions, {len(claims)} claims, {len(relationships)} relationships")
+
+            extraction_quality = result.get('extraction_quality', 0.5)
+            logger.info(f"📊 Extraction quality: {extraction_quality}")
+
+            return ExtractionResult(
+                mentions=mentions,
+                claims=claims,
+                mention_relationships=relationships,
+                gist=result.get('gist', ''),
+                confidence=result.get('overall_confidence', 0.5),
+                extraction_quality=extraction_quality,
+                token_usage=token_usage
+            )
+
+        except Exception as e:
+            logger.error(f"❌ Mention LLM extraction failed: {e}", exc_info=True)
+            return ExtractionResult(
+                gist=f"Extraction failed: {str(e)}",
+                confidence=0.0
+            )
+
 
 # Global instance
 semantic_analyzer = EnhancedSemanticAnalyzer()

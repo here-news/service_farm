@@ -44,6 +44,7 @@ class EntityRepository:
         Create entity in Neo4j (primary storage)
 
         Uses MERGE for deduplication based on (canonical_name, entity_type)
+        If wikidata_qid is provided, updates existing entities with the QID
 
         Args:
             entity: Entity domain model
@@ -55,12 +56,26 @@ class EntityRepository:
         returned_id = await self.neo4j.create_or_update_entity(
             entity_id=str(entity.id),
             canonical_name=entity.canonical_name,
-            entity_type=entity.entity_type
+            entity_type=entity.entity_type,
+            wikidata_qid=entity.wikidata_qid
         )
 
-        # Note: PostgreSQL enrichment (descriptions, Wikidata) handled by enrichment worker
+        # Also sync to PostgreSQL if we have a wikidata_qid
+        if entity.wikidata_qid:
+            try:
+                async with self.db_pool.acquire() as conn:
+                    await conn.execute("""
+                        INSERT INTO core.entities (id, canonical_name, entity_type, wikidata_qid)
+                        VALUES ($1, $2, $3, $4)
+                        ON CONFLICT (id) DO UPDATE SET
+                            wikidata_qid = EXCLUDED.wikidata_qid,
+                            updated_at = NOW()
+                    """, entity.id, entity.canonical_name, entity.entity_type, entity.wikidata_qid)
+            except Exception as e:
+                logger.warning(f"Failed to sync QID to PostgreSQL: {e}")
 
-        logger.debug(f"📦 Created entity in Neo4j: {entity.canonical_name} ({entity.entity_type})")
+        qid_msg = f" [{entity.wikidata_qid}]" if entity.wikidata_qid else ""
+        logger.debug(f"📦 Created entity in Neo4j: {entity.canonical_name} ({entity.entity_type}){qid_msg}")
         return entity
 
     async def get_by_id(self, entity_id: uuid.UUID) -> Optional[Entity]:

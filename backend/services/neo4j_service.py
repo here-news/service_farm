@@ -236,32 +236,39 @@ class Neo4jService:
         self,
         entity_id: str,
         canonical_name: str,
-        entity_type: str
+        entity_type: str,
+        wikidata_qid: str = None
     ) -> str:
         """
         Create or update Entity node in Neo4j (primary entity storage)
 
         Uses MERGE for idempotency based on (canonical_name, entity_type)
         Increments mention_count on match
+        Updates wikidata_qid if provided (enriches existing entities)
 
         Returns: entity_id
         """
-        query = """
-        MERGE (e:Entity {canonical_name: $canonical_name, entity_type: $entity_type})
+        # Build dynamic SET clause for wikidata_qid
+        qid_set = ", e.wikidata_qid = $wikidata_qid" if wikidata_qid else ""
+
+        query = f"""
+        MERGE (e:Entity {{canonical_name: $canonical_name, entity_type: $entity_type}})
         ON CREATE SET
             e.id = $entity_id,
             e.mention_count = 1,
+            e.wikidata_qid = $wikidata_qid,
             e.created_at = datetime()
         ON MATCH SET
             e.mention_count = e.mention_count + 1,
-            e.updated_at = datetime()
+            e.updated_at = datetime(){qid_set}
         RETURN e.id as id
         """
 
         result = await self._execute_write(query, {
             'entity_id': entity_id,
             'canonical_name': canonical_name,
-            'entity_type': entity_type
+            'entity_type': entity_type,
+            'wikidata_qid': wikidata_qid
         })
 
         logger.debug(f"📦 Created/updated Entity: {canonical_name} ({entity_type})")

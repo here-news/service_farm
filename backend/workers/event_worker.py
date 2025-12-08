@@ -29,6 +29,7 @@ from services.event_service import EventService
 from repositories.claim_repository import ClaimRepository
 from repositories.entity_repository import EntityRepository
 from repositories.event_repository import EventRepository
+from repositories.page_repository import PageRepository
 
 logging.basicConfig(
     level=logging.INFO,
