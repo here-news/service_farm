@@ -85,6 +85,100 @@ class Neo4jService:
 
     # ===== Event Operations =====
 
+    @staticmethod
+    def _compute_event_dedup_key(canonical_name: str, event_type: str) -> str:
+        """
+        Compute deduplication key for event.
+
+        Key = hash of normalized(canonical_name) + event_type
+        """
+        import hashlib
+        normalized = canonical_name.lower().strip()
+        key_string = f"{normalized}|{event_type}"
+        return hashlib.sha256(key_string.encode()).hexdigest()[:16]
+
+    async def create_or_get_event(
+        self,
+        event_id: str,
+        canonical_name: str,
+        event_type: str = "UNSPECIFIED",
+        status: str = "provisional",
+        confidence: float = 0.5,
+        event_scale: str = "micro",
+        earliest_time: datetime = None,
+        latest_time: datetime = None,
+        metadata: Dict = None
+    ) -> tuple[str, bool]:
+        """
+        Create or get existing Event node in Neo4j (deduplication).
+
+        DEDUPLICATION STRATEGY:
+        - MERGE on dedup_key (hash of name + event_type)
+        - If event exists, increment page count and return existing ID
+        - If new, create with provided ID
+
+        Returns: (event_id, is_new)
+        """
+        dedup_key = self._compute_event_dedup_key(canonical_name, event_type)
+
+        query = """
+        MERGE (e:Event {dedup_key: $dedup_key})
+        ON CREATE SET
+            e.id = $event_id,
+            e.canonical_name = $canonical_name,
+            e.event_type = $event_type,
+            e.status = $status,
+            e.confidence = $confidence,
+            e.event_scale = $event_scale,
+            e.earliest_time = $earliest_time,
+            e.latest_time = $latest_time,
+            e.pages_count = 1,
+            e.created_at = datetime(),
+            e.metadata_json = $metadata_json
+        ON MATCH SET
+            e.pages_count = e.pages_count + 1,
+            e.updated_at = datetime()
+        RETURN e.id as id, e.created_at = e.updated_at as is_new
+        """
+
+        result = await self._execute_write(query, {
+            'event_id': event_id,
+            'canonical_name': canonical_name,
+            'event_type': event_type,
+            'status': status,
+            'confidence': confidence,
+            'event_scale': event_scale,
+            'earliest_time': earliest_time,
+            'latest_time': latest_time,
+            'dedup_key': dedup_key,
+            'metadata_json': json.dumps(metadata) if metadata else '{}'
+        })
+
+        if result:
+            returned_id = result['id']
+            is_new = result.get('is_new', True)
+            if is_new:
+                logger.info(f"✨ Created Event: {canonical_name} ({returned_id})")
+            else:
+                logger.info(f"📎 Matched Event: {canonical_name} ({returned_id})")
+            return returned_id, is_new
+
+        return event_id, True
+
+    async def link_page_to_event(self, page_id: str, event_id: str) -> None:
+        """Create ABOUT relationship between Page and Event."""
+        query = """
+        MATCH (p:Page {id: $page_id})
+        MATCH (e:Event {id: $event_id})
+        MERGE (p)-[r:ABOUT]->(e)
+        ON CREATE SET r.created_at = datetime()
+        """
+        await self._execute_write(query, {
+            'page_id': page_id,
+            'event_id': event_id
+        })
+        logger.debug(f"🔗 Linked Page {page_id} → Event {event_id}")
+
     async def create_event(
         self,
         event_id: str,
@@ -98,7 +192,7 @@ class Neo4jService:
         metadata: Dict = None
     ) -> str:
         """
-        Create Event node in Neo4j
+        Create Event node in Neo4j (legacy method - prefer create_or_get_event)
 
         Returns: event_id
         """
@@ -248,6 +342,19 @@ class Neo4jService:
 
     # ===== Entity Operations =====
 
+    @staticmethod
+    def _compute_dedup_key(canonical_name: str, entity_type: str) -> str:
+        """
+        Compute deduplication key for entity.
+
+        Key = hash of normalized(canonical_name) + entity_type
+        This provides a unique constraint target for MERGE operations.
+        """
+        import hashlib
+        normalized = canonical_name.lower().strip()
+        key_string = f"{normalized}|{entity_type}"
+        return hashlib.sha256(key_string.encode()).hexdigest()[:16]
+
     async def create_or_update_entity(
         self,
         entity_id: str,
@@ -258,57 +365,83 @@ class Neo4jService:
         """
         Create or update Entity node in Neo4j (primary entity storage).
 
-        DEDUPLICATION STRATEGY:
-        - If QID is provided: MERGE on wikidata_qid (one entity per real-world thing)
-        - If no QID: MERGE on (canonical_name, entity_type)
+        DEDUPLICATION STRATEGY (QID-first, then dedup_key):
+        1. If QID provided: check if entity exists by QID (true identity)
+        2. If found by QID: use it, add canonical_name as alias
+        3. If not found by QID: MERGE on dedup_key (name+type)
+        4. If found by dedup_key: use it, set QID if provided
+        5. If neither found: create new entity
 
-        This ensures that:
-        1. "Samuel Chu" from article A and "Sam Chu" from article B
-           both point to the same Q7411110 entity if resolved.
-        2. Unresolved entities are deduplicated by exact name+type match.
+        This prevents:
+        - "John Lee" and "John Lee Ka-chiu" creating two entities for Q9051824
+        - Race condition duplicates (unique constraint on dedup_key)
 
         Returns: entity_id (may differ from input if entity already existed)
         """
+        dedup_key = self._compute_dedup_key(canonical_name, entity_type)
+
+        # Phase 1: If QID provided, check by QID first (true identity)
         if wikidata_qid:
-            # QID is known - merge on QID for true deduplication
-            query = """
-            MERGE (e:Entity {wikidata_qid: $wikidata_qid})
-            ON CREATE SET
-                e.id = $entity_id,
-                e.canonical_name = $canonical_name,
-                e.entity_type = $entity_type,
-                e.mention_count = 1,
-                e.created_at = datetime()
-            ON MATCH SET
-                e.mention_count = e.mention_count + 1,
-                e.updated_at = datetime()
-            RETURN e.id as id
-            """
-        else:
-            # No QID - merge on name + type (less reliable but still deduplicates)
-            query = """
-            MERGE (e:Entity {canonical_name: $canonical_name, entity_type: $entity_type})
-            ON CREATE SET
-                e.id = $entity_id,
-                e.mention_count = 1,
-                e.created_at = datetime()
-            ON MATCH SET
-                e.mention_count = e.mention_count + 1,
-                e.updated_at = datetime()
-            RETURN e.id as id
-            """
+            existing = await self.get_entity_by_qid(wikidata_qid)
+            if existing:
+                # Entity with this QID exists - use it
+                existing_id = existing['id']
+                # Add canonical_name as alias if different from existing name
+                if existing['canonical_name'] != canonical_name:
+                    await self.add_entity_alias(existing_id, canonical_name)
+                # Increment mention count
+                await self._execute_write("""
+                    MATCH (e:Entity {id: $entity_id})
+                    SET e.mention_count = e.mention_count + 1,
+                        e.updated_at = datetime()
+                """, {'entity_id': existing_id})
+                logger.debug(f"📦 Entity by QID: {canonical_name} → existing {existing['canonical_name']} [{wikidata_qid}]")
+                return existing_id
+
+        # Phase 2: MERGE on dedup_key (name+type)
+        query = """
+        MERGE (e:Entity {dedup_key: $dedup_key})
+        ON CREATE SET
+            e.id = $entity_id,
+            e.canonical_name = $canonical_name,
+            e.entity_type = $entity_type,
+            e.mention_count = 1,
+            e.created_at = datetime()
+        ON MATCH SET
+            e.mention_count = e.mention_count + 1,
+            e.updated_at = datetime()
+        WITH e
+        // If QID provided and entity doesn't have one, set it
+        SET e.wikidata_qid = CASE
+            WHEN $wikidata_qid IS NOT NULL AND e.wikidata_qid IS NULL
+            THEN $wikidata_qid
+            ELSE e.wikidata_qid
+        END
+        RETURN e.id as id, e.wikidata_qid as existing_qid
+        """
 
         result = await self._execute_write(query, {
             'entity_id': entity_id,
             'canonical_name': canonical_name,
             'entity_type': entity_type,
-            'wikidata_qid': wikidata_qid
+            'wikidata_qid': wikidata_qid,
+            'dedup_key': dedup_key
         })
 
-        returned_id = result['id'] if result else entity_id
-        qid_msg = f" [{wikidata_qid}]" if wikidata_qid else ""
-        logger.debug(f"📦 Created/updated Entity: {canonical_name} ({entity_type}){qid_msg} → {returned_id}")
-        return returned_id
+        if result:
+            returned_id = result['id']
+            existing_qid = result.get('existing_qid')
+
+            # Check for QID conflict: entity has different QID than provided
+            if wikidata_qid and existing_qid and existing_qid != wikidata_qid:
+                logger.warning(f"⚠️ QID conflict for '{canonical_name}': "
+                             f"existing={existing_qid}, new={wikidata_qid}")
+
+            qid_msg = f" [{existing_qid or wikidata_qid}]" if (existing_qid or wikidata_qid) else ""
+            logger.debug(f"📦 Entity: {canonical_name} ({entity_type}){qid_msg} → {returned_id}")
+            return returned_id
+
+        return entity_id
 
     async def get_entity_by_qid(self, wikidata_qid: str) -> Optional[Dict]:
         """
@@ -879,6 +1012,10 @@ class Neo4jService:
             "CREATE CONSTRAINT source_id IF NOT EXISTS FOR (s:Source) REQUIRE s.id IS UNIQUE",
             # Entity QID uniqueness (key for deduplication)
             "CREATE CONSTRAINT entity_qid IF NOT EXISTS FOR (e:Entity) REQUIRE e.wikidata_qid IS UNIQUE",
+            # Entity dedup_key uniqueness (prevents race condition duplicates)
+            "CREATE CONSTRAINT entity_dedup_key IF NOT EXISTS FOR (e:Entity) REQUIRE e.dedup_key IS UNIQUE",
+            # TODO: Event dedup_key constraint - design event deduplication strategy first
+            # "CREATE CONSTRAINT event_dedup_key IF NOT EXISTS FOR (e:Event) REQUIRE e.dedup_key IS UNIQUE",
             # Source domain uniqueness
             "CREATE CONSTRAINT source_domain IF NOT EXISTS FOR (s:Source) REQUIRE s.domain IS UNIQUE",
             # Indexes for common queries

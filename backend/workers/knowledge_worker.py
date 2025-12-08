@@ -252,11 +252,14 @@ class KnowledgeWorker:
                     entities_count=len(identification.mention_to_entity)
                 )
 
-                # Queue event worker with source credibility
+                # Queue event worker with extracted event info
+                # TODO: Event deduplication to be designed - our events may be
+                # larger scope than Wikidata events, need internal matching first
                 await self.job_queue.enqueue('queue:event:high', {
                     'page_id': str(page_id),
                     'url': url,
                     'claims_count': len(claim_ids),
+                    'extracted_event': extraction.event if extraction.event else None,
                     'source': {
                         'entity_id': str(source.id),
                         'credibility_score': source.credibility_score,
