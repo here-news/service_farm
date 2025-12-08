@@ -1112,9 +1112,15 @@ Source language: {lang}
 **CRITICAL: Extract ALL claims in English, regardless of source language.**
 
 Your task:
-1. Identify all entity MENTIONS in the text (people, organizations, locations)
-2. Extract claims that reference these mentions
-3. Identify structural relationships between mentions (PART_OF, LOCATED_IN, etc.)
+1. Identify the PRIMARY EVENT this article is about
+2. Identify all entity MENTIONS in the text (people, organizations, locations)
+3. Extract claims that reference these mentions
+
+For the PRIMARY EVENT:
+- Provide a canonical title suitable for Wikipedia/Wikidata (e.g., "2025 Wang Fuk Court fire")
+- Format: "[Year] [Location] [event type]" or "[Year] [Subject] [event type]"
+- Include the year if known
+- This helps match to existing Wikidata entries for the same event
 
 For each MENTION:
 - Assign a unique ID (m1, m2, m3...)
@@ -1130,13 +1136,6 @@ For each CLAIM:
 - Include temporal information when available
 - Classify modality (observation, reported_speech, allegation, opinion)
 
-For RELATIONSHIPS between mentions:
-- PART_OF: Physical containment (block in building, floor in building)
-- LOCATED_IN: Geographic containment (building in city, city in country)
-- WORKS_FOR: Employment (person works for organization)
-- MEMBER_OF: Membership (person in group/party)
-- AFFILIATED_WITH: Other affiliation
-
 Extract up to 15 claims. Prioritize important facts."""
 
         user_prompt = f"""Extract mentions and claims from this content:
@@ -1151,17 +1150,15 @@ CONTENT:
 
 Return JSON:
 {{
+    "event": {{
+        "title": "2025 Greenview Estate fire",
+        "description": "Fire at residential complex in the northern district",
+        "event_type": "fire",
+        "date": "2025-01-15"
+    }},
     "mentions": [
         {{
             "id": "m1",
-            "surface_form": "Building A",
-            "type_hint": "LOCATION",
-            "context": "the fire spread to Building A, also known as the East Tower",
-            "description": "Residential tower in the Greenview housing complex",
-            "aliases": ["East Tower"]
-        }},
-        {{
-            "id": "m2",
             "surface_form": "Greenview Estate",
             "type_hint": "LOCATION",
             "context": "Greenview Estate, a public housing complex in the northern district",
@@ -1169,7 +1166,7 @@ Return JSON:
             "aliases": []
         }},
         {{
-            "id": "m3",
+            "id": "m2",
             "surface_form": "John Smith",
             "type_hint": "PERSON",
             "context": "rescue worker John Smith, a 15-year veteran of the department",
@@ -1179,9 +1176,9 @@ Return JSON:
     ],
     "claims": [
         {{
-            "text": "The fire spread to Building A of Greenview Estate",
+            "text": "The fire spread through Greenview Estate",
             "who": [],
-            "where": ["m1", "m2"],
+            "where": ["m1"],
             "when": {{
                 "date": "2025-01-15",
                 "time": "14:30:00",
@@ -1192,9 +1189,6 @@ Return JSON:
             "evidence_references": [],
             "confidence": 0.9
         }}
-    ],
-    "mention_relationships": [
-        {{"subject": "m1", "predicate": "PART_OF", "object": "m2"}}
     ],
     "gist": "One sentence summary IN ENGLISH",
     "overall_confidence": 0.8,
@@ -1230,8 +1224,7 @@ IMPORTANT:
 - Each unique real-world entity should have ONE mention with all its aliases
 - Claims reference mentions by ID in who/where arrays
 - Include ALL locations at every granularity (building, district, city, country)
-- Extract PART_OF relationships (unit in building, building in complex)
-- Extract LOCATED_IN relationships (complex in district, district in city)"""
+- Event title should be canonical (suitable for Wikipedia article title)"""
 
         try:
             response = await asyncio.to_thread(
@@ -1264,13 +1257,12 @@ IMPORTANT:
                     aliases=m.get('aliases', [])
                 ))
 
+            # Relationships removed - prone to false positives from co-occurrence
+            # TODO: Consider fetching geographic relationships from Wikidata P131 instead
             relationships = []
-            for r in result.get('mention_relationships', []):
-                relationships.append(MentionRelationship(
-                    subject_id=r.get('subject', ''),
-                    predicate=r.get('predicate', ''),
-                    object_id=r.get('object', '')
-                ))
+
+            # Extract event info
+            event_info = result.get('event', {})
 
             # Claims stay as dicts for now (will be converted to Claim models later)
             claims = result.get('claims', [])
@@ -1288,7 +1280,9 @@ IMPORTANT:
                 "model": "gpt-4o"
             }
 
-            logger.info(f"✅ Extracted {len(mentions)} mentions, {len(claims)} claims, {len(relationships)} relationships")
+            logger.info(f"✅ Extracted {len(mentions)} mentions, {len(claims)} claims")
+            if event_info:
+                logger.info(f"📰 Event: {event_info.get('title', 'Unknown')}")
 
             extraction_quality = result.get('extraction_quality', 0.5)
             logger.info(f"📊 Extraction quality: {extraction_quality}")
@@ -1298,6 +1292,7 @@ IMPORTANT:
                 claims=claims,
                 mention_relationships=relationships,
                 gist=result.get('gist', ''),
+                event=event_info,
                 confidence=result.get('overall_confidence', 0.5),
                 extraction_quality=extraction_quality,
                 token_usage=token_usage

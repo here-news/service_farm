@@ -92,6 +92,10 @@ class ExtractionResult:
     # Page-level summary
     gist: str = ""
 
+    # Primary event this article is about (for Wikidata matching)
+    # Format: {"title": "2025 Wang Fuk Court fire", "description": "...", "event_type": "fire", "date": "..."}
+    event: dict = field(default_factory=dict)
+
     # Overall extraction confidence
     confidence: float = 0.5
 
