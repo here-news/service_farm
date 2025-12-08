@@ -370,15 +370,12 @@ class IdentificationService:
             return None
 
         try:
-            # Build search context from mention
-            search_context = mention.context
-            if mention.description:
-                search_context = f"{mention.description}. {search_context}"
+            # Use only static description for entity identification
+            # Dynamic context (what's happening TO the entity) confuses matching
+            # e.g., "fire broke out" matches fire EVENT not the BUILDING
+            search_context = mention.description or ""
 
-            # Add page context hints
-            if page_context:
-                if page_context.get('domain'):
-                    search_context += f" (from {page_context['domain']})"
+            logger.info(f"🔍 Wikidata search: {mention.surface_form} | desc={search_context[:80] if search_context else 'EMPTY'}")
 
             # Call Wikidata search
             result = await self.wikidata.search_entity(

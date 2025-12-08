@@ -166,7 +166,8 @@ class PageRepository:
         self,
         page_id: uuid.UUID,
         content_text: str,
-        status: str = 'extracted'
+        status: str = 'extracted',
+        word_count: int = None
     ) -> None:
         """
         Update page content in PostgreSQL.
@@ -175,15 +176,19 @@ class PageRepository:
             page_id: Page UUID
             content_text: Extracted text content
             status: New status
+            word_count: Word count (calculated if not provided)
         """
+        if word_count is None:
+            word_count = len(content_text.split()) if content_text else 0
+
         async with self.db_pool.acquire() as conn:
             await conn.execute("""
                 UPDATE core.pages
-                SET content_text = $2, status = $3, updated_at = NOW()
+                SET content_text = $2, status = $3, word_count = $4, updated_at = NOW()
                 WHERE id = $1
-            """, page_id, content_text, status)
+            """, page_id, content_text, status, word_count)
 
-            logger.debug(f"📄 Updated page {page_id} content")
+            logger.debug(f"📄 Updated page {page_id} content ({word_count} words)")
 
     async def update_metadata(
         self,
@@ -266,8 +271,8 @@ class PageRepository:
             pub_time: Publication timestamp
             domain: Source domain
         """
-        # Update content in PostgreSQL
-        await self.update_content(page_id, content_text, status='extracted')
+        # Update content in PostgreSQL (with word_count)
+        await self.update_content(page_id, content_text, status='extracted', word_count=word_count)
 
         # Update metadata in Neo4j
         if self.neo4j and domain:

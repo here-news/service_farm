@@ -31,19 +31,37 @@ from openai import AsyncOpenAI
 
 logger = logging.getLogger(__name__)
 
-# Entity Type to Wikidata type keywords for filtering
-ENTITY_TYPE_KEYWORDS = {
-    'PERSON': ['human', 'person', 'politician', 'actor', 'singer', 'athlete', 'activist',
-               'journalist', 'writer', 'lawyer', 'businessman', 'researcher', 'professor',
-               'executive', 'director', 'chief', 'minister', 'secretary', 'official',
-               'photographer', 'artist', 'author', 'born'],
-    'ORGANIZATION': ['organization', 'company', 'institution', 'agency', 'party', 'church',
-                     'university', 'newspaper', 'network', 'association', 'foundation',
-                     'department', 'ministry', 'council', 'commission', 'media', 'press'],
-    'LOCATION': ['city', 'district', 'country', 'building', 'estate', 'court', 'place',
-                 'region', 'settlement', 'territory', 'province', 'area', 'housing',
-                 'neighborhood', 'town', 'village', 'municipality']
+# Entity Type to Wikidata root classes (P31 instance-of → P279 subclass-of hierarchy)
+# These are checked via hierarchy traversal for rigorous type matching
+ENTITY_TYPE_QIDS = {
+    'PERSON': {
+        'Q5',  # human
+    },
+    'ORGANIZATION': {
+        'Q43229',    # organization (root)
+        'Q783794',   # company
+        'Q4830453',  # business
+        'Q3918',     # university
+        'Q11032',    # newspaper
+        'Q7210356',  # political organization
+        'Q47459',    # armed forces
+        'Q48204',    # nonprofit organization
+    },
+    'LOCATION': {
+        'Q56061',    # administrative territorial entity
+        'Q486972',   # human settlement
+        'Q515',      # city
+        'Q3957',     # town
+        'Q532',      # village
+        'Q82794',    # geographic region
+        'Q41176',    # building
+        'Q35127',    # geographic location
+        'Q27096213', # geographic entity
+    },
 }
+
+# Max depth for P279 subclass traversal (prevent infinite loops)
+MAX_SUBCLASS_DEPTH = 5
 
 # Generic names to skip (won't have useful Wikidata matches)
 GENERIC_PATTERNS = [
@@ -63,7 +81,10 @@ class WikidataClient:
     to accurately disambiguate entities like "Samuel Chu".
     """
 
-    MIN_CONFIDENCE = 0.65  # Minimum confidence to accept a match
+    # Bayesian thresholds (probability-based)
+    POSTERIOR_THRESHOLD = 0.70  # With context - higher bar
+    PRIOR_THRESHOLD = 0.60      # Without context - structural only
+    TEMPERATURE = 5.0           # Softmax temperature - higher = flatter priors
 
     def __init__(self):
         self.session: Optional[aiohttp.ClientSession] = None
@@ -74,6 +95,8 @@ class WikidataClient:
         # OpenAI client for embeddings
         self.openai = AsyncOpenAI(api_key=os.getenv('OPENAI_API_KEY'))
         self.embedding_cache: Dict[str, List[float]] = {}
+        # P279 subclass hierarchy cache
+        self.subclass_cache: Dict[str, set] = {}
 
     async def _ensure_session(self):
         """Ensure aiohttp session exists."""
@@ -127,8 +150,8 @@ class WikidataClient:
                 logger.debug(f"No Wikidata candidates for: {name}")
                 return None
 
-            # Filter by type hint from description
-            filtered = self._filter_by_type(candidates, entity_type)
+            # Filter by P31→P279 type hierarchy
+            filtered = await self._filter_by_type(candidates, entity_type)
 
             if not filtered:
                 logger.debug(f"No type-matched candidates for: {name} ({entity_type})")
@@ -137,12 +160,12 @@ class WikidataClient:
             # Score candidates with Bayesian inference
             best = await self._score_and_select(filtered, name, context, entity_type)
 
-            if best and best['confidence'] >= self.MIN_CONFIDENCE:
-                logger.info(f"🔗 Wikidata match: {name} → {best['qid']} ({best['label']}) [conf={best['confidence']:.2f}]")
+            if best and best.get('accepted', False):
+                logger.info(f"🔗 Wikidata match: {name} → {best['qid']} ({best['label']}) [P={best['confidence']:.2f}]")
                 return best
 
             best_conf = best['confidence'] if best else 0
-            logger.debug(f"No confident match for {name} (best conf: {best_conf:.2f})")
+            logger.debug(f"No confident match for {name} (best P={best_conf:.2f})")
             return None
 
         except Exception as e:
@@ -259,27 +282,115 @@ class WikidataClient:
 
         return False
 
-    def _filter_by_type(self, candidates: List[Dict], entity_type: str) -> List[Dict]:
-        """Filter candidates by entity type using description keywords."""
-        keywords = ENTITY_TYPE_KEYWORDS.get(entity_type, [])
-        if not keywords:
+    async def _filter_by_type(self, candidates: List[Dict], entity_type: str) -> List[Dict]:
+        """
+        Filter candidates by entity type using P31→P279 hierarchy.
+
+        Uses Wikidata's structured type system for rigorous filtering.
+        """
+        expected_types = ENTITY_TYPE_QIDS.get(entity_type)
+        if not expected_types:
             return candidates
+
+        # Fetch entity data (includes P31 instance_of)
+        qids = [c['qid'] for c in candidates]
+        entity_data = await self._fetch_entity_data(qids)
 
         filtered = []
         for cand in candidates:
-            desc_lower = cand['description'].lower()
+            qid = cand['qid']
+            ed = entity_data.get(qid, {})
+            instance_of_qids = ed.get('instance_of_qids', [])
 
-            # Check if description contains type keywords
-            for keyword in keywords:
-                if keyword in desc_lower:
-                    filtered.append(cand)
-                    break
+            # Check if candidate's type matches expected via hierarchy
+            if await self._check_type_match(instance_of_qids, expected_types):
+                cand['_entity_data'] = ed  # Cache for later use
+                filtered.append(cand)
             else:
-                # For locations, also accept if description mentions "Hong Kong" (local relevance)
-                if entity_type == 'LOCATION' and 'hong kong' in desc_lower:
-                    filtered.append(cand)
+                logger.debug(f"  ⏭️  Type mismatch: {qid} ({cand['label']}) - P31={instance_of_qids}")
 
-        return filtered if filtered else candidates[:3]  # Fall back to top 3 if no type match
+        if filtered:
+            return filtered
+
+        # Fallback: return top 3 if no type matches (may be missing P31 data)
+        logger.debug(f"  ⚠️  No type matches, falling back to top 3 candidates")
+        return candidates[:3]
+
+    async def _check_type_match(self, instance_of_qids: List[str], expected_types: set) -> bool:
+        """
+        Check if any P31 QIDs match expected types via P279 hierarchy.
+
+        Fast path: direct QID match (no API calls)
+        Slow path: P279 subclass traversal
+        """
+        if not instance_of_qids:
+            return False
+
+        # Fast path: direct match
+        if any(qid in expected_types for qid in instance_of_qids):
+            return True
+
+        # Slow path: check P279 hierarchy
+        for qid in instance_of_qids:
+            hierarchy = await self._fetch_subclass_hierarchy(qid)
+            if hierarchy & expected_types:
+                return True
+
+        return False
+
+    async def _fetch_subclass_hierarchy(self, qid: str, depth: int = 0, visited: set = None) -> set:
+        """
+        Recursively fetch P279 (subclass of) hierarchy for a QID.
+
+        Returns set of all ancestor class QIDs (includes the QID itself).
+        """
+        if visited is None:
+            visited = set()
+
+        # Check cache
+        if qid in self.subclass_cache:
+            return self.subclass_cache[qid]
+
+        # Prevent infinite loops
+        if depth >= MAX_SUBCLASS_DEPTH or qid in visited:
+            return {qid}
+
+        visited.add(qid)
+        ancestors = {qid}
+
+        try:
+            params = {
+                'action': 'wbgetentities',
+                'ids': qid,
+                'format': 'json',
+                'props': 'claims'
+            }
+
+            async with self.session.get(self.api_url, params=params, timeout=10) as resp:
+                if resp.status != 200:
+                    return ancestors
+
+                data = await resp.json()
+                entity = data.get('entities', {}).get(qid, {})
+                claims = entity.get('claims', {})
+
+                # P279 = subclass of
+                for claim in claims.get('P279', []):
+                    mainsnak = claim.get('mainsnak', {})
+                    datavalue = mainsnak.get('datavalue', {})
+                    if datavalue.get('type') == 'wikibase-entityid':
+                        parent_qid = datavalue['value']['id']
+                        parent_ancestors = await self._fetch_subclass_hierarchy(
+                            parent_qid, depth + 1, visited
+                        )
+                        ancestors.update(parent_ancestors)
+
+        except Exception as e:
+            logger.debug(f"Error fetching P279 for {qid}: {e}")
+
+        # Cache result
+        self.subclass_cache[qid] = ancestors
+        return ancestors
 
     async def _score_and_select(
         self,
@@ -289,18 +400,14 @@ class WikidataClient:
         entity_type: str
     ) -> Optional[Dict]:
         """
-        Score candidates using structural signals + context.
+        Score candidates using Bayesian inference.
 
-        Structural scoring (from original wikidata_worker.py):
-        1. Label match (exact match is strongest signal)
-        2. Search rank (Wikidata's relevance ordering)
-        3. Sitelinks count (notability - # of Wikipedia versions)
-        4. Claims count (data richness - # of statements)
+        All scores are probability-based (0.0-1.0):
+        1. Structural score → softmax → prior P(candidate)
+        2. Context similarity → likelihood P(context|candidate)
+        3. Bayesian update: posterior P(candidate|context) ∝ likelihood × prior
 
-        Context scoring:
-        5. Embedding similarity between context and description
-
-        Returns best candidate with confidence score.
+        Returns best candidate with confidence (posterior probability).
         """
         if not candidates:
             return None
@@ -313,84 +420,113 @@ class WikidataClient:
         scored = []
         total_candidates = len(candidates)
 
+        # === Stage 1: Compute raw structural scores ===
         for idx, cand in enumerate(candidates):
             qid = cand['qid']
             ed = entity_data.get(qid, {})
 
-            # === Structural Score (like original wikidata_worker) ===
-            # Max structural score ~55 points
-
-            # 1. Label match (0-20 points) - exact match is critical
-            label_score = fuzz.ratio(name_lower, cand['label'].lower()) / 100
+            # Label match (0-20) - exact match is critical
+            label_ratio = fuzz.ratio(name_lower, cand['label'].lower()) / 100
             if cand['label'].lower() == name_lower:
-                label_match_score = 20.0  # Exact match bonus
+                label_score = 20.0
             else:
-                label_match_score = label_score * 15.0
+                label_score = label_ratio * 15.0
 
-            # 2. Search rank (0-10 points)
+            # Search rank (0-10) - Wikidata's relevance ordering
             rank_score = ((total_candidates - idx) / total_candidates) * 10.0
 
-            # 3. Sitelinks count (0-15 points) - notability signal
+            # Sitelinks (0-15) - notability signal
             sitelinks_count = ed.get('sitelinks_count', 0)
             sitelinks_score = min(sitelinks_count / 50.0, 1.0) * 15.0
 
-            # 4. Claims count (0-10 points) - data richness
+            # Claims (0-10) - data richness
             claims_count = ed.get('claims_count', 0)
             claims_score = min(claims_count / 100.0, 1.0) * 10.0
 
-            structural_score = label_match_score + rank_score + sitelinks_score + claims_score
-
-            # === Context Score (0-30 points) ===
-            context_score = 15.0  # Neutral default (half of max)
-            if context and cand['description']:
-                # Use embeddings for semantic similarity (0.0-1.0 -> 0-30 points)
-                embedding_sim = await self._embedding_similarity(context, cand['description'])
-                context_score = embedding_sim * 30.0
-
-            # Combined: structural (70%) + context (30%)
-            total_score = structural_score * 0.7 + context_score * 0.3
-            # Normalize to 0-1 range (max possible ~55*0.7 + 30*0.3 = 47.5)
-            normalized_score = total_score / 47.5
+            structural_score = label_score + rank_score + sitelinks_score + claims_score
 
             scored.append({
                 **cand,
                 'structural_score': structural_score,
-                'context_score': context_score,
-                'total_score': total_score,
                 'sitelinks_count': sitelinks_count,
                 'claims_count': claims_count,
-                'idx': idx
             })
 
-        # === Confidence Calculation (matching original wikidata_worker.py) ===
-        # Sort by total_score (structural 70% + context 30%)
-        scored.sort(key=lambda x: x['total_score'], reverse=True)
+        # === Stage 2: Convert structural scores to priors via softmax ===
+        # Higher temperature → flatter distribution → context has more influence
+        max_struct = max(c['structural_score'] for c in scored)
+        exp_scores = [
+            math.exp((c['structural_score'] - max_struct) / self.TEMPERATURE)
+            for c in scored
+        ]
+        sum_exp = sum(exp_scores)
+
+        for i, cand in enumerate(scored):
+            cand['prior'] = exp_scores[i] / sum_exp  # P(candidate) from structural
+
+        # === Stage 3: Compute context likelihood (embedding similarity) ===
+        # Prepend entity type to query - lets embeddings capture type compatibility
+        has_context = bool(context and context.strip())
+        typed_context = f"{entity_type}: {context}" if has_context else ""
+
+        for cand in scored:
+            if has_context and cand['description']:
+                # Embedding similarity (0-1) as likelihood P(context|candidate)
+                similarity = await self._embedding_similarity(typed_context, cand['description'])
+                cand['likelihood'] = similarity
+            else:
+                cand['likelihood'] = 0.5  # Neutral if no context
+
+        # === Stage 4: Bayesian update ===
+        if has_context:
+            # posterior ∝ likelihood × prior
+            posteriors = []
+            for cand in scored:
+                posterior = cand['likelihood'] * cand['prior']
+                posteriors.append(posterior)
+
+            # Normalize posteriors to sum to 1
+            sum_posterior = sum(posteriors)
+            if sum_posterior > 0:
+                for i, cand in enumerate(scored):
+                    cand['posterior'] = posteriors[i] / sum_posterior
+            else:
+                # All posteriors are 0, fall back to priors
+                for cand in scored:
+                    cand['posterior'] = cand['prior']
+
+            # Sort by posterior
+            scored.sort(key=lambda x: x['posterior'], reverse=True)
+            threshold = self.POSTERIOR_THRESHOLD
+        else:
+            # No context - use structural prior only
+            for cand in scored:
+                cand['posterior'] = cand['prior']
+            scored.sort(key=lambda x: x['prior'], reverse=True)
+            threshold = self.PRIOR_THRESHOLD
 
         best = scored[0]
+        best['confidence'] = best['posterior']
+        best['accepted'] = best['posterior'] >= threshold
 
-        # Calculate ambiguity score (how close is second-best?)
-        ambiguity_score = 0.0
-        if len(scored) > 1:
-            second_best = scored[1]
-            if best['total_score'] > 0:
-                # Higher ambiguity when scores are close
-                ambiguity_score = 1.0 - (best['total_score'] - second_best['total_score']) / best['total_score']
-                ambiguity_score = max(0.0, min(1.0, ambiguity_score))
-
-        # Confidence: normalized score with ambiguity penalty
-        # Max possible ~55*0.7 + 30*0.3 = 47.5
-        raw_confidence = min(1.0, best['total_score'] / 47.5)
-        best['confidence'] = raw_confidence * (1.0 - ambiguity_score * 0.3)
-
-        # Log disambiguation details for debugging
-        if len(scored) > 1 and context:
-            logger.debug(
-                f"Disambiguation for '{name}': "
-                f"best={best['label']} (conf={best['confidence']:.2f}, total={best['total_score']:.1f}, "
-                f"struct={best['structural_score']:.1f}, ctx={best['context_score']:.1f}, "
-                f"sitelinks={best['sitelinks_count']}), "
-                f"runner-up={scored[1]['label']} (total={scored[1]['total_score']:.1f})"
+        # === Logging ===
+        logger.info(f"📊 Bayesian disambiguation for '{name}' ({len(scored)} candidates):")
+        for i, cand in enumerate(scored[:3]):
+            marker = "✓" if i == 0 and best['accepted'] else " "
+            logger.info(
+                f"  {marker} {cand['qid']}: prior={cand['prior']:.3f}, "
+                f"lik={cand['likelihood']:.3f}, post={cand['posterior']:.3f} "
+                f"({cand['description'][:50]})"
             )
+
+        if best['accepted']:
+            logger.info(f"  → Accepted: P={best['posterior']:.3f} >= {threshold}")
+        else:
+            logger.info(f"  → Rejected: P={best['posterior']:.3f} < {threshold}")
+            if len(scored) > 1:
+                logger.info(
+                    f"     Ambiguous: {best['posterior']:.3f} vs {scored[1]['posterior']:.3f}"
+                )
 
         return best
 

@@ -294,7 +294,33 @@ async def submit_artifact(url: str):
         )
         await page_repo.create(page)
 
-        status = 'preview'  # Has metadata, pending extraction
+        # Commission extraction (async, doesn't block response)
+        await queue.enqueue('queue:extraction:high', {
+            'page_id': str(page_id),
+            'url': url,
+            'retry_count': 0
+        })
+
+        # Return immediately with iframely metadata
+        return {
+            "page_id": str(page_id),
+            "url": url,
+            "canonical_url": canonical_url,
+            "title": title,
+            "description": description,
+            "author": author,
+            "thumbnail_url": thumbnail_url,
+            "status": 'preview',
+            "language": language,
+            "word_count": None,
+            "entity_count": 0,
+            "claim_count": 0,
+            "pub_time": None,
+            "created_at": datetime.utcnow().isoformat(),
+            "updated_at": None,
+            "_commissioned": True,
+            "_iframely_used": True
+        }
 
     else:
         # iframely failed - quick domain guess
