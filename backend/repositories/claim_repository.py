@@ -54,10 +54,14 @@ class ClaimRepository:
             Created claim with timestamp
         """
         # Create Claim node in Neo4j
+        # Store deterministic_id for deduplication on reprocessing
+        deterministic_id = claim.metadata.get('deterministic_id') if claim.metadata else None
+
         await self.neo4j._execute_write("""
             MERGE (c:Claim {id: $claim_id})
             ON CREATE SET
                 c.text = $text,
+                c.deterministic_id = $deterministic_id,
                 c.event_time = $event_time,
                 c.confidence = $confidence,
                 c.modality = $modality,
@@ -67,20 +71,22 @@ class ClaimRepository:
                 c.confidence = $confidence
         """, {
             'claim_id': str(claim.id),
+            'deterministic_id': deterministic_id,
             'text': claim.text[:500],  # Truncate for graph storage
             'event_time': claim.event_time.isoformat() if claim.event_time else None,
             'confidence': claim.confidence,
             'modality': claim.modality
         })
 
-        # Create MENTIONS relationships to entities
+        # Create MENTIONS relationships to entities and increment mention_count
         if entity_ids:
             for entity_id in entity_ids:
                 await self.neo4j._execute_write("""
                     MATCH (c:Claim {id: $claim_id})
                     MATCH (e:Entity {id: $entity_id})
                     MERGE (c)-[r:MENTIONS]->(e)
-                    ON CREATE SET r.created_at = datetime()
+                    ON CREATE SET r.created_at = datetime(),
+                                  e.mention_count = coalesce(e.mention_count, 0) + 1
                 """, {
                     'claim_id': str(claim.id),
                     'entity_id': str(entity_id)

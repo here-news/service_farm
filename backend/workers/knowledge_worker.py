@@ -403,10 +403,24 @@ class KnowledgeWorker:
         claim_ids = []
 
         for claim_data in extraction.claims:
-            # Generate deterministic ID
+            # Generate deterministic ID for deduplication
             claim_hash = hashlib.sha256(
                 f"{url}|{claim_data.get('text', '')}".encode()
             ).hexdigest()[:16]
+            deterministic_id = f"clm_{claim_hash}"
+
+            # Check if claim already exists (deduplication)
+            existing = await self.neo4j._execute_read("""
+                MATCH (c:Claim {deterministic_id: $det_id})
+                RETURN c.id as id
+            """, {'det_id': deterministic_id})
+
+            if existing:
+                # Claim exists - just link Page→Claim (in case page was reprocessed)
+                existing_id = existing[0]['id']
+                await self.neo4j.link_page_to_claim(str(page_id), existing_id)
+                claim_ids.append(uuid.UUID(existing_id))
+                continue
 
             # Resolve mention IDs to entity UUIDs
             entity_ids = []
@@ -436,7 +450,7 @@ class KnowledgeWorker:
                 confidence=claim_data.get('confidence', 0.5),
                 modality=claim_data.get('modality', 'observation'),
                 metadata={
-                    'deterministic_id': f"clm_{claim_hash}",
+                    'deterministic_id': deterministic_id,
                     'who_mentions': claim_data.get('who', []),
                     'where_mentions': claim_data.get('where', []),
                     'when': when,
