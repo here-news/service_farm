@@ -62,7 +62,7 @@ class KnowledgeWorker:
         self.analyzer = EnhancedSemanticAnalyzer()
         self.entity_repo = EntityRepository(db_pool, self.neo4j)
         self.claim_repo = ClaimRepository(db_pool, self.neo4j)
-        self.page_repo = PageRepository(db_pool)
+        self.page_repo = PageRepository(db_pool, self.neo4j)
 
         # Wikidata client for entity identification (enables QID resolution during pipeline)
         self.wikidata_client = WikidataClient()
@@ -85,17 +85,22 @@ class KnowledgeWorker:
         """
         Process a page through the complete knowledge pipeline.
 
+        Neo4j is the source of truth for the knowledge graph:
+        - Page node created in Neo4j with metadata (content stays in PostgreSQL)
+        - Claims linked to Page via CONTAINS relationship
+        - Entities deduplicated by QID
+
         Returns True if knowledge_complete, False otherwise.
         """
         logger.info(f"🧠 KnowledgeWorker processing: {url}")
 
         try:
             async with self.db_pool.acquire() as conn:
-                # Fetch page
+                # Fetch page content from PostgreSQL
                 page = await conn.fetchrow("""
                     SELECT id, url, canonical_url, title, content_text,
                            byline, site_name, domain, language, word_count,
-                           pub_time, metadata
+                           pub_time, metadata, metadata_confidence
                     FROM core.pages
                     WHERE id = $1
                 """, page_id)
@@ -111,6 +116,21 @@ class KnowledgeWorker:
                     return False
 
                 logger.info(f"📄 {page['title']} ({page['word_count']} words)")
+
+                # =========================================================
+                # Create Page node in Neo4j (metadata only, content in PG)
+                # =========================================================
+                await self.neo4j.create_or_update_page(
+                    page_id=str(page_id),
+                    url=page['url'],
+                    title=page['title'],
+                    domain=page['domain'],
+                    pub_time=page['pub_time'].isoformat() if page['pub_time'] else None,
+                    status='processing',
+                    language=page['language'] or 'en',
+                    word_count=page['word_count'] or 0,
+                    metadata_confidence=page.get('metadata_confidence', 0.0) or 0.0
+                )
 
                 # =========================================================
                 # STAGE 0: Source Identification
@@ -209,6 +229,7 @@ class KnowledgeWorker:
                 # =========================================================
                 # Mark complete and trigger Event Worker
                 # =========================================================
+                # Update PostgreSQL (for content tracking)
                 await conn.execute("""
                     UPDATE core.pages
                     SET status = 'knowledge_complete',
@@ -216,6 +237,15 @@ class KnowledgeWorker:
                         updated_at = NOW()
                     WHERE id = $1
                 """, page_id)
+
+                # Update Neo4j Page node with final status and counts
+                await self.neo4j.create_or_update_page(
+                    page_id=str(page_id),
+                    url=page['url'],
+                    status='knowledge_complete',
+                    claims_count=len(claim_ids),
+                    entities_count=len(identification.mention_to_entity)
+                )
 
                 # Queue event worker with source credibility
                 await self.job_queue.enqueue('queue:event:high', {
@@ -360,6 +390,10 @@ class KnowledgeWorker:
     ) -> List[uuid.UUID]:
         """
         Create claims with entity links using UUIDs.
+
+        Neo4j relationships created:
+        - (Page)-[:CONTAINS]->(Claim)
+        - (Claim)-[:MENTIONS]->(Entity)
         """
         claim_ids = []
 
@@ -405,9 +439,12 @@ class KnowledgeWorker:
                 }
             )
 
-            # Store via repository (handles Neo4j + PostgreSQL)
+            # Store via repository (handles Neo4j Claim node + PostgreSQL)
             created = await self.claim_repo.create(claim, entity_ids=entity_ids)
             claim_ids.append(created.id)
+
+            # Link Page → Claim in Neo4j (CONTAINS relationship)
+            await self.neo4j.link_page_to_claim(str(page_id), str(created.id))
 
         return claim_ids
 
@@ -481,18 +518,62 @@ class KnowledgeWorker:
         })
 
     async def _update_entity_qid(self, entity_id: uuid.UUID, qid: str):
-        """Update entity with Wikidata QID (enrichment during identification)."""
-        # Update Neo4j (source of truth for entities)
-        await self.neo4j._execute_write("""
-            MATCH (e:Entity {id: $entity_id})
-            WHERE e.wikidata_qid IS NULL
-            SET e.wikidata_qid = $qid, e.updated_at = datetime()
-        """, {
-            'entity_id': str(entity_id),
-            'qid': qid
-        })
+        """
+        Update entity with Wikidata QID (enrichment during identification).
 
-        logger.info(f"🔗 Updated entity QID: {entity_id} → {qid}")
+        If another entity already has this QID, merge the current entity into it
+        (transfer relationships and delete duplicate).
+        """
+        # Check if another entity already has this QID
+        existing = await self.neo4j._execute_read("""
+            MATCH (e:Entity {wikidata_qid: $qid})
+            WHERE e.id <> $entity_id
+            RETURN e.id as id
+        """, {'qid': qid, 'entity_id': str(entity_id)})
+
+        if existing:
+            # Another entity has this QID - merge into it
+            existing_id = existing[0]['id']
+            logger.info(f"🔄 Merging entity {entity_id} into existing {existing_id} (QID: {qid})")
+
+            # Transfer all relationships from current entity to existing
+            await self.neo4j._execute_write("""
+                MATCH (current:Entity {id: $current_id})
+                MATCH (existing:Entity {id: $existing_id})
+
+                // Transfer incoming MENTIONS relationships
+                OPTIONAL MATCH (c:Claim)-[r:MENTIONS]->(current)
+                FOREACH (_ IN CASE WHEN r IS NOT NULL THEN [1] ELSE [] END |
+                    MERGE (c)-[:MENTIONS]->(existing)
+                )
+
+                // Transfer INVOLVES relationships (from events)
+                OPTIONAL MATCH (ev:Event)-[r2:INVOLVES]->(current)
+                FOREACH (_ IN CASE WHEN r2 IS NOT NULL THEN [1] ELSE [] END |
+                    MERGE (ev)-[:INVOLVES]->(existing)
+                )
+
+                // Update mention count
+                SET existing.mention_count = existing.mention_count + current.mention_count
+
+                // Delete the duplicate entity
+                DETACH DELETE current
+            """, {
+                'current_id': str(entity_id),
+                'existing_id': existing_id
+            })
+            logger.info(f"✅ Merged entity {entity_id} → {existing_id}")
+        else:
+            # No conflict - just update the QID
+            await self.neo4j._execute_write("""
+                MATCH (e:Entity {id: $entity_id})
+                WHERE e.wikidata_qid IS NULL
+                SET e.wikidata_qid = $qid, e.updated_at = datetime()
+            """, {
+                'entity_id': str(entity_id),
+                'qid': qid
+            })
+            logger.info(f"🔗 Updated entity QID: {entity_id} → {qid}")
 
     async def _verify_integrity(
         self,

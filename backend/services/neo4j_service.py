@@ -1,13 +1,29 @@
 """
-Neo4j Graph Service - Event Graph Operations
+Neo4j Graph Service - Knowledge Graph Operations
 
-Provides interface for creating and querying the event graph in Neo4j.
+Neo4j is the SINGLE SOURCE OF TRUTH for the knowledge graph.
+PostgreSQL only stores content text and embeddings.
 
-Key operations:
-- Create Event nodes and recursive sub-event structures
-- Create Claim nodes and link to events
-- Create Entity nodes and relationships (MENTIONS, ACTOR, SUBJECT, LOCATION, INVOLVES)
-- Support recursive event formation with parent-child relationships
+Node Types:
+- Page: {id, url, title, domain, pub_time, status} - metadata only
+- Claim: {id, text, confidence, modality, event_time}
+- Entity: {id, canonical_name, entity_type, wikidata_qid} - MERGE by QID for dedup
+- Event: {id, canonical_name, event_type, status, scale}
+- Source: {id, domain, canonical_name, credibility}
+
+Relationships:
+- (Page)-[:CONTAINS]->(Claim)
+- (Page)-[:PUBLISHED_BY]->(Source)
+- (Claim)-[:MENTIONS]->(Entity)
+- (Claim)-[:ACTOR|SUBJECT|LOCATION]->(Entity) - semantic roles
+- (Event)-[:SUPPORTS]->(Claim)
+- (Event)-[:INVOLVES]->(Entity)
+- (Entity)-[:PART_OF|LOCATED_IN|WORKS_FOR]->(Entity)
+
+Entity Deduplication Strategy:
+- If QID known: MERGE on wikidata_qid (one entity per real-world thing)
+- If no QID: MERGE on (canonical_name, entity_type)
+- All mentions point to same entity node via relationships
 """
 import os
 import logging
@@ -240,29 +256,47 @@ class Neo4jService:
         wikidata_qid: str = None
     ) -> str:
         """
-        Create or update Entity node in Neo4j (primary entity storage)
+        Create or update Entity node in Neo4j (primary entity storage).
 
-        Uses MERGE for idempotency based on (canonical_name, entity_type)
-        Increments mention_count on match
-        Updates wikidata_qid if provided (enriches existing entities)
+        DEDUPLICATION STRATEGY:
+        - If QID is provided: MERGE on wikidata_qid (one entity per real-world thing)
+        - If no QID: MERGE on (canonical_name, entity_type)
 
-        Returns: entity_id
+        This ensures that:
+        1. "Samuel Chu" from article A and "Sam Chu" from article B
+           both point to the same Q7411110 entity if resolved.
+        2. Unresolved entities are deduplicated by exact name+type match.
+
+        Returns: entity_id (may differ from input if entity already existed)
         """
-        # Build dynamic SET clause for wikidata_qid
-        qid_set = ", e.wikidata_qid = $wikidata_qid" if wikidata_qid else ""
-
-        query = f"""
-        MERGE (e:Entity {{canonical_name: $canonical_name, entity_type: $entity_type}})
-        ON CREATE SET
-            e.id = $entity_id,
-            e.mention_count = 1,
-            e.wikidata_qid = $wikidata_qid,
-            e.created_at = datetime()
-        ON MATCH SET
-            e.mention_count = e.mention_count + 1,
-            e.updated_at = datetime(){qid_set}
-        RETURN e.id as id
-        """
+        if wikidata_qid:
+            # QID is known - merge on QID for true deduplication
+            query = """
+            MERGE (e:Entity {wikidata_qid: $wikidata_qid})
+            ON CREATE SET
+                e.id = $entity_id,
+                e.canonical_name = $canonical_name,
+                e.entity_type = $entity_type,
+                e.mention_count = 1,
+                e.created_at = datetime()
+            ON MATCH SET
+                e.mention_count = e.mention_count + 1,
+                e.updated_at = datetime()
+            RETURN e.id as id
+            """
+        else:
+            # No QID - merge on name + type (less reliable but still deduplicates)
+            query = """
+            MERGE (e:Entity {canonical_name: $canonical_name, entity_type: $entity_type})
+            ON CREATE SET
+                e.id = $entity_id,
+                e.mention_count = 1,
+                e.created_at = datetime()
+            ON MATCH SET
+                e.mention_count = e.mention_count + 1,
+                e.updated_at = datetime()
+            RETURN e.id as id
+            """
 
         result = await self._execute_write(query, {
             'entity_id': entity_id,
@@ -271,8 +305,86 @@ class Neo4jService:
             'wikidata_qid': wikidata_qid
         })
 
-        logger.debug(f"📦 Created/updated Entity: {canonical_name} ({entity_type})")
-        return result['id'] if result else entity_id
+        returned_id = result['id'] if result else entity_id
+        qid_msg = f" [{wikidata_qid}]" if wikidata_qid else ""
+        logger.debug(f"📦 Created/updated Entity: {canonical_name} ({entity_type}){qid_msg} → {returned_id}")
+        return returned_id
+
+    async def get_entity_by_qid(self, wikidata_qid: str) -> Optional[Dict]:
+        """
+        Get entity by Wikidata QID.
+
+        This is the primary lookup for deduplication - if an entity with
+        this QID exists, we should use it instead of creating a new one.
+        """
+        query = """
+        MATCH (e:Entity {wikidata_qid: $qid})
+        RETURN e.id as id, e.canonical_name as canonical_name,
+               e.entity_type as entity_type, e.mention_count as mention_count,
+               e.wikidata_qid as wikidata_qid, e.wikidata_label as wikidata_label,
+               e.wikidata_description as wikidata_description,
+               e.aliases as aliases, e.status as status
+        """
+        results = await self._execute_read(query, {'qid': wikidata_qid})
+        return results[0] if results else None
+
+    async def add_entity_alias(
+        self,
+        entity_id: str,
+        alias: str
+    ) -> None:
+        """
+        Add an alias to an entity (for fuzzy matching later).
+
+        Aliases are surface forms that should resolve to this entity.
+        """
+        query = """
+        MATCH (e:Entity {id: $entity_id})
+        WHERE NOT $alias IN COALESCE(e.aliases, [])
+        SET e.aliases = COALESCE(e.aliases, []) + $alias
+        """
+        await self._execute_write(query, {
+            'entity_id': entity_id,
+            'alias': alias
+        })
+
+    async def merge_duplicate_entities_by_qid(self) -> Dict:
+        """
+        Find and merge entities that share the same QID but have different IDs.
+
+        This shouldn't happen with proper MERGE logic, but handles edge cases.
+
+        Returns: Stats about merged entities
+        """
+        # Find duplicates
+        duplicates = await self._execute_read("""
+            MATCH (e:Entity)
+            WHERE e.wikidata_qid IS NOT NULL
+            WITH e.wikidata_qid as qid, COLLECT(e) as entities
+            WHERE SIZE(entities) > 1
+            RETURN qid,
+                   [entity IN entities | entity.id] as ids,
+                   [entity IN entities | entity.canonical_name] as names,
+                   [entity IN entities | entity.mention_count] as counts
+        """, {})
+
+        merged_count = 0
+        for dup in duplicates:
+            # Keep the entity with highest mention count
+            max_idx = dup['counts'].index(max(dup['counts']))
+            canonical_id = dup['ids'][max_idx]
+            duplicate_ids = [id for i, id in enumerate(dup['ids']) if i != max_idx]
+
+            if duplicate_ids:
+                await self.merge_entities(
+                    canonical_id=canonical_id,
+                    duplicate_ids=duplicate_ids,
+                    total_mentions=sum(dup['counts'])
+                )
+                merged_count += len(duplicate_ids)
+                logger.info(f"🔗 Merged {len(duplicate_ids)} duplicates for QID {dup['qid']}")
+
+        return {'duplicates_found': len(duplicates), 'entities_merged': merged_count}
 
     async def get_entities_by_ids(self, entity_ids: List[str]) -> List[Dict]:
         """
@@ -631,18 +743,152 @@ class Neo4jService:
             'new_claim_id': new_claim_id
         })
 
+    # ===== Page Operations =====
+
+    async def create_or_update_page(
+        self,
+        page_id: str,
+        url: str,
+        title: str = None,
+        domain: str = None,
+        pub_time: str = None,
+        status: str = "stub",
+        language: str = "en",
+        word_count: int = 0,
+        metadata_confidence: float = 0.0,
+        claims_count: int = 0,
+        entities_count: int = 0
+    ) -> str:
+        """
+        Create or update Page node in Neo4j.
+
+        Page nodes store metadata only - content stays in PostgreSQL.
+        Includes confidence metrics for the page.
+
+        Returns: page_id
+        """
+        query = """
+        MERGE (p:Page {id: $page_id})
+        ON CREATE SET
+            p.url = $url,
+            p.title = $title,
+            p.domain = $domain,
+            p.pub_time = $pub_time,
+            p.status = $status,
+            p.language = $language,
+            p.word_count = $word_count,
+            p.metadata_confidence = $metadata_confidence,
+            p.claims_count = $claims_count,
+            p.entities_count = $entities_count,
+            p.created_at = datetime()
+        ON MATCH SET
+            p.title = COALESCE($title, p.title),
+            p.domain = COALESCE($domain, p.domain),
+            p.pub_time = COALESCE($pub_time, p.pub_time),
+            p.status = $status,
+            p.language = COALESCE($language, p.language),
+            p.word_count = CASE WHEN $word_count > 0 THEN $word_count ELSE p.word_count END,
+            p.metadata_confidence = CASE WHEN $metadata_confidence > 0 THEN $metadata_confidence ELSE p.metadata_confidence END,
+            p.claims_count = CASE WHEN $claims_count > 0 THEN $claims_count ELSE p.claims_count END,
+            p.entities_count = CASE WHEN $entities_count > 0 THEN $entities_count ELSE p.entities_count END,
+            p.updated_at = datetime()
+        RETURN p.id as id
+        """
+
+        result = await self._execute_write(query, {
+            'page_id': page_id,
+            'url': url,
+            'title': title,
+            'domain': domain,
+            'pub_time': pub_time,
+            'status': status,
+            'language': language,
+            'word_count': word_count,
+            'metadata_confidence': metadata_confidence,
+            'claims_count': claims_count,
+            'entities_count': entities_count
+        })
+
+        logger.debug(f"📄 Created/updated Page node: {title or url}")
+        return result['id'] if result else page_id
+
+    async def get_page_by_id(self, page_id: str) -> Optional[Dict]:
+        """Get page by ID from Neo4j."""
+        query = """
+        MATCH (p:Page {id: $page_id})
+        RETURN p.id as id, p.url as url, p.title as title,
+               p.domain as domain, p.pub_time as pub_time,
+               p.status as status, p.language as language,
+               p.created_at as created_at
+        """
+        results = await self._execute_read(query, {'page_id': page_id})
+        return results[0] if results else None
+
+    async def update_page_status(self, page_id: str, status: str) -> None:
+        """Update page status in Neo4j."""
+        query = """
+        MATCH (p:Page {id: $page_id})
+        SET p.status = $status, p.updated_at = datetime()
+        """
+        await self._execute_write(query, {'page_id': page_id, 'status': status})
+
+    async def link_page_to_claim(self, page_id: str, claim_id: str) -> None:
+        """Create CONTAINS relationship between Page and Claim."""
+        query = """
+        MATCH (p:Page {id: $page_id})
+        MATCH (c:Claim {id: $claim_id})
+        MERGE (p)-[r:CONTAINS]->(c)
+        ON CREATE SET r.created_at = datetime()
+        """
+        await self._execute_write(query, {
+            'page_id': page_id,
+            'claim_id': claim_id
+        })
+
+    async def get_page_claims(self, page_id: str) -> List[Dict]:
+        """Get all claims for a page."""
+        query = """
+        MATCH (p:Page {id: $page_id})-[:CONTAINS]->(c:Claim)
+        RETURN c.id as id, c.text as text, c.confidence as confidence,
+               c.modality as modality, c.event_time as event_time
+        ORDER BY c.created_at
+        """
+        return await self._execute_read(query, {'page_id': page_id})
+
+    async def get_page_entities(self, page_id: str) -> List[Dict]:
+        """Get all entities mentioned in a page's claims."""
+        query = """
+        MATCH (p:Page {id: $page_id})-[:CONTAINS]->(c:Claim)-[:MENTIONS]->(e:Entity)
+        RETURN DISTINCT e.id as id, e.canonical_name as canonical_name,
+               e.entity_type as entity_type, e.wikidata_qid as wikidata_qid,
+               e.mention_count as mention_count
+        ORDER BY e.mention_count DESC
+        """
+        return await self._execute_read(query, {'page_id': page_id})
+
     # ===== Query Operations =====
 
     async def initialize_constraints(self):
-        """Create Neo4j constraints and indexes"""
+        """Create Neo4j constraints and indexes for knowledge graph."""
         constraints = [
+            # Unique IDs for all node types
             "CREATE CONSTRAINT event_id IF NOT EXISTS FOR (e:Event) REQUIRE e.id IS UNIQUE",
             "CREATE CONSTRAINT claim_id IF NOT EXISTS FOR (c:Claim) REQUIRE c.id IS UNIQUE",
             "CREATE CONSTRAINT entity_id IF NOT EXISTS FOR (e:Entity) REQUIRE e.id IS UNIQUE",
             "CREATE CONSTRAINT page_id IF NOT EXISTS FOR (p:Page) REQUIRE p.id IS UNIQUE",
+            "CREATE CONSTRAINT source_id IF NOT EXISTS FOR (s:Source) REQUIRE s.id IS UNIQUE",
+            # Entity QID uniqueness (key for deduplication)
+            "CREATE CONSTRAINT entity_qid IF NOT EXISTS FOR (e:Entity) REQUIRE e.wikidata_qid IS UNIQUE",
+            # Source domain uniqueness
+            "CREATE CONSTRAINT source_domain IF NOT EXISTS FOR (s:Source) REQUIRE s.domain IS UNIQUE",
+            # Indexes for common queries
             "CREATE INDEX event_status IF NOT EXISTS FOR (e:Event) ON (e.status)",
             "CREATE INDEX event_time IF NOT EXISTS FOR (e:Event) ON (e.earliest_time)",
-            "CREATE INDEX entity_name IF NOT EXISTS FOR (e:Entity) ON (e.canonical_name)"
+            "CREATE INDEX entity_name IF NOT EXISTS FOR (e:Entity) ON (e.canonical_name)",
+            "CREATE INDEX entity_type IF NOT EXISTS FOR (e:Entity) ON (e.entity_type)",
+            "CREATE INDEX page_status IF NOT EXISTS FOR (p:Page) ON (p.status)",
+            "CREATE INDEX page_domain IF NOT EXISTS FOR (p:Page) ON (p.domain)",
+            "CREATE INDEX claim_confidence IF NOT EXISTS FOR (c:Claim) ON (c.confidence)"
         ]
 
         for constraint_query in constraints:

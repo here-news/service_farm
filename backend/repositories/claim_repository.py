@@ -1,16 +1,19 @@
 """
-Claim Repository - PostgreSQL and Neo4j operations
+Claim Repository - Neo4j storage for claims
 
 Storage strategy:
-- PostgreSQL: Claim content, embedding, entity_ids in metadata JSON (core.claims table)
-- Neo4j: Entity nodes fetched by entity_ids
-- NO junction tables - entity references stored in claim.metadata
+- Neo4j: Claim nodes with text, confidence, event_time
+- Neo4j: MENTIONS relationships to Entity nodes
+- Neo4j: CONTAINS relationships from Page nodes
+- PostgreSQL (optional): Claim embeddings for similarity search
+
+The repository abstracts storage from consumers - they work with Claim domain model.
 """
 import uuid
 import logging
-import json
 from typing import Optional, List
 import asyncpg
+from datetime import datetime
 
 from models.claim import Claim
 from models.entity import Entity
@@ -23,83 +26,41 @@ class ClaimRepository:
     """
     Repository for Claim domain model
 
-    Handles storage in PostgreSQL (content+embedding) and Neo4j (graph)
+    Neo4j is the primary store for claims.
+    PostgreSQL only used for embeddings (optional).
     """
 
     def __init__(self, db_pool: asyncpg.Pool, neo4j_service: Neo4jService):
         self.db_pool = db_pool
         self.neo4j = neo4j_service
 
-    async def create(self, claim: Claim, entity_ids: List[uuid.UUID] = None, entity_names: List[str] = None) -> Claim:
+    # =========================================================================
+    # CREATE OPERATIONS
+    # =========================================================================
+
+    async def create(
+        self,
+        claim: Claim,
+        entity_ids: List[uuid.UUID] = None
+    ) -> Claim:
         """
-        Create claim in PostgreSQL with entity references in metadata
+        Create claim in Neo4j with entity relationships.
 
         Args:
             claim: Claim domain model
-            entity_ids: List of entity UUIDs to store in metadata
-            entity_names: List of entity names (for debugging)
+            entity_ids: List of entity UUIDs to link via MENTIONS
 
         Returns:
             Created claim with timestamp
         """
-        # Add entity references to metadata
-        metadata = claim.metadata.copy()
-        if entity_ids:
-            metadata['entity_ids'] = [str(eid) for eid in entity_ids]
-            if entity_names:
-                metadata['entity_names'] = entity_names
-
-        # NOTE: Embeddings are NOT stored in database
-        # They are generated on-demand from claim.text when needed
-        # This saves storage and embeddings can always be regenerated
-
-        async with self.db_pool.acquire() as conn:
-            await conn.execute("""
-                INSERT INTO core.claims (
-                    id, page_id, text, event_time, confidence, modality, metadata
-                )
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
-            """,
-                claim.id,
-                claim.page_id,
-                claim.text,
-                claim.event_time,
-                claim.confidence,
-                claim.modality,
-                json.dumps(metadata)
-            )
-
-            # Fetch timestamp
-            row = await conn.fetchrow("""
-                SELECT created_at FROM core.claims WHERE id = $1
-            """, claim.id)
-
-            claim.created_at = row['created_at']
-            claim.metadata = metadata  # Update claim with entity references
-
-        # Create Claim node in Neo4j and link to entities
-        if entity_ids:
-            await self._create_claim_graph(claim, entity_ids)
-
-        logger.debug(f"📝 Created claim: {claim.text[:50]}... (entities: {len(entity_ids or [])})")
-        return claim
-
-    async def _create_claim_graph(self, claim: Claim, entity_ids: List[uuid.UUID]) -> None:
-        """
-        Create Claim node in Neo4j and link to entities via MENTIONS relationship.
-
-        This enables graph queries like:
-        - Find all claims mentioning an entity
-        - Find entities co-mentioned in claims
-        - Build event-entity relationships through claims
-        """
-        # Create Claim node
+        # Create Claim node in Neo4j
         await self.neo4j._execute_write("""
             MERGE (c:Claim {id: $claim_id})
             ON CREATE SET
                 c.text = $text,
                 c.event_time = $event_time,
                 c.confidence = $confidence,
+                c.modality = $modality,
                 c.created_at = datetime()
             ON MATCH SET
                 c.text = $text,
@@ -108,65 +69,52 @@ class ClaimRepository:
             'claim_id': str(claim.id),
             'text': claim.text[:500],  # Truncate for graph storage
             'event_time': claim.event_time.isoformat() if claim.event_time else None,
-            'confidence': claim.confidence
+            'confidence': claim.confidence,
+            'modality': claim.modality
         })
 
         # Create MENTIONS relationships to entities
-        for entity_id in entity_ids:
-            await self.neo4j._execute_write("""
-                MATCH (c:Claim {id: $claim_id})
-                MATCH (e:Entity {id: $entity_id})
-                MERGE (c)-[r:MENTIONS]->(e)
-                ON CREATE SET r.created_at = datetime()
-            """, {
-                'claim_id': str(claim.id),
-                'entity_id': str(entity_id)
-            })
+        if entity_ids:
+            for entity_id in entity_ids:
+                await self.neo4j._execute_write("""
+                    MATCH (c:Claim {id: $claim_id})
+                    MATCH (e:Entity {id: $entity_id})
+                    MERGE (c)-[r:MENTIONS]->(e)
+                    ON CREATE SET r.created_at = datetime()
+                """, {
+                    'claim_id': str(claim.id),
+                    'entity_id': str(entity_id)
+                })
 
-        logger.debug(f"🔗 Created Claim node with {len(entity_ids)} MENTIONS relationships")
+        claim.created_at = datetime.utcnow()
+        logger.debug(f"📝 Created claim: {claim.text[:50]}... ({len(entity_ids or [])} entities)")
+        return claim
 
-    async def hydrate_entities(self, claim: Claim) -> Claim:
+    async def link_to_page(self, claim_id: uuid.UUID, page_id: uuid.UUID) -> None:
         """
-        Fetch and attach entities from Neo4j based on claim.metadata.entity_ids
+        Create CONTAINS relationship from Page to Claim.
 
         Args:
-            claim: Claim with entity_ids in metadata
-
-        Returns:
-            Claim with entities populated
+            claim_id: Claim UUID
+            page_id: Page UUID
         """
-        entity_ids = claim.entity_ids
-        if not entity_ids:
-            claim.entities = []
-            return claim
+        await self.neo4j._execute_write("""
+            MATCH (p:Page {id: $page_id})
+            MATCH (c:Claim {id: $claim_id})
+            MERGE (p)-[r:CONTAINS]->(c)
+            ON CREATE SET r.created_at = datetime()
+        """, {
+            'page_id': str(page_id),
+            'claim_id': str(claim_id)
+        })
 
-        # Fetch entities from Neo4j
-        entity_id_strings = [str(eid) for eid in entity_ids]
-        entities_data = await self.neo4j.get_entities_by_ids(entity_ids=entity_id_strings)
-
-        entities = []
-        for entity_data in entities_data:
-            entities.append(Entity(
-                id=uuid.UUID(entity_data['id']),
-                canonical_name=entity_data['canonical_name'],
-                entity_type=entity_data['entity_type'],
-                mention_count=entity_data.get('mention_count', 0),
-                profile_summary=entity_data.get('profile_summary'),
-                wikidata_qid=entity_data.get('wikidata_qid'),
-                wikidata_label=entity_data.get('wikidata_label'),
-                wikidata_description=entity_data.get('wikidata_description'),
-                aliases=entity_data.get('aliases', []),
-                status=entity_data.get('status', 'pending'),
-                confidence=entity_data.get('confidence', 0.0)
-            ))
-
-        claim.entities = entities
-        logger.debug(f"✅ Hydrated {len(entities)} entities for claim {claim.id}")
-        return claim
+    # =========================================================================
+    # READ OPERATIONS
+    # =========================================================================
 
     async def get_by_id(self, claim_id: uuid.UUID) -> Optional[Claim]:
         """
-        Retrieve claim from PostgreSQL by ID
+        Retrieve claim by ID from Neo4j.
 
         Args:
             claim_id: Claim UUID
@@ -174,43 +122,31 @@ class ClaimRepository:
         Returns:
             Claim model or None
         """
-        async with self.db_pool.acquire() as conn:
-            row = await conn.fetchrow("""
-                SELECT
-                    id, page_id, text, event_time, confidence, modality,
-                    metadata, embedding, created_at
-                FROM core.claims
-                WHERE id = $1
-            """, claim_id)
+        results = await self.neo4j._execute_read("""
+            MATCH (c:Claim {id: $claim_id})
+            OPTIONAL MATCH (p:Page)-[:CONTAINS]->(c)
+            RETURN c.id as id, c.text as text, c.event_time as event_time,
+                   c.confidence as confidence, c.modality as modality,
+                   c.created_at as created_at, p.id as page_id
+        """, {'claim_id': str(claim_id)})
 
-            if not row:
-                return None
+        if not results:
+            return None
 
-            # Parse embedding if exists
-            embedding = None
-            if row['embedding']:
-                embedding = self._parse_embedding(row['embedding'])
-
-            # Parse metadata if it's a string (from JSON column)
-            metadata = row['metadata'] or {}
-            if isinstance(metadata, str):
-                metadata = json.loads(metadata)
-
-            return Claim(
-                id=row['id'],
-                page_id=row['page_id'],
-                text=row['text'],
-                event_time=row['event_time'],
-                confidence=row['confidence'],
-                modality=row['modality'],
-                metadata=metadata,
-                embedding=embedding,
-                created_at=row['created_at']
-            )
+        row = results[0]
+        return Claim(
+            id=uuid.UUID(row['id']),
+            page_id=uuid.UUID(row['page_id']) if row['page_id'] else None,
+            text=row['text'],
+            event_time=row['event_time'],
+            confidence=row['confidence'] or 0.8,
+            modality=row['modality'] or 'observation',
+            created_at=row['created_at']
+        )
 
     async def get_by_page(self, page_id: uuid.UUID) -> List[Claim]:
         """
-        Retrieve all claims for a page
+        Retrieve all claims for a page.
 
         Args:
             page_id: Page UUID
@@ -218,63 +154,187 @@ class ClaimRepository:
         Returns:
             List of Claim models
         """
-        async with self.db_pool.acquire() as conn:
-            rows = await conn.fetch("""
-                SELECT
-                    id, page_id, text, event_time, confidence, modality,
-                    metadata, embedding, created_at
-                FROM core.claims
-                WHERE page_id = $1
-                ORDER BY created_at
-            """, page_id)
+        results = await self.neo4j._execute_read("""
+            MATCH (p:Page {id: $page_id})-[:CONTAINS]->(c:Claim)
+            RETURN c.id as id, c.text as text, c.event_time as event_time,
+                   c.confidence as confidence, c.modality as modality,
+                   c.created_at as created_at
+            ORDER BY c.created_at
+        """, {'page_id': str(page_id)})
 
-            claims = []
-            for row in rows:
-                embedding = None
-                if row['embedding']:
-                    embedding = self._parse_embedding(row['embedding'])
+        claims = []
+        for row in results:
+            claims.append(Claim(
+                id=uuid.UUID(row['id']),
+                page_id=page_id,
+                text=row['text'],
+                event_time=row['event_time'],
+                confidence=row['confidence'] or 0.8,
+                modality=row['modality'] or 'observation',
+                created_at=row['created_at']
+            ))
 
-                # Parse metadata if it's a string
-                metadata = row['metadata'] or {}
-                if isinstance(metadata, str):
-                    metadata = json.loads(metadata)
-
-                claims.append(Claim(
-                    id=row['id'],
-                    page_id=row['page_id'],
-                    text=row['text'],
-                    event_time=row['event_time'],
-                    confidence=row['confidence'],
-                    modality=row['modality'],
-                    metadata=metadata,
-                    embedding=embedding,
-                    created_at=row['created_at']
-                ))
-
-            return claims
+        return claims
 
     async def get_entities_for_claim(self, claim_id: uuid.UUID) -> List[Entity]:
         """
-        Get all entities linked to a claim (from metadata + Neo4j)
+        Get all entities mentioned by a claim.
 
         Args:
             claim_id: Claim UUID
 
         Returns:
-            List of Entity objects
+            List of Entity models
         """
-        claim = await self.get_by_id(claim_id)
-        if not claim:
-            return []
+        results = await self.neo4j._execute_read("""
+            MATCH (c:Claim {id: $claim_id})-[:MENTIONS]->(e:Entity)
+            RETURN e.id as id, e.canonical_name as canonical_name,
+                   e.entity_type as entity_type, e.wikidata_qid as wikidata_qid,
+                   e.wikidata_label as wikidata_label,
+                   e.wikidata_description as wikidata_description,
+                   e.mention_count as mention_count, e.confidence as confidence,
+                   e.status as status, e.aliases as aliases
+            ORDER BY e.canonical_name
+        """, {'claim_id': str(claim_id)})
 
-        await self.hydrate_entities(claim)
-        return claim.entities or []
+        entities = []
+        for row in results:
+            entities.append(Entity(
+                id=uuid.UUID(row['id']),
+                canonical_name=row['canonical_name'],
+                entity_type=row['entity_type'],
+                wikidata_qid=row.get('wikidata_qid'),
+                wikidata_label=row.get('wikidata_label'),
+                wikidata_description=row.get('wikidata_description'),
+                mention_count=row.get('mention_count', 0),
+                confidence=row.get('confidence', 0.0),
+                status=row.get('status', 'pending'),
+                aliases=row.get('aliases') or []
+            ))
 
-    def _parse_embedding(self, emb_str: str) -> Optional[List[float]]:
-        """Parse embedding from PostgreSQL vector string"""
-        try:
-            if emb_str.startswith('[') and emb_str.endswith(']'):
-                return [float(x.strip()) for x in emb_str[1:-1].split(',')]
-        except Exception as e:
-            logger.warning(f"Failed to parse embedding: {e}")
-        return None
+        return entities
+
+    async def hydrate_entities(self, claim: Claim) -> Claim:
+        """
+        Fetch and attach entities from Neo4j.
+
+        Args:
+            claim: Claim to hydrate
+
+        Returns:
+            Claim with entities populated
+        """
+        claim.entities = await self.get_entities_for_claim(claim.id)
+        logger.debug(f"✅ Hydrated {len(claim.entities)} entities for claim {claim.id}")
+        return claim
+
+    # =========================================================================
+    # EMBEDDING OPERATIONS (PostgreSQL)
+    # =========================================================================
+
+    async def store_embedding(
+        self,
+        claim_id: uuid.UUID,
+        embedding: List[float]
+    ) -> None:
+        """
+        Store claim embedding in PostgreSQL for similarity search.
+
+        Args:
+            claim_id: Claim UUID
+            embedding: Embedding vector
+        """
+        async with self.db_pool.acquire() as conn:
+            await conn.execute("""
+                INSERT INTO content.claim_embeddings (claim_id, embedding)
+                VALUES ($1, $2)
+                ON CONFLICT (claim_id) DO UPDATE SET embedding = $2
+            """, claim_id, embedding)
+
+    async def get_embedding(self, claim_id: uuid.UUID) -> Optional[List[float]]:
+        """
+        Get claim embedding from PostgreSQL.
+
+        Args:
+            claim_id: Claim UUID
+
+        Returns:
+            Embedding vector or None
+        """
+        async with self.db_pool.acquire() as conn:
+            result = await conn.fetchval("""
+                SELECT embedding FROM content.claim_embeddings WHERE claim_id = $1
+            """, claim_id)
+
+            if result:
+                # Parse vector string to list
+                if isinstance(result, str) and result.startswith('['):
+                    return [float(x.strip()) for x in result[1:-1].split(',')]
+            return None
+
+    # =========================================================================
+    # QUERY OPERATIONS
+    # =========================================================================
+
+    async def find_similar(
+        self,
+        embedding: List[float],
+        limit: int = 10,
+        exclude_claim_ids: List[uuid.UUID] = None
+    ) -> List[dict]:
+        """
+        Find claims similar to given embedding.
+
+        Args:
+            embedding: Query embedding vector
+            limit: Maximum results
+            exclude_claim_ids: Claim IDs to exclude
+
+        Returns:
+            List of {claim_id, similarity} dicts
+        """
+        exclude_ids = [str(cid) for cid in (exclude_claim_ids or [])]
+
+        async with self.db_pool.acquire() as conn:
+            results = await conn.fetch("""
+                SELECT claim_id, 1 - (embedding <=> $1) as similarity
+                FROM content.claim_embeddings
+                WHERE NOT (claim_id = ANY($3::uuid[]))
+                ORDER BY embedding <=> $1
+                LIMIT $2
+            """, embedding, limit, exclude_ids)
+
+            return [{'claim_id': r['claim_id'], 'similarity': r['similarity']} for r in results]
+
+    async def get_claims_by_entity(self, entity_id: uuid.UUID) -> List[Claim]:
+        """
+        Get all claims that mention an entity.
+
+        Args:
+            entity_id: Entity UUID
+
+        Returns:
+            List of Claim models
+        """
+        results = await self.neo4j._execute_read("""
+            MATCH (c:Claim)-[:MENTIONS]->(e:Entity {id: $entity_id})
+            OPTIONAL MATCH (p:Page)-[:CONTAINS]->(c)
+            RETURN c.id as id, c.text as text, c.event_time as event_time,
+                   c.confidence as confidence, c.modality as modality,
+                   c.created_at as created_at, p.id as page_id
+            ORDER BY c.created_at DESC
+        """, {'entity_id': str(entity_id)})
+
+        claims = []
+        for row in results:
+            claims.append(Claim(
+                id=uuid.UUID(row['id']),
+                page_id=uuid.UUID(row['page_id']) if row['page_id'] else None,
+                text=row['text'],
+                event_time=row['event_time'],
+                confidence=row['confidence'] or 0.8,
+                modality=row['modality'] or 'observation',
+                created_at=row['created_at']
+            ))
+
+        return claims

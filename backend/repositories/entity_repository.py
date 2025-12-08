@@ -41,18 +41,22 @@ class EntityRepository:
 
     async def create(self, entity: Entity) -> Entity:
         """
-        Create entity in Neo4j (primary storage)
+        Create or get existing entity in Neo4j (primary storage).
 
-        Uses MERGE for deduplication based on (canonical_name, entity_type)
-        If wikidata_qid is provided, updates existing entities with the QID
+        DEDUPLICATION:
+        - If QID provided: MERGE on QID → may return existing entity's ID
+        - If no QID: MERGE on (canonical_name, entity_type)
+
+        This means the returned entity may have a DIFFERENT ID than the input
+        if an entity with the same QID already exists.
 
         Args:
             entity: Entity domain model
 
         Returns:
-            Created entity with id
+            Entity with correct ID (may differ from input if deduplicated)
         """
-        # Create entity in Neo4j (primary storage)
+        # Create/get entity in Neo4j (may return existing entity's ID)
         returned_id = await self.neo4j.create_or_update_entity(
             entity_id=str(entity.id),
             canonical_name=entity.canonical_name,
@@ -60,22 +64,13 @@ class EntityRepository:
             wikidata_qid=entity.wikidata_qid
         )
 
-        # Also sync to PostgreSQL if we have a wikidata_qid
-        if entity.wikidata_qid:
-            try:
-                async with self.db_pool.acquire() as conn:
-                    await conn.execute("""
-                        INSERT INTO core.entities (id, canonical_name, entity_type, wikidata_qid)
-                        VALUES ($1, $2, $3, $4)
-                        ON CONFLICT (id) DO UPDATE SET
-                            wikidata_qid = EXCLUDED.wikidata_qid,
-                            updated_at = NOW()
-                    """, entity.id, entity.canonical_name, entity.entity_type, entity.wikidata_qid)
-            except Exception as e:
-                logger.warning(f"Failed to sync QID to PostgreSQL: {e}")
+        # If Neo4j returned a different ID, this entity already existed
+        if returned_id != str(entity.id):
+            logger.info(f"🔗 Entity deduplicated: {entity.canonical_name} → existing {returned_id}")
+            entity.id = uuid.UUID(returned_id)
 
         qid_msg = f" [{entity.wikidata_qid}]" if entity.wikidata_qid else ""
-        logger.debug(f"📦 Created entity in Neo4j: {entity.canonical_name} ({entity.entity_type}){qid_msg}")
+        logger.debug(f"📦 Entity in Neo4j: {entity.canonical_name} ({entity.entity_type}){qid_msg} → {entity.id}")
         return entity
 
     async def get_by_id(self, entity_id: uuid.UUID) -> Optional[Entity]:

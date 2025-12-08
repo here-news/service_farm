@@ -12,7 +12,9 @@ class Page:
     """
     Page domain model - storage-agnostic representation
 
-    Attributes correspond to core.pages table but abstracted from storage
+    Storage strategy (handled by PageRepository):
+    - Content (content_text, embedding): PostgreSQL
+    - Metadata (title, url, etc.): Neo4j Page node
     """
     id: uuid.UUID
     url: str
