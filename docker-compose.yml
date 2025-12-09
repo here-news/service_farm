@@ -53,23 +53,12 @@ services:
       timeout: 3s
       retries: 5
 
-  # Frontend (Demo + Test UI)
-  frontend:
-    image: python:3.11-slim
-    container_name: herenews-frontend
-    working_dir: /app
-    volumes:
-      - ./frontend:/app
-    ports:
-      - "8080:8080"
-    command: python3 -m http.server 8080
-
-  # FastAPI backend
-  api:
+  # Unified App (FastAPI backend + React frontend)
+  app:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: herenews-api
+    container_name: herenews-app
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
@@ -83,9 +72,10 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       IFRAMELY_API_KEY: ${IFRAMELY_API_KEY}
     ports:
-      - "8000:8000"
+      - "7272:8000"  # External: 7272, Internal: 8000
     volumes:
       - ./backend:/app
+      - ./static:/app/static  # Serve built frontend
     depends_on:
       postgres:
         condition: service_healthy
@@ -116,7 +106,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      api:
+      app:
         condition: service_started
     command: python run_extraction_worker.py
 
@@ -140,7 +130,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      api:
+      app:
         condition: service_started
     command: python run_extraction_worker.py
 
@@ -164,7 +154,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      api:
+      app:
         condition: service_started
     command: python run_extraction_worker.py
 

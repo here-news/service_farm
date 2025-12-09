@@ -1,7 +1,17 @@
-FROM python:3.12-slim
+FROM node:18-alpine
 
 WORKDIR /app
 
-COPY index.html .
+# Copy package files
+COPY package*.json ./
 
-CMD ["python", "-m", "http.server", "8002"]
+# Install dependencies
+RUN npm install
+
+# Copy source
+COPY . .
+
+# Build
+RUN npm run build
+
+# Output is in ../static (configured in vite.config.ts)

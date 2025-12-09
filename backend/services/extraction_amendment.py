@@ -20,7 +20,7 @@ from typing import List, Optional, Dict, Any
 from openai import OpenAI
 import os
 
-from models.mention import Mention, MentionRelationship
+from models.domain.mention import Mention, MentionRelationship
 
 logger = logging.getLogger(__name__)
 

@@ -14,9 +14,9 @@ from services.neo4j_service import Neo4jService
 from repositories.event_repository import EventRepository
 from repositories.claim_repository import ClaimRepository
 from repositories.entity_repository import EntityRepository
-from models.event import Event
-from models.claim import Claim
-from models.entity import Entity
+from models.domain.event import Event
+from models.domain.claim import Claim
+from models.domain.entity import Entity
 from utils.datetime_utils import neo4j_datetime_to_python
 
 router = APIRouter()
@@ -64,7 +64,7 @@ async def init_services():
     return event_repo, claim_repo, entity_repo
 
 
-@router.get("/api/events")
+@router.get("/events")
 async def list_events(
     status: Optional[str] = None,
     scale: Optional[str] = None,
@@ -124,7 +124,7 @@ async def list_events(
     }
 
 
-@router.get("/api/events/{event_id}")
+@router.get("/events/{event_id}")
 async def get_event_tree(event_id: str):
     """
     Get event with full tree structure using domain models and repositories
@@ -138,19 +138,18 @@ async def get_event_tree(event_id: str):
     """
     event_repo, claim_repo, entity_repo = await init_services()
 
-    try:
-        event_uuid = uuid.UUID(event_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid event ID format")
+    # Validate short ID format (ev_xxxxxxxx)
+    if not event_id.startswith('ev_'):
+        raise HTTPException(status_code=400, detail="Invalid event ID format. Expected format: ev_xxxxxxxx")
 
-    # Get event using repository
-    event = await event_repo.get_by_id(event_uuid)
+    # Get event using repository (accepts short ID string)
+    event = await event_repo.get_by_id(event_id)
 
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
 
     # Get sub-events
-    sub_events = await event_repo.get_sub_events(event_uuid)
+    sub_events = await event_repo.get_sub_events(event_id)
 
     # Get parent event (if any)
     parent_event = None
@@ -158,10 +157,10 @@ async def get_event_tree(event_id: str):
         parent_event = await event_repo.get_by_id(event.parent_event_id)
 
     # Get entities for this event using repository
-    entities = await entity_repo.get_by_event_id(event_uuid)
+    entities = await entity_repo.get_by_event_id(event_id)
 
     # Get claims linked to this event from Neo4j graph
-    claims = await event_repo.get_event_claims(event_uuid)
+    claims = await event_repo.get_event_claims(event_id)
 
     # Convert domain models to API response format
     import json
@@ -187,10 +186,15 @@ async def get_event_tree(event_id: str):
 
     def claim_to_dict(c: Claim) -> dict:
         """Convert Claim domain model to API dict"""
+        # Handle event_time - might be string or datetime
+        event_time = c.event_time
+        if event_time and hasattr(event_time, 'isoformat'):
+            event_time = event_time.isoformat()
+
         return {
             'id': str(c.id),
             'text': c.text,
-            'event_time': c.event_time.isoformat() if c.event_time else None,
+            'event_time': event_time,
             'confidence': c.confidence,
             'modality': c.modality,
         }

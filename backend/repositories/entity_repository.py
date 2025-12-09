@@ -22,7 +22,7 @@ from typing import Optional, List, Tuple
 import asyncpg
 from rapidfuzz import fuzz
 
-from models.entity import Entity
+from models.domain.entity import Entity
 from services.neo4j_service import Neo4jService
 from utils.id_generator import is_uuid, uuid_to_short_id
 

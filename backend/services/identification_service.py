@@ -20,8 +20,8 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 import asyncpg
 
-from models.mention import Mention, MentionRelationship, ExtractionResult
-from models.entity import Entity
+from models.domain.mention import Mention, MentionRelationship, ExtractionResult
+from models.domain.entity import Entity
 from repositories.entity_repository import EntityRepository
 from services.neo4j_service import Neo4jService
 from utils.id_generator import generate_entity_id

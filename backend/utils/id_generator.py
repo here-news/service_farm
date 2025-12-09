@@ -7,9 +7,11 @@ Format: {prefix}_{base36_random}
 - en_xxxxxxxx  - entity
 - ev_xxxxxxxx  - event
 - sr_xxxxxxxx  - source
+- cm_xxxxxxxx  - comment
+- cs_xxxxxxxx  - chat_session
 
 8 chars base36 = 36^8 = 2.8 trillion unique IDs per type
-Total length: 11 chars (3 prefix + 8 random)
+Total length: 11 chars (2-3 prefix + 8 random)
 """
 import secrets
 import re
@@ -26,13 +28,15 @@ PREFIXES = {
     'entity': 'en',
     'event': 'ev',
     'source': 'sr',
+    'comment': 'cm',
+    'chat_session': 'cs',
 }
 
 # Reverse mapping for validation
 PREFIX_TO_TYPE = {v: k for k, v in PREFIXES.items()}
 
 # Regex for validation
-ID_PATTERN = re.compile(r'^(pg|cl|en|ev|sr)_[0-9a-z]{8}$')
+ID_PATTERN = re.compile(r'^(pg|cl|en|ev|sr|cm|cs)_[0-9a-z]{8}$')
 
 
 def _random_base36(length: int = 8) -> str:
@@ -177,6 +181,16 @@ def generate_event_id() -> str:
 def generate_source_id() -> str:
     """Generate a new source ID"""
     return generate_id('source')
+
+
+def generate_comment_id() -> str:
+    """Generate a new comment ID"""
+    return generate_id('comment')
+
+
+def generate_chat_session_id() -> str:
+    """Generate a new chat session ID"""
+    return generate_id('chat_session')
 
 
 # For backwards compatibility during migration

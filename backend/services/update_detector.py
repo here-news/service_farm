@@ -7,7 +7,7 @@ to enable timeline convergence visualization.
 import re
 import logging
 from typing import Optional, List, Tuple
-from models.claim import Claim
+from models.domain.claim import Claim
 
 logger = logging.getLogger(__name__)
 

@@ -12,8 +12,8 @@ from datetime import datetime
 import numpy as np
 from openai import AsyncOpenAI
 
-from models.event import Event, ClaimDecision, ExaminationResult
-from models.claim import Claim
+from models.domain.event import Event, ClaimDecision, ExaminationResult
+from models.domain.claim import Claim
 from repositories.event_repository import EventRepository
 from repositories.claim_repository import ClaimRepository
 from repositories.entity_repository import EntityRepository
@@ -237,10 +237,29 @@ class EventService:
 
         # Signal 2: Temporal proximity
         if claim.event_time and event.event_start:
-            # Calculate days difference
-            time_diff = abs((claim.event_time - event.event_start).total_seconds() / 86400)
-            # Decay: 1.0 at 0 days, 0.5 at 7 days, 0.1 at 30 days
-            scores['temporal'] = max(0.0, 1.0 - (time_diff / 30.0))
+            # Parse claim.event_time if it's a string
+            from datetime import datetime
+            claim_time = claim.event_time
+            if isinstance(claim_time, str):
+                try:
+                    claim_time = datetime.fromisoformat(claim_time.replace('Z', '+00:00'))
+                except:
+                    claim_time = None
+
+            event_time = event.event_start
+            if isinstance(event_time, str):
+                try:
+                    event_time = datetime.fromisoformat(event_time.replace('Z', '+00:00'))
+                except:
+                    event_time = None
+
+            if claim_time and event_time:
+                # Calculate days difference
+                time_diff = abs((claim_time - event_time).total_seconds() / 86400)
+                # Decay: 1.0 at 0 days, 0.5 at 7 days, 0.1 at 30 days
+                scores['temporal'] = max(0.0, 1.0 - (time_diff / 30.0))
+            else:
+                scores['temporal'] = 0.5  # Unknown time → neutral score
         else:
             scores['temporal'] = 0.5  # Unknown time → neutral score
 
@@ -829,43 +848,182 @@ class EventService:
 
     async def _generate_event_narrative(self, event: Event, claims: List[Claim]) -> str:
         """
-        Generate narrative summary from event claims using LLM
+        Generate comprehensive narrative using corroboration-guided claim synthesis.
+
+        Uses the event organism's metabolism to prioritize:
+        - Most corroborated claims (consensus facts)
+        - Highest confidence claims (boosted by corroboration)
+        - Temporal ordering (chronological story)
+        - Entity networks (key actors and their roles)
 
         Args:
             event: Event to generate narrative for
             claims: All claims supporting this event
 
         Returns:
-            Narrative summary (2-3 sentences)
+            Comprehensive narrative with structure, dates, and facts
         """
         if not claims:
             return f"{event.canonical_name} - No details available."
 
-        # Prepare claims for LLM
-        claim_texts = [f"- {claim.text}" for claim in claims[:10]]  # Limit to 10 for context
-        claims_str = "\n".join(claim_texts)
+        # Enrich claims with corroboration data
+        enriched_claims = await self._enrich_claims_with_corroboration(claims)
 
-        prompt = f"""Generate a concise narrative summary (2-3 sentences) for this event:
+        # Prioritize claims by corroboration count and confidence
+        prioritized = sorted(
+            enriched_claims,
+            key=lambda c: (c['corroboration_count'], c['confidence'], c['has_time']),
+            reverse=True
+        )
 
-Event Name: {event.canonical_name}
-Event Type: {event.event_type}
+        # Group claims by topic
+        claim_groups = self._group_claims_by_topic(prioritized[:50])  # Top 50 claims
 
-Claims:
+        # Build structured prompt with prioritized, grouped claims
+        claims_by_topic = []
+        for topic, topic_claims in claim_groups.items():
+            claims_text = "\n".join([
+                f"- {c['text']} (confidence: {c['confidence']:.2f}, corroborations: {c['corroboration_count']})"
+                for c in topic_claims[:15]  # Top 15 per topic
+            ])
+            claims_by_topic.append(f"{topic.upper()}:\n{claims_text}")
+
+        claims_str = "\n\n".join(claims_by_topic)
+
+        prompt = f"""Generate a STRICTLY FACTUAL, STRUCTURED summary for this event using ONLY the corroboration-ranked claims below.
+
+Event: {event.canonical_name}
+Type: {event.event_type}
+Coherence: {event.coherence:.2f}
+
+CLAIMS (ranked by corroboration count and confidence):
 {claims_str}
 
-Write a clear, factual narrative that synthesizes these claims into a coherent story.
-IMPORTANT: Include temporal information (WHEN things happened) if available in the claims.
-Focus on: what happened, when it happened, and key impacts."""
+Generate a structured factual summary with these sections:
+
+## INCIDENT
+- Date: [Extract exact date from claims, or state "Not specified - reported as [day of week]"]
+- Location: [Full location from claims]
+- What: [One sentence factual description]
+
+## CASUALTIES
+- Deaths: [Exact numbers from claims, show range if conflicting: "36-44"]
+- Injured: [Numbers]
+- Missing: [Numbers]
+- Critical: [Numbers]
+
+## EMERGENCY RESPONSE
+- [Factual list of response actions from claims]
+- [Resource numbers: trucks, ambulances, personnel]
+
+## TIMELINE
+- [Key times from claims in chronological order]
+- [Escalation events with exact times]
+
+## IMPACT & STATUS
+- [Affected populations]
+- [Infrastructure effects]
+- [Current status]
+
+## CONTEXT
+- [Suspected cause if stated in claims]
+- [Relevant background if in claims]
+- [DO NOT speculate or add commentary]
+
+CRITICAL RULES:
+1. NEVER hallucinate dates, times, or numbers not in claims
+2. If date unknown, write "Date: Not specified in available claims"
+3. Use ONLY facts directly stated in claims
+4. NO prose, NO editorial language ("devastating", "tragic", "ordinary")
+5. NO speculation ("likely", "suspected") unless claim explicitly says so
+6. Show ranges for conflicting numbers: "36-44 deaths reported"
+7. Keep it factual and structured like a police report, not a news article"""
 
         response = await self.openai_client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
-            model="gpt-4o-mini",
+            model="gpt-4o",  # Use better model for quality
             temperature=0.3
         )
 
         narrative = response.choices[0].message.content.strip()
-        logger.debug(f"📖 Generated narrative: {narrative[:100]}...")
+        logger.info(f"📖 Generated narrative: {len(narrative)} chars from {len(claims)} claims ({len(enriched_claims)} with corroboration data)")
         return narrative
+
+    async def _enrich_claims_with_corroboration(self, claims: List[Claim]) -> List[dict]:
+        """
+        Enrich claims with corroboration count and metadata.
+
+        Returns list of dicts with: text, confidence, corroboration_count, has_time
+        """
+        enriched = []
+        for claim in claims:
+            # Get corroboration count from Neo4j
+            corr_count = await self.claim_repo.get_corroboration_count(claim.id)
+
+            enriched.append({
+                'id': claim.id,
+                'text': claim.text,
+                'confidence': claim.confidence,
+                'corroboration_count': corr_count,
+                'has_time': claim.event_time is not None,
+                'event_time': claim.event_time,
+                'claim': claim  # Keep original for reference
+            })
+
+        return enriched
+
+    def _group_claims_by_topic(self, enriched_claims: List[dict]) -> dict:
+        """
+        Group claims by topic using keyword matching.
+
+        Topics: casualties, timeline, response, impact, cause, context
+        """
+        groups = {
+            'casualties': [],
+            'timeline': [],
+            'response': [],
+            'impact': [],
+            'cause': [],
+            'context': []
+        }
+
+        casualty_keywords = ['killed', 'dead', 'died', 'death', 'injured', 'wounded', 'hospitalized', 'missing', 'casualties']
+        timeline_keywords = ['at', 'p.m.', 'a.m.', 'o\'clock', 'alarm', 'upgraded', 'declared', 'received']
+        response_keywords = ['firefighters', 'fire trucks', 'ambulances', 'rescue', 'deployed', 'responded', 'battled']
+        impact_keywords = ['evacuated', 'residents', 'trapped', 'closed', 'highway', 'smoke', 'flames', 'elderly']
+        cause_keywords = ['renovations', 'scaffolding', 'cause', 'started', 'debris', 'falling']
+        context_keywords = ['worst', 'since', 'previous', 'history', 'similar', 'president', 'chief executive']
+
+        for claim in enriched_claims:
+            text_lower = claim['text'].lower()
+            categorized = False
+
+            # Check each topic (claim can be in multiple)
+            if any(kw in text_lower for kw in casualty_keywords):
+                groups['casualties'].append(claim)
+                categorized = True
+            if any(kw in text_lower for kw in timeline_keywords):
+                groups['timeline'].append(claim)
+                categorized = True
+            if any(kw in text_lower for kw in response_keywords):
+                groups['response'].append(claim)
+                categorized = True
+            if any(kw in text_lower for kw in impact_keywords):
+                groups['impact'].append(claim)
+                categorized = True
+            if any(kw in text_lower for kw in cause_keywords):
+                groups['cause'].append(claim)
+                categorized = True
+            if any(kw in text_lower for kw in context_keywords):
+                groups['context'].append(claim)
+                categorized = True
+
+            # If no category matched, put in context
+            if not categorized:
+                groups['context'].append(claim)
+
+        # Remove empty groups
+        return {k: v for k, v in groups.items() if v}
 
     async def _generate_parent_narrative(self, parent: Event, sub_events: List[Event]):
         """
@@ -1194,15 +1352,29 @@ Respond with ONLY the theme name."""
 
         # 2. Semantic check: Does claim reference the event?
         # Use LLM to detect aftermath language
+        # Format event start date
+        event_date_str = 'unknown'
+        if event.event_start:
+            event_start_dt = neo4j_datetime_to_python(event.event_start)
+            if event_start_dt and isinstance(event_start_dt, datetime):
+                event_date_str = event_start_dt.strftime('%B %d, %Y')
+
+        # Format claim date
+        claim_date_str = 'unknown'
+        if claim.event_time:
+            claim_time_dt = neo4j_datetime_to_python(claim.event_time)
+            if claim_time_dt and isinstance(claim_time_dt, datetime):
+                claim_date_str = claim_time_dt.strftime('%B %d, %Y')
+
         prompt = f"""Analyze if this claim discusses the aftermath or investigation of an event.
 
 Event: {event.canonical_name} ({event.event_type})
-Event occurred: {neo4j_datetime_to_python(event.event_start).strftime('%B %d, %Y') if event.event_start and neo4j_datetime_to_python(event.event_start) else 'unknown'}
+Event occurred: {event_date_str}
 
 Existing claims about the event (sample):
 {chr(10).join([f"- {c.text[:100]}" for c in existing_claims[:3]])}
 
-New claim ({neo4j_datetime_to_python(claim.event_time).strftime('%B %d, %Y') if claim.event_time and neo4j_datetime_to_python(claim.event_time) else 'unknown'}):
+New claim ({claim_date_str}):
 "{claim.text}"
 
 Question: Is this new claim discussing the aftermath, investigation, or consequences of the event described above?
@@ -1316,7 +1488,7 @@ Answer ONLY "yes" or "no"."""
         """
         Handle duplicate claim (corroborate existing claim)
 
-        For now, just log it. Can enhance with confidence boosting later.
+        Creates CORROBORATES relationship and boosts confidence.
         """
         # Find most similar claim
         best_match = None
@@ -1328,10 +1500,31 @@ Answer ONLY "yes" or "no"."""
                 best_similarity = sim
                 best_match = existing_claim
 
-        logger.debug(f"    Duplicate of: {best_match.text[:50] if best_match else 'unknown'}... (similarity: {best_similarity:.2f})")
+        if not best_match:
+            logger.warning(f"    No matching claim found for duplicate merge")
+            return
 
-        # TODO: Boost confidence of existing claim
-        # TODO: Track corroboration in metadata
+        logger.info(f"    📊 CORROBORATES: {best_match.text[:50]}... (similarity: {best_similarity:.2f})")
+
+        # Create CORROBORATES relationship in Neo4j
+        await self.claim_repo.create_corroboration(
+            claim_id=claim.id,
+            corroborates_claim_id=best_match.id,
+            similarity=best_similarity
+        )
+
+        # Get corroboration count for confidence boosting
+        corroboration_count = await self.claim_repo.get_corroboration_count(best_match.id)
+
+        # Boost confidence of the corroborated claim
+        # Formula: confidence increases with more corroborations, but with diminishing returns
+        # confidence = base_confidence + (0.1 * sqrt(corroboration_count))
+        # Max boost: 0.1 * sqrt(10) ≈ 0.32, so max confidence ≈ 1.0
+        new_confidence = min(0.99, best_match.confidence + (0.1 * (corroboration_count ** 0.5)))
+
+        await self.claim_repo.update_confidence(best_match.id, new_confidence)
+
+        logger.info(f"    ✨ Boosted confidence: {best_match.confidence:.2f} → {new_confidence:.2f} ({corroboration_count} corroborations)")
 
     async def _update_event_metrics(self, event: Event, claims: List[Claim]):
         """
@@ -1409,8 +1602,9 @@ Answer ONLY "yes" or "no"."""
         # Get temporal context
         temporal_info = ""
         if claims and claims[0].event_time:
-            event_time = claims[0].event_time
-            temporal_info = f"\nTemporal context: {event_time.strftime('%B %d, %Y')}"
+            event_time = neo4j_datetime_to_python(claims[0].event_time)
+            if event_time and isinstance(event_time, datetime):
+                temporal_info = f"\nTemporal context: {event_time.strftime('%B %d, %Y')}"
 
         if parent:
             # Sub-event naming

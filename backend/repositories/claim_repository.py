@@ -16,8 +16,8 @@ from typing import Optional, List
 import asyncpg
 from datetime import datetime
 
-from models.claim import Claim
-from models.entity import Entity
+from models.domain.claim import Claim
+from models.domain.entity import Entity
 from services.neo4j_service import Neo4jService
 
 logger = logging.getLogger(__name__)
@@ -181,6 +181,42 @@ class ClaimRepository:
                 confidence=row['confidence'] or 0.8,
                 modality=row['modality'] or 'observation',
                 created_at=row['created_at']
+            ))
+
+        return claims
+
+    async def get_by_event(self, event_id: str) -> List[Claim]:
+        """
+        Retrieve all claims attached to an event.
+
+        Args:
+            event_id: Event ID (ev_xxxxxxxx format)
+
+        Returns:
+            List of Claim models with entity_ids populated
+        """
+        results = await self.neo4j._execute_read("""
+            MATCH (e:Event {id: $event_id})-[:SUPPORTS]->(c:Claim)
+            OPTIONAL MATCH (c)-[:MENTIONS]->(ent:Entity)
+            WITH c, collect(DISTINCT ent.id) as entity_ids
+            RETURN c.id as id, c.text as text, c.event_time as event_time,
+                   c.confidence as confidence, c.modality as modality,
+                   c.created_at as created_at, entity_ids
+            ORDER BY c.created_at
+        """, {'event_id': event_id})
+
+        claims = []
+        for row in results:
+            metadata = {'entity_ids': row['entity_ids']} if row['entity_ids'] else {}
+            claims.append(Claim(
+                id=row['id'],
+                page_id=None,  # Not needed for event context
+                text=row['text'],
+                event_time=row['event_time'],
+                confidence=row['confidence'] or 0.8,
+                modality=row['modality'] or 'observation',
+                created_at=row['created_at'],
+                metadata=metadata
             ))
 
         return claims
@@ -349,3 +385,66 @@ class ClaimRepository:
             ))
 
         return claims
+
+    async def create_corroboration(
+        self,
+        claim_id: str,
+        corroborates_claim_id: str,
+        similarity: float
+    ) -> None:
+        """
+        Create CORROBORATES relationship between claims.
+
+        Args:
+            claim_id: ID of the new claim that corroborates
+            corroborates_claim_id: ID of the existing claim being corroborated
+            similarity: Semantic similarity score (0.0-1.0)
+        """
+        await self.neo4j._execute_write("""
+            MATCH (c1:Claim {id: $claim_id})
+            MATCH (c2:Claim {id: $corroborates_claim_id})
+            MERGE (c1)-[r:CORROBORATES]->(c2)
+            SET r.similarity = $similarity,
+                r.created_at = datetime()
+        """, {
+            'claim_id': claim_id,
+            'corroborates_claim_id': corroborates_claim_id,
+            'similarity': similarity
+        })
+
+        logger.debug(f"Created CORROBORATES: {claim_id} → {corroborates_claim_id} (sim={similarity:.2f})")
+
+    async def get_corroboration_count(self, claim_id: str) -> int:
+        """
+        Get number of claims that corroborate this claim.
+
+        Args:
+            claim_id: Claim ID
+
+        Returns:
+            Number of incoming CORROBORATES relationships
+        """
+        result = await self.neo4j._execute_read("""
+            MATCH (c:Claim {id: $claim_id})<-[:CORROBORATES]-(other:Claim)
+            RETURN count(other) as count
+        """, {'claim_id': claim_id})
+
+        return result[0]['count'] if result else 0
+
+    async def update_confidence(self, claim_id: str, confidence: float) -> None:
+        """
+        Update claim confidence score.
+
+        Args:
+            claim_id: Claim ID
+            confidence: New confidence value (0.0-1.0)
+        """
+        await self.neo4j._execute_write("""
+            MATCH (c:Claim {id: $claim_id})
+            SET c.confidence = $confidence
+        """, {
+            'claim_id': claim_id,
+            'confidence': confidence
+        })
+
+        logger.debug(f"Updated confidence for {claim_id}: {confidence:.2f}")

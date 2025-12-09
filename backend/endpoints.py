@@ -13,7 +13,7 @@ from fastapi import APIRouter, HTTPException
 import asyncpg
 from services.job_queue import JobQueue
 from repositories import PageRepository
-from models.page import Page
+from models.domain.page import Page
 from utils.id_generator import generate_page_id
 
 router = APIRouter()

@@ -25,9 +25,9 @@ from datetime import datetime
 from openai import AsyncOpenAI
 import logging
 
-from models import Entity, Claim
+from models.domain import Entity, Claim
 from utils.id_generator import generate_entity_id, generate_claim_id
-from models.mention import ExtractionResult
+from models.domain.mention import ExtractionResult
 from repositories import EntityRepository, ClaimRepository, PageRepository
 from services.neo4j_service import Neo4jService
 from services.identification_service import IdentificationService, IdentificationResult
@@ -220,6 +220,10 @@ class KnowledgeWorker:
                 # 4d. Update entity profiles from mention descriptions
                 await self._update_entity_profiles(extraction, identification)
 
+                # 4e. Generate and store page embedding (for event matching)
+                await self._generate_and_store_page_embedding(conn, page_id, extraction.claims)
+                logger.info(f"📊 Generated page embedding")
+
                 # =========================================================
                 # STAGE 5: Integrity Check
                 # =========================================================
@@ -253,21 +257,15 @@ class KnowledgeWorker:
                     entities_count=len(identification.mention_to_entity)
                 )
 
-                # Queue event worker with extracted event info
-                # TODO: Event deduplication to be designed - our events may be
-                # larger scope than Wikidata events, need internal matching first
+                # Signal Event Worker that knowledge is complete
+                # Event worker will process all claims from this page together
                 await self.job_queue.enqueue('queue:event:high', {
                     'page_id': str(page_id),
                     'url': url,
-                    'claims_count': len(claim_ids),
-                    'extracted_event': extraction.event if extraction.event else None,
-                    'publisher': {
-                        'entity_id': publisher.id,
-                        'canonical_name': publisher.canonical_name
-                    }
+                    'claims_count': len(claim_ids)
                 })
 
-                logger.info(f"✅ Knowledge complete: {url}")
+                logger.info(f"✅ Knowledge complete: {url} → Event worker")
                 return True
 
         except Exception as e:
@@ -645,6 +643,63 @@ class KnowledgeWorker:
                 'wikidata_label': wikidata_label
             })
             logger.info(f"🔗 Updated entity QID: {entity_id} → {qid} ({wikidata_label})")
+
+    async def _generate_and_store_page_embedding(
+        self,
+        conn: asyncpg.Connection,
+        page_id: str,
+        claims: List
+    ):
+        """
+        Generate semantic embedding for page from its claims.
+
+        STAGE 4e: Generate page embedding for event matching.
+
+        The embedding represents "what is this page about?" and enables
+        semantic similarity matching when routing to events.
+
+        Args:
+            conn: PostgreSQL connection
+            page_id: Page UUID
+            claims: Extracted claims from page
+        """
+        if not claims:
+            logger.warning(f"No claims to generate embedding from")
+            return
+
+        # Combine claim texts (limit to ~8k chars to avoid token limits)
+        claim_texts = [c.text for c in claims if hasattr(c, 'text') and c.text]
+        if not claim_texts:
+            logger.warning(f"No claim texts available for embedding")
+            return
+
+        # Concatenate claims with newlines (truncate if too long)
+        combined_text = "\n".join(claim_texts)
+        if len(combined_text) > 8000:
+            combined_text = combined_text[:8000] + "..."
+
+        try:
+            # Generate embedding using OpenAI
+            response = await self.openai_client.embeddings.create(
+                model="text-embedding-3-small",
+                input=combined_text
+            )
+
+            embedding = response.data[0].embedding
+
+            # Store in PostgreSQL content.pages table
+            await conn.execute("""
+                UPDATE content.pages
+                SET embedding = $1::vector,
+                    updated_at = NOW()
+                WHERE id = $2::uuid
+            """, embedding, page_id)
+
+            logger.debug(f"✅ Stored page embedding ({len(embedding)} dimensions)")
+
+        except Exception as e:
+            logger.error(f"Failed to generate/store page embedding: {e}")
+            # Non-fatal - continue processing
 
     async def _verify_integrity(
         self,

@@ -17,10 +17,10 @@ from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Any, Union
 import asyncpg
 
-from models.mention import Mention, MentionRelationship, ExtractionResult
-from models.entity import Entity
+from models.domain.mention import Mention, MentionRelationship, ExtractionResult
+from models.domain.entity import Entity
 from utils.id_generator import generate_entity_id
-from models.claim import Claim
+from models.domain.claim import Claim
 from services.neo4j_service import Neo4jService
 from services.identification_service import IdentificationService, IdentificationResult
 from services.extraction_amendment import ExtractionAmendmentService, AmendmentResult

@@ -168,18 +168,32 @@ class ExtractionWorker(BaseWorker):
                 except:
                     detected_lang = state.get('language', 'en')
 
-                # Get metadata from state
+                # Get existing metadata (may be partial)
                 existing = await self.page_repo.get_by_id(page_id)
+
+                # Use Playwright metadata, fallback to existing if not found
+                title = playwright_result.get('title') or existing.title
+                description = playwright_result.get('description') or existing.description
+                author = playwright_result.get('author') or existing.author
+
+                # Calculate metadata confidence
+                metadata_confidence = 0.0
+                if title:
+                    metadata_confidence += 0.4
+                if description:
+                    metadata_confidence += 0.3
+                if author:
+                    metadata_confidence += 0.3
 
                 # Update page with playwright-extracted content
                 await self.page_repo.update_extracted_content(
                     page_id=page_id,
                     content_text=extracted,
-                    title=existing.title,
-                    description=existing.description,
-                    author=existing.author,
+                    title=title,
+                    description=description,
+                    author=author,
                     thumbnail_url=existing.thumbnail_url,
-                    metadata_confidence=existing.metadata_confidence or 0.5,
+                    metadata_confidence=metadata_confidence,
                     language=detected_lang,
                     word_count=word_count,
                     pub_time=existing.pub_time
@@ -284,15 +298,29 @@ class ExtractionWorker(BaseWorker):
                     except:
                         pass
 
+                    # Use Playwright metadata, fallback to existing if not found
+                    pw_title = playwright_result.get('title') or final_title
+                    pw_description = playwright_result.get('description') or final_description
+                    pw_author = playwright_result.get('author') or final_author
+
+                    # Recalculate metadata confidence
+                    pw_metadata_confidence = 0.0
+                    if pw_title:
+                        pw_metadata_confidence += 0.4
+                    if pw_description:
+                        pw_metadata_confidence += 0.3
+                    if pw_author:
+                        pw_metadata_confidence += 0.3
+
                     # Update page with playwright-extracted content
                     await self.page_repo.update_extracted_content(
                         page_id=page_id,
                         content_text=extracted,
-                        title=final_title,
-                        description=final_description,
-                        author=final_author,
+                        title=pw_title,
+                        description=pw_description,
+                        author=pw_author,
                         thumbnail_url=final_thumbnail,
-                        metadata_confidence=metadata_confidence,
+                        metadata_confidence=pw_metadata_confidence,
                         language=detected_lang,
                         word_count=word_count,
                         pub_time=final_pub_time
@@ -509,6 +537,27 @@ class ExtractionWorker(BaseWorker):
                     cleaned_text = ' '.join(chunk for chunk in chunks if chunk)
 
                     word_count = len(cleaned_text.split())
+
+                    # Extract metadata from page
+                    title = await page.title()
+
+                    # Extract meta tags
+                    description = await page.evaluate("""
+                        () => {
+                            const meta = document.querySelector('meta[name="description"]') ||
+                                       document.querySelector('meta[property="og:description"]');
+                            return meta ? meta.content : null;
+                        }
+                    """)
+
+                    author = await page.evaluate("""
+                        () => {
+                            const meta = document.querySelector('meta[name="author"]') ||
+                                       document.querySelector('meta[property="article:author"]');
+                            return meta ? meta.content : null;
+                        }
+                    """)
+
                     extraction_time_ms = (time.time() - start_time) * 1000
 
                     await browser.close()
@@ -521,7 +570,10 @@ class ExtractionWorker(BaseWorker):
                     return {
                         'success': word_count >= 100,
                         'content': cleaned_text,
-                        'word_count': word_count
+                        'word_count': word_count,
+                        'title': title if title else None,
+                        'description': description,
+                        'author': author
                     }
 
                 except PlaywrightTimeoutError:

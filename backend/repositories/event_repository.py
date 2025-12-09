@@ -19,7 +19,7 @@ from datetime import datetime
 import asyncpg
 import numpy as np
 
-from models.event import Event
+from models.domain.event import Event
 from services.neo4j_service import Neo4jService
 from utils.datetime_utils import neo4j_datetime_to_python
 from utils.id_generator import is_uuid, uuid_to_short_id
@@ -71,14 +71,14 @@ class EventRepository:
 
         # Store ONLY embedding in PostgreSQL (for vector similarity)
         if event.embedding:
+            # Convert list to PostgreSQL vector string format '[x,y,z,...]'
             embedding_str = '[' + ','.join(str(x) for x in event.embedding) + ']'
             async with self.db_pool.acquire() as conn:
                 await conn.execute("""
-                    INSERT INTO core.event_embeddings (event_id, embedding)
+                    INSERT INTO content.event_embeddings (event_id, embedding)
                     VALUES ($1, $2::vector)
                     ON CONFLICT (event_id) DO UPDATE SET
-                        embedding = EXCLUDED.embedding,
-                        updated_at = NOW()
+                        embedding = EXCLUDED.embedding
                 """, str(event.id), embedding_str)
 
         logger.info(f"✨ Created event: {event.canonical_name} ({event.id})")
@@ -134,11 +134,12 @@ class EventRepository:
 
         # Update embedding in PostgreSQL
         if event.embedding:
+            # Convert list to PostgreSQL vector string format '[x,y,z,...]'
             embedding_str = '[' + ','.join(str(x) for x in event.embedding) + ']'
             async with self.db_pool.acquire() as conn:
                 await conn.execute("""
-                    UPDATE core.event_embeddings
-                    SET embedding = $2::vector, updated_at = NOW()
+                    UPDATE content.event_embeddings
+                    SET embedding = $2::vector
                     WHERE event_id = $1
                 """, str(event.id), embedding_str)
 
@@ -180,11 +181,15 @@ class EventRepository:
         embedding = None
         async with self.db_pool.acquire() as conn:
             row = await conn.fetchrow("""
-                SELECT embedding FROM core.event_embeddings WHERE event_id = $1
+                SELECT embedding FROM content.event_embeddings WHERE event_id = $1
             """, event_id)
             if row and row['embedding']:
-                embedding = self._parse_embedding(row['embedding'])
+                raw_emb = row['embedding']
+                logger.info(f"Raw embedding type: {type(raw_emb)}, len: {len(raw_emb) if hasattr(raw_emb, '__len__') else 'N/A'}")
+                embedding = self._parse_embedding(raw_emb)
+                logger.info(f"Parsed embedding: {type(embedding)}, len: {len(embedding) if embedding else 'None'}")
 
+        logger.info(f"About to return Event - embedding type: {type(embedding)}, len: {len(embedding) if embedding else 'None'}")
         # Model handles UUID conversion in __post_init__
         return Event(
             id=node['id'],
@@ -302,10 +307,11 @@ class EventRepository:
             # Calculate temporal proximity score
             time_score = 0.0
             if event.event_start and reference_time:
-                # Defensive conversion for event.event_start
+                # Defensive conversion for both timestamps
                 event_start_py = neo4j_datetime_to_python(event.event_start)
-                if event_start_py:
-                    time_diff_days = abs((reference_time - event_start_py).days)
+                reference_time_py = neo4j_datetime_to_python(reference_time) if isinstance(reference_time, str) else reference_time
+                if event_start_py and reference_time_py:
+                    time_diff_days = abs((reference_time_py - event_start_py).days)
                     time_score = max(0, 1 - (time_diff_days / time_window_days))
 
             # Calculate semantic similarity score
@@ -350,11 +356,17 @@ class EventRepository:
 
         return {row['entity_id'] for row in result}
 
-    def _parse_embedding(self, emb_str: str) -> Optional[List[float]]:
-        """Parse embedding from PostgreSQL vector string"""
+    def _parse_embedding(self, emb_data) -> Optional[List[float]]:
+        """Parse embedding from PostgreSQL vector"""
         try:
-            if emb_str.startswith('[') and emb_str.endswith(']'):
-                return [float(x.strip()) for x in emb_str[1:-1].split(',')]
+            # If already a list (pgvector returns as list), return directly
+            if isinstance(emb_data, list):
+                return [float(x) for x in emb_data]
+
+            # If string format, parse it
+            if isinstance(emb_data, str):
+                if emb_data.startswith('[') and emb_data.endswith(']'):
+                    return [float(x.strip()) for x in emb_data[1:-1].split(',')]
         except Exception as e:
             logger.warning(f"Failed to parse embedding: {e}")
         return None
@@ -373,7 +385,7 @@ class EventRepository:
         2. Event-[relationship_type]->Claim relationship
         """
         # Import here to avoid circular dependency
-        from models.claim import Claim
+        from models.domain.claim import Claim
 
         # Create or merge Claim node in Neo4j (idempotent)
         await self.neo4j.create_claim(
@@ -419,32 +431,24 @@ class EventRepository:
             List of Claim domain models with entity_ids populated
         """
         # Import here to avoid circular dependency
-        from models.claim import Claim
+        from models.domain.claim import Claim
 
-        # Step 1: Get claim IDs from Neo4j graph
+        # Fetch all claim data from Neo4j (primary storage)
         result = await self.neo4j._execute_read("""
             MATCH (e:Event {id: $event_id})-[r:SUPPORTS|CONTRADICTS|UPDATES]->(c:Claim)
-            RETURN c.id as id
+            RETURN c.id as id, c.page_id as page_id, c.text as text,
+                   c.modality as modality, c.confidence as confidence,
+                   c.event_time as event_time, c.metadata as metadata
             ORDER BY c.event_time
         """, {'event_id': event_id})
 
-        claim_ids = [row['id'] for row in result]
-
-        if not claim_ids:
+        if not result:
             return []
 
-        # Step 2: Fetch full claim data from PostgreSQL (includes entity_ids in metadata)
-        async with self.db_pool.acquire() as conn:
-            rows = await conn.fetch("""
-                SELECT id, page_id, text, modality, confidence, event_time, metadata
-                FROM core.claims
-                WHERE id = ANY($1::text[])
-            """, claim_ids)
-
-        # Build claims with full metadata (including entity_ids)
+        # Build claims from Neo4j data
         claims = []
-        for row in rows:
-            # Handle metadata - could be dict, str (JSON), or None
+        for row in result:
+            # Handle metadata - Neo4j stores as string (JSON)
             metadata = row['metadata']
             if metadata is None:
                 metadata = {}
@@ -482,7 +486,7 @@ class EventRepository:
         Returns:
             List of Claim domain models with reported_time populated
         """
-        from models.claim import Claim
+        from models.domain.claim import Claim
 
         # Step 1: Get claim IDs from Neo4j graph
         neo4j_result = await self.neo4j._execute_read("""
@@ -642,4 +646,63 @@ class EventRepository:
             events.append(event_dict)
 
         return events
+
+    async def update_coherence(self, event_id: str, coherence: float) -> None:
+        """
+        Update only the coherence value for an event.
+
+        Lightweight update method for metabolism cycles.
+
+        Args:
+            event_id: Event ID
+            coherence: New coherence value (0.0 to 1.0)
+        """
+        await self.neo4j._execute_write("""
+            MATCH (e:Event {id: $event_id})
+            SET e.coherence = $coherence,
+                e.updated_at = datetime()
+        """, {
+            'event_id': event_id,
+            'coherence': coherence
+        })
+
+        logger.debug(f"📊 Updated coherence for {event_id}: {coherence:.3f}")
+
+    async def update_narrative(self, event_id: str, narrative: str) -> None:
+        """
+        Update event narrative/summary.
+
+        Args:
+            event_id: Event ID
+            narrative: New narrative text
+        """
+        await self.neo4j._execute_write("""
+            MATCH (e:Event {id: $event_id})
+            SET e.summary = $narrative,
+                e.updated_at = datetime()
+        """, {
+            'event_id': event_id,
+            'narrative': narrative
+        })
+
+        logger.debug(f"📝 Updated narrative for {event_id}: {len(narrative)} chars")
+
+    async def update_status(self, event_id: str, status: str) -> None:
+        """
+        Update event status.
+
+        Args:
+            event_id: Event ID
+            status: New status (active, stable, archived, etc.)
+        """
+        await self.neo4j._execute_write("""
+            MATCH (e:Event {id: $event_id})
+            SET e.status = $status,
+                e.updated_at = datetime()
+        """, {
+            'event_id': event_id,
+            'status': status
+        })
+
+        logger.debug(f"📊 Updated status for {event_id}: {status}")
 

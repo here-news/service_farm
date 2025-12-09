@@ -18,7 +18,7 @@ import asyncio
 from typing import Dict, Optional, List
 from datetime import datetime
 
-from models.live_event import LiveEvent
+from models.domain.live_event import LiveEvent
 from services.neo4j_service import Neo4jService
 
 logger = logging.getLogger(__name__)

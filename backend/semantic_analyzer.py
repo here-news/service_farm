@@ -1068,7 +1068,7 @@ Only include claims passing ALL 6 criteria above. Use notes_unsupported for inte
         Returns:
             ExtractionResult with mentions, claims, and relationships
         """
-        from models.mention import Mention, MentionRelationship, ExtractionResult
+        from models.domain.mention import Mention, MentionRelationship, ExtractionResult
 
         try:
             if not page_text:
@@ -1104,7 +1104,7 @@ Only include claims passing ALL 6 criteria above. Use notes_unsupported for inte
         - Claims reference mentions by ID, not by "TYPE:Name"
         - Context is preserved for each mention (helps identification)
         """
-        from models.mention import Mention, MentionRelationship, ExtractionResult
+        from models.domain.mention import Mention, MentionRelationship, ExtractionResult
 
         system_prompt = f"""You are a fact extractor for structured journalism. Extract atomic claims with entity mentions.
 
