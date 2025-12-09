@@ -533,7 +533,7 @@ class ExtractionWorker(BaseWorker):
             logger.error(f"[{self.worker_name}] ❌ Playwright extraction failed: {e}")
             return None
 
-    async def _mark_failed(self, page_id: uuid.UUID, reason: str):
+    async def _mark_failed(self, page_id: str, reason: str):
         """
         Mark page extraction as failed and create rogue extraction task
 
