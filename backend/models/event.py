@@ -5,7 +5,10 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional, List, Set, TYPE_CHECKING
 from enum import Enum
-import uuid
+
+from utils.id_generator import (
+    generate_event_id, validate_id, is_uuid, uuid_to_short_id
+)
 
 if TYPE_CHECKING:
     from .claim import Claim
@@ -35,13 +38,15 @@ class Event:
 
     Represents a real-world event discovered from multiple pages.
     Events are RECURSIVE - can contain sub-events (phases/aspects).
+
+    ID format: ev_xxxxxxxx (11 chars)
     """
-    id: uuid.UUID
+    id: str  # Short ID: ev_xxxxxxxx
     canonical_name: str  # Canonical event name
     event_type: str  # FIRE, SHOOTING, PROTEST, etc.
 
     # Recursive structure
-    parent_event_id: Optional[uuid.UUID] = None
+    parent_event_id: Optional[str] = None  # Short ID: ev_xxxxxxxx
 
     # NOTE: Claims are linked via Neo4j graph relationships (Event-[SUPPORTS]->Claim)
     # Use EventRepository.get_event_claims() to fetch claims for an event
@@ -78,12 +83,18 @@ class Event:
 
     # Lazy-loaded relationships
     sub_events: Optional[List['Event']] = field(default=None, repr=False)
-    entities: Optional[Set[uuid.UUID]] = field(default=None, repr=False)
+    entities: Optional[Set[str]] = field(default=None, repr=False)  # Set of en_xxxxxxxx
 
     def __post_init__(self):
-        """Ensure id is UUID"""
-        if isinstance(self.id, str):
-            self.id = uuid.UUID(self.id)
+        """Ensure IDs are in short format, convert UUIDs if needed"""
+        if self.id:
+            if is_uuid(self.id):
+                self.id = uuid_to_short_id(self.id, 'event')
+            elif not validate_id(self.id):
+                self.id = generate_event_id()
+
+        if self.parent_event_id and is_uuid(self.parent_event_id):
+            self.parent_event_id = uuid_to_short_id(self.parent_event_id, 'event')
 
     @property
     def is_root(self) -> bool:

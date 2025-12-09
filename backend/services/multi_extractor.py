@@ -32,6 +32,7 @@ class ExtractionResult:
     title: Optional[str] = None
     description: Optional[str] = None
     authors: Optional[list] = None
+    site_name: Optional[str] = None  # og:site_name - publisher name
     # Image extraction (from newspaper3k)
     top_image: Optional[str] = None  # Main article image
     images: Optional[list] = None    # All images found
@@ -53,6 +54,56 @@ class MultiMethodExtractor:
         """
         self.min_words = min_words
 
+    def _extract_site_name(self, html: str) -> Optional[str]:
+        """
+        Extract site name from og:site_name meta tag.
+
+        Args:
+            html: HTML content
+
+        Returns:
+            Site name or None
+        """
+        try:
+            soup = BeautifulSoup(html, 'lxml')
+
+            # Try og:site_name first
+            og_site = soup.find('meta', property='og:site_name')
+            if og_site and og_site.get('content'):
+                return og_site['content'].strip()
+
+            # Try application-name as fallback
+            app_name = soup.find('meta', attrs={'name': 'application-name'})
+            if app_name and app_name.get('content'):
+                return app_name['content'].strip()
+
+            # Try publisher from JSON-LD
+            import json
+            import re
+            jsonld_pattern = r'<script[^>]+type=["\']application/ld\+json["\'][^>]*>(.*?)</script>'
+            jsonld_matches = re.findall(jsonld_pattern, html, re.DOTALL | re.IGNORECASE)
+
+            for jsonld_str in jsonld_matches:
+                try:
+                    data = json.loads(jsonld_str)
+                    if isinstance(data, list):
+                        data = data[0] if data else {}
+                    if '@graph' in data and isinstance(data['@graph'], list):
+                        for item in data['@graph']:
+                            if item.get('@type') in ('NewsMediaOrganization', 'Organization', 'WebSite'):
+                                if item.get('name'):
+                                    return item['name']
+                    if data.get('publisher') and isinstance(data['publisher'], dict):
+                        if data['publisher'].get('name'):
+                            return data['publisher']['name']
+                except:
+                    continue
+
+            return None
+        except Exception as e:
+            logger.debug(f"Failed to extract site_name: {e}")
+            return None
+
     async def extract(self, url: str, html: str) -> ExtractionResult:
         """
         Extract content using multiple methods with fallback
@@ -69,21 +120,27 @@ class MultiMethodExtractor:
         Returns:
             ExtractionResult with extracted content and images
         """
+        # Extract site_name once (used for all methods)
+        site_name = self._extract_site_name(html)
+
         # Method 1: Newspaper3k (extracts images + best for news)
         result = self._try_newspaper(url, html)
         if result.success:
+            result.site_name = site_name
             logger.info(f"✅ Newspaper3k extracted {result.word_count} words, {len(result.images or [])} images from {url}")
             return result
 
         # Method 2: Trafilatura (fast, clean text fallback)
         result = self._try_trafilatura(html)
         if result.success:
+            result.site_name = site_name
             logger.info(f"✅ Trafilatura extracted {result.word_count} words from {url}")
             return result
 
         # Method 3: Readability (handles complex layouts)
         result = self._try_readability(html)
         if result.success:
+            result.site_name = site_name
             logger.info(f"✅ Readability extracted {result.word_count} words from {url}")
             return result
 
@@ -94,7 +151,8 @@ class MultiMethodExtractor:
             content="",
             word_count=0,
             method_used="none",
-            error_message="All extraction methods failed"
+            error_message="All extraction methods failed",
+            site_name=site_name  # Still include site_name even on failure
         )
 
     def _try_trafilatura(self, html: str) -> ExtractionResult:

@@ -20,6 +20,7 @@ import time
 import asyncio
 from typing import Tuple, Dict, Optional
 from datetime import datetime
+from urllib.parse import urlparse
 import asyncpg
 import httpx
 import trafilatura
@@ -70,7 +71,7 @@ class ExtractionWorker(BaseWorker):
         Returns:
             Page state as dict
         """
-        page_id = uuid.UUID(job['page_id'])
+        page_id = job['page_id']
         page = await self.page_repo.get_by_id(page_id)
 
         if not page:
@@ -132,7 +133,7 @@ class ExtractionWorker(BaseWorker):
         5. Update database
         6. Commission semantic analysis worker
         """
-        page_id = uuid.UUID(job['page_id'])
+        page_id = job['page_id']
         url = job['url']
 
         logger.info(f"[{self.worker_name}] Extracting: {url}")
@@ -216,6 +217,14 @@ class ExtractionWorker(BaseWorker):
             description = result.description
             author = ', '.join(result.authors) if result.authors else None  # Join multiple authors
             thumbnail_url = result.top_image  # Use top_image as thumbnail
+            site_name = result.site_name  # Publisher name from og:site_name
+
+            # Extract domain from URL
+            try:
+                parsed_url = urlparse(url)
+                domain = parsed_url.netloc
+            except:
+                domain = None
 
             # Get existing metadata from repository (preserve iframely data)
             existing = await self.page_repo.get_by_id(page_id)
@@ -225,6 +234,7 @@ class ExtractionWorker(BaseWorker):
             final_description = description or existing.description
             final_author = author or existing.author
             final_thumbnail = thumbnail_url or existing.thumbnail_url
+            final_site_name = site_name or existing.site_name
             # IMPORTANT: Prefer our HTML extraction for pub_time over iframely
             # Reason: iframely often returns cache/processing timestamps instead of
             # actual publication dates. Our multi-strategy HTML extraction (JSON-LD,
@@ -249,7 +259,9 @@ class ExtractionWorker(BaseWorker):
                 metadata_confidence=metadata_confidence,
                 language=detected_lang,
                 word_count=word_count,
-                pub_time=final_pub_time
+                pub_time=final_pub_time,
+                domain=domain,
+                site_name=final_site_name
             )
 
             # Check if word count is suspiciously low (likely paywall/JS-heavy page)
@@ -577,7 +589,7 @@ class ExtractionWorker(BaseWorker):
         else:
             # Max retries exceeded - mark as failed
             try:
-                page_id = uuid.UUID(job['page_id'])
+                page_id = job['page_id']
                 await self._mark_failed(page_id, f"Max retries exceeded: {error}")
             except:
                 pass

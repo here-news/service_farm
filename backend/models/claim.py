@@ -4,7 +4,10 @@ Claim domain model
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional, List, TYPE_CHECKING
-import uuid
+
+from utils.id_generator import (
+    generate_claim_id, validate_id, is_uuid, uuid_to_short_id
+)
 
 if TYPE_CHECKING:
     from .entity import Entity
@@ -16,9 +19,11 @@ class Claim:
     Claim domain model - storage-agnostic representation
 
     Represents a factual assertion extracted from a page
+
+    ID format: cl_xxxxxxxx (11 chars)
     """
-    id: uuid.UUID
-    page_id: uuid.UUID
+    id: str  # Short ID: cl_xxxxxxxx
+    page_id: str  # Short ID: pg_xxxxxxxx
     text: str
 
     # Claim properties
@@ -28,7 +33,7 @@ class Claim:
     modality: str = 'observation'  # observation, prediction, speculation, opinion
 
     # Update chains (for evolving facts)
-    updates_claim_id: Optional[uuid.UUID] = None  # Points to claim this supersedes
+    updates_claim_id: Optional[str] = None  # Points to claim this supersedes
     is_superseded: bool = False  # True if a newer claim has arrived
     topic_key: Optional[str] = None  # e.g. "casualty_count", "alarm_level"
 
@@ -45,13 +50,18 @@ class Claim:
     entities: Optional[List['Entity']] = field(default=None, repr=False)
 
     def __post_init__(self):
-        """Ensure IDs are UUIDs"""
-        if isinstance(self.id, str):
-            self.id = uuid.UUID(self.id)
-        if isinstance(self.page_id, str):
-            self.page_id = uuid.UUID(self.page_id)
-        if isinstance(self.updates_claim_id, str):
-            self.updates_claim_id = uuid.UUID(self.updates_claim_id)
+        """Ensure IDs are in short format, convert UUIDs if needed"""
+        if self.id:
+            if is_uuid(self.id):
+                self.id = uuid_to_short_id(self.id, 'claim')
+            elif not validate_id(self.id):
+                self.id = generate_claim_id()
+
+        if self.page_id and is_uuid(self.page_id):
+            self.page_id = uuid_to_short_id(self.page_id, 'page')
+
+        if self.updates_claim_id and is_uuid(self.updates_claim_id):
+            self.updates_claim_id = uuid_to_short_id(self.updates_claim_id, 'claim')
 
     @property
     def is_factual(self) -> bool:
@@ -64,10 +74,17 @@ class Claim:
         return self.event_time is not None
 
     @property
-    def entity_ids(self) -> List[uuid.UUID]:
-        """Extract entity IDs from metadata JSON"""
+    def entity_ids(self) -> List[str]:
+        """Extract entity IDs from metadata JSON (short format)"""
         entity_id_strings = self.metadata.get('entity_ids', [])
-        return [uuid.UUID(eid) for eid in entity_id_strings]
+        # Convert any UUIDs to short format
+        result = []
+        for eid in entity_id_strings:
+            if is_uuid(eid):
+                result.append(uuid_to_short_id(eid, 'entity'))
+            else:
+                result.append(eid)
+        return result
 
     @property
     def entity_names(self) -> List[str]:

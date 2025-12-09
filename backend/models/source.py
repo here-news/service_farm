@@ -8,11 +8,16 @@ Credibility Model (No Prejudice):
 - Base: Organization 0.51, Individual 0.49
 - +0.01 if Wikidata-linkable (identifiable)
 - Track record adjusts score over time
+
+ID format: sr_xxxxxxxx (11 chars)
 """
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional, List
-import uuid
+
+from utils.id_generator import (
+    generate_source_id, validate_id, is_uuid, uuid_to_short_id
+)
 
 
 @dataclass
@@ -31,8 +36,10 @@ class Source:
 
     Extends the concept of Entity for publishers/authors.
     Credibility is earned through track record, not assigned by prejudice.
+
+    ID format: sr_xxxxxxxx (11 chars)
     """
-    id: uuid.UUID
+    id: str  # Short ID: sr_xxxxxxxx
     canonical_name: str                    # "South China Morning Post"
     entity_type: str                       # ORGANIZATION or PERSON
 
@@ -58,8 +65,12 @@ class Source:
     updated_at: Optional[datetime] = None
 
     def __post_init__(self):
-        if isinstance(self.id, str):
-            self.id = uuid.UUID(self.id)
+        """Ensure id is in short format, convert UUIDs if needed"""
+        if self.id:
+            if is_uuid(self.id):
+                self.id = uuid_to_short_id(self.id, 'source')
+            elif not validate_id(self.id):
+                self.id = generate_source_id()
 
     @property
     def credibility_score(self) -> float:

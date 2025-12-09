@@ -5,11 +5,11 @@ Replaces the fragmented semantic_worker + wikidata_worker with a single
 atomic operation that guarantees entity integrity before event formation.
 
 Pipeline stages:
-0. Source Identification - Identify publisher entity + credibility
+0. Publisher Identification - Identify publisher entity (ORGANIZATION)
 1. Extraction - LLM extracts mentions, claims, relationships
-2. Identification - Resolve mentions to entity UUIDs (local + Wikidata)
+2. Identification - Resolve mentions to entity IDs (local + Wikidata)
 3. Deduplication - Merge entities with same QID
-4. Linking - Create all graph edges with UUIDs
+4. Linking - Create all graph edges with entity IDs
 5. Integrity Check - Verify completeness before triggering events
 
 Output: page.status = 'knowledge_complete' → Event Worker can proceed
@@ -25,7 +25,8 @@ from datetime import datetime
 from openai import AsyncOpenAI
 import logging
 
-from models import Entity, Claim, Source
+from models import Entity, Claim
+from utils.id_generator import generate_entity_id
 from models.mention import ExtractionResult
 from repositories import EntityRepository, ClaimRepository, PageRepository
 from services.neo4j_service import Neo4jService
@@ -43,8 +44,8 @@ class KnowledgeWorker:
     Guarantees:
     - All entities identified before event formation
     - All duplicates merged (by QID)
-    - All relationships use UUIDs (not strings)
-    - Source credibility assigned
+    - All relationships use entity IDs (not strings)
+    - Publishers are Entity nodes with is_publisher=true
     """
 
     def __init__(self, db_pool: asyncpg.Pool, job_queue, neo4j_service: Neo4jService = None):
@@ -81,7 +82,7 @@ class KnowledgeWorker:
         await self.neo4j.close()
         await self.wikidata_client.close()
 
-    async def process(self, page_id: uuid.UUID, url: str) -> bool:
+    async def process(self, page_id: str, url: str) -> bool:
         """
         Process a page through the complete knowledge pipeline.
 
@@ -133,10 +134,10 @@ class KnowledgeWorker:
                 )
 
                 # =========================================================
-                # STAGE 0: Source Identification
+                # STAGE 0: Publisher Identification
                 # =========================================================
-                source = await self._identify_source(conn, page)
-                logger.info(f"📰 Source: {source.canonical_name} (credibility: {source.credibility_score:.2f})")
+                publisher = await self._identify_publisher(conn, page)
+                logger.info(f"📰 Publisher: {publisher.canonical_name} (qid={publisher.wikidata_qid})")
 
                 # =========================================================
                 # STAGE 1: Extraction (LLM)
@@ -200,8 +201,8 @@ class KnowledgeWorker:
                 # STAGE 4: Linking (all UUIDs)
                 # =========================================================
 
-                # 4a. Link page to source
-                await self._link_page_to_source(page_id, source.id)
+                # 4a. Link page to publisher
+                await self._link_page_to_publisher(str(page_id), publisher.id)
 
                 # 4b. Create claims with entity links
                 claim_ids = await self._create_claims(
@@ -260,10 +261,9 @@ class KnowledgeWorker:
                     'url': url,
                     'claims_count': len(claim_ids),
                     'extracted_event': extraction.event if extraction.event else None,
-                    'source': {
-                        'entity_id': str(source.id),
-                        'credibility_score': source.credibility_score,
-                        'canonical_name': source.canonical_name
+                    'publisher': {
+                        'entity_id': publisher.id,
+                        'canonical_name': publisher.canonical_name
                     }
                 })
 
@@ -276,11 +276,13 @@ class KnowledgeWorker:
                 await self._mark_failed(conn, page_id, str(e))
             return False
 
-    async def _identify_source(self, conn: asyncpg.Connection, page: dict) -> Source:
+    async def _identify_publisher(self, conn: asyncpg.Connection, page: dict) -> Entity:
         """
         Identify the publishing source for a page.
 
-        Creates or retrieves Source entity with credibility score.
+        Creates or retrieves Entity (ORGANIZATION) for the publisher.
+        Publishers are entities with a domain property, resolved through Wikidata
+        like any other organization.
         """
         domain = page['domain']
 
@@ -295,107 +297,146 @@ class KnowledgeWorker:
 
         site_name = page['site_name'] or domain
 
-        # Check if source already exists
-        existing = await self._find_source_by_domain(domain)
+        # Check if publisher entity already exists (by domain)
+        existing = await self._find_publisher_by_domain(domain)
         if existing:
-            # Increment claims count
-            existing.claims_published += 1
+            logger.debug(f"📰 Found existing publisher: {existing.canonical_name} (qid={existing.wikidata_qid})")
+            # If existing publisher has no QID, try to resolve via Wikidata
+            if not existing.wikidata_qid and site_name and site_name != domain:
+                logger.info(f"🔍 Resolving publisher via Wikidata: {site_name}")
+                await self._resolve_publisher_wikidata(existing.id, site_name)
+                # Re-fetch to get updated data
+                existing = await self._find_publisher_by_domain(domain)
             return existing
 
-        # Create new source
-        source = Source(
-            id=uuid.uuid4(),
-            canonical_name=site_name,
+        # Create new publisher entity
+        entity_id = generate_entity_id()
+
+        # Try to resolve via Wikidata to get canonical name and QID
+        wikidata_qid = None
+        canonical_name = site_name
+        wikidata_label = None
+
+        if site_name != domain:  # Only search if we have a real name, not just domain
+            try:
+                result = await self.wikidata_client.search_entity(
+                    site_name, entity_type='ORGANIZATION'
+                )
+                if result and result.get('accepted'):
+                    wikidata_qid = result.get('qid')
+                    wikidata_label = result.get('label')
+                    if wikidata_label:
+                        canonical_name = wikidata_label
+                    logger.info(f"🔗 Publisher resolved: {site_name} → {canonical_name} ({wikidata_qid})")
+            except Exception as e:
+                logger.debug(f"Wikidata search failed for publisher {site_name}: {e}")
+
+        publisher = Entity(
+            id=entity_id,
+            canonical_name=canonical_name,
             entity_type="ORGANIZATION",
-            domains=[domain],
-            wikidata_qid=None,  # Will be enriched later
-            claims_published=1
+            wikidata_qid=wikidata_qid,
+            status='resolved' if wikidata_qid else 'pending'
         )
 
-        # Try to find Wikidata QID for the source
-        # (This is a simple check - full enrichment happens later)
-        qid = await self._lookup_source_qid(site_name, domain)
-        if qid:
-            source.wikidata_qid = qid
-
-        # Create in Neo4j
+        # Create Entity node in Neo4j with domain property for publisher lookup
+        # Use dedup_key based on domain for publishers
+        dedup_key = f"publisher_{domain.lower()}"
         await self.neo4j._execute_write("""
-            MERGE (s:Source {domain: $domain})
+            MERGE (e:Entity {dedup_key: $dedup_key})
             ON CREATE SET
-                s.id = $id,
-                s.canonical_name = $name,
-                s.entity_type = 'ORGANIZATION',
-                s.wikidata_qid = $qid,
-                s.claims_published = 1,
-                s.claims_corroborated = 0,
-                s.claims_contradicted = 0,
-                s.created_at = datetime()
+                e.id = $id,
+                e.canonical_name = $name,
+                e.entity_type = 'ORGANIZATION',
+                e.domain = $domain,
+                e.is_publisher = true,
+                e.wikidata_qid = $qid,
+                e.wikidata_label = $wikidata_label,
+                e.mention_count = 1,
+                e.status = $status,
+                e.created_at = datetime()
             ON MATCH SET
-                s.claims_published = s.claims_published + 1,
-                s.updated_at = datetime()
-            RETURN s.id as id
+                e.mention_count = e.mention_count + 1,
+                e.updated_at = datetime()
+            RETURN e.id as id
         """, {
-            'id': str(source.id),
+            'id': entity_id,
+            'dedup_key': dedup_key,
             'domain': domain,
-            'name': site_name,
-            'qid': qid
+            'name': canonical_name,
+            'qid': wikidata_qid,
+            'wikidata_label': wikidata_label,
+            'status': 'resolved' if wikidata_qid else 'pending'
         })
 
-        logger.debug(f"📰 Source: {site_name} (credibility: {source.credibility_score:.2f})")
-        return source
+        logger.debug(f"📰 Publisher: {canonical_name} ({entity_id})")
+        return publisher
 
-    async def _find_source_by_domain(self, domain: str) -> Optional[Source]:
-        """Find existing source by domain."""
+    async def _resolve_publisher_wikidata(self, entity_id: str, site_name: str):
+        """Try to resolve an existing publisher entity via Wikidata."""
+        try:
+            result = await self.wikidata_client.search_entity(
+                site_name, entity_type='ORGANIZATION'
+            )
+            if result and result.get('accepted'):
+                qid = result.get('qid')
+                label = result.get('label')
+                if qid:
+                    await self.neo4j._execute_write("""
+                        MATCH (e:Entity {id: $id})
+                        SET e.wikidata_qid = $qid,
+                            e.wikidata_label = $label,
+                            e.canonical_name = COALESCE($label, e.canonical_name),
+                            e.status = 'resolved',
+                            e.updated_at = datetime()
+                    """, {'id': entity_id, 'qid': qid, 'label': label})
+                    logger.info(f"🔗 Publisher enriched: {entity_id} → {label} ({qid})")
+        except Exception as e:
+            logger.debug(f"Publisher Wikidata resolution failed: {e}")
+
+    async def _find_publisher_by_domain(self, domain: str) -> Optional[Entity]:
+        """Find existing publisher entity by domain."""
         results = await self.neo4j._execute_read("""
-            MATCH (s:Source {domain: $domain})
-            RETURN s.id as id,
-                   s.canonical_name as canonical_name,
-                   s.wikidata_qid as wikidata_qid,
-                   s.claims_published as claims_published,
-                   s.claims_corroborated as claims_corroborated,
-                   s.claims_contradicted as claims_contradicted
+            MATCH (e:Entity {domain: $domain, is_publisher: true})
+            RETURN e.id as id,
+                   e.canonical_name as canonical_name,
+                   e.wikidata_qid as wikidata_qid,
+                   e.mention_count as mention_count,
+                   e.status as status
         """, {'domain': domain})
 
         if results:
             row = results[0]
-            return Source(
-                id=uuid.UUID(row['id']),
+            return Entity(
+                id=row['id'],
                 canonical_name=row['canonical_name'],
                 entity_type="ORGANIZATION",
-                domains=[domain],
                 wikidata_qid=row.get('wikidata_qid'),
-                claims_published=row.get('claims_published', 0),
-                claims_corroborated=row.get('claims_corroborated', 0),
-                claims_contradicted=row.get('claims_contradicted', 0)
+                mention_count=row.get('mention_count', 0),
+                status=row.get('status', 'pending')
             )
         return None
 
-    async def _lookup_source_qid(self, name: str, domain: str) -> Optional[str]:
-        """Quick lookup of Wikidata QID for a source (no full search)."""
-        # This could be expanded to do actual Wikidata search
-        # For now, just return None - enrichment worker handles this
-        return None
-
-    async def _link_page_to_source(self, page_id: uuid.UUID, source_id: uuid.UUID):
-        """Create PUBLISHED_BY relationship between page and source."""
+    async def _link_page_to_publisher(self, page_id: str, publisher_id: str):
+        """Create PUBLISHED_BY relationship between page and publisher entity."""
         await self.neo4j._execute_write("""
             MATCH (p:Page {id: $page_id})
-            MATCH (s:Source {id: $source_id})
-            MERGE (p)-[r:PUBLISHED_BY]->(s)
+            MATCH (e:Entity {id: $publisher_id})
+            MERGE (p)-[r:PUBLISHED_BY]->(e)
             ON CREATE SET r.created_at = datetime()
         """, {
-            'page_id': str(page_id),
-            'source_id': str(source_id)
+            'page_id': page_id,
+            'publisher_id': publisher_id
         })
 
     async def _create_claims(
         self,
         conn: asyncpg.Connection,
-        page_id: uuid.UUID,
+        page_id: str,
         url: str,
         extraction: ExtractionResult,
         identification: IdentificationResult
-    ) -> List[uuid.UUID]:
+    ) -> List[str]:
         """
         Create claims with entity links using UUIDs.
 
@@ -422,7 +463,7 @@ class KnowledgeWorker:
                 # Claim exists - just link Page→Claim (in case page was reprocessed)
                 existing_id = existing[0]['id']
                 await self.neo4j.link_page_to_claim(str(page_id), existing_id)
-                claim_ids.append(uuid.UUID(existing_id))
+                claim_ids.append(existing_id)
                 continue
 
             # Resolve mention IDs to entity UUIDs
@@ -528,7 +569,7 @@ class KnowledgeWorker:
                 for alias in mention.aliases:
                     await self._add_entity_alias(entity_id, alias)
 
-    async def _add_entity_alias(self, entity_id: uuid.UUID, alias: str):
+    async def _add_entity_alias(self, entity_id: str, alias: str):
         """Add alias to entity if not already present."""
         await self.neo4j._execute_write("""
             MATCH (e:Entity {id: $entity_id})
@@ -541,7 +582,7 @@ class KnowledgeWorker:
 
     async def _update_entity_qid(
         self,
-        entity_id: uuid.UUID,
+        entity_id: str,
         qid: str,
         wikidata_label: str = None
     ):
@@ -607,10 +648,10 @@ class KnowledgeWorker:
 
     async def _verify_integrity(
         self,
-        page_id: uuid.UUID,
+        page_id: str,
         extraction: ExtractionResult,
         identification: IdentificationResult,
-        claim_ids: List[uuid.UUID]
+        claim_ids: List[str]
     ) -> bool:
         """
         Verify integrity before marking knowledge_complete.
@@ -638,7 +679,7 @@ class KnowledgeWorker:
 
         return True
 
-    async def _mark_failed(self, conn: asyncpg.Connection, page_id: uuid.UUID, reason: str):
+    async def _mark_failed(self, conn: asyncpg.Connection, page_id: str, reason: str):
         """Mark page as knowledge processing failed."""
         await conn.execute("""
             UPDATE core.pages
@@ -683,7 +724,7 @@ async def run_knowledge_worker():
             job = await job_queue.dequeue('queue:semantic:high', timeout=5)
 
             if job:
-                page_id = uuid.UUID(job['page_id'])
+                page_id = job['page_id']
                 url = job.get('url', 'unknown')
                 await worker.process(page_id, url)
 

@@ -76,7 +76,7 @@ class EventWorker:
                     job = await self.job_queue.dequeue('queue:event:high', timeout=5)
 
                     if job:
-                        page_id = uuid.UUID(job['page_id'])
+                        page_id = job['page_id']
                         await self.process_page(page_id)
 
                 except Exception as e:

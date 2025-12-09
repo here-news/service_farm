@@ -8,12 +8,12 @@ Node Types:
 - Page: {id, url, title, domain, pub_time, status} - metadata only
 - Claim: {id, text, confidence, modality, event_time}
 - Entity: {id, canonical_name, entity_type, wikidata_qid} - MERGE by QID for dedup
+       - Publishers: Entity with is_publisher=true, domain property
 - Event: {id, canonical_name, event_type, status, scale}
-- Source: {id, domain, canonical_name, credibility}
 
 Relationships:
 - (Page)-[:CONTAINS]->(Claim)
-- (Page)-[:PUBLISHED_BY]->(Source)
+- (Page)-[:PUBLISHED_BY]->(Entity) - where Entity.is_publisher=true
 - (Claim)-[:MENTIONS]->(Entity)
 - (Claim)-[:ACTOR|SUBJECT|LOCATION]->(Entity) - semantic roles
 - (Event)-[:SUPPORTS]->(Claim)
@@ -23,6 +23,7 @@ Relationships:
 Entity Deduplication Strategy:
 - If QID known: MERGE on wikidata_qid (one entity per real-world thing)
 - If no QID: MERGE on (canonical_name, entity_type)
+- Publishers: MERGE on dedup_key = 'publisher_{domain}'
 - All mentions point to same entity node via relationships
 """
 import os
@@ -30,7 +31,6 @@ import logging
 import json
 from typing import Dict, List, Optional, Set, Any
 from datetime import datetime
-import uuid
 
 from neo4j import AsyncGraphDatabase, AsyncDriver, AsyncSession
 
@@ -524,7 +524,7 @@ class Neo4jService:
         Retrieve multiple entities by IDs from Neo4j
 
         Args:
-            entity_ids: List of Entity UUIDs
+            entity_ids: List of Entity IDs (en_xxxxxxxx format)
 
         Returns:
             List of entity dictionaries
@@ -661,7 +661,7 @@ class Neo4jService:
         Update entity profile summary (generated from claim contexts)
 
         Args:
-            entity_id: Entity UUID
+            entity_id: Entity ID (en_xxxxxxxx format)
             profile_summary: AI-generated description of entity
         """
         query = """

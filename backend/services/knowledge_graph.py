@@ -18,8 +18,8 @@ from typing import Optional, List, Dict, Any, Union
 import asyncpg
 
 from models.mention import Mention, MentionRelationship, ExtractionResult
-from models.source import Source
 from models.entity import Entity
+from utils.id_generator import generate_entity_id
 from models.claim import Claim
 from services.neo4j_service import Neo4jService
 from services.identification_service import IdentificationService, IdentificationResult
@@ -55,8 +55,8 @@ class PageArtifact:
     # Identification results
     mention_to_entity: Dict[str, uuid.UUID] = field(default_factory=dict)
 
-    # Source
-    source: Optional[Source] = None
+    # Publisher (Entity with is_publisher=true)
+    publisher: Optional[Entity] = None
 
     # Status
     is_extracted: bool = False
@@ -164,8 +164,8 @@ class KnowledgeGraph:
             domain=page['domain']
         )
 
-        # Identify source
-        artifact.source = await self._identify_source(page['domain'], page['site_name'])
+        # Identify publisher
+        artifact.publisher = await self._identify_publisher(page['domain'], page['site_name'])
 
         # Run extraction
         page_meta = {
@@ -360,9 +360,9 @@ class KnowledgeGraph:
         for rel in artifact.relationships:
             await self._create_relationship(rel, artifact)
 
-        # Link page to source
-        if artifact.source:
-            await self._link_page_source(artifact)
+        # Link page to publisher
+        if artifact.publisher:
+            await self._link_page_to_publisher(artifact)
 
         # Set page status based on extraction quality (integrity barrier)
         QUALITY_THRESHOLD = 0.5
@@ -400,45 +400,58 @@ class KnowledgeGraph:
         """
         return await self.entity_repository.get_by_canonical_name(name, entity_type)
 
-    async def _identify_source(self, domain: str, site_name: str) -> Source:
-        """Identify or create source entity."""
-        # Check existing
+    async def _identify_publisher(self, domain: str, site_name: str) -> Entity:
+        """Identify or create publisher entity (ORGANIZATION with is_publisher=true)."""
+        # Check existing publisher by domain
         results = await self.neo4j._execute_read("""
-            MATCH (s:Source {domain: $domain})
-            RETURN s.id as id, s.canonical_name as name
+            MATCH (e:Entity {domain: $domain, is_publisher: true})
+            RETURN e.id as id, e.canonical_name as canonical_name,
+                   e.wikidata_qid as wikidata_qid, e.status as status
         """, {'domain': domain})
 
         if results:
-            return Source(
-                id=uuid.UUID(results[0]['id']),
-                canonical_name=results[0]['name'],
+            row = results[0]
+            return Entity(
+                id=row['id'],
+                canonical_name=row['canonical_name'],
                 entity_type="ORGANIZATION",
-                domains=[domain]
+                wikidata_qid=row.get('wikidata_qid'),
+                status=row.get('status', 'pending')
             )
 
-        # Create new
-        source = Source(
-            id=uuid.uuid4(),
+        # Create new publisher entity
+        entity_id = generate_entity_id()
+        publisher = Entity(
+            id=entity_id,
             canonical_name=site_name or domain,
             entity_type="ORGANIZATION",
-            domains=[domain]
+            status='pending'
         )
 
+        # Create Entity node with is_publisher=true and domain for lookup
+        dedup_key = f"publisher_{domain.lower()}"
         await self.neo4j._execute_write("""
-            CREATE (s:Source {
-                id: $id,
-                domain: $domain,
-                canonical_name: $name,
-                entity_type: 'ORGANIZATION',
-                created_at: datetime()
-            })
+            MERGE (e:Entity {dedup_key: $dedup_key})
+            ON CREATE SET
+                e.id = $id,
+                e.canonical_name = $name,
+                e.entity_type = 'ORGANIZATION',
+                e.domain = $domain,
+                e.is_publisher = true,
+                e.mention_count = 1,
+                e.status = 'pending',
+                e.created_at = datetime()
+            ON MATCH SET
+                e.mention_count = e.mention_count + 1,
+                e.updated_at = datetime()
         """, {
-            'id': str(source.id),
+            'id': entity_id,
+            'dedup_key': dedup_key,
             'domain': domain,
-            'name': source.canonical_name
+            'name': publisher.canonical_name
         })
 
-        return source
+        return publisher
 
     async def _create_or_update_entity(self, mention: Mention, entity_id: uuid.UUID):
         """Create or update entity using EntityRepository."""
@@ -507,8 +520,8 @@ class KnowledgeGraph:
             'object_id': str(object_id)
         })
 
-    async def _link_page_source(self, artifact: PageArtifact):
-        """Link page to source in Neo4j."""
+    async def _link_page_to_publisher(self, artifact: PageArtifact):
+        """Link page to publisher entity in Neo4j."""
         # Ensure page node exists
         await self.neo4j._execute_write("""
             MERGE (p:Page {id: $page_id})
@@ -519,12 +532,13 @@ class KnowledgeGraph:
             'title': artifact.title
         })
 
-        # Link to source
+        # Link to publisher entity
         await self.neo4j._execute_write("""
             MATCH (p:Page {id: $page_id})
-            MATCH (s:Source {id: $source_id})
-            MERGE (p)-[r:PUBLISHED_BY]->(s)
+            MATCH (e:Entity {id: $publisher_id})
+            MERGE (p)-[r:PUBLISHED_BY]->(e)
+            ON CREATE SET r.created_at = datetime()
         """, {
             'page_id': str(artifact.page_id),
-            'source_id': str(artifact.source.id)
+            'publisher_id': artifact.publisher.id
         })

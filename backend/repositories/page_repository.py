@@ -6,8 +6,9 @@ Storage strategy:
 - Neo4j: Metadata and graph relationships (title, url, claims, entities)
 
 The repository abstracts this split from consumers - they work with Page domain model.
+
+ID format: pg_xxxxxxxx (11 chars)
 """
-import uuid
 import logging
 from typing import Optional, List
 import asyncpg
@@ -15,6 +16,7 @@ from datetime import datetime
 
 from models.page import Page
 from services.neo4j_service import Neo4jService
+from utils.id_generator import is_uuid, uuid_to_short_id
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +38,7 @@ class PageRepository:
     # READ OPERATIONS
     # =========================================================================
 
-    async def get_by_id(self, page_id: uuid.UUID) -> Optional[Page]:
+    async def get_by_id(self, page_id: str) -> Optional[Page]:
         """
         Retrieve page by ID.
 
@@ -44,7 +46,7 @@ class PageRepository:
         Optionally enriches with Neo4j metadata if available.
 
         Args:
-            page_id: Page UUID
+            page_id: Page ID (pg_xxxxxxxx format)
 
         Returns:
             Page model or None
@@ -53,8 +55,9 @@ class PageRepository:
         async with self.db_pool.acquire() as conn:
             row = await conn.fetchrow("""
                 SELECT id, url, canonical_url, content_text, status,
-                       title, description, author, thumbnail_url,
+                       title, description, byline as author, thumbnail_url,
                        language, word_count, pub_time, metadata_confidence,
+                       domain, site_name,
                        created_at, updated_at
                 FROM core.pages
                 WHERE id = $1
@@ -64,6 +67,7 @@ class PageRepository:
                 return None
 
         # Build Page from PostgreSQL data (works with old schema)
+        # Model handles UUID conversion in __post_init__ if needed
         page = Page(
             id=row['id'],
             url=row['url'],
@@ -78,6 +82,8 @@ class PageRepository:
             word_count=row.get('word_count', 0) or 0,
             pub_time=row.get('pub_time'),
             metadata_confidence=row.get('metadata_confidence', 0.0) or 0.0,
+            domain=row.get('domain'),
+            site_name=row.get('site_name'),
             created_at=row['created_at'],
             updated_at=row['updated_at']
         )
@@ -85,7 +91,7 @@ class PageRepository:
         # Optionally enrich with Neo4j metadata (for new architecture)
         if self.neo4j:
             try:
-                neo4j_data = await self.neo4j.get_page_by_id(str(page_id))
+                neo4j_data = await self.neo4j.get_page_by_id(page_id)
                 if neo4j_data:
                     # Neo4j data takes precedence if available
                     page.title = neo4j_data.get('title') or page.title
@@ -115,12 +121,12 @@ class PageRepository:
 
             return await self.get_by_id(row['id'])
 
-    async def get_content(self, page_id: uuid.UUID) -> Optional[str]:
+    async def get_content(self, page_id: str) -> Optional[str]:
         """
         Get just the content text (for workers that only need content).
 
         Args:
-            page_id: Page UUID
+            page_id: Page ID (pg_xxxxxxxx format)
 
         Returns:
             Content text or None
@@ -138,7 +144,7 @@ class PageRepository:
         """
         Create new page.
 
-        Creates stub in PostgreSQL. Metadata stored in Neo4j during extraction.
+        Creates stub in PostgreSQL with iframely metadata if available.
 
         Args:
             page: Page domain model
@@ -148,9 +154,15 @@ class PageRepository:
         """
         async with self.db_pool.acquire() as conn:
             await conn.execute("""
-                INSERT INTO core.pages (id, url, canonical_url, status)
-                VALUES ($1, $2, $3, $4)
-            """, page.id, page.url, page.canonical_url or page.url, page.status)
+                INSERT INTO core.pages (
+                    id, url, canonical_url, status,
+                    title, description, byline, thumbnail_url,
+                    language, metadata_confidence, domain, site_name
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            """, page.id, page.url, page.canonical_url or page.url, page.status,
+                page.title, page.description, page.author, page.thumbnail_url,
+                page.language, page.metadata_confidence, page.domain, page.site_name)
 
             row = await conn.fetchrow("""
                 SELECT created_at, updated_at FROM core.pages WHERE id = $1
@@ -159,12 +171,12 @@ class PageRepository:
             page.created_at = row['created_at']
             page.updated_at = row['updated_at']
 
-            logger.debug(f"📄 Created page stub {page.id}: {page.url}")
+            logger.debug(f"📄 Created page {page.id}: {page.url} (site: {page.site_name})")
             return page
 
     async def update_content(
         self,
-        page_id: uuid.UUID,
+        page_id: str,
         content_text: str,
         status: str = 'extracted',
         word_count: int = None
@@ -173,7 +185,7 @@ class PageRepository:
         Update page content in PostgreSQL.
 
         Args:
-            page_id: Page UUID
+            page_id: Page ID (pg_xxxxxxxx format)
             content_text: Extracted text content
             status: New status
             word_count: Word count (calculated if not provided)
@@ -192,7 +204,7 @@ class PageRepository:
 
     async def update_metadata(
         self,
-        page_id: uuid.UUID,
+        page_id: str,
         title: str,
         description: Optional[str],
         author: Optional[str],
@@ -207,7 +219,7 @@ class PageRepository:
         Update page metadata in Neo4j.
 
         Args:
-            page_id: Page UUID
+            page_id: Page ID (pg_xxxxxxxx format)
             title: Page title
             description: Meta description
             author: Author name
@@ -223,7 +235,7 @@ class PageRepository:
             return
 
         await self.neo4j.create_or_update_page(
-            page_id=str(page_id),
+            page_id=page_id,
             url=None,  # Already set on create
             title=title,
             domain=domain,
@@ -241,7 +253,7 @@ class PageRepository:
 
     async def update_extracted_content(
         self,
-        page_id: uuid.UUID,
+        page_id: str,
         content_text: str,
         title: str,
         description: Optional[str],
@@ -251,7 +263,8 @@ class PageRepository:
         language: str,
         word_count: int,
         pub_time: Optional[datetime],
-        domain: str = None
+        domain: str = None,
+        site_name: str = None
     ) -> None:
         """
         Update page with extracted content (both PostgreSQL and Neo4j).
@@ -259,7 +272,7 @@ class PageRepository:
         This is a convenience method that updates both stores.
 
         Args:
-            page_id: Page UUID
+            page_id: Page ID (pg_xxxxxxxx format)
             content_text: Extracted text content
             title: Page title
             description: Page description
@@ -270,9 +283,28 @@ class PageRepository:
             word_count: Word count
             pub_time: Publication timestamp
             domain: Source domain
+            site_name: Publisher name (from og:site_name)
         """
-        # Update content in PostgreSQL (with word_count)
-        await self.update_content(page_id, content_text, status='extracted', word_count=word_count)
+        # Update content and metadata in PostgreSQL
+        async with self.db_pool.acquire() as conn:
+            await conn.execute("""
+                UPDATE core.pages
+                SET content_text = $2,
+                    status = 'extracted',
+                    word_count = $3,
+                    title = COALESCE($4, title),
+                    description = $5,
+                    byline = $6,
+                    thumbnail_url = $7,
+                    language = $8,
+                    pub_time = $9,
+                    metadata_confidence = $10,
+                    domain = $11,
+                    site_name = $12,
+                    updated_at = NOW()
+                WHERE id = $1
+            """, page_id, content_text, word_count, title, description, author,
+                thumbnail_url, language, pub_time, metadata_confidence, domain, site_name)
 
         # Update metadata in Neo4j
         if self.neo4j and domain:
@@ -291,14 +323,14 @@ class PageRepository:
 
         logger.debug(f"📄 Updated page {page_id} with extracted content ({word_count} words)")
 
-    async def update_status(self, page_id: uuid.UUID, status: str) -> None:
+    async def update_status(self, page_id: str, status: str) -> None:
         """
         Update page processing status.
 
         Updates both PostgreSQL (for worker coordination) and Neo4j (for queries).
 
         Args:
-            page_id: Page UUID
+            page_id: Page ID (pg_xxxxxxxx format)
             status: New status
         """
         async with self.db_pool.acquire() as conn:
@@ -309,16 +341,16 @@ class PageRepository:
             """, page_id, status)
 
         if self.neo4j:
-            await self.neo4j.update_page_status(str(page_id), status)
+            await self.neo4j.update_page_status(page_id, status)
 
         logger.debug(f"📄 Updated page {page_id} status: {status}")
 
-    async def mark_failed(self, page_id: uuid.UUID, error_message: str = None) -> None:
+    async def mark_failed(self, page_id: str, error_message: str = None) -> None:
         """
         Mark page as failed.
 
         Args:
-            page_id: Page UUID
+            page_id: Page ID (pg_xxxxxxxx format)
             error_message: Optional error details
         """
         async with self.db_pool.acquire() as conn:
@@ -329,7 +361,7 @@ class PageRepository:
             """, page_id)
 
         if self.neo4j:
-            await self.neo4j.update_page_status(str(page_id), 'failed')
+            await self.neo4j.update_page_status(page_id, 'failed')
 
         logger.info(f"❌ Marked page {page_id} as failed")
 
@@ -337,12 +369,12 @@ class PageRepository:
     # GRAPH QUERIES (via Neo4j)
     # =========================================================================
 
-    async def get_claim_count(self, page_id: uuid.UUID) -> int:
+    async def get_claim_count(self, page_id: str) -> int:
         """
         Get count of claims linked to this page.
 
         Args:
-            page_id: Page UUID
+            page_id: Page ID (pg_xxxxxxxx format)
 
         Returns:
             Count of claims
@@ -353,16 +385,16 @@ class PageRepository:
         result = await self.neo4j._execute_read("""
             MATCH (p:Page {id: $page_id})-[:CONTAINS]->(c:Claim)
             RETURN count(c) as count
-        """, {'page_id': str(page_id)})
+        """, {'page_id': page_id})
 
         return result[0]['count'] if result else 0
 
-    async def get_entity_count(self, page_id: uuid.UUID) -> int:
+    async def get_entity_count(self, page_id: str) -> int:
         """
         Get count of unique entities mentioned in this page's claims.
 
         Args:
-            page_id: Page UUID
+            page_id: Page ID (pg_xxxxxxxx format)
 
         Returns:
             Count of unique entities
@@ -373,16 +405,16 @@ class PageRepository:
         result = await self.neo4j._execute_read("""
             MATCH (p:Page {id: $page_id})-[:CONTAINS]->(c:Claim)-[:MENTIONS]->(e:Entity)
             RETURN count(DISTINCT e) as count
-        """, {'page_id': str(page_id)})
+        """, {'page_id': page_id})
 
         return result[0]['count'] if result else 0
 
-    async def get_claims(self, page_id: uuid.UUID) -> List[dict]:
+    async def get_claims(self, page_id: str) -> List[dict]:
         """
         Get all claims for this page.
 
         Args:
-            page_id: Page UUID
+            page_id: Page ID (pg_xxxxxxxx format)
 
         Returns:
             List of claim dictionaries
@@ -395,16 +427,16 @@ class PageRepository:
             RETURN c.id as id, c.text as text, c.confidence as confidence,
                    c.event_time as event_time, c.created_at as created_at
             ORDER BY c.created_at
-        """, {'page_id': str(page_id)})
+        """, {'page_id': page_id})
 
         return [dict(r) for r in results]
 
-    async def get_entities(self, page_id: uuid.UUID) -> List[dict]:
+    async def get_entities(self, page_id: str) -> List[dict]:
         """
         Get all entities mentioned in this page's claims.
 
         Args:
-            page_id: Page UUID
+            page_id: Page ID (pg_xxxxxxxx format)
 
         Returns:
             List of entity dictionaries
@@ -419,7 +451,7 @@ class PageRepository:
                    e.entity_type as entity_type, e.wikidata_qid as wikidata_qid,
                    e.mention_count as mention_count, e.confidence as confidence
             ORDER BY e.mention_count DESC
-        """, {'page_id': str(page_id)})
+        """, {'page_id': page_id})
 
         return [dict(r) for r in results]
 
@@ -427,12 +459,12 @@ class PageRepository:
     # UTILITY
     # =========================================================================
 
-    async def create_rogue_task(self, page_id: uuid.UUID, url: str) -> None:
+    async def create_rogue_task(self, page_id: str, url: str) -> None:
         """
         Create rogue extraction task for pages needing browser-based extraction.
 
         Args:
-            page_id: Page UUID
+            page_id: Page ID (pg_xxxxxxxx format)
             url: Page URL
         """
         async with self.db_pool.acquire() as conn:

@@ -6,7 +6,6 @@ Instant best shot pattern with iframely metadata
 Refactored: Uses PageRepository for all data access
 """
 import os
-import uuid
 import httpx
 from datetime import datetime
 from urllib.parse import urlparse, urlunparse
@@ -15,6 +14,7 @@ import asyncpg
 from services.job_queue import JobQueue
 from repositories import PageRepository
 from models.page import Page
+from utils.id_generator import generate_page_id
 
 router = APIRouter()
 
@@ -250,7 +250,7 @@ async def submit_artifact(url: str):
         }
 
     # SCENARIO B: New URL - create stub with iframely instant metadata
-    page_id = uuid.uuid4()
+    page_id = generate_page_id()
 
     # Get iframely metadata (< 500ms, 99% success rate in Gen1)
     iframely_meta = await get_iframely_metadata(url)
@@ -262,6 +262,7 @@ async def submit_artifact(url: str):
         language = iframely_meta.get('language', 'en')
         author = iframely_meta.get('author')
         thumbnail_url = iframely_meta.get('image')
+        site_name = iframely_meta.get('site')  # Publisher name from iframely
 
         # Use iframely's canonical URL if different (deduplication!)
         canonical_from_iframely = iframely_meta.get('canonical_url')
@@ -277,6 +278,13 @@ async def submit_artifact(url: str):
                 # Re-fetch existing page data and return
                 return await submit_artifact(canonical_url)
 
+        # Extract domain from URL
+        try:
+            parsed = urlparse(url)
+            domain = parsed.netloc
+        except:
+            domain = None
+
         # Create page with iframely metadata using repository
         page = Page(
             id=page_id,
@@ -290,7 +298,9 @@ async def submit_artifact(url: str):
             status='preview',
             word_count=0,
             metadata_confidence=0.8,  # iframely is pretty reliable
-            content_text=''
+            content_text='',
+            domain=domain,
+            site_name=site_name
         )
         await page_repo.create(page)
 
@@ -325,6 +335,7 @@ async def submit_artifact(url: str):
     else:
         # iframely failed - quick domain guess
         domain = urlparse(url).netloc.lower()
+        site_name = None  # Will be extracted during content extraction
         language = 'en'  # Default
         if any(x in domain for x in ['.cn', '.zh', 'chinese']):
             language = 'zh'
@@ -340,7 +351,9 @@ async def submit_artifact(url: str):
             status='stub',
             word_count=0,
             metadata_confidence=0.0,
-            content_text=''
+            content_text='',
+            domain=domain,
+            site_name=site_name
         )
         await page_repo.create(page)
 

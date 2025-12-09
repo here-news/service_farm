@@ -8,8 +8,9 @@ Storage strategy:
 - PostgreSQL (optional): Claim embeddings for similarity search
 
 The repository abstracts storage from consumers - they work with Claim domain model.
+
+ID format: cl_xxxxxxxx (11 chars)
 """
-import uuid
 import logging
 from typing import Optional, List
 import asyncpg
@@ -41,14 +42,14 @@ class ClaimRepository:
     async def create(
         self,
         claim: Claim,
-        entity_ids: List[uuid.UUID] = None
+        entity_ids: List[str] = None
     ) -> Claim:
         """
         Create claim in Neo4j with entity relationships.
 
         Args:
             claim: Claim domain model
-            entity_ids: List of entity UUIDs to link via MENTIONS
+            entity_ids: List of entity IDs (en_xxxxxxxx format) to link via MENTIONS
 
         Returns:
             Created claim with timestamp
@@ -96,13 +97,13 @@ class ClaimRepository:
         logger.debug(f"📝 Created claim: {claim.text[:50]}... ({len(entity_ids or [])} entities)")
         return claim
 
-    async def link_to_page(self, claim_id: uuid.UUID, page_id: uuid.UUID) -> None:
+    async def link_to_page(self, claim_id: str, page_id: str) -> None:
         """
         Create CONTAINS relationship from Page to Claim.
 
         Args:
-            claim_id: Claim UUID
-            page_id: Page UUID
+            claim_id: Claim ID (cl_xxxxxxxx format)
+            page_id: Page ID (pg_xxxxxxxx format)
         """
         await self.neo4j._execute_write("""
             MATCH (p:Page {id: $page_id})
@@ -110,20 +111,20 @@ class ClaimRepository:
             MERGE (p)-[r:CONTAINS]->(c)
             ON CREATE SET r.created_at = datetime()
         """, {
-            'page_id': str(page_id),
-            'claim_id': str(claim_id)
+            'page_id': page_id,
+            'claim_id': claim_id
         })
 
     # =========================================================================
     # READ OPERATIONS
     # =========================================================================
 
-    async def get_by_id(self, claim_id: uuid.UUID) -> Optional[Claim]:
+    async def get_by_id(self, claim_id: str) -> Optional[Claim]:
         """
         Retrieve claim by ID from Neo4j.
 
         Args:
-            claim_id: Claim UUID
+            claim_id: Claim ID (cl_xxxxxxxx format)
 
         Returns:
             Claim model or None
@@ -134,15 +135,16 @@ class ClaimRepository:
             RETURN c.id as id, c.text as text, c.event_time as event_time,
                    c.confidence as confidence, c.modality as modality,
                    c.created_at as created_at, p.id as page_id
-        """, {'claim_id': str(claim_id)})
+        """, {'claim_id': claim_id})
 
         if not results:
             return None
 
         row = results[0]
+        # Model handles UUID conversion in __post_init__
         return Claim(
-            id=uuid.UUID(row['id']),
-            page_id=uuid.UUID(row['page_id']) if row['page_id'] else None,
+            id=row['id'],
+            page_id=row['page_id'],
             text=row['text'],
             event_time=row['event_time'],
             confidence=row['confidence'] or 0.8,
@@ -150,12 +152,12 @@ class ClaimRepository:
             created_at=row['created_at']
         )
 
-    async def get_by_page(self, page_id: uuid.UUID) -> List[Claim]:
+    async def get_by_page(self, page_id: str) -> List[Claim]:
         """
         Retrieve all claims for a page.
 
         Args:
-            page_id: Page UUID
+            page_id: Page ID (pg_xxxxxxxx format)
 
         Returns:
             List of Claim models
@@ -166,12 +168,13 @@ class ClaimRepository:
                    c.confidence as confidence, c.modality as modality,
                    c.created_at as created_at
             ORDER BY c.created_at
-        """, {'page_id': str(page_id)})
+        """, {'page_id': page_id})
 
         claims = []
         for row in results:
+            # Model handles UUID conversion in __post_init__
             claims.append(Claim(
-                id=uuid.UUID(row['id']),
+                id=row['id'],
                 page_id=page_id,
                 text=row['text'],
                 event_time=row['event_time'],
@@ -182,12 +185,12 @@ class ClaimRepository:
 
         return claims
 
-    async def get_entities_for_claim(self, claim_id: uuid.UUID) -> List[Entity]:
+    async def get_entities_for_claim(self, claim_id: str) -> List[Entity]:
         """
         Get all entities mentioned by a claim.
 
         Args:
-            claim_id: Claim UUID
+            claim_id: Claim ID (cl_xxxxxxxx format)
 
         Returns:
             List of Entity models
@@ -201,12 +204,13 @@ class ClaimRepository:
                    e.mention_count as mention_count, e.confidence as confidence,
                    e.status as status, e.aliases as aliases
             ORDER BY e.canonical_name
-        """, {'claim_id': str(claim_id)})
+        """, {'claim_id': claim_id})
 
         entities = []
         for row in results:
+            # Model handles UUID conversion in __post_init__
             entities.append(Entity(
-                id=uuid.UUID(row['id']),
+                id=row['id'],
                 canonical_name=row['canonical_name'],
                 entity_type=row['entity_type'],
                 wikidata_qid=row.get('wikidata_qid'),
@@ -225,12 +229,12 @@ class ClaimRepository:
         Fetch and attach entities from Neo4j.
 
         Args:
-            claim: Claim to hydrate
+            claim: Claim to hydrate (uses claim.id in cl_xxxxxxxx format)
 
         Returns:
             Claim with entities populated
         """
-        claim.entities = await self.get_entities_for_claim(claim.id)
+        claim.entities = await self.get_entities_for_claim(str(claim.id))
         logger.debug(f"✅ Hydrated {len(claim.entities)} entities for claim {claim.id}")
         return claim
 
@@ -240,14 +244,14 @@ class ClaimRepository:
 
     async def store_embedding(
         self,
-        claim_id: uuid.UUID,
+        claim_id: str,
         embedding: List[float]
     ) -> None:
         """
         Store claim embedding in PostgreSQL for similarity search.
 
         Args:
-            claim_id: Claim UUID
+            claim_id: Claim ID (cl_xxxxxxxx format)
             embedding: Embedding vector
         """
         async with self.db_pool.acquire() as conn:
@@ -257,12 +261,12 @@ class ClaimRepository:
                 ON CONFLICT (claim_id) DO UPDATE SET embedding = $2
             """, claim_id, embedding)
 
-    async def get_embedding(self, claim_id: uuid.UUID) -> Optional[List[float]]:
+    async def get_embedding(self, claim_id: str) -> Optional[List[float]]:
         """
         Get claim embedding from PostgreSQL.
 
         Args:
-            claim_id: Claim UUID
+            claim_id: Claim ID (cl_xxxxxxxx format)
 
         Returns:
             Embedding vector or None
@@ -286,7 +290,7 @@ class ClaimRepository:
         self,
         embedding: List[float],
         limit: int = 10,
-        exclude_claim_ids: List[uuid.UUID] = None
+        exclude_claim_ids: List[str] = None
     ) -> List[dict]:
         """
         Find claims similar to given embedding.
@@ -294,30 +298,30 @@ class ClaimRepository:
         Args:
             embedding: Query embedding vector
             limit: Maximum results
-            exclude_claim_ids: Claim IDs to exclude
+            exclude_claim_ids: Claim IDs (cl_xxxxxxxx format) to exclude
 
         Returns:
             List of {claim_id, similarity} dicts
         """
-        exclude_ids = [str(cid) for cid in (exclude_claim_ids or [])]
+        exclude_ids = exclude_claim_ids or []
 
         async with self.db_pool.acquire() as conn:
             results = await conn.fetch("""
                 SELECT claim_id, 1 - (embedding <=> $1) as similarity
                 FROM content.claim_embeddings
-                WHERE NOT (claim_id = ANY($3::uuid[]))
+                WHERE NOT (claim_id = ANY($3::text[]))
                 ORDER BY embedding <=> $1
                 LIMIT $2
             """, embedding, limit, exclude_ids)
 
             return [{'claim_id': r['claim_id'], 'similarity': r['similarity']} for r in results]
 
-    async def get_claims_by_entity(self, entity_id: uuid.UUID) -> List[Claim]:
+    async def get_claims_by_entity(self, entity_id: str) -> List[Claim]:
         """
         Get all claims that mention an entity.
 
         Args:
-            entity_id: Entity UUID
+            entity_id: Entity ID (en_xxxxxxxx format)
 
         Returns:
             List of Claim models
@@ -329,13 +333,14 @@ class ClaimRepository:
                    c.confidence as confidence, c.modality as modality,
                    c.created_at as created_at, p.id as page_id
             ORDER BY c.created_at DESC
-        """, {'entity_id': str(entity_id)})
+        """, {'entity_id': entity_id})
 
         claims = []
         for row in results:
+            # Model handles UUID conversion in __post_init__
             claims.append(Claim(
-                id=uuid.UUID(row['id']),
-                page_id=uuid.UUID(row['page_id']) if row['page_id'] else None,
+                id=row['id'],
+                page_id=row['page_id'],
                 text=row['text'],
                 event_time=row['event_time'],
                 confidence=row['confidence'] or 0.8,

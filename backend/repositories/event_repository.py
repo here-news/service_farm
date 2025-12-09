@@ -9,8 +9,9 @@ Architecture:
 - create(): Write to Neo4j + embedding to PostgreSQL
 - get_by_id(): Read from Neo4j, join embedding from PostgreSQL
 - find_candidates(): Vector search on PostgreSQL, hydrate from Neo4j
+
+ID format: ev_xxxxxxxx (11 chars)
 """
-import uuid
 import logging
 import json
 from typing import Optional, List, Set, Tuple
@@ -21,6 +22,7 @@ import numpy as np
 from models.event import Event
 from services.neo4j_service import Neo4jService
 from utils.datetime_utils import neo4j_datetime_to_python
+from utils.id_generator import is_uuid, uuid_to_short_id
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +79,7 @@ class EventRepository:
                     ON CONFLICT (event_id) DO UPDATE SET
                         embedding = EXCLUDED.embedding,
                         updated_at = NOW()
-                """, event.id, embedding_str)
+                """, str(event.id), embedding_str)
 
         logger.info(f"✨ Created event: {event.canonical_name} ({event.id})")
         return event
@@ -138,17 +140,17 @@ class EventRepository:
                     UPDATE core.event_embeddings
                     SET embedding = $2::vector, updated_at = NOW()
                     WHERE event_id = $1
-                """, event.id, embedding_str)
+                """, str(event.id), embedding_str)
 
         logger.debug(f"📊 Updated event: {event.canonical_name}")
         return event
 
-    async def get_by_id(self, event_id: uuid.UUID) -> Optional[Event]:
+    async def get_by_id(self, event_id: str) -> Optional[Event]:
         """
         Retrieve event from Neo4j by ID
 
         Args:
-            event_id: Event UUID
+            event_id: Event ID (ev_xxxxxxxx format)
 
         Returns:
             Event model or None
@@ -157,7 +159,7 @@ class EventRepository:
         result = await self.neo4j._execute_read("""
             MATCH (e:Event {id: $event_id})
             RETURN e
-        """, {'event_id': str(event_id)})
+        """, {'event_id': event_id})
 
         if not result:
             return None
@@ -172,7 +174,7 @@ class EventRepository:
         # NOTE: claim_ids NO LONGER in metadata - use EventRepository.get_event_claims() to fetch
 
         # Get parent_event_id from Neo4j :CONTAINS relationships
-        parent_event_id = await self.neo4j.get_parent_event_id(event_id=str(event_id))
+        parent_event_id = await self.neo4j.get_parent_event_id(event_id=event_id)
 
         # Fetch embedding from PostgreSQL
         embedding = None
@@ -183,8 +185,9 @@ class EventRepository:
             if row and row['embedding']:
                 embedding = self._parse_embedding(row['embedding'])
 
+        # Model handles UUID conversion in __post_init__
         return Event(
-            id=uuid.UUID(node['id']),
+            id=node['id'],
             canonical_name=node.get('canonical_name', ''),
             event_type=node.get('event_type', 'INCIDENT'),
             event_start=neo4j_datetime_to_python(node.get('earliest_time')),
@@ -194,7 +197,7 @@ class EventRepository:
             event_scale=node.get('event_scale', 'micro'),
             embedding=embedding,
             metadata=metadata,
-            parent_event_id=uuid.UUID(parent_event_id) if parent_event_id else None,
+            parent_event_id=parent_event_id,
             pages_count=0,  # Legacy field
             claims_count=0,  # Use get_event_claims() to fetch actual count from graph
             summary=metadata.get('summary'),
@@ -202,20 +205,20 @@ class EventRepository:
             coherence=metadata.get('coherence', 0.3)
         )
 
-    async def get_sub_events(self, parent_id: uuid.UUID) -> List[Event]:
+    async def get_sub_events(self, parent_id: str) -> List[Event]:
         """
         Get all sub-events for a parent event
 
         Uses Neo4j :CONTAINS relationships as source of truth
 
         Args:
-            parent_id: Parent event UUID
+            parent_id: Parent event ID (ev_xxxxxxxx format)
 
         Returns:
             List of sub-events
         """
         # Get sub-event IDs from Neo4j relationships
-        sub_event_ids = await self.neo4j.get_sub_event_ids(event_id=str(parent_id))
+        sub_event_ids = await self.neo4j.get_sub_event_ids(event_id=parent_id)
 
         if not sub_event_ids:
             return []
@@ -223,7 +226,7 @@ class EventRepository:
         # Fetch each sub-event
         sub_events = []
         for sub_event_id in sub_event_ids:
-            sub_event = await self.get_by_id(uuid.UUID(sub_event_id))
+            sub_event = await self.get_by_id(sub_event_id)
             if sub_event:
                 sub_events.append(sub_event)
 
@@ -231,7 +234,7 @@ class EventRepository:
 
     async def find_candidates(
         self,
-        entity_ids: Set[uuid.UUID],
+        entity_ids: Set[str],
         reference_time: datetime,
         time_window_days: int = 14,
         page_embedding: Optional[List[float]] = None
@@ -245,7 +248,7 @@ class EventRepository:
         - Semantic similarity: 60% (embedding captures thematic similarity well)
 
         Args:
-            entity_ids: Entity IDs to match against
+            entity_ids: Entity IDs (en_xxxxxxxx format) to match against
             reference_time: Reference time for temporal proximity
             time_window_days: Time window in days
             page_embedding: Optional embedding for semantic matching
@@ -257,7 +260,7 @@ class EventRepository:
             return []
 
         # Get events that share entities (from Neo4j)
-        entity_id_strings = [str(eid) for eid in entity_ids]
+        entity_id_strings = list(entity_ids)
 
         # Query Neo4j for events with entity overlap
         events_with_overlap = await self.neo4j._execute_read("""
@@ -277,10 +280,10 @@ class EventRepository:
         candidates = []
 
         for row in events_with_overlap:
-            event_id = uuid.UUID(row['event_id'])
+            event_id = row['event_id']
             entity_overlap_count = row['overlap_count']
 
-            # Get full event from Neo4j
+            # Get full event from Neo4j (model handles UUID conversion)
             event = await self.get_by_id(event_id)
             if not event:
                 continue
@@ -338,14 +341,14 @@ class EventRepository:
         logger.info(f"Found {len(candidates)} candidate events (best: {candidates[0][1]:.2f})" if candidates else "No candidates found")
         return candidates
 
-    async def _get_event_entity_ids(self, event_id: uuid.UUID) -> Set[uuid.UUID]:
+    async def _get_event_entity_ids(self, event_id: str) -> Set[str]:
         """Get all entity IDs for an event from Neo4j"""
         result = await self.neo4j._execute_read("""
             MATCH (e:Event {id: $event_id})-[:INVOLVES]->(entity:Entity)
             RETURN entity.id as entity_id
-        """, {'event_id': str(event_id)})
+        """, {'event_id': event_id})
 
-        return {uuid.UUID(row['entity_id']) for row in result}
+        return {row['entity_id'] for row in result}
 
     def _parse_embedding(self, emb_str: str) -> Optional[List[float]]:
         """Parse embedding from PostgreSQL vector string"""
@@ -405,9 +408,12 @@ class EventRepository:
 
         logger.debug(f"🔗 Linked claim {claim.id} to event {event.canonical_name}")
 
-    async def get_event_claims(self, event_id: uuid.UUID) -> List:
+    async def get_event_claims(self, event_id: str) -> List:
         """
         Get all claims linked to an event from Neo4j graph, hydrated from PostgreSQL
+
+        Args:
+            event_id: Event ID (ev_xxxxxxxx format)
 
         Returns:
             List of Claim domain models with entity_ids populated
@@ -420,9 +426,9 @@ class EventRepository:
             MATCH (e:Event {id: $event_id})-[r:SUPPORTS|CONTRADICTS|UPDATES]->(c:Claim)
             RETURN c.id as id
             ORDER BY c.event_time
-        """, {'event_id': str(event_id)})
+        """, {'event_id': event_id})
 
-        claim_ids = [uuid.UUID(row['id']) for row in result]
+        claim_ids = [row['id'] for row in result]
 
         if not claim_ids:
             return []
@@ -432,7 +438,7 @@ class EventRepository:
             rows = await conn.fetch("""
                 SELECT id, page_id, text, modality, confidence, event_time, metadata
                 FROM core.claims
-                WHERE id = ANY($1)
+                WHERE id = ANY($1::text[])
             """, claim_ids)
 
         # Build claims with full metadata (including entity_ids)
@@ -462,13 +468,16 @@ class EventRepository:
         logger.debug(f"Fetched {len(claims)} claims for event {event_id} with entity_ids")
         return claims
 
-    async def get_event_claims_with_timeline_data(self, event_id: uuid.UUID) -> List:
+    async def get_event_claims_with_timeline_data(self, event_id: str) -> List:
         """
         Get all claims for an event WITH reported_time (page pub_time) for timeline generation.
 
         This joins Neo4j graph data with PostgreSQL claim + page data to get:
         - event_time (when fact occurred)
         - reported_time (when we learned it = page.pub_time)
+
+        Args:
+            event_id: Event ID (ev_xxxxxxxx format)
 
         Returns:
             List of Claim domain models with reported_time populated
@@ -479,12 +488,12 @@ class EventRepository:
         neo4j_result = await self.neo4j._execute_read("""
             MATCH (e:Event {id: $event_id})-[r:SUPPORTS|CONTRADICTS|UPDATES]->(c:Claim)
             RETURN c.id as claim_id, type(r) as relationship
-        """, {'event_id': str(event_id)})
+        """, {'event_id': event_id})
 
         if not neo4j_result:
             return []
 
-        claim_ids = [uuid.UUID(row['claim_id']) for row in neo4j_result]
+        claim_ids = [row['claim_id'] for row in neo4j_result]
 
         # Step 2: Get full claim data from PostgreSQL WITH page pub_time
         async with self.db_pool.acquire() as conn:
@@ -495,7 +504,7 @@ class EventRepository:
                     p.pub_time as reported_time
                 FROM core.claims c
                 JOIN core.pages p ON c.page_id = p.id
-                WHERE c.id = ANY($1::uuid[])
+                WHERE c.id = ANY($1::text[])
                 ORDER BY c.event_time NULLS LAST, p.pub_time
             """, claim_ids)
 
@@ -519,29 +528,29 @@ class EventRepository:
 
             return claims
 
-    async def create_sub_event_relationship(self, parent_id: uuid.UUID, child_id: uuid.UUID) -> None:
+    async def create_sub_event_relationship(self, parent_id: str, child_id: str) -> None:
         """
         Create parent-child relationship between events
 
         Args:
-            parent_id: Parent event UUID
-            child_id: Child event UUID
+            parent_id: Parent event ID (ev_xxxxxxxx format)
+            child_id: Child event ID (ev_xxxxxxxx format)
         """
         await self.neo4j.create_event_relationship(
-            parent_id=str(parent_id),
-            child_id=str(child_id),
+            parent_id=parent_id,
+            child_id=child_id,
             relationship_type="CONTAINS"
         )
 
         logger.info(f"🔗 Created CONTAINS relationship: {parent_id} → {child_id}")
 
-    async def link_event_to_entities(self, event_id: uuid.UUID, entity_ids: Set[uuid.UUID]) -> None:
+    async def link_event_to_entities(self, event_id: str, entity_ids: Set[str]) -> None:
         """
         Link event to multiple entities in Neo4j graph
 
         Args:
-            event_id: Event UUID
-            entity_ids: Set of entity UUIDs
+            event_id: Event ID (ev_xxxxxxxx format)
+            entity_ids: Set of entity IDs (en_xxxxxxxx format)
         """
         if not entity_ids:
             return
@@ -553,8 +562,8 @@ class EventRepository:
                 MERGE (e)-[r:INVOLVES]->(entity)
                 ON CREATE SET r.created_at = datetime()
             """, {
-                'event_id': str(event_id),
-                'entity_id': str(entity_id)
+                'event_id': event_id,
+                'entity_id': entity_id
             })
 
         logger.debug(f"🔗 Linked event {event_id} to {len(entity_ids)} entities")

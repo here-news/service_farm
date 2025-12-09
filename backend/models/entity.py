@@ -4,7 +4,10 @@ Entity domain model
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional, List
-import uuid
+
+from utils.id_generator import (
+    generate_entity_id, validate_id, is_uuid, uuid_to_short_id
+)
 
 
 @dataclass
@@ -13,8 +16,10 @@ class Entity:
     Entity domain model - storage-agnostic representation
 
     Represents a named entity (person, organization, location, etc.)
+
+    ID format: en_xxxxxxxx (11 chars)
     """
-    id: uuid.UUID
+    id: str  # Short ID: en_xxxxxxxx
     canonical_name: str
     entity_type: str  # PERSON, ORGANIZATION, LOCATION
 
@@ -47,9 +52,12 @@ class Entity:
     updated_at: Optional[datetime] = None
 
     def __post_init__(self):
-        """Ensure id is UUID"""
-        if isinstance(self.id, str):
-            self.id = uuid.UUID(self.id)
+        """Ensure id is in short format, convert UUIDs if needed"""
+        if self.id:
+            if is_uuid(self.id):
+                self.id = uuid_to_short_id(self.id, 'entity')
+            elif not validate_id(self.id):
+                self.id = generate_entity_id()
 
     @property
     def is_person(self) -> bool:

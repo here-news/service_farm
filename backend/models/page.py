@@ -4,7 +4,8 @@ Page domain model
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional, List
-import uuid
+
+from utils.id_generator import generate_page_id, validate_id, is_uuid, uuid_to_short_id
 
 
 @dataclass
@@ -15,8 +16,10 @@ class Page:
     Storage strategy (handled by PageRepository):
     - Content (content_text, embedding): PostgreSQL
     - Metadata (title, url, etc.): Neo4j Page node
+
+    ID format: pg_xxxxxxxx (11 chars)
     """
-    id: uuid.UUID
+    id: str  # Short ID: pg_xxxxxxxx
     url: str
     title: Optional[str] = None
     content_text: Optional[str] = None
@@ -30,6 +33,10 @@ class Page:
     word_count: int = 0
     pub_time: Optional[datetime] = None
     metadata_confidence: float = 0.0
+
+    # Publisher info
+    domain: Optional[str] = None       # e.g. "bbc.com"
+    site_name: Optional[str] = None    # e.g. "BBC News" (from og:site_name)
 
     # Page gist/summary (from semantic worker)
     gist: Optional[str] = None
@@ -48,9 +55,13 @@ class Page:
     metadata: dict = field(default_factory=dict)
 
     def __post_init__(self):
-        """Ensure id is UUID"""
-        if isinstance(self.id, str):
-            self.id = uuid.UUID(self.id)
+        """Ensure id is in short format, convert UUIDs if needed"""
+        if self.id:
+            if is_uuid(self.id):
+                self.id = uuid_to_short_id(self.id, 'page')
+            elif not validate_id(self.id):
+                # Generate new ID if invalid
+                self.id = generate_page_id()
 
     @property
     def has_content(self) -> bool:

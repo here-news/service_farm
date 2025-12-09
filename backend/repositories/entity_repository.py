@@ -13,8 +13,9 @@ Local Dedup Strategy:
 - Use normalized string matching (case-insensitive, strip punctuation)
 - Use fuzzy matching (>90% similarity) for near-duplicates
 - This prevents duplicates at creation time, before Wikidata enrichment
+
+ID format: en_xxxxxxxx (11 chars)
 """
-import uuid
 import logging
 import re
 from typing import Optional, List, Tuple
@@ -23,6 +24,7 @@ from rapidfuzz import fuzz
 
 from models.entity import Entity
 from services.neo4j_service import Neo4jService
+from utils.id_generator import is_uuid, uuid_to_short_id
 
 logger = logging.getLogger(__name__)
 
@@ -65,32 +67,34 @@ class EntityRepository:
         )
 
         # If Neo4j returned a different ID, this entity already existed
-        if returned_id != str(entity.id):
-            logger.info(f"🔗 Entity deduplicated: {entity.canonical_name} → existing {returned_id}")
-            entity.id = uuid.UUID(returned_id)
+        # Convert to short format if needed
+        returned_short_id = uuid_to_short_id(returned_id, 'entity') if is_uuid(returned_id) else returned_id
+        if returned_short_id != entity.id:
+            logger.info(f"🔗 Entity deduplicated: {entity.canonical_name} → existing {returned_short_id}")
+            entity.id = returned_short_id
 
         qid_msg = f" [{entity.wikidata_qid}]" if entity.wikidata_qid else ""
         logger.debug(f"📦 Entity in Neo4j: {entity.canonical_name} ({entity.entity_type}){qid_msg} → {entity.id}")
         return entity
 
-    async def get_by_id(self, entity_id: uuid.UUID) -> Optional[Entity]:
+    async def get_by_id(self, entity_id: str) -> Optional[Entity]:
         """
         Retrieve entity by ID from Neo4j
 
         Args:
-            entity_id: Entity UUID
+            entity_id: Entity ID (en_xxxxxxxx format)
 
         Returns:
             Entity model or None
         """
-        entity_data = await self.neo4j.get_entity_by_id(entity_id=str(entity_id))
+        entity_data = await self.neo4j.get_entity_by_id(entity_id=entity_id)
 
         if not entity_data:
             return None
 
-        # Convert Neo4j data to Entity model
+        # Convert Neo4j data to Entity model (model handles UUID conversion in __post_init__)
         return Entity(
-            id=uuid.UUID(entity_data['id']),
+            id=entity_data['id'],
             canonical_name=entity_data['canonical_name'],
             entity_type=entity_data['entity_type'],
             mention_count=entity_data.get('mention_count', 0),
@@ -104,12 +108,12 @@ class EntityRepository:
             metadata={}
         )
 
-    async def get_by_ids(self, entity_ids: List[uuid.UUID]) -> List[Entity]:
+    async def get_by_ids(self, entity_ids: List[str]) -> List[Entity]:
         """
         Retrieve multiple entities by IDs from Neo4j
 
         Args:
-            entity_ids: List of Entity UUIDs
+            entity_ids: List of Entity IDs (en_xxxxxxxx format)
 
         Returns:
             List of Entity models
@@ -117,17 +121,14 @@ class EntityRepository:
         if not entity_ids:
             return []
 
-        # Convert UUIDs to strings
-        id_strings = [str(eid) for eid in entity_ids]
-
         # Query Neo4j
-        entities_data = await self.neo4j.get_entities_by_ids(entity_ids=id_strings)
+        entities_data = await self.neo4j.get_entities_by_ids(entity_ids=entity_ids)
 
-        # Convert to Entity models
+        # Convert to Entity models (model handles UUID conversion in __post_init__)
         entities = []
         for entity_data in entities_data:
             entities.append(Entity(
-                id=uuid.UUID(entity_data['id']),
+                id=entity_data['id'],
                 canonical_name=entity_data['canonical_name'],
                 entity_type=entity_data['entity_type'],
                 mention_count=entity_data.get('mention_count', 0),
@@ -143,12 +144,12 @@ class EntityRepository:
 
         return entities
 
-    async def get_by_event_id(self, event_id: uuid.UUID) -> List[Entity]:
+    async def get_by_event_id(self, event_id: str) -> List[Entity]:
         """
         Retrieve all entities for an event from Neo4j
 
         Args:
-            event_id: Event UUID
+            event_id: Event ID (ev_xxxxxxxx format)
 
         Returns:
             List of Entity models involved in the event
@@ -169,13 +170,13 @@ class EntityRepository:
                    entity.status as status,
                    entity.aliases as aliases
             ORDER BY entity.canonical_name
-        """, {'event_id': str(event_id)})
+        """, {'event_id': event_id})
 
-        # Convert to Entity models
+        # Convert to Entity models (model handles UUID conversion in __post_init__)
         entities = []
         for row in results:
             entities.append(Entity(
-                id=uuid.UUID(row['id']),
+                id=row['id'],
                 canonical_name=row['canonical_name'],
                 entity_type=row['entity_type'],
                 mention_count=row.get('mention_count', 0),
@@ -218,9 +219,9 @@ class EntityRepository:
         if not entity_data:
             return None
 
-        # Convert Neo4j data to Entity model
+        # Convert Neo4j data to Entity model (model handles UUID conversion in __post_init__)
         return Entity(
-            id=uuid.UUID(entity_data['id']),
+            id=entity_data['id'],
             canonical_name=entity_data['canonical_name'],
             entity_type=entity_data['entity_type'],
             mention_count=entity_data.get('mention_count', 0),
@@ -316,7 +317,7 @@ class EntityRepository:
                 # Exact normalized match is 100%
                 if normalized_input == normalized_existing:
                     entity = Entity(
-                        id=uuid.UUID(row['id']),
+                        id=row['id'],  # Model handles UUID conversion in __post_init__
                         canonical_name=row['canonical_name'],
                         entity_type=row['entity_type'],
                         mention_count=row.get('mention_count', 0),
@@ -348,7 +349,7 @@ class EntityRepository:
 
         if best_match and best_score >= threshold:
             entity = Entity(
-                id=uuid.UUID(best_match['id']),
+                id=best_match['id'],  # Model handles UUID conversion in __post_init__
                 canonical_name=best_match['canonical_name'],
                 entity_type=best_match['entity_type'],
                 mention_count=best_match.get('mention_count', 0),
@@ -362,14 +363,14 @@ class EntityRepository:
 
         return None
 
-    async def increment_mention_count(self, entity_id: uuid.UUID) -> int:
+    async def increment_mention_count(self, entity_id: str) -> int:
         """
         Increment mention count (handled automatically by Neo4j MERGE)
 
         This is a no-op since Neo4j create_or_update_entity increments on MATCH
 
         Args:
-            entity_id: Entity UUID
+            entity_id: Entity ID (en_xxxxxxxx format)
 
         Returns:
             Updated mention count (always returns 0 as placeholder)
@@ -381,7 +382,7 @@ class EntityRepository:
 
     async def enrich(
         self,
-        entity_id: uuid.UUID,
+        entity_id: str,
         wikidata_qid: str,
         wikidata_label: str,
         wikidata_description: str,
@@ -393,7 +394,7 @@ class EntityRepository:
         Enrich entity with Wikidata information
 
         Args:
-            entity_id: Entity UUID
+            entity_id: Entity ID (en_xxxxxxxx format)
             wikidata_qid: Wikidata QID (e.g., 'Q123')
             wikidata_label: Official Wikidata label
             wikidata_description: Wikidata description
@@ -402,7 +403,7 @@ class EntityRepository:
             metadata: Additional metadata (thumbnail, coordinates, etc.)
         """
         await self.neo4j.enrich_entity(
-            entity_id=str(entity_id),
+            entity_id=entity_id,
             wikidata_qid=wikidata_qid,
             wikidata_label=wikidata_label,
             wikidata_description=wikidata_description,
@@ -412,26 +413,26 @@ class EntityRepository:
         )
         logger.info(f"📦 Enriched entity {entity_id} with Wikidata QID {wikidata_qid}")
 
-    async def mark_checked(self, entity_id: uuid.UUID) -> None:
+    async def mark_checked(self, entity_id: str) -> None:
         """
         Mark entity as checked (no Wikidata match found)
 
         Args:
-            entity_id: Entity UUID
+            entity_id: Entity ID (en_xxxxxxxx format)
         """
-        await self.neo4j.mark_entity_checked(entity_id=str(entity_id))
+        await self.neo4j.mark_entity_checked(entity_id=entity_id)
         logger.debug(f"✓ Marked entity {entity_id} as checked")
 
-    async def update_profile(self, entity_id: uuid.UUID, profile_summary: str) -> None:
+    async def update_profile(self, entity_id: str, profile_summary: str) -> None:
         """
         Update entity profile summary (AI-generated from claim contexts)
 
         Args:
-            entity_id: Entity UUID
+            entity_id: Entity ID (en_xxxxxxxx format)
             profile_summary: Generated description
         """
         await self.neo4j.update_entity_profile(
-            entity_id=str(entity_id),
+            entity_id=entity_id,
             profile_summary=profile_summary
         )
         logger.debug(f"📝 Updated profile for entity {entity_id}")
