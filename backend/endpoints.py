@@ -407,20 +407,15 @@ async def get_page_status(page_id: str, include_data: bool = True):
     """
     page_repo, _ = await init_services()
 
-    try:
-        page_uuid = uuid.UUID(page_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid page_id format")
-
     # Use repository to get page
-    page = await page_repo.get_by_id(page_uuid)
+    page = await page_repo.get_by_id(page_id)
 
     if not page:
         raise HTTPException(status_code=404, detail="Page not found")
 
     # Get entity and claim counts using repository
-    entity_count = await page_repo.get_entity_count(page_uuid)
-    claim_count = await page_repo.get_claim_count(page_uuid)
+    entity_count = await page_repo.get_entity_count(page_id)
+    claim_count = await page_repo.get_claim_count(page_id)
 
     # Calculate semantic confidence (0.0-1.0) based on semantic analysis quality
     # This tells the user how reliable the semantic data (claims/entities) is
@@ -472,10 +467,10 @@ async def get_page_status(page_id: str, include_data: bool = True):
     # Include full claims and entities data if requested and semantic_complete
     if include_data and page.status == 'semantic_complete':
         # Get entities using repository
-        entities = await page_repo.get_entities(page_uuid)
+        entities = await page_repo.get_entities(page_id)
 
         # Get claims using repository
-        claims = await page_repo.get_claims(page_uuid)
+        claims = await page_repo.get_claims(page_id)
 
         result['entities'] = entities
         result['claims'] = claims
@@ -505,13 +500,8 @@ async def get_claims(page_id: str):
     """Get all claims for a page"""
     page_repo, _ = await init_services()
 
-    try:
-        page_uuid = uuid.UUID(page_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid page_id format")
-
     # Use repository to get claims
-    claims = await page_repo.get_claims(page_uuid)
+    claims = await page_repo.get_claims(page_id)
     return {"claims": claims}
 
 
@@ -520,13 +510,8 @@ async def get_entities(page_id: str):
     """Get all entities mentioned in a page"""
     page_repo, _ = await init_services()
 
-    try:
-        page_uuid = uuid.UUID(page_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid page_id format")
-
     # Use repository to get entities
-    entities = await page_repo.get_entities(page_uuid)
+    entities = await page_repo.get_entities(page_id)
 
     return {
         "entities": entities
