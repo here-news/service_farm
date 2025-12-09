@@ -159,7 +159,7 @@ async def complete_rogue_task(task_id: str, metadata: RogueTaskMetadata):
     await rogue_task_repo.mark_completed(task_uuid)
 
     # Update page with extracted metadata
-    page_id = uuid.UUID(task['page_id'])
+    page_id = task['page_id']
     page = await page_repo.get_by_id(page_id)
 
     if not page:
