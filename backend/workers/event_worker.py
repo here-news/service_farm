@@ -86,7 +86,7 @@ class EventWorker:
         except KeyboardInterrupt:
             logger.info("Received shutdown signal")
 
-    async def process_page(self, page_id: uuid.UUID):
+    async def process_page(self, page_id: str):
         """
         Process page and create/attach to event using EventService
 

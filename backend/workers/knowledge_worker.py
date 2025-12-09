@@ -26,7 +26,7 @@ from openai import AsyncOpenAI
 import logging
 
 from models import Entity, Claim
-from utils.id_generator import generate_entity_id
+from utils.id_generator import generate_entity_id, generate_claim_id
 from models.mention import ExtractionResult
 from repositories import EntityRepository, ClaimRepository, PageRepository
 from services.neo4j_service import Neo4jService
@@ -487,7 +487,7 @@ class KnowledgeWorker:
 
             # Create claim
             claim = Claim(
-                id=uuid.uuid4(),
+                id=generate_claim_id(),
                 page_id=page_id,
                 text=claim_data.get('text', ''),
                 event_time=event_time,

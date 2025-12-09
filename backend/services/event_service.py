@@ -4,7 +4,6 @@ Event Service - Recursive event formation logic
 Implements Event.examine() logic for processing claims into event hierarchy.
 Uses LLM for intelligent event naming, classification, and claim reasoning.
 """
-import uuid
 import logging
 import os
 import json
@@ -20,6 +19,7 @@ from repositories.claim_repository import ClaimRepository
 from repositories.entity_repository import EntityRepository
 from services.update_detector import UpdateDetector
 from utils.datetime_utils import neo4j_datetime_to_python
+from utils.id_generator import generate_event_id
 
 logger = logging.getLogger(__name__)
 
@@ -378,7 +378,7 @@ class EventService:
 
         # Create temporary event for narrative generation (needs temporal bounds + name)
         temp_event = Event(
-            id=uuid.uuid4(),
+            id=generate_event_id(),
             canonical_name=canonical_name,
             event_type=event_type,
             parent_event_id=None,
@@ -493,7 +493,7 @@ class EventService:
 
         # Create temporary sub-event for narrative generation
         temp_sub_event = Event(
-            id=uuid.uuid4(),
+            id=generate_event_id(),
             canonical_name=canonical_name,
             event_type=parent.event_type,  # Inherit from parent
             parent_event_id=parent.id,
@@ -683,7 +683,7 @@ class EventService:
 
         return claims
 
-    async def _get_event_entities(self, event: Event) -> Set[uuid.UUID]:
+    async def _get_event_entities(self, event: Event) -> Set[str]:
         """Get all entity IDs associated with an event's claims"""
         claims = await self._get_event_claims(event)
 
@@ -693,7 +693,7 @@ class EventService:
 
         return entity_ids
 
-    def _references_event(self, event: Event, claim: Claim, event_entities: Set[uuid.UUID]) -> bool:
+    def _references_event(self, event: Event, claim: Claim, event_entities: Set[str]) -> bool:
         """
         Check if claim explicitly references the event by name or location
 

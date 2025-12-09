@@ -15,7 +15,6 @@ Strategy for each mention:
 3. Apply relationship constraints for disambiguation
 4. Decide: reuse existing entity | create with QID | create local-only
 """
-import uuid
 import logging
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
@@ -25,6 +24,7 @@ from models.mention import Mention, MentionRelationship, ExtractionResult
 from models.entity import Entity
 from repositories.entity_repository import EntityRepository
 from services.neo4j_service import Neo4jService
+from utils.id_generator import generate_entity_id
 
 logger = logging.getLogger(__name__)
 
@@ -275,7 +275,7 @@ class IdentificationService:
                 # New entity with Wikidata QID
                 logger.debug(f"✨ Wikidata new: {mention.surface_form} → {wikidata_match['qid']}")
                 return EntityMatch(
-                    entity_id=uuid.uuid4(),
+                    entity_id=generate_entity_id(),
                     canonical_name=wikidata_match.get('label', mention.surface_form),
                     entity_type=entity_type,
                     confidence=wikidata_match['confidence'],
@@ -287,7 +287,7 @@ class IdentificationService:
         # 4. Create new local entity (no Wikidata match)
         logger.debug(f"✨ New local: {mention.surface_form}")
         return EntityMatch(
-            entity_id=uuid.uuid4(),
+            entity_id=generate_entity_id(),
             canonical_name=mention.surface_form,
             entity_type=entity_type,
             confidence=0.7,  # Lower confidence without Wikidata
@@ -406,7 +406,7 @@ class IdentificationService:
             if results:
                 row = results[0]
                 return Entity(
-                    id=uuid.UUID(row['id']),
+                    id=row['id'],
                     canonical_name=row['canonical_name'],
                     entity_type=row['entity_type'],
                     wikidata_qid=row['wikidata_qid']
