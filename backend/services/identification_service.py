@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class EntityMatch:
     """Result of identifying a single mention."""
-    entity_id: uuid.UUID
+    entity_id: str  # Short ID: en_xxxxxxxx
     canonical_name: str
     entity_type: str
     confidence: float
@@ -51,13 +51,13 @@ class IdentificationResult:
     new_entities: List[Entity] = field(default_factory=list)
 
     # Entities that were matched to existing
-    matched_entities: List[Tuple[str, uuid.UUID]] = field(default_factory=list)
+    matched_entities: List[Tuple[str, str]] = field(default_factory=list)  # (mention_id, entity_id)
 
     # Statistics
     stats: Dict[str, int] = field(default_factory=dict)
 
-    def get_entity_id(self, mention_id: str) -> Optional[uuid.UUID]:
-        """Get entity UUID for a mention."""
+    def get_entity_id(self, mention_id: str) -> Optional[str]:
+        """Get entity ID for a mention."""
         match = self.mention_to_entity.get(mention_id)
         return match.entity_id if match else None
 
