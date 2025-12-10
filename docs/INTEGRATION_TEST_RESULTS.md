@@ -1,0 +1,195 @@
+# 🧪 Phase 1 Integration Test Results
+
+## Test Environment
+- **Container**: herenews-app (renamed from herenews-api)
+- **Port**: 7272 (external) → 8000 (internal)
+- **Date**: 2025-12-09
+
+---
+
+## ✅ Successfully Started
+
+The container starts without crashing! "Application startup complete" ✓
+
+---
+
+## Issues Found & Fixed
+
+### 1. ✅ **FIXED**: Model Import Paths
+
+**Problem**: After restructuring models into `models/domain/` and `models/api/`, all repository and service imports were broken.
+
+**Error**:
+```
+ModuleNotFoundError: No module named 'models.page'
+```
+
+**Fix**:
+```bash
+# Updated all imports from models.* to models.domain.*
+find backend -name "*.py" -exec sed -i 's/^from models\./from models.domain./g' {} +
+
+# Fixed double-domain issue
+find backend -name "*.py" -exec sed -i 's/from models\.domain\.domain\./from models.domain./g' {} +
+```
+
+**Files affected**: All repositories, services, workers, endpoints (~50+ files)
+
+---
+
+### 2. ✅ **FIXED**: Backend API Import Paths
+
+**Problem**: backend/api routers were importing with `from backend.*` prefix, but main.py adds `/app/backend` to Python path, so imports should be without prefix.
+
+**Error**:
+```
+ModuleNotFoundError: No module named 'backend'
+```
+
+**Fix**:
+```bash
+# Remove backend. prefix from all api router imports
+find backend/api -name "*.py" -exec sed -i 's/from backend\./from /g' {} +
+```
+
+**Files affected**: All backend/api routers (auth.py, comments.py, chat.py, etc.)
+
+---
+
+### 3. ❌ **BLOCKING**: Missing Dependencies
+
+**Problem**: Auth dependencies (authlib, python-jose) not installed in container.
+
+**Error**:
+```
+ModuleNotFoundError: No module named 'authlib'
+```
+
+**Current Status**: Backend API routers (auth, comments, chat, submissions) fail to load silently.
+
+**Available Routes** (only intelligence engine):
+- ✅ `/api/v2/artifacts` - Artifact submission
+- ✅ `/api/events` - Event listing
+- ✅ `/api/demo/*` - Legacy demo routes
+
+**Missing Routes** (community features):
+- ❌ `/api/auth/*` - Authentication
+- ❌ `/api/comments/*` - Comments
+- ❌ `/api/chat/*` - AI chat
+- ❌ `/api/submissions` - Event submissions
+- ❌ `/api/map/*` - Map data
+- ❌ `/api/coherence/*` - Coherence scoring
+
+**Required Dependencies**:
+```txt
+# OAuth & JWT
+authlib>=1.2.0
+python-jose[cryptography]>=3.3.0
+itsdangerous>=2.1.0
+
+# Additional webapp dependencies (if any)
+```
+
+---
+
+## Test Results
+
+### ✅ Working Endpoints
+
+| Endpoint | Status | Response |
+|----------|--------|----------|
+| `GET /health` | ✅ 200 OK | `{"status": "ok"}` |
+| `GET /` | ✅ 200 OK | Service info JSON |
+| `GET /api/events` | ✅ 200 OK | Event list |
+| `GET /api/v2/artifacts` | ✅ 200 OK | (not tested with data) |
+
+### ❌ Not Working (Missing Dependencies)
+
+| Endpoint | Status | Issue |
+|----------|--------|-------|
+| `GET /api/auth/status` | ❌ 404 | Router not loaded - authlib missing |
+| `GET /api/comments/*` | ❌ 404 | Router not loaded - authlib missing |
+| `GET /api/chat/*` | ❌ 404 | Router not loaded - authlib missing |
+| `GET /api/submissions` | ❌ 404 | Router not loaded - authlib missing |
+
+---
+
+## Container Status
+
+```bash
+$ docker ps --filter name=herenews
+CONTAINER ID   IMAGE              STATUS         PORTS
+herenews-app          Up 15 minutes  0.0.0.0:7272->8000/tcp  ✅
+herenews-postgres     Up 20 minutes  (healthy)                ✅
+herenews-neo4j        Up 20 minutes  (healthy)                ✅
+herenews-redis        Up 20 minutes  (healthy)                ✅
+herenews-worker-*     Up 15 minutes                           ✅
+```
+
+All services running successfully!
+
+---
+
+## Next Steps to Complete Integration
+
+### 🔴 **CRITICAL** - Fix Missing Dependencies
+
+```bash
+# 1. Add to backend/requirements.txt
+cat >> backend/requirements.txt <<EOF
+
+# OAuth & JWT (webapp dependencies)
+authlib>=1.2.0
+python-jose[cryptography]>=3.3.0
+itsdangerous>=2.1.0
+EOF
+
+# 2. Rebuild container
+docker-compose build app
+
+# 3. Restart
+docker-compose restart app
+
+# 4. Test
+curl http://localhost:7272/api/auth/status
+```
+
+### 🟡 **HIGH** - Test Community Features
+
+Once dependencies are installed:
+1. Test OAuth login flow
+2. Test comment CRUD operations
+3. Test chat unlock/message
+4. Test event submissions
+
+### 🟢 **MEDIUM** - Phase 2 Cleanup
+
+1. Neo4j Story → Event migration
+2. Frontend React update
+3. Build frontend to static/
+4. End-to-end testing
+
+---
+
+## Summary
+
+### What Works ✅
+- Container builds and starts successfully
+- Intelligence engine endpoints work
+- Event listing works
+- Database connections healthy (PostgreSQL, Neo4j, Redis)
+- Workers running
+
+### What's Broken ❌
+- Community feature endpoints (auth, comments, chat, submissions)
+- Cause: Missing OAuth/JWT dependencies (authlib, python-jose)
+- Impact: Backend API routers fail to import, not loaded into FastAPI
+
+### Fix Required
+- Add missing dependencies to requirements.txt
+- Rebuild container
+- Should take ~5 minutes
+
+---
+
+**Assessment**: Good progress! Core issues fixed (imports), only missing dependencies blocking community features. Once dependencies added, Phase 1 complete.

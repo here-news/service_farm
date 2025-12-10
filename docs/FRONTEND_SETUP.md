@@ -1,0 +1,271 @@
+# React Frontend Setup Guide
+
+## Recommended Structure
+
+```
+service_farm/
+├── frontend/                  # ← React source code
+│   ├── src/
+│   │   ├── components/        # Reusable UI components
+│   │   ├── pages/             # Route pages
+│   │   ├── services/          # API client services
+│   │   ├── hooks/             # React hooks
+│   │   ├── types/             # TypeScript types
+│   │   ├── App.tsx
+│   │   └── main.tsx
+│   ├── public/
+│   ├── index.html
+│   ├── package.json
+│   ├── vite.config.ts
+│   └── tsconfig.json
+│
+├── static/                    # ← Built output (from `npm run build`)
+│   ├── index.html
+│   └── assets/
+│       ├── index-[hash].js
+│       └── index-[hash].css
+│
+└── main.py                    # FastAPI serves static/
+```
+
+## Option 1: Copy from Webapp Frontend
+
+If webapp has a React/Vite frontend:
+
+```bash
+# Copy webapp frontend
+cp -r ../webapp/frontend ./frontend
+
+# Install dependencies
+cd frontend
+npm install
+
+# Build for production
+npm run build  # → outputs to ../static/
+
+# Development mode
+npm run dev    # Run alongside backend
+```
+
+## Option 2: Create Fresh React + Vite App
+
+```bash
+# Create new Vite + React + TypeScript app
+cd service_farm
+npm create vite@latest frontend -- --template react-ts
+
+cd frontend
+npm install
+
+# Configure vite.config.ts to output to ../static/
+```
+
+### vite.config.ts
+```typescript
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import { resolve } from 'path'
+
+export default defineConfig({
+  plugins: [react()],
+  build: {
+    outDir: '../static',      // ← Output to service_farm/static/
+    emptyOutDir: true
+  },
+  server: {
+    proxy: {
+      '/api': 'http://localhost:8000'  // Proxy API calls to backend
+    }
+  }
+})
+```
+
+## Frontend Development Workflow
+
+### 1. Development Mode (Hot Reload)
+
+Terminal 1 - Backend:
+```bash
+cd service_farm
+python main.py
+# Runs on http://localhost:8000
+```
+
+Terminal 2 - Frontend:
+```bash
+cd service_farm/frontend
+npm run dev
+# Runs on http://localhost:5173
+# Proxies /api/* to backend
+```
+
+### 2. Production Build
+
+```bash
+cd service_farm/frontend
+npm run build
+# Outputs to ../static/
+
+# Backend serves static/ at http://localhost:8000/
+```
+
+## Frontend Structure Example
+
+```
+frontend/src/
+├── components/
+│   ├── EventCard.tsx         # Event list item
+│   ├── CommentThread.tsx     # Threaded comments
+│   ├── ChatBox.tsx           # AI chat interface
+│   └── Header.tsx
+│
+├── pages/
+│   ├── HomePage.tsx          # Event feed
+│   ├── EventPage.tsx         # Event details
+│   ├── LoginPage.tsx         # OAuth login
+│   └── ProfilePage.tsx       # User profile
+│
+├── services/
+│   ├── api.ts                # Axios/fetch wrapper
+│   ├── auth.ts               # Auth API calls
+│   ├── events.ts             # Event API calls
+│   ├── comments.ts           # Comment API calls
+│   └── chat.ts               # Chat API calls
+│
+├── hooks/
+│   ├── useAuth.ts            # Auth state hook
+│   ├── useEvents.ts          # Event data hook
+│   └── useComments.ts        # Comments hook
+│
+├── types/
+│   ├── Event.ts              # Event type definitions
+│   ├── User.ts               # User type definitions
+│   └── Comment.ts            # Comment type definitions
+│
+├── App.tsx                   # Main app component
+└── main.tsx                  # Entry point
+```
+
+## API Integration
+
+### Example API Service (frontend/src/services/api.ts)
+
+```typescript
+const API_BASE = import.meta.env.PROD ? '/api' : 'http://localhost:8000/api';
+
+export const api = {
+  // Auth
+  async login() {
+    window.location.href = `${API_BASE}/auth/login`;
+  },
+
+  async getAuthStatus() {
+    const res = await fetch(`${API_BASE}/auth/status`, {
+      credentials: 'include'
+    });
+    return res.json();
+  },
+
+  // Events
+  async getEvents() {
+    const res = await fetch(`${API_BASE}/events`);
+    return res.json();
+  },
+
+  async getEvent(id: string) {
+    const res = await fetch(`${API_BASE}/events/${id}`);
+    return res.json();
+  },
+
+  // Comments
+  async getComments(eventId: string) {
+    const res = await fetch(`${API_BASE}/comments/story/${eventId}`);
+    return res.json();
+  },
+
+  async createComment(data: CreateCommentData) {
+    const res = await fetch(`${API_BASE}/comments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(data)
+    });
+    return res.json();
+  },
+
+  // Chat
+  async unlockChat(eventId: string) {
+    const res = await fetch(`${API_BASE}/chat/unlock`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ story_id: eventId })
+    });
+    return res.json();
+  }
+};
+```
+
+## Docker Integration
+
+### Dockerfile for Frontend Build
+
+```dockerfile
+# frontend/Dockerfile
+FROM node:18-alpine as build
+
+WORKDIR /app
+COPY package*.json ./
+RUN npm install
+
+COPY . .
+RUN npm run build
+
+# Output is in /app/dist (which should be mapped to ../static/)
+```
+
+### docker-compose.yml
+
+```yaml
+services:
+  backend:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./static:/app/static  # Serve built frontend
+
+  frontend-dev:
+    build: ./frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+    command: npm run dev
+```
+
+## Next Steps
+
+1. **Check if webapp has frontend**:
+   ```bash
+   ls -la ../webapp/frontend/
+   ```
+
+2. **Copy or create**:
+   - If exists: `cp -r ../webapp/frontend ./frontend`
+   - If not: Create fresh with Vite
+
+3. **Configure build output**:
+   - Update `vite.config.ts` to output to `../static/`
+
+4. **Develop**:
+   - Run backend: `python main.py`
+   - Run frontend: `cd frontend && npm run dev`
+
+5. **Build for production**:
+   - `cd frontend && npm run build`
+   - Backend serves from `static/`
+
+---
+
+**Ready to set up the React frontend? Let me know which option you prefer!**

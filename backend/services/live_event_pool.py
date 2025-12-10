@@ -116,7 +116,9 @@ class LiveEventPool:
 
             logger.info(f"🔍 Best candidate: {best_event.canonical_name} (score: {best_score:.2f})")
 
-            if best_score > 0.25:
+            # Lowered threshold from 0.25 to 0.20 after rebalancing scoring weights
+            # With 40% entity + 30% time weighting, 0.20 is a reasonable bar
+            if best_score > 0.20:
                 # Activate event (load from storage if needed)
                 if best_event.id not in self.active:
                     await self._load_event(best_event.id)

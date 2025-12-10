@@ -1,0 +1,105 @@
+# App Directory Audit - Cleanup Plan
+
+## Current Structure Analysis
+
+### 🔴 DUPLICATE - Remove (use backend/ instead)
+```
+app/auth/                    → USE: backend/middleware/
+  - google_oauth.py          → backend/middleware/google_oauth.py
+  - session.py               → backend/middleware/jwt_session.py
+  - middleware.py            → backend/middleware/auth.py
+```
+
+### 🔴 DEPRECATED - Remove (replaced by unified main.py)
+```
+app/main.py                  → REPLACED by: main.py (root)
+```
+
+### 🟡 LEGACY ORM - Replace with backend repositories
+```
+app/database/
+  - models.py                → SQLAlchemy ORM (OLD)
+  - connection.py            → SQLAlchemy connection (OLD)
+  - repositories/
+    - user_repo.py           → USE: backend/repositories/user_repository.py
+    - comment_repo.py        → USE: backend/repositories/comment_repository.py
+    - chat_session_repo.py   → USE: backend/repositories/chat_session_repository.py
+    - event_submission_repo.py → Keep? Or move to backend?
+```
+
+### 🟢 KEEP - Pydantic API Models (different from domain models)
+```
+app/models/
+  - user.py                  → Pydantic models (UserCreate, UserResponse, etc.)
+  - chat.py                  → Pydantic models for chat API
+  - event_submission.py      → Pydantic models for event submissions
+  - extraction.py            → Pydantic models for extraction
+```
+
+### 🟢 KEEP - API Routers (need to update to use backend/)
+```
+app/routers/
+  - auth.py                  → Update to use backend/middleware
+  - comments.py              → Update to use backend/repositories
+  - chat.py                  → Update to use backend/repositories
+  - events.py                → Update to use backend/repositories
+  - story.py                 → Modernize Story → Event
+  - event_page.py            → Keep
+  - coherence.py             → Keep
+  - extraction.py            → Keep
+  - preview.py               → Keep
+  - map.py                   → Keep
+```
+
+### 🟡 SERVICES - Review & Consolidate
+```
+app/services/
+  - neo4j_client.py          → Compare with backend/services/neo4j_service.py
+  - tcf_feed_service.py      → Keep if unique
+  - coherence_service.py     → Keep if unique
+  - cache.py                 → Keep if used
+```
+
+### 🟡 CONFIG - Simplify
+```
+app/config.py                → Simplify or merge with env vars
+```
+
+## Cleanup Actions
+
+### Phase 1: Remove Duplicates
+- [ ] Delete app/auth/ (use backend/middleware/)
+- [ ] Delete app/main.py (use root main.py)
+
+### Phase 2: Replace ORM with Repositories
+- [ ] Update app/routers/ to import from backend/repositories/
+- [ ] Remove app/database/models.py
+- [ ] Remove app/database/repositories/
+- [ ] Remove app/database/connection.py
+
+### Phase 3: Consolidate Services
+- [ ] Compare app/services/neo4j_client.py with backend/services/neo4j_service.py
+- [ ] Keep unique services, remove duplicates
+
+### Phase 4: Update Imports
+- [ ] Fix all app/routers/ imports to use backend/
+- [ ] Update Pydantic models if needed
+
+### Phase 5: Clean Config
+- [ ] Simplify app/config.py or remove entirely
+
+## Expected Final Structure
+
+```
+service_farm/
+├── main.py                      # Unified entry point
+├── backend/                     # Intelligence engine
+│   ├── models/                  # Domain models (dataclasses)
+│   ├── repositories/            # asyncpg repositories
+│   ├── middleware/              # Auth system
+│   └── services/                # Business logic
+└── app/                         # API layer (CLEANED)
+    ├── models/                  # Pydantic API models ONLY
+    ├── routers/                 # API route handlers (updated imports)
+    └── services/                # Unique app services only
+```

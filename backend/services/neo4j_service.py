@@ -966,11 +966,11 @@ class Neo4jService:
         await self._execute_write(query, {'page_id': page_id, 'status': status})
 
     async def link_page_to_claim(self, page_id: str, claim_id: str) -> None:
-        """Create CONTAINS relationship between Page and Claim."""
+        """Create EXTRACTED relationship between Page and Claim."""
         query = """
         MATCH (p:Page {id: $page_id})
         MATCH (c:Claim {id: $claim_id})
-        MERGE (p)-[r:CONTAINS]->(c)
+        MERGE (p)-[r:EXTRACTED]->(c)
         ON CREATE SET r.created_at = datetime()
         """
         await self._execute_write(query, {

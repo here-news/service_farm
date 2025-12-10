@@ -247,10 +247,13 @@ class EventRepository:
         """
         Find candidate events that might match new information
 
-        Scoring (emphasizing semantic for reliability):
-        - Entity overlap: 25% (entities may have duplicates)
-        - Time proximity: 15% (time extraction can be unreliable)
-        - Semantic similarity: 60% (embedding captures thematic similarity well)
+        Scoring (rebalanced for better same-event detection):
+        - Entity overlap: 40% (reliable signal for same event)
+        - Time proximity: 30% (critical for matching event instances)
+        - Semantic similarity: 30% (page vs narrative embedding can differ)
+
+        Rationale: Page embeddings differ from event narrative embeddings even
+        for same event. Entity overlap + time are more reliable signals.
 
         Args:
             entity_ids: Entity IDs (en_xxxxxxxx format) to match against
@@ -325,12 +328,13 @@ class EventRepository:
                 if norm1 > 0 and norm2 > 0:
                     semantic_score = float(dot_product / (norm1 * norm2))
 
-            # Combined score - emphasize semantic similarity since time extraction can be unreliable
-            # and entities may have duplicates. Semantic embedding captures thematic similarity well.
+            # Combined score - rebalanced to prioritize entity+time over semantic
+            # Page embeddings differ from event narrative embeddings even for same event
+            # Entity overlap + temporal proximity are more reliable "same event" signals
             match_score = (
-                0.25 * entity_overlap_score +
-                0.15 * time_score +
-                0.60 * semantic_score
+                0.40 * entity_overlap_score +
+                0.30 * time_score +
+                0.30 * semantic_score
             )
 
             logger.debug(

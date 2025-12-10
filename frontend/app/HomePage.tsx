@@ -210,7 +210,7 @@ function HomePage() {
   }
 
   const checkNewEvents = async () => {
-    try:
+    try {
       const params = new URLSearchParams({
         limit: pageSize.toString(),
         min_coherence: debouncedCoherence.toString()

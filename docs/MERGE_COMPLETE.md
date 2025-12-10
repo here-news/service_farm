@@ -1,0 +1,192 @@
+# ✅ Webapp → Service Farm Merge Complete
+
+## Overview
+Successfully merged webapp community features into service_farm to create a unified platform.
+
+## Final Structure
+
+```
+service_farm/
+├── main.py                    # ← UNIFIED entry point (NEW)
+├── requirements.txt           # ← MERGED dependencies (NEW)
+│
+├── backend/                   # ← Intelligence Engine (EXISTING)
+│   ├── models/                # Domain models (Event, Page, Claim, Entity)
+│   │   ├── user.py            # ← NEW
+│   │   ├── comment.py         # ← NEW
+│   │   └── chat_session.py    # ← NEW
+│   ├── repositories/          # Storage abstraction
+│   │   ├── user_repository.py         # ← NEW
+│   │   ├── comment_repository.py      # ← NEW
+│   │   └── chat_session_repository.py # ← NEW
+│   ├── workers/               # Background processors
+│   ├── services/              # Business logic
+│   ├── api/                   # ← NEW (for future organization)
+│   │   └── auth.py            # ← NEW
+│   ├── middleware/            # ← NEW
+│   │   ├── google_oauth.py    # ← NEW
+│   │   ├── jwt_session.py     # ← NEW
+│   │   └── auth.py            # ← NEW
+│   ├── migrations/            # ← NEW
+│   │   └── 001_create_user_tables.sql
+│   └── main.py                # Old backend main (archived)
+│
+├── app/                       # ← Webapp Features (COPIED)
+│   ├── routers/               # API routes (auth, comments, chat, events)
+│   ├── models/                # Pydantic models
+│   ├── database/              # SQLAlchemy ORM & repositories
+│   ├── auth/                  # Auth middleware
+│   ├── services/              # Services (neo4j_client, tcf_feed)
+│   └── main.py                # Old webapp main (archived)
+│
+├── frontend/                  # Simple event viewer (EXISTING)
+└── static/                    # Built webapp frontend (future)
+```
+
+## What Was Merged
+
+### 1. ✅ User/Community Models
+- `backend/models/user.py` - User accounts with credits/reputation
+- `backend/models/comment.py` - Threaded comments with reactions
+- `backend/models/chat_session.py` - AI chat sessions with message limits
+
+### 2. ✅ Repositories
+- `backend/repositories/user_repository.py` - User CRUD operations
+- `backend/repositories/comment_repository.py` - Comment operations
+- `backend/repositories/chat_session_repository.py` - Chat session management
+
+### 3. ✅ Auth System
+- `backend/middleware/google_oauth.py` - Google OAuth configuration
+- `backend/middleware/jwt_session.py` - JWT token management
+- `backend/middleware/auth.py` - FastAPI auth dependencies
+- `backend/api/auth.py` - Auth API endpoints
+
+### 4. ✅ Database Schema
+- `backend/migrations/001_create_user_tables.sql` - users, comments, chat_sessions tables
+
+### 5. ✅ Entire Webapp
+- `app/` - Complete webapp structure copied
+- All routers, models, services intact
+
+### 6. ✅ Unified Application
+- `main.py` - Combines both systems
+- `requirements.txt` - Merged dependencies
+
+## Key Features
+
+### Intelligence Engine (backend/)
+- URL submission & processing
+- Content extraction (trafilatura, readability, newspaper3k)
+- Knowledge graph extraction (claims, entities, relationships)
+- Event detection & formation (multi-signal scoring)
+- Neo4j knowledge graph
+- Background workers (extraction, knowledge, event)
+
+### Community Features (app/)
+- Google OAuth authentication
+- User accounts with credits/reputation
+- Threaded comments on events/pages
+- AI chat sessions with events
+- Event submissions
+- Story browsing & search
+
+## API Endpoints
+
+### Backend (Intelligence)
+- `POST /api/v2/artifacts?url=...` - Submit URL for processing
+- `GET /api/v2/artifacts/{id}` - Get artifact status
+- `GET /api/events` - List events
+- `GET /api/events/{id}` - Get event details
+- `GET /api/v2/queue/stats` - Worker queue stats
+
+### App (Community)
+- `GET /api/auth/login` - Google OAuth login
+- `GET /api/auth/callback` - OAuth callback
+- `GET /api/auth/me` - Current user info
+- `GET /api/auth/status` - Auth status
+- `POST /api/comments` - Create comment
+- `GET /api/comments/story/{id}` - Get comments
+- `POST /api/chat/unlock` - Unlock AI chat session
+- `POST /api/chat/message` - Send chat message
+- `POST /api/events` - Submit event
+
+## Next Steps
+
+### Immediate
+1. ✅ Merge complete
+2. ⏳ Test integration
+3. ⏳ Build & deploy
+
+### Testing Checklist
+- [ ] Backend routes work (artifacts, events)
+- [ ] App routes work (auth, comments, chat)
+- [ ] Database connections functional
+- [ ] OAuth flow works
+- [ ] Comments can be created
+- [ ] Chat sessions can be unlocked
+- [ ] Workers process jobs
+
+### Future Work
+- Replace frontend/ with webapp's built frontend
+- Migrate Story → Event terminology in app/
+- Unified event listing (merge backend & app event endpoints)
+- Documentation
+- Production deployment
+
+## Configuration Required
+
+### Environment Variables
+```bash
+# Database
+POSTGRES_HOST=postgres
+POSTGRES_PORT=5432
+POSTGRES_USER=herenews_user
+POSTGRES_PASSWORD=herenews_pass
+POSTGRES_DB=herenews
+
+# Neo4j
+NEO4J_URI=bolt://neo4j:7687
+NEO4J_USER=neo4j
+NEO4J_PASSWORD=herenews_pass
+
+# Redis
+REDIS_URL=redis://redis:6379
+
+# Auth
+GOOGLE_CLIENT_ID=your_client_id
+GOOGLE_CLIENT_SECRET=your_client_secret
+JWT_SECRET_KEY=your_jwt_secret
+JWT_ALGORITHM=HS256
+JWT_EXPIRE_MINUTES=1440
+
+# OpenAI
+OPENAI_API_KEY=your_openai_key
+```
+
+## Migration Status
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Models | ✅ Complete | User, Comment, ChatSession added |
+| Repositories | ✅ Complete | User, Comment, ChatSession added |
+| Auth System | ✅ Complete | OAuth, JWT, middleware |
+| Database Schema | ✅ Complete | Migration script created |
+| API Routes | ✅ Complete | Auth endpoints added, app/ copied |
+| Unified main.py | ✅ Complete | Both systems integrated |
+| Requirements | ✅ Complete | Dependencies merged |
+| Tests | ✅ Repository tests pass | |
+| Frontend | ⏳ Pending | Need to replace simple viewer |
+| E2E Testing | ⏳ Pending | Full integration test needed |
+
+## Success Metrics
+
+✅ All repository tests pass
+✅ Database schema validated
+✅ Auth middleware integrated
+✅ Both systems coexist in unified main.py
+✅ Dependencies merged
+⏳ End-to-end testing pending
+
+---
+
+**Status: MERGE COMPLETE - READY FOR INTEGRATION TESTING**

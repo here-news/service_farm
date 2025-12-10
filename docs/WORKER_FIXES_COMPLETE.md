@@ -1,0 +1,196 @@
+# ✅ Worker Collateral Damage Fixed
+
+## Summary
+
+All workers affected by the model reorganization have been identified and fixed.
+
+---
+
+## Issues Found
+
+### 1. ✅ Knowledge Workers (CRITICAL)
+
+**Problem**: `knowledge_worker.py` had old-style imports that broke completely.
+
+**Error**:
+```python
+from models import Entity, Claim
+ImportError: cannot import name 'Entity' from 'models' (unknown location)
+```
+
+**Impact**: Knowledge workers crashed in a loop, unable to start.
+
+**Fix**:
+```python
+# backend/workers/knowledge_worker.py line 28
+# BEFORE
+from models import Entity, Claim
+
+# AFTER
+from models.domain import Entity, Claim
+```
+
+**Status**: ✅ Both knowledge workers now running
+- herenews-worker-knowledge-1: ✅ Started
+- herenews-worker-knowledge-2: ✅ Started
+
+---
+
+### 2. ✅ Semantic Analyzer (CRITICAL)
+
+**Problem**: `semantic_analyzer.py` had imports inside functions still using old paths.
+
+**Error**:
+```python
+from models.mention import Mention, MentionRelationship, ExtractionResult
+ModuleNotFoundError: No module named 'models.mention'
+```
+
+**Impact**: Knowledge workers would crash when processing pages.
+
+**Fix**:
+```python
+# backend/semantic_analyzer.py lines 1071, 1107
+# BEFORE
+from models.mention import Mention, MentionRelationship, ExtractionResult
+
+# AFTER
+from models.domain.mention import Mention, MentionRelationship, ExtractionResult
+```
+
+**Status**: ✅ Fixed
+
+---
+
+### 3. ✅ Event Worker (RECOVERED)
+
+**Problem**: Initial import errors but recovered after our global fix.
+
+**Error** (initial):
+```python
+from models.event import Event, ClaimDecision, ExaminationResult
+ModuleNotFoundError: No module named 'models.event'
+```
+
+**Status**: ✅ Running - Fixed by global sed command
+
+---
+
+### 4. ✅ Extraction Workers (RECOVERED)
+
+**Problem**: Initial import errors but recovered after our global fix.
+
+**Error** (initial):
+```python
+from models.page import Page
+ModuleNotFoundError: No module named 'models.page'
+```
+
+**Status**: ✅ All 3 extraction workers running
+- herenews-worker-extraction-1: ✅ Processing jobs successfully
+- herenews-worker-extraction-2: ✅ Started
+- herenews-worker-extraction-3: ✅ Started
+
+---
+
+## All Workers Status
+
+```bash
+$ docker ps --filter name=worker
+
+herenews-worker-extraction-1    Up      ✅ Processing jobs
+herenews-worker-extraction-2    Up      ✅ Listening on queue
+herenews-worker-extraction-3    Up      ✅ Listening on queue
+herenews-worker-knowledge-1     Up      ✅ Wikidata integrated
+herenews-worker-knowledge-2     Up      ✅ Wikidata integrated
+herenews-worker-event           Up      ✅ Metabolism loop running
+```
+
+**All workers operational!** ✅
+
+---
+
+## Fixes Applied
+
+### Global Fix (Applied Earlier)
+```bash
+# Fixed ~50+ files across repositories, services, workers
+find backend -name "*.py" -exec sed -i 's/^from models\./from models.domain./g' {} +
+```
+
+### Specific Fixes (This Session)
+```bash
+# 1. knowledge_worker.py - Manual fix for old-style import
+# Line 28: from models import → from models.domain import
+
+# 2. semantic_analyzer.py - Fixed inline imports
+sed -i 's/from models\.mention import/from models.domain.mention import/g' backend/semantic_analyzer.py
+```
+
+---
+
+## Test Evidence
+
+### Knowledge Worker Logs
+```
+✅ KnowledgeWorker initialized with Wikidata integration
+🧠 KnowledgeWorker started, listening on queue:semantic:high
+```
+
+### Extraction Worker Logs
+```
+🚀 Starting extraction worker 1
+[extraction-worker-1] Started, listening on queue:extraction:high
+[extraction-worker-1] ✅ Playwright extracted 1245 words from https://...
+```
+
+### Event Worker Logs
+```
+✅ Connected to Neo4j at bolt://neo4j:7687
+🌊 LiveEventPool initialized
+📊 event-worker-1 started
+🔄 Metabolism loop started (runs every 1h)
+```
+
+---
+
+## Complete System Status
+
+### ✅ Infrastructure
+- postgres: Healthy
+- neo4j: Healthy
+- redis: Healthy
+
+### ✅ Application
+- herenews-app: Running on port 7272
+- Intelligence engine endpoints: Working
+- Community endpoints: Missing dependencies (authlib)
+
+### ✅ Workers (All Fixed!)
+- 3x Extraction workers: ✅ Running
+- 2x Knowledge workers: ✅ Running
+- 1x Event worker: ✅ Running
+
+---
+
+## Remaining Issues (Not Worker-Related)
+
+1. **Missing dependencies in app container**: authlib, python-jose
+   - Impact: Community features (auth, comments, chat) not loaded
+   - Fix: Add to requirements.txt, rebuild
+
+2. **Neo4j Story → Event migration**: Pending Phase 2
+
+3. **Frontend React build**: Pending Phase 2
+
+---
+
+## Files Modified
+
+1. `backend/workers/knowledge_worker.py` - Fixed import (line 28)
+2. `backend/semantic_analyzer.py` - Fixed inline imports (lines 1071, 1107)
+3. All other model imports fixed by global sed command earlier
+
+---
+
+**✅ Worker collateral damage completely fixed! All 6 workers operational.**
