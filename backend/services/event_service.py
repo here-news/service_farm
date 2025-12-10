@@ -703,14 +703,14 @@ class EventService:
         return claims
 
     async def _get_event_entities(self, event: Event) -> Set[str]:
-        """Get all entity IDs associated with an event's claims"""
-        claims = await self._get_event_claims(event)
+        """Get all entity IDs associated with an event's claims (from graph)"""
+        # Query entities directly from Event->INVOLVES->Entity relationship
+        results = await self.event_repo.neo4j._execute_read("""
+            MATCH (e:Event {id: $event_id})-[:INVOLVES]->(en:Entity)
+            RETURN en.id as id
+        """, {'event_id': str(event.id)})
 
-        entity_ids = set()
-        for claim in claims:
-            entity_ids.update(claim.entity_ids)
-
-        return entity_ids
+        return set(row['id'] for row in results)
 
     def _references_event(self, event: Event, claim: Claim, event_entities: Set[str]) -> bool:
         """
@@ -1460,9 +1460,10 @@ Answer ONLY "yes" or "no"."""
 
         Returns: 0.0 to 1.0
         """
-        # Entity overlap
+        # Entity overlap - query from graph
         event_entities = await self._get_event_entities(event)
-        claim_entities = set(claim.entity_ids)
+        claim_entity_ids = await self.claim_repo.get_entity_ids_for_claim(str(claim.id))
+        claim_entities = set(claim_entity_ids)
 
         if not event_entities or not claim_entities:
             entity_overlap = 0.0

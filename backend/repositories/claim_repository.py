@@ -163,7 +163,7 @@ class ClaimRepository:
             List of Claim models
         """
         results = await self.neo4j._execute_read("""
-            MATCH (p:Page {id: $page_id})-[:EXTRACTED]->(c:Claim)
+            MATCH (p:Page {id: $page_id})-[:CONTAINS]->(c:Claim)
             RETURN c.id as id, c.text as text, c.event_time as event_time,
                    c.confidence as confidence, c.modality as modality,
                    c.created_at as created_at
@@ -221,9 +221,26 @@ class ClaimRepository:
 
         return claims
 
+    async def get_entity_ids_for_claim(self, claim_id: str) -> List[str]:
+        """
+        Get entity IDs for a claim (lightweight graph query).
+
+        Args:
+            claim_id: Claim ID (cl_xxxxxxxx format)
+
+        Returns:
+            List of entity IDs
+        """
+        results = await self.neo4j._execute_read("""
+            MATCH (c:Claim {id: $claim_id})-[:MENTIONS]->(e:Entity)
+            RETURN e.id as id
+        """, {'claim_id': claim_id})
+
+        return [row['id'] for row in results]
+
     async def get_entities_for_claim(self, claim_id: str) -> List[Entity]:
         """
-        Get all entities mentioned by a claim.
+        Get all entities mentioned by a claim (full Entity objects).
 
         Args:
             claim_id: Claim ID (cl_xxxxxxxx format)
