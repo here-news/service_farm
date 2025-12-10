@@ -25,7 +25,7 @@ import logging
 import math
 import os
 import re
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, List, Any, Tuple
 from rapidfuzz import fuzz
 from openai import AsyncOpenAI
 
@@ -177,6 +177,162 @@ class WikidataClient:
         except Exception as e:
             logger.warning(f"Wikidata search failed for {name}: {e}")
             return None
+
+    async def search_publisher(
+        self,
+        name: str,
+        domain: str
+    ) -> Optional[Dict]:
+        """
+        Search Wikidata for a publisher, using domain for disambiguation.
+
+        Strategy:
+        1. First, search by domain in P856 (official website) - authoritative match
+        2. If no P856 match, search by name with domain as context - Bayesian fallback
+
+        Args:
+            name: Publisher name (e.g., "ABC News")
+            domain: Website domain (e.g., "abc.net.au")
+
+        Returns:
+            Dict with {qid, label, description, confidence} or None
+        """
+        await self._ensure_session()
+
+        try:
+            # Strategy 1: Search directly by domain using SPARQL-like haswbstatement
+            # This finds entities that have the domain in P856 (official website)
+            domain_match = await self._search_by_domain(domain)
+            if domain_match:
+                logger.info(f"🔗 Publisher match via P856: {name} → {domain_match['qid']} ({domain_match['label']}) [domain={domain}]")
+                return domain_match
+
+            # Strategy 2: Fall back to name search with context
+            logger.debug(f"No P856 domain match for {domain}, trying name search with context")
+            context = f"news media publisher website domain {domain}"
+            return await self.search_entity(name, 'ORGANIZATION', context=context)
+
+        except Exception as e:
+            logger.warning(f"Publisher search failed for {name}: {e}")
+            return None
+
+    async def _search_by_domain(self, domain: str) -> Optional[Dict]:
+        """
+        Search Wikidata for entities with domain in P856 (official website).
+
+        Uses text search for the domain, then verifies P856 match.
+        """
+        try:
+            # Normalize domain for search
+            domain_clean = domain.lower().replace('www.', '')
+
+            # Search for entities mentioning the domain
+            # This finds entities where the domain appears in labels/descriptions/aliases
+            params = {
+                'action': 'query',
+                'list': 'search',
+                'srsearch': domain_clean,
+                'srnamespace': 0,
+                'format': 'json',
+                'srlimit': 10
+            }
+
+            async with self.session.get(self.api_url, params=params, timeout=10) as resp:
+                if resp.status != 200:
+                    return None
+
+                data = await resp.json()
+                results = data.get('query', {}).get('search', [])
+
+                if not results:
+                    return None
+
+                # Check P856 for each result to find domain match
+                for result in results:
+                    qid = result['title']
+                    if not qid.startswith('Q'):
+                        continue
+
+                    # Fetch P856 values
+                    p856_values = await self._get_property_values(qid, 'P856')
+
+                    for url in p856_values:
+                        url_lower = url.lower()
+                        # Check if domain appears in the URL
+                        if domain_clean in url_lower:
+                            # Found a match! Get label and description
+                            label, description = await self._get_entity_label(qid)
+
+                            return {
+                                'qid': qid,
+                                'label': label or qid,
+                                'description': description or '',
+                                'confidence': 0.95,
+                                'accepted': True,
+                                'match_type': 'domain_p856'
+                            }
+
+                return None
+
+        except Exception as e:
+            logger.debug(f"Domain search failed for {domain}: {e}")
+            return None
+
+    async def _get_entity_label(self, qid: str) -> Tuple[Optional[str], Optional[str]]:
+        """Get label and description for a Wikidata entity."""
+        try:
+            params = {
+                'action': 'wbgetentities',
+                'ids': qid,
+                'format': 'json',
+                'props': 'labels|descriptions',
+                'languages': 'en'
+            }
+
+            async with self.session.get(self.api_url, params=params, timeout=10) as resp:
+                if resp.status != 200:
+                    return None, None
+
+                data = await resp.json()
+                entity = data.get('entities', {}).get(qid, {})
+
+                label = entity.get('labels', {}).get('en', {}).get('value')
+                description = entity.get('descriptions', {}).get('en', {}).get('value')
+
+                return label, description
+        except Exception as e:
+            logger.debug(f"Failed to get label for {qid}: {e}")
+            return None, None
+
+    async def _get_property_values(self, qid: str, property_id: str) -> List[str]:
+        """Get string values for a Wikidata property."""
+        try:
+            params = {
+                'action': 'wbgetentities',
+                'ids': qid,
+                'format': 'json',
+                'props': 'claims'
+            }
+
+            async with self.session.get(self.api_url, params=params, timeout=10) as resp:
+                if resp.status != 200:
+                    return []
+
+                data = await resp.json()
+                entity = data.get('entities', {}).get(qid, {})
+                claims = entity.get('claims', {})
+
+                values = []
+                for claim in claims.get(property_id, []):
+                    mainsnak = claim.get('mainsnak', {})
+                    datavalue = mainsnak.get('datavalue', {})
+                    if datavalue.get('type') == 'string':
+                        values.append(datavalue['value'])
+
+                return values
+        except Exception as e:
+            logger.debug(f"Failed to get {property_id} for {qid}: {e}")
+            return []
 
     async def _search_wikidata(self, name: str) -> List[Dict]:
         """
@@ -541,10 +697,13 @@ class WikidataClient:
 
         # === Stage 4: Bayesian update ===
         if has_context:
-            # posterior ∝ likelihood × prior
+            # posterior ∝ likelihood³ × prior
+            # Cubing likelihood gives context strong influence when provided
+            # This overcomes structural priors dominated by global popularity
+            # when context clearly points to a specific candidate (e.g., domain→country)
             posteriors = []
             for cand in scored:
-                posterior = cand['likelihood'] * cand['prior']
+                posterior = (cand['likelihood'] ** 3) * cand['prior']
                 posteriors.append(posterior)
 
             # Normalize posteriors to sum to 1

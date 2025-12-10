@@ -332,8 +332,10 @@ class KnowledgeWorker:
 
         if site_name != domain:  # Only search if we have a real name, not just domain
             try:
-                result = await self.wikidata_client.search_entity(
-                    site_name, entity_type='ORGANIZATION'
+                # Use specialized publisher search with P856 domain matching
+                result = await self.wikidata_client.search_publisher(
+                    name=site_name,
+                    domain=domain
                 )
                 if result and result.get('accepted'):
                     wikidata_qid = result.get('qid')
