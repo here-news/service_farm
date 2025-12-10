@@ -218,10 +218,27 @@ class ExtractionWorker(BaseWorker):
             except:
                 detected_lang = state.get('language', 'en')  # Fallback to existing
 
-            # Step 4: Extract publication date (from HTML metadata)
-            pub_time = self._extract_pub_time(html)
-            # IMPORTANT: If pub_time extraction fails, leave it as None
-            # Don't use extraction/scraping time as publication date
+            # Step 4: Extract publication date
+            # Priority order:
+            # 1. Newspaper3k's publish_date (from article.publish_date attribute)
+            # 2. Manual HTML extraction (meta tags, JSON-LD)
+            # 3. Iframely's date (from preview metadata)
+
+            # Try newspaper3k first (if it was used)
+            newspaper_pub_time = None
+            if result.publish_date:
+                try:
+                    from dateutil import parser as date_parser
+                    newspaper_pub_time = date_parser.parse(result.publish_date)
+                    logger.info(f"📅 Using newspaper3k publish_date: {newspaper_pub_time}")
+                except Exception as e:
+                    logger.warning(f"Failed to parse newspaper3k publish_date: {e}")
+
+            # Fallback to manual HTML extraction
+            manual_pub_time = self._extract_pub_time(html)
+
+            # Choose the best pub_time
+            pub_time = newspaper_pub_time or manual_pub_time
 
             # Step 5: Update database with extracted metadata
             word_count = len(extracted.split())
@@ -249,12 +266,16 @@ class ExtractionWorker(BaseWorker):
             final_author = author or existing.author
             final_thumbnail = thumbnail_url or existing.thumbnail_url
             final_site_name = site_name or existing.site_name
-            # IMPORTANT: Prefer our HTML extraction for pub_time over iframely
-            # Reason: iframely often returns cache/processing timestamps instead of
-            # actual publication dates. Our multi-strategy HTML extraction (JSON-LD,
-            # meta tags, trafilatura) gets the authoritative date from the publisher.
-            # Only fallback to iframely's pub_time if our extraction completely fails.
-            final_pub_time = pub_time or existing.pub_time
+            # For pub_time: Try extraction first, but if it fails AND iframely has a date,
+            # prefer iframely over completely missing date
+            # This handles cases where HTML metadata is wrong/missing but iframely got it right
+            if pub_time:
+                final_pub_time = pub_time
+            elif existing.pub_time:
+                final_pub_time = existing.pub_time
+                logger.info(f"📅 Using iframely pub_time as fallback: {existing.pub_time}")
+            else:
+                final_pub_time = None
 
             # Calculate metadata confidence (0.0-1.0)
             # 1.0 = all fields present, 0.5 = half present, etc.
@@ -425,13 +446,20 @@ class ExtractionWorker(BaseWorker):
         except:
             pass
 
-        # Strategy 2: Common meta tags
+        # Strategy 2: Common meta tags (including Dublin Core)
         meta_patterns = [
+            # Standard Open Graph / Schema.org
             r'<meta[^>]+property=["\']article:published_time["\'][^>]+content=["\']([^"\']+)["\']',
             r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']article:published_time["\']',
             r'<meta[^>]+name=["\']datePublished["\'][^>]+content=["\']([^"\']+)["\']',
             r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+name=["\']datePublished["\']',
             r'<meta[^>]+itemprop=["\']datePublished["\'][^>]+content=["\']([^"\']+)["\']',
+            # Dublin Core metadata (dc.date, dcterms.created)
+            r'<meta[^>]+name=["\']dcterms\.created["\'][^>]+content=["\']([^"\']+)["\']',
+            r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+name=["\']dcterms\.created["\']',
+            r'<meta[^>]+name=["\']dc\.date["\'][^>]+content=["\']([^"\']+)["\']',
+            r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+name=["\']dc\.date["\']',
+            # Time element
             r'<time[^>]+datetime=["\']([^"\']+)["\']',
         ]
 

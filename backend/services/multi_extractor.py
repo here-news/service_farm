@@ -33,6 +33,7 @@ class ExtractionResult:
     description: Optional[str] = None
     authors: Optional[list] = None
     site_name: Optional[str] = None  # og:site_name - publisher name
+    publish_date: Optional[str] = None  # Publication date (from newspaper3k)
     # Image extraction (from newspaper3k)
     top_image: Optional[str] = None  # Main article image
     images: Optional[list] = None    # All images found
@@ -225,6 +226,16 @@ class MultiMethodExtractor:
                 description = article.meta_description if article.meta_description else None
                 authors = list(article.authors) if article.authors else []
 
+                # Extract publish date (newspaper3k's publish_date attribute)
+                publish_date = None
+                if article.publish_date:
+                    try:
+                        # Convert datetime to ISO string
+                        publish_date = article.publish_date.isoformat()
+                        logger.info(f"📅 Newspaper3k extracted publish_date: {publish_date}")
+                    except Exception as e:
+                        logger.warning(f"Failed to convert publish_date: {e}")
+
                 # Extract images
                 top_image = article.top_image if article.top_image else None
                 images = list(article.images) if article.images else []
@@ -237,6 +248,7 @@ class MultiMethodExtractor:
                     title=title,
                     description=description,
                     authors=authors,
+                    publish_date=publish_date,
                     top_image=top_image,
                     images=images
                 )
