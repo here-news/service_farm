@@ -163,7 +163,7 @@ class ClaimRepository:
             List of Claim models
         """
         results = await self.neo4j._execute_read("""
-            MATCH (p:Page {id: $page_id})-[:CONTAINS]->(c:Claim)
+            MATCH (p:Page {id: $page_id})-[:EXTRACTED]->(c:Claim)
             RETURN c.id as id, c.text as text, c.event_time as event_time,
                    c.confidence as confidence, c.modality as modality,
                    c.created_at as created_at
