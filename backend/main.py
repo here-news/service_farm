@@ -108,6 +108,17 @@ async def health():
 async def api_health():
     return {"status": "ok", "service": "service_farm"}
 
+# Fallback auth endpoint (if community features not loaded)
+if not community_routers:
+    @app.get("/api/auth/status")
+    async def auth_status_fallback():
+        """Fallback when auth system is not available"""
+        return {
+            "authenticated": False,
+            "user": None,
+            "message": "Auth system not enabled"
+        }
+
 # Frontend SPA routes (must be last) - /app/* serves the React app
 @app.get("/app", response_class=HTMLResponse)
 @app.get("/app/", response_class=HTMLResponse)

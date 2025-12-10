@@ -690,12 +690,12 @@ class KnowledgeWorker:
 
             embedding = response.data[0].embedding
 
-            # Store in PostgreSQL content.pages table
+            # Store in PostgreSQL core.pages table
             await conn.execute("""
-                UPDATE content.pages
+                UPDATE core.pages
                 SET embedding = $1::vector,
                     updated_at = NOW()
-                WHERE id = $2::uuid
+                WHERE id = $2
             """, embedding, page_id)
 
             logger.debug(f"✅ Stored page embedding ({len(embedding)} dimensions)")

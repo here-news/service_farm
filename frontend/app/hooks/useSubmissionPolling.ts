@@ -31,7 +31,7 @@ export function useSubmissionPolling({
     }
 
     // Check if any submissions need polling
-    const needsPolling = submissions.some(
+    const needsPolling = Array.isArray(submissions) && submissions.some(
       sub => sub.status === 'pending' || sub.status === 'extracting'
     )
 

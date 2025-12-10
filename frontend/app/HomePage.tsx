@@ -82,15 +82,19 @@ function HomePage() {
 
   // Merge events and submissions by timestamp
   useEffect(() => {
+    // Defensive checks to ensure arrays
+    const safeEvents = Array.isArray(events) ? events : []
+    const safePendingSubmissions = Array.isArray(pendingSubmissions) ? pendingSubmissions : []
+
     const merged: FeedItem[] = [
       // Convert events to feed items
-      ...events.map(event => ({
+      ...safeEvents.map(event => ({
         type: 'event' as const,
         data: event,
         timestamp: event.last_updated || event.created_at || ''
       })),
       // Convert submissions to feed items
-      ...pendingSubmissions.map(submission => ({
+      ...safePendingSubmissions.map(submission => ({
         type: 'submission' as const,
         data: submission,
         timestamp: submission.created_at
@@ -146,13 +150,14 @@ function HomePage() {
         min_coherence: debouncedCoherence.toString()
       })
 
-      const response = await fetch(`/api/coherence/feed?${params}`)
+      const response = await fetch(`/api/events?${params}`)
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
       const data: FeedResponse = await response.json()
-      setEvents(data.events || [])
-      setHasMore((data.events || []).length === pageSize)
+      const eventsArray = Array.isArray(data.events) ? data.events : []
+      setEvents(eventsArray)
+      setHasMore(eventsArray.length === pageSize)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load feed')
     } finally {
@@ -171,12 +176,12 @@ function HomePage() {
         min_coherence: debouncedCoherence.toString()
       })
 
-      const response = await fetch(`/api/coherence/feed?${params}`)
+      const response = await fetch(`/api/events?${params}`)
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
       const data: FeedResponse = await response.json()
-      const newEvents = data.events || []
+      const newEvents = Array.isArray(data.events) ? data.events : []
       setEvents([...events, ...newEvents])
       setHasMore(newEvents.length === pageSize)
     } catch (err) {
@@ -216,20 +221,33 @@ function HomePage() {
         min_coherence: debouncedCoherence.toString()
       })
 
-      const response = await fetch(`/api/coherence/feed?${params}`)
+      const response = await fetch(`/api/events?${params}`)
       if (!response.ok) return
 
       const data: FeedResponse = await response.json()
       const newEvents = data.events || []
 
+      // Defensive check: ensure events is an array
+      if (!Array.isArray(events)) {
+        console.warn('events is not an array:', events)
+        return
+      }
+
       if (newEvents.length > 0 && events.length > 0) {
-        const firstNewId = newEvents[0].event_id || newEvents[0].story_id
-        const hasNew = !events.some(e => (e.event_id || e.story_id) === firstNewId)
+        const firstNewId = newEvents[0].id || newEvents[0].event_id || newEvents[0].story_id
+        const hasNew = !events.some(e => {
+          const eId = e.id || e.event_id || e.story_id
+          return eId === firstNewId
+        })
 
         if (hasNew) {
-          const newCount = newEvents.findIndex(e =>
-            events.some(existing => (existing.event_id || existing.story_id) === (e.event_id || e.story_id))
-          )
+          const newCount = newEvents.findIndex(e => {
+            const eId = e.id || e.event_id || e.story_id
+            return events.some(existing => {
+              const existingId = existing.id || existing.event_id || existing.story_id
+              return existingId === eId
+            })
+          })
           setNewEventsCount(newCount === -1 ? newEvents.length : newCount)
 
           // Auto-hide after 5 seconds
@@ -378,7 +396,7 @@ function HomePage() {
               <div className="grid gap-6">
                 {mergedFeed.map((item) => {
                   if (item.type === 'event') {
-                    const eventId = item.data.event_id || item.data.story_id
+                    const eventId = item.data.id || item.data.event_id || item.data.story_id
                     return (
                       <NewsCard
                         key={eventId}

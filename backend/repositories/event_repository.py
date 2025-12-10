@@ -75,7 +75,7 @@ class EventRepository:
             embedding_str = '[' + ','.join(str(x) for x in event.embedding) + ']'
             async with self.db_pool.acquire() as conn:
                 await conn.execute("""
-                    INSERT INTO content.event_embeddings (event_id, embedding)
+                    INSERT INTO core.event_embeddings (event_id, embedding)
                     VALUES ($1, $2::vector)
                     ON CONFLICT (event_id) DO UPDATE SET
                         embedding = EXCLUDED.embedding
@@ -138,7 +138,7 @@ class EventRepository:
             embedding_str = '[' + ','.join(str(x) for x in event.embedding) + ']'
             async with self.db_pool.acquire() as conn:
                 await conn.execute("""
-                    UPDATE content.event_embeddings
+                    UPDATE core.event_embeddings
                     SET embedding = $2::vector
                     WHERE event_id = $1
                 """, str(event.id), embedding_str)
@@ -181,7 +181,7 @@ class EventRepository:
         embedding = None
         async with self.db_pool.acquire() as conn:
             row = await conn.fetchrow("""
-                SELECT embedding FROM content.event_embeddings WHERE event_id = $1
+                SELECT embedding FROM core.event_embeddings WHERE event_id = $1
             """, event_id)
             if row and row['embedding']:
                 raw_emb = row['embedding']
@@ -651,8 +651,11 @@ class EventRepository:
 
         events = []
         for row in results:
+            updated_at_dt = neo4j_datetime_to_python(row['updated_at']) if row.get('updated_at') else None
+            updated_at_str = updated_at_dt.isoformat() if updated_at_dt else None
             event_dict = {
                 'id': row['id'],
+                'title': row['canonical_name'],  # Frontend expects 'title'
                 'canonical_name': row['canonical_name'],
                 'event_type': row['event_type'],
                 'status': row['status'],
@@ -661,7 +664,8 @@ class EventRepository:
                 'event_start': neo4j_datetime_to_python(row['event_start']) if row.get('event_start') else None,
                 'event_end': neo4j_datetime_to_python(row['event_end']) if row.get('event_end') else None,
                 'created_at': neo4j_datetime_to_python(row['created_at']) if row.get('created_at') else None,
-                'updated_at': neo4j_datetime_to_python(row['updated_at']) if row.get('updated_at') else None,
+                'updated_at': updated_at_str,
+                'last_updated': updated_at_str,  # Frontend expects 'last_updated'
                 'metadata': row.get('metadata', {}),
                 'child_count': row['child_count']
             }

@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Event Details - HereNews</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #0a0a0a;
+            color: #e0e0e0;
+            line-height: 1.7;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        /* Header Navigation */
+        .top-nav {
+            background: rgba(10, 10, 10, 0.95);
+            border-bottom: 1px solid rgba(102, 126, 234, 0.2);
+            padding: 15px 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+        }
+
+        .nav-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .back-link {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .back-link:hover {
+            color: #764ba2;
+        }
+
+        .view-links {
+            display: flex;
+            gap: 12px;
+        }
+
+        .view-link {
+            padding: 8px 16px;
+            background: rgba(102, 126, 234, 0.15);
+            border-radius: 6px;
+            text-decoration: none;
+            color: #667eea;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: all 0.2s;
+            border: 1px solid rgba(102, 126, 234, 0.3);
+        }
+
+        .view-link:hover {
+            background: rgba(102, 126, 234, 0.25);
+            transform: translateY(-1px);
+        }
+
+        /* Hero Section */
+        .hero {
+            padding: 60px 0 40px;
+            border-bottom: 1px solid rgba(102, 126, 234, 0.2);
+        }
+
+        .hero-title {
+            font-size: 3rem;
+            font-weight: 700;
+            line-height: 1.2;
+            margin-bottom: 24px;
+            background: linear-gradient(135deg, #fff 0%, #667eea 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            letter-spacing: 0.5px;
+            margin-bottom: 24px;
+        }
+
+        .status-badge.stable { background: #10b981; color: #fff; }
+        .status-badge.emerging { background: #f59e0b; color: #fff; }
+        .status-badge.provisional { background: #6b7280; color: #fff; }
+
+        .hero-summary {
+            font-size: 1.3rem;
+            line-height: 1.9;
+            color: #e8e8e8;
+            max-width: 900px;
+            margin-bottom: 32px;
+            font-weight: 400;
+        }
+
+        .hero-meta {
+            display: flex;
+            gap: 32px;
+            flex-wrap: wrap;
+            color: #888;
+            font-size: 0.95rem;
+        }
+
+        .hero-meta-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .hero-meta-value {
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            padding: 40px 0;
+        }
+
+        .stat-card {
+            background: rgba(26, 26, 26, 0.8);
+            padding: 24px;
+            border-radius: 12px;
+            border: 1px solid rgba(102, 126, 234, 0.2);
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #667eea;
+            margin-bottom: 8px;
+        }
+
+        .stat-label {
+            color: #888;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Section Styles */
+        .section {
+            padding: 40px 0;
+            border-bottom: 1px solid rgba(102, 126, 234, 0.15);
+        }
+
+        .section-title {
+            font-size: 1.75rem;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .section-title-icon {
+            font-size: 1.5rem;
+        }
+
+        /* Casualties */
+        .casualties-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .casualty-card {
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(220, 38, 38, 0.05) 100%);
+            padding: 24px;
+            border-radius: 12px;
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .casualty-label {
+            color: #ef4444;
+            font-size: 0.9rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-bottom: 12px;
+        }
+
+        .casualty-number {
+            font-size: 3rem;
+            font-weight: 700;
+            color: #fff;
+        }
+
+        /* Micro Narratives */
+        .narratives-list {
+            display: grid;
+            gap: 16px;
+        }
+
+        .narrative-item {
+            background: rgba(26, 26, 26, 0.6);
+            padding: 20px 24px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+            font-size: 1.05rem;
+            line-height: 1.7;
+        }
+
+        /* Entities */
+        .entities-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 16px;
+        }
+
+        .entity-card {
+            background: rgba(26, 26, 26, 0.8);
+            padding: 16px;
+            border-radius: 10px;
+            border: 1px solid rgba(102, 126, 234, 0.2);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: all 0.2s;
+        }
+
+        .entity-card:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+        }
+
+        .entity-thumbnail {
+            width: 50px;
+            height: 50px;
+            border-radius: 8px;
+            object-fit: cover;
+            background: rgba(102, 126, 234, 0.1);
+        }
+
+        .entity-info {
+            flex: 1;
+        }
+
+        .entity-name {
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 4px;
+        }
+
+        .entity-type {
+            font-size: 0.8rem;
+            color: #888;
+            text-transform: capitalize;
+        }
+
+        /* Sources */
+        .sources-grid {
+            display: grid;
+            gap: 16px;
+        }
+
+        .source-card {
+            background: rgba(26, 26, 26, 0.6);
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid rgba(102, 126, 234, 0.15);
+            transition: all 0.2s;
+        }
+
+        .source-card:hover {
+            border-color: #667eea;
+            transform: translateX(4px);
+        }
+
+        .source-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 8px;
+        }
+
+        .source-url {
+            font-size: 0.85rem;
+            color: #667eea;
+            word-break: break-all;
+            margin-bottom: 8px;
+            text-decoration: none;
+        }
+
+        .source-url:hover {
+            text-decoration: underline;
+        }
+
+        .source-meta {
+            display: flex;
+            gap: 16px;
+            font-size: 0.85rem;
+            color: #888;
+        }
+
+        /* Submit Box */
+        .submit-box {
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.1) 100%);
+            padding: 32px;
+            border-radius: 12px;
+            border: 1px solid rgba(102, 126, 234, 0.3);
+            margin-top: 40px;
+        }
+
+        .submit-box h3 {
+            color: #fff;
+            font-size: 1.3rem;
+            margin-bottom: 16px;
+        }
+
+        .submit-form {
+            display: flex;
+            gap: 12px;
+        }
+
+        .submit-form input {
+            flex: 1;
+            padding: 14px 18px;
+            background: rgba(10, 10, 10, 0.6);
+            border: 1px solid rgba(102, 126, 234, 0.3);
+            border-radius: 8px;
+            color: #fff;
+            font-size: 0.95rem;
+        }
+
+        .submit-form input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .submit-form button {
+            padding: 14px 32px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 8px;
+            color: #fff;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .submit-form button:hover {
+            transform: scale(1.05);
+        }
+
+        .loading, .error {
+            text-align: center;
+            padding: 60px 20px;
+        }
+
+        .loading {
+            color: #888;
+            font-size: 1.2rem;
+        }
+
+        .error {
+            color: #ef4444;
+            background: rgba(239, 68, 68, 0.1);
+            border-radius: 12px;
+        }
+
+        /* Related Events */
+        .related-events-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 16px;
+        }
+
+        .related-event-card {
+            background: rgba(26, 26, 26, 0.6);
+            padding: 20px;
+            border-radius: 10px;
+            border: 1px solid rgba(102, 126, 234, 0.2);
+            text-decoration: none;
+            color: inherit;
+            transition: all 0.2s;
+        }
+
+        .related-event-card:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+        }
+
+        .related-event-title {
+            font-weight: 600;
+            color: #fff;
+            margin-bottom: 8px;
+        }
+
+        .related-event-type {
+            font-size: 0.85rem;
+            color: #667eea;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Top Navigation -->
+    <nav class="top-nav">
+        <div class="nav-content">
+            <a href="/" class="back-link">← Back to Events</a>
+            <div class="view-links">
+                <a href="#" class="view-link" id="timeline-link">📊 Timeline View</a>
+                <a href="#" class="view-link" id="graph-link">🔗 Entity Graph</a>
+                <a href="#" class="view-link" id="map-link">🗺️ Map View</a>
+            </div>
+        </div>
+    </nav>
+
+    <div id="loading" class="loading">Loading event details...</div>
+    <div id="error" class="error" style="display: none;"></div>
+
+    <div id="content" style="display: none;">
+        <div class="container">
+            <!-- Hero Section -->
+            <div class="hero">
+                <span class="status-badge" id="status-badge">stable</span>
+                <h1 class="hero-title" id="event-title"></h1>
+                <p class="hero-summary" id="event-summary"></p>
+                <div class="hero-meta" id="hero-meta"></div>
+            </div>
+
+            <!-- Stats Grid -->
+            <div class="stats-grid" id="stats-grid"></div>
+
+            <!-- Casualties Section -->
+            <div class="section" id="casualty-section" style="display: none;">
+                <h2 class="section-title">
+                    <span class="section-title-icon">💔</span>
+                    Casualty Summary
+                </h2>
+                <div class="casualties-grid" id="casualties-grid"></div>
+            </div>
+
+            <!-- Micro Narratives -->
+            <div class="section" id="narratives-section" style="display: none;">
+                <h2 class="section-title">
+                    <span class="section-title-icon">📖</span>
+                    Key Developments
+                </h2>
+                <div class="narratives-list" id="narratives-list"></div>
+            </div>
+
+            <!-- Key Entities -->
+            <div class="section" id="entities-section">
+                <h2 class="section-title">
+                    <span class="section-title-icon">👥</span>
+                    Key Entities
+                </h2>
+                <div class="entities-grid" id="entities-grid"></div>
+            </div>
+
+            <!-- Related Events -->
+            <div class="section" id="related-section" style="display: none;">
+                <h2 class="section-title">
+                    <span class="section-title-icon">🔗</span>
+                    Related Events
+                </h2>
+                <div class="related-events-grid" id="related-events-grid"></div>
+            </div>
+
+            <!-- Sources -->
+            <div class="section">
+                <h2 class="section-title">
+                    <span class="section-title-icon">📰</span>
+                    Sources (<span id="sources-count">0</span>)
+                </h2>
+                <div class="sources-grid" id="sources-grid"></div>
+            </div>
+
+            <!-- Submit Box -->
+            <div class="submit-box">
+                <h3>Add Related Source</h3>
+                <form class="submit-form" onsubmit="submitURL(event)">
+                    <input type="url" id="url-input" placeholder="https://example.com/article" required>
+                    <button type="submit">Submit</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const eventId = urlParams.get('id');
+
+        if (!eventId) {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('error').style.display = 'block';
+            document.getElementById('error').textContent = 'No event ID provided. Use ?id=EVENT_ID';
+        } else {
+            loadEvent(eventId);
+        }
+
+        async function loadEvent(eventId) {
+            try {
+                const response = await fetch(`http://localhost:8000/api/events/${eventId}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                renderEvent(data);
+
+            } catch (error) {
+                console.error('Error loading event:', error);
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('error').textContent = `Failed to load event: ${error.message}`;
+            }
+        }
+
+        function renderEvent(data) {
+            const event = data.event;
+            const pages = data.pages || [];
+            const claims = data.claims || [];
+            const entities = data.entities || [];
+            const related = data.related || [];
+            const parents = data.parents || [];
+            const children = data.children || [];
+            const microNarratives = data.micro_narratives || [];
+
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('content').style.display = 'block';
+
+            // Hero section
+            document.getElementById('event-title').textContent = event.title || 'Untitled Event';
+            document.getElementById('status-badge').textContent = event.status;
+            document.getElementById('status-badge').className = `status-badge ${event.status}`;
+
+            // Build narrative story from available data
+            let story = '';
+
+            // Priority 1: Use corroborated_description if available
+            if (event.enriched_json?.corroborated_description) {
+                story = event.enriched_json.corroborated_description;
+            }
+            // Priority 2: Synthesize from micro_narratives
+            else if (microNarratives.length > 0) {
+                story = microNarratives.slice(0, 3).join(' ');
+            }
+            // Priority 3: Synthesize from top observation claims
+            else if (claims.length > 0) {
+                // Get top 3 observation claims (factual statements)
+                const observations = claims
+                    .filter(c => c.modality === 'observation')
+                    .sort((a, b) => (b.confidence || 0) - (a.confidence || 0))
+                    .slice(0, 3)
+                    .map(c => c.text)
+                    .join(' ');
+
+                if (observations) {
+                    story = observations;
+                } else {
+                    // Fallback to any claims
+                    story = claims.slice(0, 3).map(c => c.text).join(' ');
+                }
+            }
+            // Priority 4: Use basic summary if not debug text
+            else if (event.summary && !event.summary.includes('Provisional event created from')) {
+                story = event.summary;
+            }
+            // Fallback: Show processing message
+            else {
+                story = `This event has been identified from ${pages.length} news source${pages.length === 1 ? '' : 's'} with ${claims.length} factual claims. Analysis and narrative synthesis in progress.`;
+            }
+
+            document.getElementById('event-summary').textContent = story;
+
+            // Hero meta
+            const heroMeta = document.getElementById('hero-meta');
+            heroMeta.innerHTML = `
+                <div class="hero-meta-item">
+                    <span>📅</span>
+                    <span>${formatDate(event.event_start) || 'Unknown date'}</span>
+                </div>
+                <div class="hero-meta-item">
+                    <span>Confidence:</span>
+                    <span class="hero-meta-value">${(event.confidence * 100).toFixed(0)}%</span>
+                </div>
+                ${event.event_scale ? `
+                    <div class="hero-meta-item">
+                        <span>Scale:</span>
+                        <span class="hero-meta-value">${event.event_scale}</span>
+                    </div>
+                ` : ''}
+            `;
+
+            // Stats grid
+            const statsGrid = document.getElementById('stats-grid');
+            statsGrid.innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-value">${pages.length}</div>
+                    <div class="stat-label">Sources</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${claims.length}</div>
+                    <div class="stat-label">Claims</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${entities.length}</div>
+                    <div class="stat-label">Entities</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">${(event.coherence * 100).toFixed(0)}%</div>
+                    <div class="stat-label">Coherence</div>
+                </div>
+            `;
+
+            // View links
+            document.getElementById('timeline-link').href = `/timeline.html?id=${event.id}`;
+            document.getElementById('graph-link').href = `/event_graph.html?id=${event.id}`;
+            document.getElementById('map-link').href = `/map.html?id=${event.id}`;
+
+            // Casualty summary
+            const casualties = event.enriched_json?.consolidated?.casualty_summary;
+            if (casualties && (casualties.deaths?.latest || casualties.injured?.latest || casualties.hospitalized?.latest)) {
+                document.getElementById('casualty-section').style.display = 'block';
+                const grid = document.getElementById('casualties-grid');
+                grid.innerHTML = '';
+
+                if (casualties.deaths?.latest) {
+                    grid.innerHTML += `
+                        <div class="casualty-card">
+                            <div class="casualty-label">Deaths</div>
+                            <div class="casualty-number">${casualties.deaths.latest}</div>
+                        </div>
+                    `;
+                }
+                if (casualties.injured?.latest) {
+                    grid.innerHTML += `
+                        <div class="casualty-card">
+                            <div class="casualty-label">Injured</div>
+                            <div class="casualty-number">${casualties.injured.latest}</div>
+                        </div>
+                    `;
+                }
+                if (casualties.hospitalized?.latest) {
+                    grid.innerHTML += `
+                        <div class="casualty-card">
+                            <div class="casualty-label">Hospitalized</div>
+                            <div class="casualty-number">${casualties.hospitalized.latest}</div>
+                        </div>
+                    `;
+                }
+            }
+
+            // Micro narratives
+            if (microNarratives.length > 0) {
+                document.getElementById('narratives-section').style.display = 'block';
+                const narrativesList = document.getElementById('narratives-list');
+                narrativesList.innerHTML = microNarratives.map(narrative => `
+                    <div class="narrative-item">${narrative}</div>
+                `).join('');
+            }
+
+            // Entities
+            const entitiesGrid = document.getElementById('entities-grid');
+            if (entities.length > 0) {
+                entitiesGrid.innerHTML = entities.slice(0, 30).map(entity => `
+                    <div class="entity-card">
+                        ${entity.wikidata_thumbnail ?
+                            `<img src="${entity.wikidata_thumbnail}" alt="${entity.canonical_name}" class="entity-thumbnail">` :
+                            `<div class="entity-thumbnail"></div>`
+                        }
+                        <div class="entity-info">
+                            <div class="entity-name">${entity.canonical_name}</div>
+                            <div class="entity-type">${entity.entity_type || 'entity'}</div>
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                entitiesGrid.innerHTML = '<div style="color: #888;">No entities found</div>';
+            }
+
+            // Related events
+            const allRelated = [...related, ...parents, ...children];
+            if (allRelated.length > 0) {
+                document.getElementById('related-section').style.display = 'block';
+                const relatedGrid = document.getElementById('related-events-grid');
+                relatedGrid.innerHTML = allRelated.map(rel => `
+                    <a href="/event.html?id=${rel.id}" class="related-event-card">
+                        <div class="related-event-title">${rel.title || 'Untitled'}</div>
+                        <div class="related-event-type">${rel.relationship_type || 'related'}</div>
+                    </a>
+                `).join('');
+            }
+
+            // Sources
+            document.getElementById('sources-count').textContent = pages.length;
+            const sourcesGrid = document.getElementById('sources-grid');
+            if (pages.length > 0) {
+                sourcesGrid.innerHTML = pages.map(page => `
+                    <div class="source-card">
+                        <div class="source-title">${page.title || 'Untitled'}</div>
+                        <a href="${page.url}" target="_blank" class="source-url">${page.url}</a>
+                        <div class="source-meta">
+                            ${page.author ? `<span>By ${page.author}</span>` : ''}
+                            <span>${formatDate(page.pub_time) || 'Unknown date'}</span>
+                            ${page.word_count ? `<span>${page.word_count} words</span>` : ''}
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                sourcesGrid.innerHTML = '<div style="color: #888;">No sources found</div>';
+            }
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return null;
+            const date = new Date(dateStr);
+            return date.toLocaleString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        async function submitURL(event) {
+            event.preventDefault();
+            const urlInput = document.getElementById('url-input');
+            const url = urlInput.value.trim();
+
+            if (!url) return;
+
+            try {
+                const response = await fetch(`http://localhost:8000/api/v2/artifacts?url=${encodeURIComponent(url)}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    alert(`✅ Page submitted successfully!\nPage ID: ${data.page_id}\n\nProcessing will begin shortly.`);
+                    urlInput.value = '';
+
+                    // Reload after delay
+                    setTimeout(() => location.reload(), 3000);
+                } else {
+                    const error = await response.json();
+                    alert(`❌ Error: ${error.detail || response.statusText}`);
+                }
+            } catch (error) {
+                alert(`❌ Network error: ${error.message}`);
+            }
+        }
+    </script>
+</body>
+</html>

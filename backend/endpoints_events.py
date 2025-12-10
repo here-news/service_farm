@@ -102,15 +102,17 @@ async def list_events(
 
         event_dict = {
             'id': row['id'],
+            'title': row['canonical_name'],  # Frontend expects 'title'
             'canonical_name': row['canonical_name'],
             'event_type': row['event_type'],
             'event_scale': row.get('event_scale'),
             'status': row['status'],
             'confidence': row['confidence'],
-            'event_start': event_start.isoformat() if event_start else None,
-            'event_end': event_end.isoformat() if event_end else None,
-            'created_at': created_at.isoformat() if created_at else None,
-            'updated_at': updated_at.isoformat() if updated_at else None,
+            'event_start': event_start.isoformat() if event_start and hasattr(event_start, 'isoformat') else event_start,
+            'event_end': event_end.isoformat() if event_end and hasattr(event_end, 'isoformat') else event_end,
+            'created_at': created_at.isoformat() if created_at and hasattr(created_at, 'isoformat') else created_at,
+            'updated_at': updated_at.isoformat() if updated_at and hasattr(updated_at, 'isoformat') else updated_at,
+            'last_updated': updated_at.isoformat() if updated_at and hasattr(updated_at, 'isoformat') else updated_at,  # Frontend expects 'last_updated'
             'coherence': coherence,
             'child_count': row['child_count'],
             'summary': summary,
@@ -121,6 +123,19 @@ async def list_events(
     return {
         'events': events,
         'total': len(events)
+    }
+
+
+@router.get("/events/mine")
+async def get_my_events():
+    """
+    Get user's submitted/followed events (placeholder)
+
+    For now returns empty list - auth system not yet implemented
+    """
+    return {
+        'events': [],
+        'total': 0
     }
 
 
