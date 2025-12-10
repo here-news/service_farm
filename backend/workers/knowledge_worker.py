@@ -668,7 +668,10 @@ class KnowledgeWorker:
             return
 
         # Combine claim texts (limit to ~8k chars to avoid token limits)
-        claim_texts = [c.text for c in claims if hasattr(c, 'text') and c.text]
+        # Claims from extraction are dicts with 'text' key
+        claim_texts = [c.get('text') or c['text'] if isinstance(c, dict) else c.text
+                      for c in claims
+                      if (isinstance(c, dict) and c.get('text')) or (hasattr(c, 'text') and c.text)]
         if not claim_texts:
             logger.warning(f"No claim texts available for embedding")
             return
