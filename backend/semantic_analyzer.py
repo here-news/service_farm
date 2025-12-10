@@ -355,7 +355,7 @@ Return JSON:
             "who": ["PERSON:Name", "ORG:Organization"],
             "where": ["GPE:Location", "LOCATION:Place"],
             "when": {{
-                "date": "YYYY-MM-DD or YYYY or null",
+                "date": "YYYY-MM-DD or null (ONLY if year is explicitly stated or from Published date above - NEVER guess the year)",
                 "time": "HH:MM:SS or null",
                 "precision": "hour|day|month|year|approximate",
                 "timezone": "+HH:MM or -HH:MM (infer from location, e.g., Hong Kong=+08:00, NYC=-05:00)",

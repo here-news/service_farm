@@ -6,7 +6,7 @@ The pool:
 - Routes claims to appropriate events
 - Bootstraps new events
 - Hydrates existing events
-- Executes metabolism cycles
+- Executes metabolism cycles (with Bayesian topology)
 - Hibernates dormant events
 
 Prevents duplicate events across workers via careful routing logic.
@@ -19,6 +19,7 @@ from models.domain.live_event import LiveEvent
 from models.domain.event import Event
 from models.domain.claim import Claim
 from services.event_service import EventService
+from services.claim_topology import ClaimTopologyService
 from repositories.event_repository import EventRepository
 from repositories.claim_repository import ClaimRepository
 from repositories.entity_repository import EntityRepository
@@ -43,17 +44,19 @@ class LiveEventPool:
         event_service: EventService,
         claim_repo: ClaimRepository,
         event_repo: EventRepository,
-        entity_repo: EntityRepository
+        entity_repo: EntityRepository,
+        topology_service: Optional[ClaimTopologyService] = None
     ):
         self.service = event_service
         self.claim_repo = claim_repo
         self.event_repo = event_repo
         self.entity_repo = entity_repo
+        self.topology_service = topology_service  # Bayesian claim analysis
 
         # Active events in memory
         self.active: Dict[str, LiveEvent] = {}
 
-        logger.info("🌊 LiveEventPool initialized")
+        logger.info(f"🌊 LiveEventPool initialized (topology={'enabled' if topology_service else 'disabled'})")
 
     async def route_page_claims(self, claims: List[Claim], page_embedding: Optional[List[float]]):
         """
@@ -151,8 +154,8 @@ class LiveEventPool:
             logger.error(f"Event {event_id} not found in storage")
             return
 
-        # Create LiveEvent
-        live_event = LiveEvent(event, self.service)
+        # Create LiveEvent with optional topology service
+        live_event = LiveEvent(event, self.service, self.topology_service)
 
         # Hydrate state from storage
         await live_event.hydrate(self.claim_repo)
@@ -171,8 +174,8 @@ class LiveEventPool:
         """
         logger.info(f"✨ Bootstrapping event: {event.canonical_name}")
 
-        # Create LiveEvent
-        live_event = LiveEvent(event, self.service)
+        # Create LiveEvent with optional topology service
+        live_event = LiveEvent(event, self.service, self.topology_service)
 
         # Mark as just created (has claims)
         live_event.last_claim_added = datetime.utcnow()

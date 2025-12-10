@@ -465,3 +465,63 @@ class ClaimRepository:
         })
 
         logger.debug(f"Updated confidence for {claim_id}: {confidence:.2f}")
+
+    async def get_page_urls_for_claims(self, claim_ids: List[str]) -> dict:
+        """
+        Get source page URLs for claims (for source priors in topology analysis).
+
+        Args:
+            claim_ids: List of claim IDs
+
+        Returns:
+            Dict mapping claim_id -> page_url
+        """
+        if not claim_ids:
+            return {}
+
+        results = await self.neo4j._execute_read("""
+            MATCH (p:Page)-[:CONTAINS]->(c:Claim)
+            WHERE c.id IN $claim_ids
+            RETURN c.id as claim_id, p.url as url
+        """, {'claim_ids': claim_ids})
+
+        return {r['claim_id']: r['url'] for r in results if r['url']}
+
+    async def get_publisher_priors_for_claims(self, claim_ids: List[str]) -> dict:
+        """
+        Get publisher base priors for claims (for Bayesian topology analysis).
+
+        Traverses: Claim <- Page -> Publisher Entity
+        Returns the stored base_prior from the publisher entity.
+
+        Args:
+            claim_ids: List of claim IDs
+
+        Returns:
+            Dict mapping claim_id -> {
+                'base_prior': float,
+                'source_type': str,
+                'publisher_name': str
+            }
+        """
+        if not claim_ids:
+            return {}
+
+        results = await self.neo4j._execute_read("""
+            MATCH (p:Page)-[:CONTAINS]->(c:Claim)
+            WHERE c.id IN $claim_ids
+            OPTIONAL MATCH (p)-[:PUBLISHED_BY]->(pub:Entity {is_publisher: true})
+            RETURN c.id as claim_id,
+                   pub.base_prior as base_prior,
+                   pub.source_type as source_type,
+                   pub.canonical_name as publisher_name
+        """, {'claim_ids': claim_ids})
+
+        return {
+            r['claim_id']: {
+                'base_prior': r['base_prior'] or 0.50,  # Default to maximum entropy
+                'source_type': r['source_type'] or 'unknown',
+                'publisher_name': r['publisher_name']
+            }
+            for r in results
+        }

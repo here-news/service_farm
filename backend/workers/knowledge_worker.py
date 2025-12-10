@@ -32,6 +32,10 @@ from repositories import EntityRepository, ClaimRepository, PageRepository
 from services.neo4j_service import Neo4jService
 from services.identification_service import IdentificationService, IdentificationResult
 from services.wikidata_client import WikidataClient
+from services.source_classification import (
+    classify_source_by_domain, classify_source_from_wikidata,
+    compute_base_prior, get_prior_reason
+)
 from semantic_analyzer import EnhancedSemanticAnalyzer
 
 logger = logging.getLogger(__name__)
@@ -281,6 +285,10 @@ class KnowledgeWorker:
         Creates or retrieves Entity (ORGANIZATION) for the publisher.
         Publishers are entities with a domain property, resolved through Wikidata
         like any other organization.
+
+        Also classifies source type and assigns base prior for Bayesian analysis:
+        - source_type: 'wire', 'official', 'local_news', 'international', 'aggregator', 'unknown'
+        - base_prior: Conservative probability (0.50 - 0.65)
         """
         domain = page['domain']
 
@@ -305,15 +313,22 @@ class KnowledgeWorker:
                 await self._resolve_publisher_wikidata(existing.id, site_name)
                 # Re-fetch to get updated data
                 existing = await self._find_publisher_by_domain(domain)
+
+            # Update source classification if missing (for existing publishers)
+            # Use domain-based fallback since we don't have P31 here
+            source_type, has_byline = classify_source_by_domain(domain, site_name)
+            base_prior = compute_base_prior(source_type, has_byline)
+            await self._ensure_publisher_classification(existing.id, source_type, base_prior)
             return existing
 
         # Create new publisher entity
         entity_id = generate_entity_id()
 
-        # Try to resolve via Wikidata to get canonical name and QID
+        # Try to resolve via Wikidata to get canonical name, QID, and P31 for source type
         wikidata_qid = None
         canonical_name = site_name
         wikidata_label = None
+        p31_qids = []  # P31 (instance of) values for source type classification
 
         if site_name != domain:  # Only search if we have a real name, not just domain
             try:
@@ -326,8 +341,26 @@ class KnowledgeWorker:
                     if wikidata_label:
                         canonical_name = wikidata_label
                     logger.info(f"🔗 Publisher resolved: {site_name} → {canonical_name} ({wikidata_qid})")
+
+                    # Fetch P31 (instance of) for source type classification
+                    if wikidata_qid:
+                        p31_qids = await self._fetch_wikidata_p31(wikidata_qid)
+                        logger.debug(f"   P31 values: {p31_qids}")
             except Exception as e:
                 logger.debug(f"Wikidata search failed for publisher {site_name}: {e}")
+
+        # Classify source type:
+        # 1. Prefer Wikidata P31 if available
+        # 2. Fall back to domain heuristics
+        source_type = classify_source_from_wikidata(p31_qids)
+        if source_type:
+            has_byline = source_type not in ('official', 'aggregator')
+            logger.debug(f"   Source type from Wikidata P31: {source_type}")
+        else:
+            source_type, has_byline = classify_source_by_domain(domain, site_name)
+            logger.debug(f"   Source type from domain fallback: {source_type}")
+
+        base_prior = compute_base_prior(source_type, has_byline)
 
         publisher = Entity(
             id=entity_id,
@@ -338,7 +371,7 @@ class KnowledgeWorker:
         )
 
         # Create Entity node in Neo4j with domain property for publisher lookup
-        # Use dedup_key based on domain for publishers
+        # Include source_type and base_prior for Bayesian claim analysis
         dedup_key = f"publisher_{domain.lower()}"
         await self.neo4j._execute_write("""
             MERGE (e:Entity {dedup_key: $dedup_key})
@@ -350,6 +383,8 @@ class KnowledgeWorker:
                 e.is_publisher = true,
                 e.wikidata_qid = $qid,
                 e.wikidata_label = $wikidata_label,
+                e.source_type = $source_type,
+                e.base_prior = $base_prior,
                 e.mention_count = 1,
                 e.status = $status,
                 e.created_at = datetime()
@@ -364,11 +399,36 @@ class KnowledgeWorker:
             'name': canonical_name,
             'qid': wikidata_qid,
             'wikidata_label': wikidata_label,
+            'source_type': source_type,
+            'base_prior': base_prior,
             'status': 'resolved' if wikidata_qid else 'pending'
         })
 
-        logger.debug(f"📰 Publisher: {canonical_name} ({entity_id})")
+        logger.info(f"📰 Publisher: {canonical_name} [{source_type}] (prior={base_prior})")
         return publisher
+
+    async def _ensure_publisher_classification(
+        self,
+        entity_id: str,
+        source_type: str,
+        base_prior: float
+    ):
+        """
+        Ensure existing publisher has source classification.
+
+        Only updates if source_type is not set (backfill for existing publishers).
+        """
+        await self.neo4j._execute_write("""
+            MATCH (e:Entity {id: $id, is_publisher: true})
+            WHERE e.source_type IS NULL
+            SET e.source_type = $source_type,
+                e.base_prior = $base_prior,
+                e.updated_at = datetime()
+        """, {
+            'id': entity_id,
+            'source_type': source_type,
+            'base_prior': base_prior
+        })
 
     async def _resolve_publisher_wikidata(self, entity_id: str, site_name: str):
         """Try to resolve an existing publisher entity via Wikidata."""
@@ -380,17 +440,74 @@ class KnowledgeWorker:
                 qid = result.get('qid')
                 label = result.get('label')
                 if qid:
+                    # Fetch P31 for source type classification
+                    p31_qids = await self._fetch_wikidata_p31(qid)
+                    source_type = classify_source_from_wikidata(p31_qids)
+
                     await self.neo4j._execute_write("""
                         MATCH (e:Entity {id: $id})
                         SET e.wikidata_qid = $qid,
                             e.wikidata_label = $label,
                             e.canonical_name = COALESCE($label, e.canonical_name),
+                            e.source_type = COALESCE($source_type, e.source_type),
+                            e.base_prior = CASE WHEN $base_prior IS NOT NULL THEN $base_prior ELSE e.base_prior END,
                             e.status = 'resolved',
                             e.updated_at = datetime()
-                    """, {'id': entity_id, 'qid': qid, 'label': label})
-                    logger.info(f"🔗 Publisher enriched: {entity_id} → {label} ({qid})")
+                    """, {
+                        'id': entity_id,
+                        'qid': qid,
+                        'label': label,
+                        'source_type': source_type,
+                        'base_prior': compute_base_prior(source_type, True) if source_type else None
+                    })
+                    logger.info(f"🔗 Publisher enriched: {entity_id} → {label} ({qid}) [{source_type or 'unknown'}]")
         except Exception as e:
             logger.debug(f"Publisher Wikidata resolution failed: {e}")
+
+    async def _fetch_wikidata_p31(self, qid: str) -> List[str]:
+        """
+        Fetch P31 (instance of) values for a Wikidata entity.
+
+        Used to determine source type from Wikidata's structured data.
+
+        Args:
+            qid: Wikidata QID (e.g., "Q40469" for Associated Press)
+
+        Returns:
+            List of P31 QIDs (e.g., ["Q192283"] for news agency)
+        """
+        try:
+            await self.wikidata_client._ensure_session()
+
+            params = {
+                'action': 'wbgetentities',
+                'ids': qid,
+                'format': 'json',
+                'props': 'claims'
+            }
+
+            async with self.wikidata_client.session.get(
+                self.wikidata_client.api_url, params=params, timeout=10
+            ) as resp:
+                if resp.status != 200:
+                    return []
+
+                data = await resp.json()
+                entity = data.get('entities', {}).get(qid, {})
+                claims = entity.get('claims', {})
+
+                p31_qids = []
+                for claim in claims.get('P31', []):
+                    mainsnak = claim.get('mainsnak', {})
+                    datavalue = mainsnak.get('datavalue', {})
+                    if datavalue.get('type') == 'wikibase-entityid':
+                        p31_qids.append(datavalue['value']['id'])
+
+                return p31_qids
+
+        except Exception as e:
+            logger.debug(f"Failed to fetch P31 for {qid}: {e}")
+            return []
 
     async def _find_publisher_by_domain(self, domain: str) -> Optional[Entity]:
         """Find existing publisher entity by domain."""

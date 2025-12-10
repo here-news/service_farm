@@ -594,6 +594,33 @@ class EventRepository:
 
         logger.debug(f"🔗 Linked event {event_id} to {len(entity_ids)} entities")
 
+    async def update_claim_plausibility(
+        self,
+        event_id: str,
+        claim_id: str,
+        plausibility: float
+    ) -> None:
+        """
+        Update plausibility score on SUPPORTS relationship between event and claim.
+
+        This stores Bayesian posterior as a property on the relationship,
+        allowing queries like "get high-plausibility claims for event".
+
+        Args:
+            event_id: Event ID (ev_xxxxxxxx format)
+            claim_id: Claim ID (cl_xxxxxxxx format)
+            plausibility: Posterior probability (0.0-1.0)
+        """
+        await self.neo4j._execute_write("""
+            MATCH (e:Event {id: $event_id})-[r:SUPPORTS]->(c:Claim {id: $claim_id})
+            SET r.plausibility = $plausibility,
+                r.plausibility_updated = datetime()
+        """, {
+            'event_id': event_id,
+            'claim_id': claim_id,
+            'plausibility': plausibility
+        })
+
     async def list_root_events(
         self,
         status: Optional[str] = None,
