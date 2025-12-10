@@ -777,7 +777,11 @@ class EventService:
 
             # New: allow generic references when temporally aligned (e.g., "the fire" within 48h of event start).
             if claim.event_time and event.event_start:
-                days_from_start = abs((claim.event_time - event.event_start).total_seconds()) / 86400
+                from dateutil import parser
+                # Parse dates if they're strings
+                claim_time = parser.parse(claim.event_time) if isinstance(claim.event_time, str) else claim.event_time
+                event_start = parser.parse(event.event_start) if isinstance(event.event_start, str) else event.event_start
+                days_from_start = abs((claim_time - event_start).total_seconds()) / 86400
                 if days_from_start <= 2.0:
                     logger.info(f"📍 Contextual reference within temporal window ({days_from_start:.1f}d)")
                     return True

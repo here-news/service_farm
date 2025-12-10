@@ -267,6 +267,10 @@ class EventRepository:
         if not entity_ids:
             return []
 
+        # Log inputs for debugging
+        logger.info(f"🔍 Finding candidates: {len(entity_ids)} entities, "
+                   f"ref_time={reference_time}, page_emb={'YES' if page_embedding else 'NO'}")
+
         # Get events that share entities (from Neo4j)
         entity_id_strings = list(entity_ids)
 
@@ -331,13 +335,27 @@ class EventRepository:
             # Combined score - rebalanced to prioritize entity+time over semantic
             # Page embeddings differ from event narrative embeddings even for same event
             # Entity overlap + temporal proximity are more reliable "same event" signals
-            match_score = (
-                0.40 * entity_overlap_score +
-                0.30 * time_score +
-                0.30 * semantic_score
-            )
+            #
+            # Adaptive weighting: if time or semantic scores are missing (0.0),
+            # redistribute their weight to entity overlap for robustness
+            if time_score == 0.0 and semantic_score == 0.0:
+                # Both missing - rely entirely on entity overlap
+                match_score = entity_overlap_score
+            elif time_score == 0.0:
+                # Time missing - split its weight to entity and semantic
+                match_score = 0.55 * entity_overlap_score + 0.45 * semantic_score
+            elif semantic_score == 0.0:
+                # Semantic missing - split its weight to entity and time
+                match_score = 0.55 * entity_overlap_score + 0.45 * time_score
+            else:
+                # All signals present - use balanced weights
+                match_score = (
+                    0.40 * entity_overlap_score +
+                    0.30 * time_score +
+                    0.30 * semantic_score
+                )
 
-            logger.debug(
+            logger.info(
                 f"📊 Candidate: {event.canonical_name} - "
                 f"entity={entity_overlap_score:.2f}, time={time_score:.2f}, "
                 f"semantic={semantic_score:.2f}, total={match_score:.2f}"
