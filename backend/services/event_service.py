@@ -897,21 +897,28 @@ class EventService:
             for c in sorted_claims
         ])
 
-        prompt = f"""Generate a factual summary for this event using ONLY the timestamped claims below.
+        prompt = f"""Generate a comprehensive factual summary for this event using ONLY the claims below.
 
 Event: {event.canonical_name}
+Type: {event.event_type}
 
-CLAIMS (chronological, with source count):
+CLAIMS (with timestamps and source count):
 {claims_str}
 
-Write a concise factual summary that:
-1. States the date from the claim timestamps (e.g., "On November 25-26, 2025...")
-2. Synthesizes the key facts: what happened, where, casualties, response
-3. Uses ranges for conflicting numbers (e.g., "36-156 deaths reported")
-4. Prioritizes claims with more sources (higher corroboration)
-5. Stays factual - no editorializing or speculation
+Write a detailed factual summary with sections appropriate to the event type. Use markdown headers (**Section Name**) to organize.
 
-Keep it to 2-3 paragraphs. Start with the date and location."""
+Include:
+- Specific dates, times, locations, and figures from the claims
+- Ranges when numbers conflict (e.g., "150-160 reported")
+- Key actors, organizations, and their roles
+- Chronological developments where relevant
+- Consequences and ongoing developments
+
+Rules:
+- Use ONLY facts from the claims above
+- Prioritize claims with more sources (higher corroboration count)
+- No speculation or editorializing
+- Be comprehensive but concise"""
 
         response = await self.openai_client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
