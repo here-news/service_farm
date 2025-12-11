@@ -237,3 +237,107 @@ async def get_event_tree(event_id: str):
         'entities': [entity_to_dict(e) for e in entities],
         'claims': [claim_to_dict(c) for c in claims],
     }
+
+
+@router.get("/entities/{entity_id}")
+async def get_entity(entity_id: str):
+    """
+    Get entity details by ID
+
+    Returns entity with Wikidata enrichment, aliases, and related claims
+    """
+    _, claim_repo, entity_repo = await init_services()
+
+    # Validate ID format
+    if not entity_id.startswith('en_'):
+        raise HTTPException(status_code=400, detail="Invalid entity ID format. Expected: en_xxxxxxxx")
+
+    entity = await entity_repo.get_by_id(entity_id)
+    if not entity:
+        raise HTTPException(status_code=404, detail="Entity not found")
+
+    # Get claims mentioning this entity
+    claims = await claim_repo.get_claims_by_entity(entity_id)
+
+    return {
+        'entity': {
+            'id': str(entity.id),
+            'canonical_name': entity.canonical_name,
+            'entity_type': entity.entity_type,
+            'aliases': entity.aliases,
+            'mention_count': entity.mention_count,
+            'profile_summary': entity.profile_summary,
+            'wikidata_qid': entity.wikidata_qid,
+            'wikidata_label': entity.wikidata_label,
+            'wikidata_description': entity.wikidata_description,
+            'wikidata_image': entity.wikidata_image,
+            'status': entity.status,
+            'confidence': entity.confidence,
+            'metadata': entity.metadata,
+        },
+        'claims': [
+            {
+                'id': str(c.id),
+                'text': c.text,
+                'event_time': c.event_time.isoformat() if c.event_time and hasattr(c.event_time, 'isoformat') else str(c.event_time) if c.event_time else None,
+                'confidence': c.confidence,
+                'page_id': str(c.page_id),
+            }
+            for c in claims
+        ],
+        'claims_count': len(claims),
+    }
+
+
+@router.get("/claims/{claim_id}")
+async def get_claim(claim_id: str):
+    """
+    Get claim details by ID
+
+    Returns claim with source page info and mentioned entities
+    """
+    _, claim_repo, entity_repo = await init_services()
+
+    # Validate ID format
+    if not claim_id.startswith('cl_'):
+        raise HTTPException(status_code=400, detail="Invalid claim ID format. Expected: cl_xxxxxxxx")
+
+    claim = await claim_repo.get_by_id(claim_id)
+    if not claim:
+        raise HTTPException(status_code=404, detail="Claim not found")
+
+    # Get entities mentioned in this claim
+    entities = await claim_repo.get_entities_for_claim(claim_id)
+
+    # Get page info
+    from repositories.page_repository import PageRepository
+    page_repo = PageRepository(db_pool, neo4j_service)
+    page = await page_repo.get_by_id(claim.page_id)
+
+    return {
+        'claim': {
+            'id': str(claim.id),
+            'text': claim.text,
+            'event_time': claim.event_time.isoformat() if claim.event_time and hasattr(claim.event_time, 'isoformat') else str(claim.event_time) if claim.event_time else None,
+            'confidence': claim.confidence,
+            'modality': claim.modality,
+            'topic_key': claim.topic_key,
+            'page_id': str(claim.page_id),
+        },
+        'source': {
+            'page_id': str(page.id) if page else None,
+            'url': page.url if page else None,
+            'title': page.title if page else None,
+            'site_name': page.site_name if page else None,
+            'domain': page.domain if page else None,
+        } if page else None,
+        'entities': [
+            {
+                'id': str(e.id),
+                'canonical_name': e.canonical_name,
+                'entity_type': e.entity_type,
+                'wikidata_qid': e.wikidata_qid,
+            }
+            for e in entities
+        ],
+    }
