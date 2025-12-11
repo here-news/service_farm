@@ -54,7 +54,7 @@ services:
       retries: 5
 
   # Frontend Builder (builds React app to static/)
-  # Usage: docker-compose build frontend && docker-compose run --rm frontend
+  # Usage: docker-compose run --rm frontend
   frontend:
     build:
       context: ./frontend
@@ -62,6 +62,8 @@ services:
     volumes:
       - ./static:/output
     command: sh -c "cp -r /app/dist/* /output/"
+    profiles:
+      - build
 
   # Unified App (FastAPI backend + React frontend)
   app:
@@ -95,7 +97,7 @@ services:
         condition: service_healthy
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 
-  # Extraction Worker (3 instances for parallel processing)
+  # Extraction Worker (2 instances for parallel processing)
   worker-extraction-1:
     build:
       context: ./backend
@@ -133,30 +135,6 @@ services:
       POSTGRES_PASSWORD: herenews_pass
       REDIS_URL: redis://redis:6379
       WORKER_ID: "2"
-    volumes:
-      - ./backend:/app
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      app:
-        condition: service_started
-    command: python run_extraction_worker.py
-
-  worker-extraction-3:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: herenews-worker-extraction-3
-    environment:
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
-      POSTGRES_DB: herenews
-      POSTGRES_USER: herenews_user
-      POSTGRES_PASSWORD: herenews_pass
-      REDIS_URL: redis://redis:6379
-      WORKER_ID: "3"
     volumes:
       - ./backend:/app
     depends_on:

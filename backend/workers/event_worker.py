@@ -108,7 +108,11 @@ class EventWorker:
         """
         Start worker loop.
 
-        Layer 1: Monitor queue for knowledge_complete signal (page_id)
+        Listens to two queues:
+        1. queue:event:high - knowledge_complete signal (page_id) for new claims
+        2. queue:event:command - commands for living events (e.g., /retopologize)
+
+        Commands are processed with higher priority (checked first, non-blocking).
         """
         logger.info(f"📊 event-worker-{self.worker_id} started")
 
@@ -118,6 +122,14 @@ class EventWorker:
         try:
             while True:
                 try:
+                    # Check command queue first (non-blocking, higher priority)
+                    cmd = await self.job_queue.dequeue_nonblocking(
+                        self.job_queue.COMMAND_QUEUE
+                    )
+                    if cmd:
+                        await self.process_command(cmd)
+                        continue  # Check for more commands before processing pages
+
                     # Listen for knowledge_complete signal with page_id
                     job = await self.job_queue.dequeue('queue:event:high', timeout=5)
 
@@ -131,6 +143,39 @@ class EventWorker:
 
         except KeyboardInterrupt:
             logger.info("Received shutdown signal")
+
+    async def process_command(self, cmd: dict):
+        """
+        Process a command sent to a living event.
+
+        Commands are MCP-like paths that instruct events to perform actions.
+
+        Supported commands:
+        - /retopologize: Re-run Bayesian topology analysis and regenerate narrative
+        - /regenerate: Regenerate narrative (without full topology re-analysis)
+        - /hibernate: Force hibernate the event
+        - /status: Log current event status
+
+        Args:
+            cmd: Command dict with 'event_id', 'command', 'params'
+        """
+        event_id = cmd.get('event_id')
+        command = cmd.get('command', '').strip()
+        params = cmd.get('params', {})
+
+        logger.info(f"📨 Command received: {command} for {event_id}")
+
+        if not event_id or not command:
+            logger.warning(f"⚠️ Invalid command: missing event_id or command")
+            return
+
+        # Route to pool for handling
+        result = await self.pool.handle_command(event_id, command, params)
+
+        if result.get('success'):
+            logger.info(f"✅ Command {command} completed for {event_id}")
+        else:
+            logger.warning(f"⚠️ Command {command} failed: {result.get('error')}")
 
     async def process_page(self, page_id: str):
         """

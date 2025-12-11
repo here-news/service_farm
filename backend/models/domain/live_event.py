@@ -17,6 +17,7 @@ from dataclasses import dataclass
 
 from models.domain.event import Event
 from models.domain.claim import Claim
+from utils.datetime_utils import neo4j_datetime_to_python
 
 logger = logging.getLogger(__name__)
 
@@ -78,9 +79,14 @@ class LiveEvent:
         Load full state from storage.
 
         Called when loading existing event into pool.
+        Restores claims, priors, and cached plausibility data.
         """
         # Load all claims for this event
         self.claims = await claim_repo.get_by_event(self.event.id)
+
+        # Hydrate entities for each claim (needed for narrative generation)
+        for claim in self.claims:
+            await claim_repo.hydrate_entities(claim)
 
         # Extract entity IDs
         for claim in self.claims:
@@ -94,15 +100,44 @@ class LiveEvent:
         # Also load page URLs as fallback for claims without stored priors
         self.page_urls = await claim_repo.get_page_urls_for_claims(claim_ids)
 
-        # Set last claim time
+        # Load cached plausibilities from Neo4j (stored on SUPPORTS relationship)
+        await self._hydrate_plausibilities(claim_repo)
+
+        # Set last claim time (convert Neo4j DateTime to Python datetime)
         if self.claims:
-            # Assume claims are sorted by created_at
-            self.last_claim_added = max(c.created_at for c in self.claims if c.created_at)
+            claim_times = []
+            for c in self.claims:
+                if c.created_at:
+                    dt = neo4j_datetime_to_python(c.created_at)
+                    if dt:
+                        claim_times.append(dt)
+            if claim_times:
+                self.last_claim_added = max(claim_times)
 
         # Log source prior coverage
         stored_priors = sum(1 for p in self.publisher_priors.values() if p.get('base_prior'))
+        plaus_count = len(self.claim_plausibilities) if hasattr(self, 'claim_plausibilities') else 0
         logger.info(f"💧 Hydrated event: {self.event.canonical_name} ({len(self.claims)} claims, "
-                   f"{stored_priors}/{len(claim_ids)} with stored priors)")
+                   f"{stored_priors}/{len(claim_ids)} with stored priors, {plaus_count} with plausibility)")
+
+    async def _hydrate_plausibilities(self, claim_repo):
+        """
+        Load cached plausibility scores from Neo4j.
+
+        Plausibilities are stored on SUPPORTS relationships during topology analysis.
+        Loading them avoids re-running expensive topology on every hydrate.
+        """
+        # Dict to store plausibilities: claim_id -> float
+        self.claim_plausibilities = {}
+
+        # Load from Neo4j via event_repo (accessed through service)
+        plausibilities = await self.service.event_repo.get_all_claim_plausibilities(self.event.id)
+
+        if plausibilities:
+            self.claim_plausibilities = plausibilities
+            # Mark topology as already computed (don't need to re-run)
+            self.last_topology_update = datetime.utcnow()
+            logger.debug(f"📊 Loaded {len(plausibilities)} cached plausibilities")
 
     async def examine(self, new_claims: List[Claim]):
         """
@@ -326,7 +361,7 @@ class LiveEvent:
         2. Compute plausibility posteriors for all claims
         3. Detect date consensus and penalize outliers
         4. Identify and report contradictions
-        5. Generate narrative weighted by plausibility
+        5. Generate narrative via EventService with topology context
 
         Returns:
             Narrative text weighted by claim plausibility
@@ -334,8 +369,6 @@ class LiveEvent:
         logger.info(f"🧬 Using Bayesian topology for {len(self.claims)} claims")
 
         # Run topology analysis with stored publisher priors
-        # Priors are stored on publisher entities during knowledge extraction
-        # page_urls is fallback for claims without stored priors
         topology = await self.topology_service.analyze(
             claims=self.claims,
             publisher_priors=self.publisher_priors,
@@ -349,11 +382,15 @@ class LiveEvent:
         # Store plausibilities on claims (for graph update)
         await self._update_claim_plausibilities(topology)
 
-        # Generate weighted narrative
-        narrative = await self.topology_service.generate_weighted_narrative(
-            self.event.canonical_name,
+        # Get topology context for narrative generation
+        topology_context = self.topology_service.get_topology_context(topology)
+
+        # Generate narrative using EventService (unified approach)
+        # Pass topology context so it can use plausibility-weighted claims
+        narrative = await self.service._generate_event_narrative_with_topology(
+            self.event,
             self.claims,
-            topology
+            topology_context
         )
 
         logger.info(f"🧬 Bayesian narrative: pattern={topology.pattern}, "
@@ -402,9 +439,19 @@ class LiveEvent:
 
     def idle_time_seconds(self) -> float:
         """Seconds since last claim was added"""
-        if not self.last_claim_added:
-            return (datetime.utcnow() - self.created_at).total_seconds()
-        return (datetime.utcnow() - self.last_claim_added).total_seconds()
+        now = datetime.utcnow()
+        ref_time = self.last_claim_added if self.last_claim_added else self.created_at
+
+        # Handle timezone-aware vs naive datetime comparison
+        if ref_time and hasattr(ref_time, 'tzinfo') and ref_time.tzinfo is not None:
+            # ref_time is timezone-aware, make now UTC-aware too
+            from datetime import timezone
+            now = datetime.now(timezone.utc)
+
+        if not ref_time:
+            return 0.0
+
+        return (now - ref_time).total_seconds()
 
     def should_hibernate(self) -> bool:
         """
@@ -424,6 +471,210 @@ class LiveEvent:
             last_narrative_update=self.last_narrative_update,
             created_at=self.created_at
         )
+
+    # ==================== Command Handlers ====================
+    # MCP-like command interface for external control of living events
+
+    async def handle_command(self, command: str, params: dict = None) -> dict:
+        """
+        Handle a command sent to this living event.
+
+        Commands are MCP-like paths that trigger specific behaviors.
+        This is the event's "listening" interface - other parts of the
+        system can communicate with living events through commands.
+
+        Supported commands:
+        - /retopologize: Re-run full Bayesian topology analysis and regenerate narrative
+        - /regenerate: Regenerate narrative (uses cached topology if recent)
+        - /status: Return current event status
+        - /rehydrate: Reload claims from storage
+
+        Args:
+            command: Command path (e.g., '/retopologize')
+            params: Optional parameters dict
+
+        Returns:
+            Result dict with 'success' and optional 'data' or 'error'
+        """
+        params = params or {}
+
+        # Normalize command (strip slashes, lowercase)
+        cmd = command.strip('/').lower()
+
+        logger.info(f"🎯 {self.event.canonical_name} handling command: /{cmd}")
+
+        # Dispatch to handler
+        handlers = {
+            'retopologize': self._cmd_retopologize,
+            'regenerate': self._cmd_regenerate,
+            'status': self._cmd_status,
+            'rehydrate': self._cmd_rehydrate,
+        }
+
+        handler = handlers.get(cmd)
+        if not handler:
+            return {
+                'success': False,
+                'error': f'Unknown command: {command}',
+                'available_commands': list(handlers.keys())
+            }
+
+        return await handler(params)
+
+    async def _cmd_retopologize(self, params: dict) -> dict:
+        """
+        /retopologize - Re-run full Bayesian topology analysis.
+
+        This forces a complete re-analysis of all claims:
+        1. Regenerate embeddings if needed
+        2. Build similarity network
+        3. Classify relations (corroborate/contradict/update)
+        4. Compute Bayesian posteriors
+        5. Update plausibility scores in graph
+        6. Regenerate weighted narrative
+
+        Use this when:
+        - New claims have been added and plausibilities are stale
+        - Debugging claim scoring
+        - After fixing topology bugs
+        """
+        logger.info(f"🧬 /retopologize: Starting full topology analysis for {self.event.canonical_name}")
+
+        if not self.topology_service:
+            return {
+                'success': False,
+                'error': 'Topology service not available'
+            }
+
+        if len(self.claims) < 3:
+            return {
+                'success': False,
+                'error': f'Need at least 3 claims for topology analysis (have {len(self.claims)})'
+            }
+
+        # Force topology re-run by clearing cache
+        self._topology_result = None
+        self.last_topology_update = None
+
+        # Run full Bayesian analysis and narrative regeneration
+        narrative = await self._regenerate_narrative_bayesian()
+
+        # Update in storage
+        await self.service.event_repo.update_narrative(self.event.id, narrative)
+        self.event.summary = narrative
+        self.last_narrative_update = datetime.utcnow()
+
+        topology = self._topology_result
+
+        return {
+            'success': True,
+            'data': {
+                'claims_analyzed': len(self.claims),
+                'pattern': topology.pattern if topology else 'unknown',
+                'contradictions': len(topology.contradictions) if topology else 0,
+                'consensus_date': topology.consensus_date if topology else None,
+                'narrative_length': len(narrative)
+            }
+        }
+
+    async def _cmd_regenerate(self, params: dict) -> dict:
+        """
+        /regenerate - Regenerate narrative.
+
+        Uses existing topology if recent (< 1 hour), otherwise runs fresh analysis.
+        Lighter weight than /retopologize.
+
+        Params:
+            force: If True, always regenerate (default: False)
+        """
+        force = params.get('force', False)
+
+        logger.info(f"📝 /regenerate: Regenerating narrative for {self.event.canonical_name} (force={force})")
+
+        if not force and not self.needs_narrative_update():
+            return {
+                'success': True,
+                'data': {
+                    'skipped': True,
+                    'reason': 'Narrative is already up to date'
+                }
+            }
+
+        await self.regenerate_narrative()
+
+        return {
+            'success': True,
+            'data': {
+                'narrative_length': len(self.event.summary) if self.event.summary else 0,
+                'updated_at': self.last_narrative_update.isoformat()
+            }
+        }
+
+    async def _cmd_status(self, params: dict) -> dict:
+        """
+        /status - Return current event status.
+
+        Returns detailed status info for debugging and monitoring.
+        """
+        logger.info(f"📊 /status: Returning status for {self.event.canonical_name}")
+
+        # Count claims with plausibility
+        claims_with_plausibility = 0
+        if self._topology_result:
+            claims_with_plausibility = len(self._topology_result.claim_plausibilities)
+
+        return {
+            'success': True,
+            'data': {
+                'event_id': self.event.id,
+                'canonical_name': self.event.canonical_name,
+                'status': self.event.status,
+                'confidence': self.event.confidence,
+                'coherence': self.event.coherence,
+                'claims_count': len(self.claims),
+                'entity_count': len(self.entity_ids),
+                'claims_with_plausibility': claims_with_plausibility,
+                'last_claim_added': self.last_claim_added.isoformat() if self.last_claim_added else None,
+                'last_narrative_update': self.last_narrative_update.isoformat(),
+                'last_topology_update': self.last_topology_update.isoformat() if self.last_topology_update else None,
+                'idle_seconds': self.idle_time_seconds(),
+                'needs_narrative_update': self.needs_narrative_update(),
+                'needs_topology_update': self.needs_topology_update(),
+                'topology_pattern': self._topology_result.pattern if self._topology_result else None,
+                'has_topology_service': self.topology_service is not None
+            }
+        }
+
+    async def _cmd_rehydrate(self, params: dict) -> dict:
+        """
+        /rehydrate - Reload claims and state from storage.
+
+        Use this after manual database changes or to sync state.
+        """
+        logger.info(f"💧 /rehydrate: Reloading state for {self.event.canonical_name}")
+
+        old_claim_count = len(self.claims)
+
+        # Need claim_repo - get it from service
+        claim_repo = self.service.claim_repo
+
+        # Clear and reload
+        self.claims = []
+        self.entity_ids = set()
+        self.publisher_priors = {}
+        self.page_urls = {}
+
+        await self.hydrate(claim_repo)
+
+        return {
+            'success': True,
+            'data': {
+                'claims_before': old_claim_count,
+                'claims_after': len(self.claims),
+                'entities': len(self.entity_ids),
+                'priors_loaded': len(self.publisher_priors)
+            }
+        }
 
     def __repr__(self):
         return f"<LiveEvent {self.event.canonical_name} ({len(self.claims)} claims, idle={self.idle_time_seconds():.0f}s)>"

@@ -254,5 +254,48 @@ class LiveEventPool:
             ]
         }
 
+    async def handle_command(self, event_id: str, command: str, params: dict = None) -> dict:
+        """
+        Handle a command for a living event.
+
+        This is the pool's command router - it loads the event if needed
+        and dispatches the command to the LiveEvent's handler.
+
+        Supported commands:
+        - /retopologize: Re-run full Bayesian topology analysis
+        - /regenerate: Regenerate narrative
+        - /hibernate: Force hibernate
+        - /status: Return current status
+
+        Args:
+            event_id: Target event ID
+            command: Command path (e.g., '/retopologize')
+            params: Optional parameters
+
+        Returns:
+            Result dict with 'success' and optional 'data' or 'error'
+        """
+        params = params or {}
+
+        logger.info(f"🎮 Pool handling command: {command} for {event_id}")
+
+        # Load event if not in pool
+        if event_id not in self.active:
+            logger.info(f"📥 Loading event {event_id} for command")
+            await self._load_event(event_id)
+
+        if event_id not in self.active:
+            return {'success': False, 'error': f'Event {event_id} not found'}
+
+        live_event = self.active[event_id]
+
+        # Dispatch command to LiveEvent
+        try:
+            result = await live_event.handle_command(command, params)
+            return result
+        except Exception as e:
+            logger.error(f"❌ Command {command} failed: {e}", exc_info=True)
+            return {'success': False, 'error': str(e)}
+
     def __repr__(self):
         return f"<LiveEventPool: {len(self.active)} active events>"

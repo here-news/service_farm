@@ -949,6 +949,127 @@ Use markdown headers (**Section**) only where natural topic breaks exist."""
         logger.info(f"📖 Generated narrative: {len(narrative)} chars from {len(claims)} claims ({len(enriched_claims)} with corroboration data)")
         return narrative
 
+    async def _generate_event_narrative_with_topology(
+        self,
+        event: Event,
+        claims: List[Claim],
+        topology_context: dict
+    ) -> str:
+        """
+        Generate narrative using topology-enriched claims.
+
+        This extends _generate_event_narrative with Bayesian plausibility data:
+        - Uses consensus_date from topology
+        - Includes contradiction handling
+        - Prioritizes high-plausibility claims
+
+        Args:
+            event: Event to generate narrative for
+            claims: All claims supporting this event
+            topology_context: Dict with consensus_date, pattern, contradictions
+
+        Returns:
+            Comprehensive narrative with structure and claim references
+        """
+        if not claims:
+            return f"{event.canonical_name} - No details available."
+
+        # Enrich claims with corroboration data (existing logic)
+        enriched_claims = await self._enrich_claims_with_corroboration(claims)
+
+        # Add plausibility from Neo4j (stored by topology analysis)
+        for ec in enriched_claims:
+            plausibility = await self.event_repo.get_claim_plausibility(event.id, ec['id'])
+            ec['plausibility'] = plausibility if plausibility else 0.5
+
+        # Sort by plausibility (highest first), then chronologically
+        def sort_key(c):
+            plaus = c.get('plausibility', 0.5)
+            has_date = 1 if c['event_time'] else 0
+            date_val = str(c['event_time']) if c['event_time'] else 'z'
+            return (-plaus, -has_date, date_val)
+
+        sorted_claims = sorted(enriched_claims, key=sort_key)[:50]
+
+        # Format claims with timestamps and plausibility
+        def format_time(t):
+            if not t:
+                return 'undated'
+            if hasattr(t, 'strftime'):
+                return t.strftime('%Y-%m-%d %H:%M')
+            return str(t)[:16] if len(str(t)) > 16 else str(t)
+
+        # Build entity lookup
+        entity_lookup = {}
+        for c in sorted_claims:
+            for ent in c.get('entities', []):
+                if ent.get('name') and ent.get('id'):
+                    entity_lookup[ent['name']] = ent['id']
+
+        # Format claims with IDs, plausibility, and sources
+        claims_str = "\n".join([
+            f"[{c['id']}] {c['text']} (plausibility: {c.get('plausibility', 0.5):.2f}, sources: {c['corroboration_count'] + 1}, time: {format_time(c['event_time'])})"
+            for c in sorted_claims
+        ])
+
+        entity_list = "\n".join([f"- {name} → {eid}" for name, eid in entity_lookup.items()])
+
+        # Format contradictions from topology
+        contradictions_str = ""
+        if topology_context.get('contradictions'):
+            contra_lines = []
+            for c in topology_context['contradictions'][:5]:
+                contra_lines.append(f"  [{c['claim1_id']}] vs [{c['claim2_id']}]: \"{c['text1'][:50]}...\" vs \"{c['text2'][:50]}...\"")
+            contradictions_str = "\nCONTRADICTIONS (use 'reports vary' language):\n" + "\n".join(contra_lines)
+
+        # Build topology context for prompt
+        consensus_date = topology_context.get('consensus_date')
+        pattern = topology_context.get('pattern', 'unknown')
+
+        date_instruction = f"Use {consensus_date} as the event date." if consensus_date else "Date is uncertain."
+
+        # Get superseded claims to mark them
+        superseded_ids = set(topology_context.get('superseded_by', {}).keys())
+
+        prompt = f"""Synthesize these claims into a coherent factual narrative with embedded references.
+
+Event: {event.canonical_name}
+Type: {event.event_type}
+DATE: {date_instruction}
+Pattern: {pattern}
+
+CLAIMS (sorted by plausibility - higher = more reliable):
+{claims_str}
+{contradictions_str}
+
+SUPERSEDED CLAIMS (these have been updated by newer information - use as "earlier reports"):
+{', '.join(superseded_ids) if superseded_ids else '(none)'}
+
+ENTITY IDs (use these when mentioning entities):
+{entity_list}
+
+RULES:
+1. Embed claim references as [claim_id] after each statement
+2. Mark entity names with their ID on first mention: "John Lee [en_tq6x7efn]"
+3. Claims with plausibility ≥0.70 are ESTABLISHED FACTS - state them confidently
+4. Claims with plausibility <0.50 or in SUPERSEDED list should be mentioned as "earlier reports" or "initial estimates"
+5. For evolving numbers (casualties, etc.): use the highest-plausibility figure as current, reference lower figures as earlier reports
+6. Combine corroborating claims: [id1][id2]
+
+EXAMPLE: "The fire killed 160 people [cl_i60f189d], up from initial reports of 83 deaths [cl_ypmqmfjb]."
+
+Use markdown headers (**Section**) only where natural topic breaks exist."""
+
+        response = await self.openai_client.chat.completions.create(
+            messages=[{"role": "user", "content": prompt}],
+            model="gpt-4o",
+            temperature=0.3
+        )
+
+        narrative = response.choices[0].message.content.strip()
+        logger.info(f"📖 Generated topology-weighted narrative: {len(narrative)} chars from {len(claims)} claims (pattern={pattern})")
+        return narrative
+
     async def _enrich_claims_with_corroboration(self, claims: List[Claim]) -> List[dict]:
         """
         Enrich claims with corroboration count, entity info, and metadata.
@@ -961,12 +1082,23 @@ Use markdown headers (**Section**) only where natural topic breaks exist."""
             corr_count = await self.claim_repo.get_corroboration_count(claim.id)
 
             # Build entity info: list of {id, name} for entities mentioned in this claim
+            # Prefer hydrated Entity objects (with canonical_name), fall back to metadata
             entities = []
-            entity_ids = claim.entity_ids
-            entity_names = claim.entity_names
-            for i, eid in enumerate(entity_ids):
-                name = entity_names[i] if i < len(entity_names) else None
-                entities.append({'id': eid, 'name': name})
+            if claim.entities:
+                # Use hydrated entities with canonical_name
+                for ent in claim.entities:
+                    entities.append({
+                        'id': ent.id,
+                        'name': ent.canonical_name,
+                        'type': ent.entity_type
+                    })
+            else:
+                # Fall back to metadata (entity_ids + entity_names)
+                entity_ids = claim.entity_ids
+                entity_names = claim.entity_names
+                for i, eid in enumerate(entity_ids):
+                    name = entity_names[i] if i < len(entity_names) else None
+                    entities.append({'id': eid, 'name': name})
 
             enriched.append({
                 'id': claim.id,

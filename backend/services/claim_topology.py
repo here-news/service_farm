@@ -50,6 +50,9 @@ class TopologyResult:
     consensus_date: Optional[str]
     contradictions: List[Dict]
     pattern: str  # 'consensus', 'progressive', 'contradictory', 'mixed'
+    # Update chains: maps superseded_claim_id -> superseding_claim_id
+    # Claims in this dict as keys are outdated and should be treated as "earlier reports"
+    superseded_by: Dict[str, str] = field(default_factory=dict)
 
 
 class ClaimTopologyService:
@@ -237,14 +240,17 @@ Pair {i+1}:
 RELATIONSHIP TYPES:
 - corroborates: Same fact, confirms each other
 - contradicts: Conflicting facts that cannot both be true
-- updates: Later claim updates/revises earlier (common for casualty counts)
+- updates: Later claim updates/revises earlier (common for casualty counts in disasters)
 - complements: Related but different aspects
 
-IMPORTANT: If numbers INCREASE over time (e.g., "5 dead" → "36 dead"), this is typically an UPDATE.
+For "updates": Also specify which claim is newer (A or B).
+- If numbers INCREASE over time (e.g., "5 dead" → "36 dead"), this is an UPDATE where the higher number is newer.
+- In disasters, casualty counts typically increase as more victims are found.
 
 {chr(10).join(pairs_text)}
 
-Return JSON: {{"results": [{{"pair": 1, "relation": "updates"}}]}}"""
+Return JSON: {{"results": [{{"pair": 1, "relation": "updates", "newer": "B"}}]}}
+For non-update relations, omit "newer"."""
 
         try:
             response = await self.openai.chat.completions.create(
@@ -263,8 +269,18 @@ Return JSON: {{"results": [{{"pair": 1, "relation": "updates"}}]}}"""
                 idx = item.get('pair', 0) - 1
                 if 0 <= idx < len(pairs):
                     c1, c2, _ = pairs[idx]
-                    key = tuple(sorted([c1.id, c2.id]))
-                    results[key] = item.get('relation', 'complements')
+                    relation = item.get('relation', 'complements')
+                    newer = item.get('newer')  # 'A' or 'B' for updates
+
+                    # For updates, store as tuple: (relation, newer_claim_id, older_claim_id)
+                    if relation == 'updates' and newer:
+                        if newer == 'A':
+                            results[(c1.id, c2.id)] = ('updates', c1.id, c2.id)  # c1 is newer
+                        else:
+                            results[(c1.id, c2.id)] = ('updates', c2.id, c1.id)  # c2 is newer
+                    else:
+                        key = tuple(sorted([c1.id, c2.id]))
+                        results[key] = relation
 
             return results
 
@@ -304,10 +320,10 @@ Return JSON: {{"results": [{{"pair": 1, "relation": "updates"}}]}}"""
                 evidence_against.append(neighbor_id)
 
             elif relation == 'updates':
-                # Updates: boost if this is the later claim
-                factor = 1.1
+                # Updates: handled specially - newer claims boost, older penalized
+                # This branch is for claims that have an update relation but direction unknown
+                factor = 1.0  # Neutral - direction handled in analyze()
                 log_likelihood += math.log(factor)
-                evidence_for.append(neighbor_id)
 
             elif relation == 'complements':
                 factor = 1.0 + 0.1 * similarity
@@ -421,14 +437,32 @@ Return JSON: {{"results": [{{"pair": 1, "relation": "updates"}}]}}"""
         logger.info(f"  🔗 Classifying {len(high_sim_pairs)} high-similarity pairs...")
         relations = await self.classify_relations(high_sim_pairs, claim_numbers, claim_times)
 
+        # Extract update chains (superseded_id -> superseding_id)
+        superseded_by: Dict[str, str] = {}
+        for key, val in relations.items():
+            if isinstance(val, tuple) and val[0] == 'updates':
+                _, newer_id, older_id = val
+                superseded_by[older_id] = newer_id
+                logger.debug(f"  📝 Update chain: {older_id[:12]} superseded by {newer_id[:12]}")
+
         # Compute posteriors
         logger.info(f"  📈 Computing posteriors...")
         results = {}
         for claim in claims:
             neighbors = []
             for neighbor_id, similarity in network.get(claim.id, []):
+                # Handle both string relations and tuple (for updates)
                 key = tuple(sorted([claim.id, neighbor_id]))
-                relation = relations.get(key, 'complements')
+                rel = relations.get(key)
+                if rel is None:
+                    # Try ordered key for updates
+                    rel = relations.get((claim.id, neighbor_id)) or relations.get((neighbor_id, claim.id))
+
+                if isinstance(rel, tuple):
+                    relation = rel[0]  # 'updates'
+                else:
+                    relation = rel or 'complements'
+
                 neighbors.append((neighbor_id, similarity, relation))
 
             result = self.compute_posterior(
@@ -475,6 +509,20 @@ Return JSON: {{"results": [{{"pair": 1, "relation": "updates"}}]}}"""
                 result.posterior = 1 / (1 + math.exp(-z * 0.8))
                 result.posterior = min(0.95, max(0.10, result.posterior))
 
+        # Apply superseded penalty: claims that have been updated get lower plausibility
+        # This ensures newer figures are preferred over older ones
+        for old_id, new_id in superseded_by.items():
+            if old_id in results and new_id in results:
+                old_result = results[old_id]
+                new_result = results[new_id]
+                # Only penalize if newer claim has decent plausibility
+                if new_result.posterior > 0.5:
+                    # Reduce old claim's plausibility significantly
+                    old_result.posterior = min(old_result.posterior, 0.45)
+                    # Boost newer claim slightly
+                    new_result.posterior = min(0.95, new_result.posterior * 1.1)
+                    logger.debug(f"  ⬇️ Superseded penalty: {old_id[:12]} -> {old_result.posterior:.2f}")
+
         # Find contradictions
         contradictions = []
         seen = set()
@@ -497,7 +545,9 @@ Return JSON: {{"results": [{{"pair": 1, "relation": "updates"}}]}}"""
                         })
 
         # Determine pattern
-        n_updates = sum(1 for rel in relations.values() if rel == 'updates')
+        # Count updates (now stored as tuples)
+        n_updates = sum(1 for rel in relations.values()
+                       if (isinstance(rel, tuple) and rel[0] == 'updates') or rel == 'updates')
         n_contradicts = len(contradictions)
         n_corroborates = sum(1 for rel in relations.values() if rel == 'corroborates')
 
@@ -510,33 +560,30 @@ Return JSON: {{"results": [{{"pair": 1, "relation": "updates"}}]}}"""
         else:
             pattern = 'mixed'
 
-        logger.info(f"  📊 Pattern: {pattern}, LLM calls: {self.llm_calls}")
+        logger.info(f"  📊 Pattern: {pattern}, updates: {n_updates}, superseded: {len(superseded_by)}, LLM calls: {self.llm_calls}")
 
         return TopologyResult(
             claim_plausibilities=results,
             consensus_date=consensus_date,
             contradictions=contradictions,
-            pattern=pattern
+            pattern=pattern,
+            superseded_by=superseded_by
         )
 
-    async def generate_weighted_narrative(
+    def enrich_claims_with_plausibility(
         self,
-        event_name: str,
         claims: List[Claim],
         topology: TopologyResult
-    ) -> str:
+    ) -> List[dict]:
         """
-        Generate narrative weighted by plausibility scores.
+        Enrich claims with plausibility data for narrative generation.
 
-        Uses Bayesian posteriors to decide what to state as fact vs uncertain.
+        This prepares claim data to be passed to EventService._generate_event_narrative
+        so we don't duplicate narrative generation logic.
+
+        Returns list of dicts compatible with EventService's enriched claims format,
+        with plausibility data added.
         """
-        self.llm_calls += 1
-
-        # Categorize claims by posterior
-        facts = []  # posterior >= 0.70
-        uncertain = []  # 0.50 <= posterior < 0.70
-        contested = []  # in contradiction pairs with similar posteriors
-
         contested_ids = set()
         for contra in topology.contradictions:
             diff = abs(contra['posterior1'] - contra['posterior2'])
@@ -544,65 +591,52 @@ Return JSON: {{"results": [{{"pair": 1, "relation": "updates"}}]}}"""
                 contested_ids.add(contra['claim1_id'])
                 contested_ids.add(contra['claim2_id'])
 
+        enriched = []
         for claim in claims:
-            if claim.id in contested_ids:
-                continue
             result = topology.claim_plausibilities.get(claim.id)
-            if result:
-                if result.posterior >= 0.70:
-                    facts.append((claim, result))
-                elif result.posterior >= 0.50:
-                    uncertain.append((claim, result))
+            plausibility = result.posterior if result else 0.5
 
-        facts.sort(key=lambda x: x[1].posterior, reverse=True)
-        uncertain.sort(key=lambda x: x[1].posterior, reverse=True)
+            # Build entity info
+            entities = []
+            for i, eid in enumerate(claim.entity_ids):
+                name = claim.entity_names[i] if i < len(claim.entity_names) else None
+                entities.append({'id': eid, 'name': name})
 
-        # Format claims
-        def format_claim(c, r):
-            return f"  [{r.posterior:.2f}] {c.text}"
+            enriched.append({
+                'id': claim.id,
+                'text': claim.text,
+                'confidence': claim.confidence,
+                'plausibility': plausibility,
+                'is_contested': claim.id in contested_ids,
+                'corroboration_count': len(result.evidence_for) if result else 0,
+                'has_time': claim.event_time is not None,
+                'event_time': claim.event_time,
+                'entities': entities,
+                'claim': claim
+            })
 
-        facts_text = "\n".join(format_claim(c, r) for c, r in facts[:15])
-        uncertain_text = "\n".join(format_claim(c, r) for c, r in uncertain[:10])
+        # Sort by plausibility (highest first), then by time
+        enriched.sort(key=lambda c: (-c['plausibility'], c['event_time'] or ''))
 
-        contested_text = "\n".join(
-            f"  • {c['text1'][:80]}... ({c['posterior1']:.2f})\n"
-            f"    vs {c['text2'][:80]}... ({c['posterior2']:.2f})"
-            for c in topology.contradictions[:5]
-        )
+        return enriched
 
-        date_info = f"EVENT DATE: {topology.consensus_date}" if topology.consensus_date else "EVENT DATE: Unknown"
+    def get_topology_context(self, topology: TopologyResult) -> dict:
+        """
+        Extract topology context for narrative generation.
 
-        prompt = f"""Generate a factual news narrative based ONLY on the claims provided below.
-
-{date_info}
-
-CRITICAL RULES:
-- ONLY use information explicitly stated in the claims
-- Use the EVENT DATE above as the authoritative date
-- NEVER fabricate dates, names, numbers, or details
-
-ESTABLISHED FACTS (posterior ≥0.70):
-{facts_text or "  (none)"}
-
-SUPPORTING CLAIMS (posterior ≥0.50):
-{uncertain_text or "  (none)"}
-
-CONTESTED (similar evidence for both sides):
-{contested_text or "  (none)"}
-
-INSTRUCTIONS:
-1. State high-posterior facts directly
-2. Use EVENT DATE ({topology.consensus_date or 'unknown'}) for when the incident occurred
-3. For contested claims: "Reports vary, with some indicating X and others Y"
-4. Structure: What happened → Casualties → Response → Investigation
-5. Keep it concise - 3-4 paragraphs max
-
-Generate the narrative for: {event_name}"""
-
-        response = await self.openai.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.3
-        )
-
-        return response.choices[0].message.content
+        Returns context dict that can be used to augment narrative prompts.
+        """
+        return {
+            'consensus_date': topology.consensus_date,
+            'pattern': topology.pattern,
+            'contradictions': [
+                {
+                    'claim1_id': c['claim1_id'],
+                    'claim2_id': c['claim2_id'],
+                    'text1': c['text1'],
+                    'text2': c['text2']
+                }
+                for c in topology.contradictions
+            ],
+            'superseded_by': topology.superseded_by  # older_id -> newer_id
+        }

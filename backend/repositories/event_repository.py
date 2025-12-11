@@ -14,7 +14,7 @@ ID format: ev_xxxxxxxx (11 chars)
 """
 import logging
 import json
-from typing import Optional, List, Set, Tuple
+from typing import Optional, List, Set, Tuple, Dict
 from datetime import datetime
 import asyncpg
 import numpy as np
@@ -627,6 +627,62 @@ class EventRepository:
             'claim_id': claim_id,
             'plausibility': plausibility
         })
+
+    async def get_claim_plausibility(
+        self,
+        event_id: str,
+        claim_id: str
+    ) -> Optional[float]:
+        """
+        Get plausibility score for a claim in the context of an event.
+
+        Args:
+            event_id: Event ID
+            claim_id: Claim ID
+
+        Returns:
+            Plausibility score (0.0-1.0) or None if not set
+        """
+        result = await self.neo4j._execute_read("""
+            MATCH (e:Event {id: $event_id})-[r:SUPPORTS]->(c:Claim {id: $claim_id})
+            RETURN r.plausibility as plausibility
+        """, {
+            'event_id': event_id,
+            'claim_id': claim_id
+        })
+
+        if result and result[0].get('plausibility') is not None:
+            return float(result[0]['plausibility'])
+        return None
+
+    async def get_all_claim_plausibilities(
+        self,
+        event_id: str
+    ) -> Dict[str, float]:
+        """
+        Get all plausibility scores for claims in an event.
+
+        Used during hydration to restore cached topology results.
+
+        Args:
+            event_id: Event ID
+
+        Returns:
+            Dict mapping claim_id -> plausibility score
+        """
+        result = await self.neo4j._execute_read("""
+            MATCH (e:Event {id: $event_id})-[r:SUPPORTS]->(c:Claim)
+            WHERE r.plausibility IS NOT NULL
+            RETURN c.id as claim_id, r.plausibility as plausibility
+        """, {
+            'event_id': event_id
+        })
+
+        plausibilities = {}
+        for row in result:
+            plausibilities[row['claim_id']] = float(row['plausibility'])
+
+        return plausibilities
 
     async def list_root_events(
         self,
