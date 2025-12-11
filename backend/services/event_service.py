@@ -873,75 +873,45 @@ class EventService:
         # Enrich claims with corroboration data
         enriched_claims = await self._enrich_claims_with_corroboration(claims)
 
-        # Prioritize claims by corroboration count and confidence
-        prioritized = sorted(
-            enriched_claims,
-            key=lambda c: (c['corroboration_count'], c['confidence'], c['has_time']),
-            reverse=True
-        )
+        # Sort claims chronologically (dated first, then by corroboration)
+        def sort_key(c):
+            # Primary: has date (dated claims first)
+            # Secondary: date itself (chronological)
+            # Tertiary: corroboration count
+            has_date = 1 if c['event_time'] else 0
+            date_val = str(c['event_time']) if c['event_time'] else 'z'  # 'z' sorts after dates
+            return (-has_date, date_val, -c['corroboration_count'])
 
-        # Group claims by topic
-        claim_groups = self._group_claims_by_topic(prioritized[:50])  # Top 50 claims
+        sorted_claims = sorted(enriched_claims, key=sort_key)[:50]  # Top 50
 
-        # Build structured prompt with prioritized, grouped claims
-        claims_by_topic = []
-        for topic, topic_claims in claim_groups.items():
-            claims_text = "\n".join([
-                f"- {c['text']} (confidence: {c['confidence']:.2f}, corroborations: {c['corroboration_count']})"
-                for c in topic_claims[:15]  # Top 15 per topic
-            ])
-            claims_by_topic.append(f"{topic.upper()}:\n{claims_text}")
+        # Format claims with timestamps for LLM
+        def format_time(t):
+            if not t:
+                return 'undated'
+            if hasattr(t, 'strftime'):
+                return t.strftime('%Y-%m-%d %H:%M')
+            return str(t)[:16] if len(str(t)) > 16 else str(t)
 
-        claims_str = "\n\n".join(claims_by_topic)
+        claims_str = "\n".join([
+            f"- [{format_time(c['event_time'])}] {c['text']} (sources: {c['corroboration_count'] + 1})"
+            for c in sorted_claims
+        ])
 
-        prompt = f"""Generate a STRICTLY FACTUAL, STRUCTURED summary for this event using ONLY the corroboration-ranked claims below.
+        prompt = f"""Generate a factual summary for this event using ONLY the timestamped claims below.
 
 Event: {event.canonical_name}
-Type: {event.event_type}
-Coherence: {event.coherence:.2f}
 
-CLAIMS (ranked by corroboration count and confidence):
+CLAIMS (chronological, with source count):
 {claims_str}
 
-Generate a structured factual summary with these sections:
+Write a concise factual summary that:
+1. States the date from the claim timestamps (e.g., "On November 25-26, 2025...")
+2. Synthesizes the key facts: what happened, where, casualties, response
+3. Uses ranges for conflicting numbers (e.g., "36-156 deaths reported")
+4. Prioritizes claims with more sources (higher corroboration)
+5. Stays factual - no editorializing or speculation
 
-## INCIDENT
-- Date: [Extract exact date from claims, or state "Not specified - reported as [day of week]"]
-- Location: [Full location from claims]
-- What: [One sentence factual description]
-
-## CASUALTIES
-- Deaths: [Exact numbers from claims, show range if conflicting: "36-44"]
-- Injured: [Numbers]
-- Missing: [Numbers]
-- Critical: [Numbers]
-
-## EMERGENCY RESPONSE
-- [Factual list of response actions from claims]
-- [Resource numbers: trucks, ambulances, personnel]
-
-## TIMELINE
-- [Key times from claims in chronological order]
-- [Escalation events with exact times]
-
-## IMPACT & STATUS
-- [Affected populations]
-- [Infrastructure effects]
-- [Current status]
-
-## CONTEXT
-- [Suspected cause if stated in claims]
-- [Relevant background if in claims]
-- [DO NOT speculate or add commentary]
-
-CRITICAL RULES:
-1. NEVER hallucinate dates, times, or numbers not in claims
-2. If date unknown, write "Date: Not specified in available claims"
-3. Use ONLY facts directly stated in claims
-4. NO prose, NO editorial language ("devastating", "tragic", "ordinary")
-5. NO speculation ("likely", "suspected") unless claim explicitly says so
-6. Show ranges for conflicting numbers: "36-44 deaths reported"
-7. Keep it factual and structured like a police report, not a news article"""
+Keep it to 2-3 paragraphs. Start with the date and location."""
 
         response = await self.openai_client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
@@ -975,59 +945,6 @@ CRITICAL RULES:
             })
 
         return enriched
-
-    def _group_claims_by_topic(self, enriched_claims: List[dict]) -> dict:
-        """
-        Group claims by topic using keyword matching.
-
-        Topics: casualties, timeline, response, impact, cause, context
-        """
-        groups = {
-            'casualties': [],
-            'timeline': [],
-            'response': [],
-            'impact': [],
-            'cause': [],
-            'context': []
-        }
-
-        casualty_keywords = ['killed', 'dead', 'died', 'death', 'injured', 'wounded', 'hospitalized', 'missing', 'casualties']
-        timeline_keywords = ['at', 'p.m.', 'a.m.', 'o\'clock', 'alarm', 'upgraded', 'declared', 'received']
-        response_keywords = ['firefighters', 'fire trucks', 'ambulances', 'rescue', 'deployed', 'responded', 'battled']
-        impact_keywords = ['evacuated', 'residents', 'trapped', 'closed', 'highway', 'smoke', 'flames', 'elderly']
-        cause_keywords = ['renovations', 'scaffolding', 'cause', 'started', 'debris', 'falling']
-        context_keywords = ['worst', 'since', 'previous', 'history', 'similar', 'president', 'chief executive']
-
-        for claim in enriched_claims:
-            text_lower = claim['text'].lower()
-            categorized = False
-
-            # Check each topic (claim can be in multiple)
-            if any(kw in text_lower for kw in casualty_keywords):
-                groups['casualties'].append(claim)
-                categorized = True
-            if any(kw in text_lower for kw in timeline_keywords):
-                groups['timeline'].append(claim)
-                categorized = True
-            if any(kw in text_lower for kw in response_keywords):
-                groups['response'].append(claim)
-                categorized = True
-            if any(kw in text_lower for kw in impact_keywords):
-                groups['impact'].append(claim)
-                categorized = True
-            if any(kw in text_lower for kw in cause_keywords):
-                groups['cause'].append(claim)
-                categorized = True
-            if any(kw in text_lower for kw in context_keywords):
-                groups['context'].append(claim)
-                categorized = True
-
-            # If no category matched, put in context
-            if not categorized:
-                groups['context'].append(claim)
-
-        # Remove empty groups
-        return {k: v for k, v in groups.items() if v}
 
     async def _generate_parent_narrative(self, parent: Event, sub_events: List[Event]):
         """

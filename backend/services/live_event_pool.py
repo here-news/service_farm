@@ -107,10 +107,11 @@ class LiveEventPool:
 
         # Find candidate events using multi-signal matching
         # Page embedding captures semantic similarity of the entire article
+        # Use 30-day window to catch ongoing coverage of developing events
         candidates = await self.event_repo.find_candidates(
             entity_ids=all_entity_ids,
             reference_time=reference_time,
-            time_window_days=7,
+            time_window_days=30,
             page_embedding=page_embedding
         )
 
