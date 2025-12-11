@@ -1,5 +1,6 @@
 import React from 'react'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import Layout from './components/layout/Layout'
 import HomePage from './HomePage'
 import StoryPage from './StoryPage'
 import EventPage from './EventPage'
@@ -10,15 +11,17 @@ import MapPage from './MapPage'
 function App() {
   return (
     <Router basename="/app">
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/archive" element={<ArchivePage />} />
-        <Route path="/graph" element={<GraphPage />} />
-        <Route path="/map" element={<MapPage />} />
-        <Route path="/story/:storyId" element={<StoryPage />} />
-        <Route path="/story/:storyId/:slug" element={<StoryPage />} />
-        <Route path="/event/:eventSlug" element={<EventPage />} />
-      </Routes>
+      <Layout>
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/archive" element={<ArchivePage />} />
+          <Route path="/graph" element={<GraphPage />} />
+          <Route path="/map" element={<MapPage />} />
+          <Route path="/story/:storyId" element={<StoryPage />} />
+          <Route path="/story/:storyId/:slug" element={<StoryPage />} />
+          <Route path="/event/:eventSlug" element={<EventPage />} />
+        </Routes>
+      </Layout>
     </Router>
   )
 }

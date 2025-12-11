@@ -141,11 +141,11 @@ function EventEntityLink({
         )}
         <span
           style={{
-            color: isPerson ? '#f3e8ff' : entityColor,
-            fontWeight: 500,
-            backgroundColor: isPerson ? 'rgba(128, 90, 213, 0.3)' : 'transparent',
-            padding: isPerson ? '1px 4px' : '0',
-            borderRadius: isPerson ? '3px' : '0',
+            color: entityColor,
+            fontWeight: 600,
+            backgroundColor: isPerson ? 'rgba(128, 90, 213, 0.1)' : 'transparent',
+            padding: isPerson ? '1px 6px' : '0',
+            borderRadius: isPerson ? '4px' : '0',
             borderBottom: isPerson ? 'none' : `2px solid ${entityColor}`,
             transition: 'opacity 0.2s'
           }}

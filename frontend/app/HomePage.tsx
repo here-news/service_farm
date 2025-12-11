@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import Header from './components/layout/Header'
 import NewsCard from './components/cards/NewsCard'
 import StoryCardSkeleton from './components/cards/StoryCardSkeleton'
 import ShareBox from './components/home/ShareBox'
@@ -333,9 +332,7 @@ function HomePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500">
-      <Header />
-
+    <>
       {/* New Events Banner */}
       {newEventsCount > 0 && (
         <div
@@ -451,7 +448,7 @@ function HomePage() {
           )}
         </div>
       </div>
-    </div>
+    </>
   )
 }
 

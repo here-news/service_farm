@@ -214,7 +214,7 @@ function EventNarrativeContent({ content, entities, claims }: EventNarrativeCont
     if (part.type === 'text') {
       // Handle **bold** and *italic* markdown
       const formatted = part.content
-        .replace(/\*\*([^*]+)\*\*/g, '<strong class="text-white font-semibold">$1</strong>')
+        .replace(/\*\*([^*]+)\*\*/g, '<strong class="text-slate-900 font-semibold">$1</strong>')
         .replace(/\*([^*]+)\*/g, '<em>$1</em>')
 
       return <span key={index} dangerouslySetInnerHTML={{ __html: formatted }} />
@@ -276,14 +276,14 @@ function EventNarrativeContent({ content, entities, claims }: EventNarrativeCont
       const heading = parts[0]
       if (heading.level === 2) {
         return (
-          <h2 key={blockIndex} className="text-2xl font-bold text-blue-400 mt-8 mb-4">
+          <h2 key={blockIndex} className="text-2xl font-bold text-slate-800 mt-8 mb-4">
             {heading.content}
           </h2>
         )
       }
       if (heading.level === 3) {
         return (
-          <h3 key={blockIndex} className="text-xl font-bold text-blue-300 mt-6 mb-3">
+          <h3 key={blockIndex} className="text-xl font-bold text-slate-700 mt-6 mb-3">
             {heading.content}
           </h3>
         )
@@ -293,7 +293,7 @@ function EventNarrativeContent({ content, entities, claims }: EventNarrativeCont
     // Check if this is a bullet point
     if (parts.length > 0 && parts[0].type === 'bullet') {
       return (
-        <li key={blockIndex} className="text-gray-300 pl-2 mb-2">
+        <li key={blockIndex} className="text-slate-700 pl-2 mb-2">
           {parts.slice(1).map((part, i) => renderPart(part, i))}
         </li>
       )
@@ -301,7 +301,7 @@ function EventNarrativeContent({ content, entities, claims }: EventNarrativeCont
 
     // Regular paragraph
     return (
-      <p key={blockIndex} className="text-gray-300 leading-relaxed mb-4">
+      <p key={blockIndex} className="text-slate-700 leading-relaxed mb-4">
         {parts.map((part, i) => renderPart(part, i))}
       </p>
     )
@@ -341,7 +341,7 @@ function EventNarrativeContent({ content, entities, claims }: EventNarrativeCont
   }
 
   return (
-    <div className="prose prose-invert prose-lg max-w-none">
+    <div className="prose prose-slate prose-lg max-w-none">
       {renderContent()}
     </div>
   )
