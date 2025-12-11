@@ -1,15 +1,20 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import ReactMarkdown from 'react-markdown';
 import TimelineView from './components/event/TimelineView';
 import GraphView from './components/event/GraphView';
 import MapView from './components/event/MapView';
+import EventNarrativeContent from './components/event/EventNarrativeContent';
 
 interface Entity {
     id: string;
     canonical_name: string;
     entity_type: string;
     mention_count: number;
+    wikidata_qid?: string;
+    wikidata_label?: string;
+    wikidata_description?: string;
+    image_url?: string;
+    confidence?: number;
 }
 
 interface Claim {
@@ -181,19 +186,12 @@ const EventPageNew: React.FC = () => {
             <main className="max-w-7xl mx-auto px-4 py-8">
                 {activeTab === 'narrative' && (
                     <div className="max-w-4xl mx-auto">
-                        <div className="bg-gray-900/50 rounded-lg p-8 prose prose-invert prose-lg max-w-none">
-                            <ReactMarkdown
-                                components={{
-                                    h2: ({node, ...props}) => <h2 className="text-2xl font-bold text-blue-400 mt-8 mb-4" {...props} />,
-                                    h3: ({node, ...props}) => <h3 className="text-xl font-bold text-blue-300 mt-6 mb-3" {...props} />,
-                                    p: ({node, ...props}) => <p className="text-gray-300 leading-relaxed mb-4" {...props} />,
-                                    ul: ({node, ...props}) => <ul className="list-none space-y-2 my-4" {...props} />,
-                                    li: ({node, ...props}) => <li className="text-gray-300 pl-6 relative before:content-['•'] before:absolute before:left-0 before:text-blue-500 before:font-bold" {...props} />,
-                                    strong: ({node, ...props}) => <strong className="text-white font-semibold" {...props} />,
-                                }}
-                            >
-                                {event.summary}
-                            </ReactMarkdown>
+                        <div className="bg-gray-900/50 rounded-lg p-8">
+                            <EventNarrativeContent
+                                content={event.summary}
+                                entities={entities}
+                                claims={claims}
+                            />
                         </div>
                     </div>
                 )}
