@@ -14,7 +14,7 @@ from services.neo4j_service import Neo4jService
 from repositories.event_repository import EventRepository
 from repositories.claim_repository import ClaimRepository
 from repositories.entity_repository import EntityRepository
-from models.domain.event import Event
+from models.domain.event import Event, StructuredNarrative
 from models.domain.claim import Claim
 from models.domain.entity import Entity
 from utils.datetime_utils import neo4j_datetime_to_python
@@ -182,7 +182,7 @@ async def get_event_tree(event_id: str):
 
     def event_to_dict(e: Event) -> dict:
         """Convert Event domain model to API dict"""
-        return {
+        result = {
             'id': str(e.id),
             'canonical_name': e.canonical_name,
             'event_type': e.event_type,
@@ -192,12 +192,21 @@ async def get_event_tree(event_id: str):
             'coherence': e.coherence,
             'event_start': e.event_start.isoformat() if e.event_start else None,
             'event_end': e.event_end.isoformat() if e.event_end else None,
-            'summary': e.summary,
+            'summary': e.summary,  # Keep flat text for backwards compat
             'location': e.location,
             'claims_count': e.claims_count,
             'created_at': e.created_at.isoformat() if e.created_at else None,
             'updated_at': e.updated_at.isoformat() if e.updated_at else None,
         }
+
+        # Add structured narrative if available
+        if e.narrative:
+            result['narrative'] = e.narrative.to_dict()
+        elif e.metadata and e.metadata.get('structured_narrative'):
+            # Fallback: parse from metadata if not hydrated on model
+            result['narrative'] = e.metadata['structured_narrative']
+
+        return result
 
     def claim_to_dict(c: Claim) -> dict:
         """Convert Claim domain model to API dict"""

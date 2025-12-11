@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 from typing import List, Set, Optional, Dict
 from dataclasses import dataclass
 
-from models.domain.event import Event
+from models.domain.event import Event, StructuredNarrative
 from models.domain.claim import Claim
 from utils.datetime_utils import neo4j_datetime_to_python
 
@@ -316,8 +316,20 @@ class LiveEvent:
         if not self.last_claim_added:
             return False
 
-        time_since_claim = (datetime.utcnow() - self.last_claim_added).total_seconds()
-        time_since_update = (datetime.utcnow() - self.last_narrative_update).total_seconds()
+        now = datetime.utcnow()
+
+        # Handle timezone-aware vs naive datetime comparison
+        last_claim = self.last_claim_added
+        if last_claim.tzinfo is not None:
+            # Convert to naive UTC for comparison
+            last_claim = last_claim.replace(tzinfo=None)
+
+        last_update = self.last_narrative_update
+        if last_update.tzinfo is not None:
+            last_update = last_update.replace(tzinfo=None)
+
+        time_since_claim = (now - last_claim).total_seconds()
+        time_since_update = (now - last_update).total_seconds()
 
         # Active period: claims added recently
         is_active = time_since_claim < 6 * 3600  # 6 hours
@@ -331,28 +343,46 @@ class LiveEvent:
         """
         Metabolism - update narrative based on accumulated claims.
 
-        Uses Bayesian topology if available, otherwise falls back to
-        corroboration-guided synthesis.
+        Uses Bayesian topology for structured narrative generation.
+        Generates both StructuredNarrative (for API) and flat summary (for backwards compat).
         """
         logger.info(f"📝 Regenerating narrative for {self.event.canonical_name}")
 
         if self.topology_service and len(self.claims) >= 3:
-            # Use Bayesian topology for weighted narrative
-            narrative = await self._regenerate_narrative_bayesian()
+            # Use Bayesian topology for structured narrative
+            structured_narrative = await self._regenerate_narrative_bayesian()
         else:
-            # Fallback to corroboration-guided synthesis
-            narrative = await self.service._generate_event_narrative(self.event, self.claims)
+            # Fallback: create minimal structured narrative
+            structured_narrative = StructuredNarrative(
+                sections=[],
+                pattern="unknown",
+                generated_at=datetime.utcnow()
+            )
+            # Generate legacy flat narrative
+            flat_narrative = await self.service._generate_event_narrative(self.event, self.claims)
+            # We'll set summary separately below
 
-        # Update in storage
-        await self.service.event_repo.update_narrative(self.event.id, narrative)
+        # Update in storage - both structured and flat
+        if structured_narrative.sections:
+            flat_narrative = structured_narrative.to_flat_text()
+            await self.service.event_repo.update_narrative(
+                self.event.id,
+                flat_narrative,
+                structured_narrative.to_dict()
+            )
+        else:
+            # Fallback path - no structured narrative available
+            await self.service.event_repo.update_narrative(self.event.id, flat_narrative)
 
         # Update internal state
-        self.event.summary = narrative
+        self.event.narrative = structured_narrative
+        self.event.summary = flat_narrative
         self.last_narrative_update = datetime.utcnow()
 
-        logger.info(f"✨ Narrative updated: {len(narrative)} chars")
+        section_count = len(structured_narrative.sections) if structured_narrative else 0
+        logger.info(f"✨ Narrative updated: {section_count} sections, {len(flat_narrative)} chars")
 
-    async def _regenerate_narrative_bayesian(self) -> str:
+    async def _regenerate_narrative_bayesian(self) -> StructuredNarrative:
         """
         Regenerate narrative using Bayesian claim topology.
 
@@ -361,10 +391,10 @@ class LiveEvent:
         2. Compute plausibility posteriors for all claims
         3. Detect date consensus and penalize outliers
         4. Identify and report contradictions
-        5. Generate narrative via EventService with topology context
+        5. Generate structured narrative via EventService with topology context
 
         Returns:
-            Narrative text weighted by claim plausibility
+            StructuredNarrative with sections and key figures
         """
         logger.info(f"🧬 Using Bayesian topology for {len(self.claims)} claims")
 
@@ -385,15 +415,15 @@ class LiveEvent:
         # Get topology context for narrative generation
         topology_context = self.topology_service.get_topology_context(topology)
 
-        # Generate narrative using EventService (unified approach)
-        # Pass topology context so it can use plausibility-weighted claims
-        narrative = await self.service._generate_event_narrative_with_topology(
+        # Generate STRUCTURED narrative using EventService
+        narrative = await self.service.generate_structured_narrative(
             self.event,
             self.claims,
             topology_context
         )
 
         logger.info(f"🧬 Bayesian narrative: pattern={topology.pattern}, "
+                   f"sections={len(narrative.sections)}, "
                    f"contradictions={len(topology.contradictions)}, "
                    f"consensus_date={topology.consensus_date}")
 
@@ -557,11 +587,17 @@ class LiveEvent:
         self.last_topology_update = None
 
         # Run full Bayesian analysis and narrative regeneration
-        narrative = await self._regenerate_narrative_bayesian()
+        structured_narrative = await self._regenerate_narrative_bayesian()
 
-        # Update in storage
-        await self.service.event_repo.update_narrative(self.event.id, narrative)
-        self.event.summary = narrative
+        # Update in storage - pass both flat and structured
+        flat_narrative = structured_narrative.to_flat_text()
+        await self.service.event_repo.update_narrative(
+            self.event.id,
+            flat_narrative,
+            structured_narrative.to_dict()
+        )
+        self.event.narrative = structured_narrative
+        self.event.summary = flat_narrative
         self.last_narrative_update = datetime.utcnow()
 
         topology = self._topology_result
@@ -573,7 +609,9 @@ class LiveEvent:
                 'pattern': topology.pattern if topology else 'unknown',
                 'contradictions': len(topology.contradictions) if topology else 0,
                 'consensus_date': topology.consensus_date if topology else None,
-                'narrative_length': len(narrative)
+                'narrative_length': len(flat_narrative),
+                'sections': len(structured_narrative.sections),
+                'key_figures': len(structured_narrative.key_figures)
             }
         }
 

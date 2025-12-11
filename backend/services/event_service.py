@@ -12,7 +12,10 @@ from datetime import datetime
 import numpy as np
 from openai import AsyncOpenAI
 
-from models.domain.event import Event, ClaimDecision, ExaminationResult
+from models.domain.event import (
+    Event, ClaimDecision, ExaminationResult,
+    StructuredNarrative, NarrativeSection, KeyFigure
+)
 from models.domain.claim import Claim
 from repositories.event_repository import EventRepository
 from repositories.claim_repository import ClaimRepository
@@ -1069,6 +1072,206 @@ Use markdown headers (**Section**) only where natural topic breaks exist."""
         narrative = response.choices[0].message.content.strip()
         logger.info(f"📖 Generated topology-weighted narrative: {len(narrative)} chars from {len(claims)} claims (pattern={pattern})")
         return narrative
+
+    async def generate_structured_narrative(
+        self,
+        event: Event,
+        claims: List[Claim],
+        topology_context: dict
+    ) -> StructuredNarrative:
+        """
+        Generate a structured narrative with distinct sections.
+
+        Unlike free-form narrative generation, this produces:
+        - Discrete sections by topic (casualties, response, investigation, etc.)
+        - Key figures extracted explicitly
+        - No redundant headline (canonical_name serves as title)
+        - No summary section at the end
+
+        Args:
+            event: Event to generate narrative for
+            claims: All claims supporting this event
+            topology_context: Dict with consensus_date, pattern, contradictions, superseded_by
+
+        Returns:
+            StructuredNarrative with sections and key_figures
+        """
+        if not claims:
+            return StructuredNarrative(
+                sections=[NarrativeSection(
+                    topic="overview",
+                    title="",
+                    content="No details available yet."
+                )],
+                pattern="unknown",
+                generated_at=datetime.utcnow()
+            )
+
+        # Enrich claims with corroboration data
+        enriched_claims = await self._enrich_claims_with_corroboration(claims)
+
+        # Add plausibility from Neo4j
+        for ec in enriched_claims:
+            plausibility = await self.event_repo.get_claim_plausibility(event.id, ec['id'])
+            ec['plausibility'] = plausibility if plausibility else 0.5
+
+        # Sort by plausibility (highest first), then chronologically
+        def sort_key(c):
+            plaus = c.get('plausibility', 0.5)
+            has_date = 1 if c['event_time'] else 0
+            date_val = str(c['event_time']) if c['event_time'] else 'z'
+            return (-plaus, -has_date, date_val)
+
+        sorted_claims = sorted(enriched_claims, key=sort_key)[:50]
+
+        # Format claims with timestamps and plausibility
+        def format_time(t):
+            if not t:
+                return 'undated'
+            if hasattr(t, 'strftime'):
+                return t.strftime('%Y-%m-%d %H:%M')
+            return str(t)[:16] if len(str(t)) > 16 else str(t)
+
+        # Build entity lookup
+        entity_lookup = {}
+        for c in sorted_claims:
+            for ent in c.get('entities', []):
+                if ent.get('name') and ent.get('id'):
+                    entity_lookup[ent['name']] = ent['id']
+
+        # Format claims for prompt
+        claims_str = "\n".join([
+            f"[{c['id']}] {c['text']} (plausibility: {c.get('plausibility', 0.5):.2f}, sources: {c['corroboration_count'] + 1}, time: {format_time(c['event_time'])})"
+            for c in sorted_claims
+        ])
+
+        entity_list = "\n".join([f"- {name} → {eid}" for name, eid in entity_lookup.items()])
+
+        # Format contradictions
+        contradictions_str = ""
+        if topology_context.get('contradictions'):
+            contra_lines = []
+            for c in topology_context['contradictions'][:5]:
+                contra_lines.append(f"  [{c['claim1_id']}] vs [{c['claim2_id']}]: \"{c['text1'][:50]}...\" vs \"{c['text2'][:50]}...\"")
+            contradictions_str = "\nCONTRADICTIONS:\n" + "\n".join(contra_lines)
+
+        # Build topology context
+        consensus_date = topology_context.get('consensus_date')
+        pattern = topology_context.get('pattern', 'unknown')
+        superseded_ids = set(topology_context.get('superseded_by', {}).keys())
+
+        prompt = f"""Analyze these claims and produce a structured JSON narrative for the event "{event.canonical_name}".
+
+EVENT TYPE: {event.event_type}
+DATE: {consensus_date or 'uncertain'}
+PATTERN: {pattern}
+
+CLAIMS (sorted by plausibility - higher = more reliable):
+{claims_str}
+{contradictions_str}
+
+SUPERSEDED CLAIMS (outdated by newer information):
+{', '.join(superseded_ids) if superseded_ids else '(none)'}
+
+ENTITY IDs:
+{entity_list}
+
+OUTPUT REQUIREMENTS:
+Return a JSON object with this exact structure:
+{{
+  "sections": [
+    {{
+      "topic": "overview",
+      "title": "",
+      "content": "Opening paragraph with core facts. Embed claim refs as [cl_xxx]. Mark entities on first mention: John Lee [en_xxx].",
+      "claim_ids": ["cl_xxx", "cl_yyy"]
+    }},
+    {{
+      "topic": "casualties",
+      "title": "Casualties",
+      "content": "Details about deaths/injuries with [cl_xxx] refs...",
+      "claim_ids": ["cl_xxx"]
+    }}
+  ],
+  "key_figures": [
+    {{
+      "label": "death_toll",
+      "value": "160",
+      "claim_id": "cl_xxx",
+      "supersedes": "cl_yyy"
+    }}
+  ]
+}}
+
+RULES:
+1. First section MUST have topic="overview" and title="" (empty) - it's the opening paragraph
+2. Only create sections for topics that have claims (casualties, response, investigation, government_reaction, background, etc.)
+3. NO headline - the event's canonical_name IS the title
+4. NO summary/conclusion section at the end
+5. Every factual statement MUST have [cl_xxx] reference
+6. Mark entity names with [en_xxx] on FIRST mention only
+7. Claims with plausibility ≥0.70 are established facts - state confidently
+8. Claims in SUPERSEDED list should be "earlier reports" or "initial estimates"
+9. key_figures: Extract key numeric values (death_toll, injuries, missing, arrests, etc.)
+10. For progressive patterns: use highest-plausibility figure, reference earlier as "initial reports"
+
+Return ONLY valid JSON, no markdown code blocks."""
+
+        response = await self.openai_client.chat.completions.create(
+            messages=[{"role": "user", "content": prompt}],
+            model="gpt-4o",
+            temperature=0.2,
+            response_format={"type": "json_object"}
+        )
+
+        try:
+            result = json.loads(response.choices[0].message.content)
+
+            sections = [
+                NarrativeSection(
+                    topic=s.get("topic", ""),
+                    title=s.get("title", ""),
+                    content=s.get("content", ""),
+                    claim_ids=s.get("claim_ids", [])
+                )
+                for s in result.get("sections", [])
+            ]
+
+            key_figures = [
+                KeyFigure(
+                    label=f.get("label", ""),
+                    value=f.get("value", ""),
+                    claim_id=f.get("claim_id", ""),
+                    supersedes=f.get("supersedes")
+                )
+                for f in result.get("key_figures", [])
+            ]
+
+            narrative = StructuredNarrative(
+                sections=sections,
+                key_figures=key_figures,
+                pattern=pattern,
+                consensus_date=consensus_date,
+                generated_at=datetime.utcnow()
+            )
+
+            logger.info(f"📖 Generated structured narrative: {len(sections)} sections, {len(key_figures)} key figures (pattern={pattern})")
+            return narrative
+
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse structured narrative JSON: {e}")
+            # Fallback: create simple overview section from raw response
+            return StructuredNarrative(
+                sections=[NarrativeSection(
+                    topic="overview",
+                    title="",
+                    content=response.choices[0].message.content.strip(),
+                    claim_ids=[c['id'] for c in sorted_claims[:10]]
+                )],
+                pattern=pattern,
+                consensus_date=consensus_date,
+                generated_at=datetime.utcnow()
+            )
 
     async def _enrich_claims_with_corroboration(self, claims: List[Claim]) -> List[dict]:
         """

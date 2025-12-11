@@ -32,6 +32,122 @@ class ExaminationResult:
 
 
 @dataclass
+class NarrativeSection:
+    """
+    A section of a structured narrative.
+
+    Each section covers a specific topic (casualties, response, investigation, etc.)
+    and contains prose with embedded claim/entity references.
+    """
+    topic: str              # Topic key: "casualties", "response", "investigation", etc.
+    title: str              # Display title: "Casualties", "Emergency Response", etc.
+    content: str            # Prose with [cl_xxx] and [en_xxx] markers
+    claim_ids: List[str] = field(default_factory=list)  # Claims used in this section
+
+    def to_dict(self) -> dict:
+        return {
+            "topic": self.topic,
+            "title": self.title,
+            "content": self.content,
+            "claim_ids": self.claim_ids
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'NarrativeSection':
+        return cls(
+            topic=data.get("topic", ""),
+            title=data.get("title", ""),
+            content=data.get("content", ""),
+            claim_ids=data.get("claim_ids", [])
+        )
+
+
+@dataclass
+class KeyFigure:
+    """A key numeric figure extracted from claims (death toll, injuries, etc.)"""
+    label: str              # "death_toll", "injuries", "arrests", etc.
+    value: str              # "160", "76", etc.
+    claim_id: str           # Source claim for this figure
+    supersedes: Optional[str] = None  # Earlier claim_id this figure supersedes
+
+    def to_dict(self) -> dict:
+        return {
+            "label": self.label,
+            "value": self.value,
+            "claim_id": self.claim_id,
+            "supersedes": self.supersedes
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'KeyFigure':
+        return cls(
+            label=data.get("label", ""),
+            value=data.get("value", ""),
+            claim_id=data.get("claim_id", ""),
+            supersedes=data.get("supersedes")
+        )
+
+
+@dataclass
+class StructuredNarrative:
+    """
+    Structured narrative for an event.
+
+    Unlike free-form summary text, this structure allows:
+    - Independent section updates when new claims arrive
+    - Frontend rendering of sections separately
+    - Key figures extracted explicitly (not buried in prose)
+    - Pattern-aware presentation (progressive, contradictory, consensus)
+
+    The canonical_name from Event serves as the headline - no need for
+    LLM-generated "The X: A Tragic Event" style titles.
+    """
+    sections: List[NarrativeSection] = field(default_factory=list)
+    key_figures: List[KeyFigure] = field(default_factory=list)
+    pattern: str = "unknown"  # "consensus", "progressive", "contradictory"
+    consensus_date: Optional[str] = None
+    generated_at: Optional[datetime] = None
+
+    def to_dict(self) -> dict:
+        return {
+            "sections": [s.to_dict() for s in self.sections],
+            "key_figures": [f.to_dict() for f in self.key_figures],
+            "pattern": self.pattern,
+            "consensus_date": self.consensus_date,
+            "generated_at": self.generated_at.isoformat() if self.generated_at else None
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'StructuredNarrative':
+        if not data:
+            return cls()
+        return cls(
+            sections=[NarrativeSection.from_dict(s) for s in data.get("sections", [])],
+            key_figures=[KeyFigure.from_dict(f) for f in data.get("key_figures", [])],
+            pattern=data.get("pattern", "unknown"),
+            consensus_date=data.get("consensus_date"),
+            generated_at=datetime.fromisoformat(data["generated_at"]) if data.get("generated_at") else None
+        )
+
+    def to_flat_text(self) -> str:
+        """Convert to flat text for backwards compatibility with Event.summary"""
+        parts = []
+        for section in self.sections:
+            if section.title:
+                parts.append(f"**{section.title}**")
+            parts.append(section.content)
+            parts.append("")  # Blank line between sections
+        return "\n".join(parts).strip()
+
+    def get_section(self, topic: str) -> Optional[NarrativeSection]:
+        """Get a section by topic key"""
+        for section in self.sections:
+            if section.topic == topic:
+                return section
+        return None
+
+
+@dataclass
 class Event:
     """
     Event domain model - storage-agnostic representation
@@ -64,7 +180,8 @@ class Event:
     event_scale: str = 'micro'  # micro, meso, macro
 
     # Summary/description
-    summary: Optional[str] = None
+    summary: Optional[str] = None  # Legacy flat text narrative
+    narrative: Optional[StructuredNarrative] = None  # Structured narrative
     location: Optional[str] = None
 
     # Counts (legacy - for compatibility)

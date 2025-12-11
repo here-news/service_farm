@@ -21,7 +21,7 @@ import numpy as np
 
 from pgvector.asyncpg import register_vector
 
-from models.domain.event import Event
+from models.domain.event import Event, StructuredNarrative
 from services.neo4j_service import Neo4jService
 from utils.datetime_utils import neo4j_datetime_to_python
 from utils.id_generator import is_uuid, uuid_to_short_id
@@ -192,6 +192,20 @@ class EventRepository:
 
         # Model handles UUID conversion in __post_init__
         # Read summary, location, coherence from Neo4j node properties (not metadata)
+
+        # Parse structured_narrative if present
+        structured_narrative = None
+        structured_narrative_json = node.get('structured_narrative')
+        if structured_narrative_json:
+            try:
+                if isinstance(structured_narrative_json, str):
+                    narrative_data = json.loads(structured_narrative_json)
+                else:
+                    narrative_data = structured_narrative_json
+                structured_narrative = StructuredNarrative.from_dict(narrative_data)
+            except (json.JSONDecodeError, TypeError) as e:
+                logger.warning(f"Failed to parse structured_narrative for {event_id}: {e}")
+
         return Event(
             id=node['id'],
             canonical_name=node.get('canonical_name', ''),
@@ -207,6 +221,7 @@ class EventRepository:
             pages_count=0,  # Legacy field
             claims_count=0,  # Use get_event_claims() to fetch actual count from graph
             summary=node.get('summary'),
+            narrative=structured_narrative,
             location=node.get('location'),
             coherence=node.get('coherence', 0.3)
         )
@@ -784,24 +799,51 @@ class EventRepository:
 
         logger.debug(f"📊 Updated coherence for {event_id}: {coherence:.3f}")
 
-    async def update_narrative(self, event_id: str, narrative: str) -> None:
+    async def update_narrative(
+        self,
+        event_id: str,
+        narrative: str,
+        structured_narrative: dict = None
+    ) -> None:
         """
         Update event narrative/summary.
 
         Args:
             event_id: Event ID
-            narrative: New narrative text
+            narrative: Flat narrative text (for backwards compatibility)
+            structured_narrative: Optional structured narrative dict (sections, key_figures, etc.)
         """
-        await self.neo4j._execute_write("""
-            MATCH (e:Event {id: $event_id})
-            SET e.summary = $narrative,
-                e.updated_at = datetime()
-        """, {
+        import json
+
+        params = {
             'event_id': event_id,
             'narrative': narrative
-        })
+        }
 
-        logger.debug(f"📝 Updated narrative for {event_id}: {len(narrative)} chars")
+        if structured_narrative:
+            # Store structured narrative as JSON string
+            params['structured_narrative'] = json.dumps(structured_narrative)
+            query = """
+                MATCH (e:Event {id: $event_id})
+                SET e.summary = $narrative,
+                    e.structured_narrative = $structured_narrative,
+                    e.updated_at = datetime()
+            """
+        else:
+            query = """
+                MATCH (e:Event {id: $event_id})
+                SET e.summary = $narrative,
+                    e.updated_at = datetime()
+            """
+
+        await self.neo4j._execute_write(query, params)
+
+        section_info = ""
+        if structured_narrative:
+            section_count = len(structured_narrative.get('sections', []))
+            section_info = f", {section_count} sections"
+
+        logger.debug(f"📝 Updated narrative for {event_id}: {len(narrative)} chars{section_info}")
 
     async def update_status(self, event_id: str, status: str) -> None:
         """

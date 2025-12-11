@@ -24,6 +24,28 @@ interface Claim {
     confidence?: number;
 }
 
+interface NarrativeSection {
+    topic: string;
+    title: string;
+    content: string;
+    claim_ids: string[];
+}
+
+interface KeyFigure {
+    label: string;
+    value: string;
+    claim_id: string;
+    supersedes?: string;
+}
+
+interface StructuredNarrative {
+    sections: NarrativeSection[];
+    key_figures: KeyFigure[];
+    pattern: string;
+    consensus_date?: string;
+    generated_at?: string;
+}
+
 interface Event {
     id: string;
     canonical_name: string;
@@ -33,6 +55,7 @@ interface Event {
     event_start?: string | null;
     event_end?: string | null;
     summary: string;
+    narrative?: StructuredNarrative;  // New structured narrative
 }
 
 interface EventData {
@@ -186,12 +209,46 @@ const EventPageNew: React.FC = () => {
             <main className="max-w-7xl mx-auto px-4 py-8">
                 {activeTab === 'narrative' && (
                     <div className="max-w-4xl mx-auto">
+                        {/* Key Figures bar */}
+                        {event.narrative?.key_figures && event.narrative.key_figures.length > 0 && (
+                            <div className="bg-gray-800/80 rounded-lg p-4 mb-6 flex flex-wrap gap-6">
+                                {event.narrative.key_figures.map((fig, idx) => (
+                                    <div key={idx} className="flex items-center gap-2">
+                                        <span className="text-gray-400 text-sm capitalize">
+                                            {fig.label.replace(/_/g, ' ')}:
+                                        </span>
+                                        <span className="text-xl font-bold text-white">{fig.value}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {/* Narrative content */}
                         <div className="bg-gray-900/50 rounded-lg p-8">
-                            <EventNarrativeContent
-                                content={event.summary}
-                                entities={entities}
-                                claims={claims}
-                            />
+                            {event.narrative?.sections ? (
+                                // Render structured sections
+                                event.narrative.sections.map((section, idx) => (
+                                    <div key={idx} className={idx > 0 ? 'mt-8' : ''}>
+                                        {section.title && (
+                                            <h2 className="text-xl font-bold text-blue-400 mb-4">
+                                                {section.title}
+                                            </h2>
+                                        )}
+                                        <EventNarrativeContent
+                                            content={section.content}
+                                            entities={entities}
+                                            claims={claims}
+                                        />
+                                    </div>
+                                ))
+                            ) : (
+                                // Fallback: render flat summary
+                                <EventNarrativeContent
+                                    content={event.summary}
+                                    entities={entities}
+                                    claims={claims}
+                                />
+                            )}
                         </div>
                     </div>
                 )}
