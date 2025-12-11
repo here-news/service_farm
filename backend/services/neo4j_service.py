@@ -363,7 +363,10 @@ class Neo4jService:
         entity_id: str,
         canonical_name: str,
         entity_type: str,
-        wikidata_qid: str = None
+        wikidata_qid: str = None,
+        wikidata_label: str = None,
+        wikidata_description: str = None,
+        image_url: str = None
     ) -> str:
         """
         Create or update Entity node in Neo4j (primary entity storage).
@@ -410,6 +413,10 @@ class Neo4jService:
             e.id = $entity_id,
             e.canonical_name = $canonical_name,
             e.entity_type = $entity_type,
+            e.wikidata_qid = $wikidata_qid,
+            e.wikidata_label = $wikidata_label,
+            e.wikidata_description = $wikidata_description,
+            e.image_url = $image_url,
             e.mention_count = 1,
             e.created_at = datetime()
         ON MATCH SET
@@ -423,6 +430,9 @@ class Neo4jService:
             'canonical_name': canonical_name,
             'entity_type': entity_type,
             'wikidata_qid': wikidata_qid,
+            'wikidata_label': wikidata_label,
+            'wikidata_description': wikidata_description,
+            'image_url': image_url,
             'dedup_key': dedup_key
         })
 
@@ -558,6 +568,7 @@ class Neo4jService:
                e.created_at as created_at, e.wikidata_qid as wikidata_qid,
                e.wikidata_label as wikidata_label,
                e.wikidata_description as wikidata_description,
+               e.image_url as image_url,
                e.status as status, e.confidence as confidence,
                e.aliases as aliases
         """
@@ -605,15 +616,15 @@ class Neo4jService:
 
         Stores: QID, label, description, confidence, aliases, metadata (thumbnail, coords, etc.)
         """
-        # Extract thumbnail_url from metadata to store as top-level property
-        wikidata_image = metadata.get('thumbnail_url') if metadata else None
+        # Extract image_url from metadata to store as top-level property
+        image_url = metadata.get('thumbnail_url') if metadata else None
 
         query = """
         MATCH (e:Entity {id: $entity_id})
         SET e.wikidata_qid = $wikidata_qid,
             e.wikidata_label = $wikidata_label,
             e.wikidata_description = $wikidata_description,
-            e.wikidata_image = $wikidata_image,
+            e.image_url = $image_url,
             e.confidence = $confidence,
             e.aliases = $aliases,
             e.metadata_json = $metadata_json,
@@ -626,7 +637,7 @@ class Neo4jService:
             'wikidata_qid': wikidata_qid,
             'wikidata_label': wikidata_label,
             'wikidata_description': wikidata_description,
-            'wikidata_image': wikidata_image,
+            'image_url': image_url,
             'confidence': confidence,
             'aliases': aliases,
             'metadata_json': json.dumps(metadata)

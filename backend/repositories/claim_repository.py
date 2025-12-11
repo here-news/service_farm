@@ -254,6 +254,7 @@ class ClaimRepository:
                    e.entity_type as entity_type, e.wikidata_qid as wikidata_qid,
                    e.wikidata_label as wikidata_label,
                    e.wikidata_description as wikidata_description,
+                   e.image_url as image_url,
                    e.mention_count as mention_count, e.confidence as confidence,
                    e.status as status, e.aliases as aliases
             ORDER BY e.canonical_name
@@ -269,6 +270,7 @@ class ClaimRepository:
                 wikidata_qid=row.get('wikidata_qid'),
                 wikidata_label=row.get('wikidata_label'),
                 wikidata_description=row.get('wikidata_description'),
+                image_url=row.get('image_url'),
                 mention_count=row.get('mention_count', 0),
                 confidence=row.get('confidence', 0.0),
                 status=row.get('status', 'pending'),

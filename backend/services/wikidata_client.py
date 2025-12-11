@@ -21,6 +21,7 @@ Usage:
 """
 import aiohttp
 import asyncio
+import hashlib
 import logging
 import math
 import os
@@ -167,6 +168,10 @@ class WikidataClient:
             best = await self._score_and_select(filtered, name, context, entity_type)
 
             if best and best.get('accepted', False):
+                # Fetch P18 image for matched entity
+                image_url = await self._fetch_entity_image(best['qid'])
+                if image_url:
+                    best['image'] = image_url
                 logger.info(f"🔗 Wikidata match: {name} → {best['qid']} ({best['label']}) [P={best['confidence']:.2f}]")
                 return best
 
@@ -333,6 +338,48 @@ class WikidataClient:
         except Exception as e:
             logger.debug(f"Failed to get {property_id} for {qid}: {e}")
             return []
+
+    async def _fetch_entity_image(self, qid: str) -> Optional[str]:
+        """
+        Fetch P18 (image) for a Wikidata entity and return Wikimedia Commons URL.
+
+        P18 values are image filenames that need to be converted to Commons URLs.
+        """
+        try:
+            params = {
+                'action': 'wbgetentities',
+                'ids': qid,
+                'format': 'json',
+                'props': 'claims'
+            }
+
+            async with self.session.get(self.api_url, params=params, timeout=10) as resp:
+                if resp.status != 200:
+                    return None
+
+                data = await resp.json()
+                entity = data.get('entities', {}).get(qid, {})
+                claims = entity.get('claims', {})
+
+                # P18 = image
+                for claim in claims.get('P18', []):
+                    mainsnak = claim.get('mainsnak', {})
+                    datavalue = mainsnak.get('datavalue', {})
+                    if datavalue.get('type') == 'string':
+                        filename = datavalue['value']
+                        # Convert filename to Wikimedia Commons thumbnail URL
+                        # Replace spaces with underscores
+                        filename_safe = filename.replace(' ', '_')
+                        # Use MD5 hash for path
+                        md5 = hashlib.md5(filename_safe.encode()).hexdigest()
+                        # Build thumbnail URL (250px width)
+                        thumb_url = f"https://upload.wikimedia.org/wikipedia/commons/thumb/{md5[0]}/{md5[0:2]}/{filename_safe}/250px-{filename_safe}"
+                        return thumb_url
+
+                return None
+        except Exception as e:
+            logger.debug(f"Failed to fetch P18 image for {qid}: {e}")
+            return None
 
     async def _search_wikidata(self, name: str) -> List[Dict]:
         """

@@ -39,6 +39,8 @@ class EntityMatch:
     source: str  # "local_exact", "local_fuzzy", "wikidata", "new_local"
     wikidata_qid: Optional[str] = None
     wikidata_label: Optional[str] = None  # Authoritative Wikidata label (use this for updates)
+    wikidata_description: Optional[str] = None  # Description from Wikidata
+    image_url: Optional[str] = None  # Image URL (from Wikidata or custom)
     is_new: bool = False
 
 
@@ -140,6 +142,9 @@ class IdentificationService:
                             canonical_name=match.canonical_name,
                             entity_type=match.entity_type,
                             wikidata_qid=match.wikidata_qid,
+                            wikidata_label=match.wikidata_label,
+                            wikidata_description=match.wikidata_description,
+                            image_url=match.image_url,
                             aliases=mention.aliases,
                             profile_summary=mention.description,
                             mention_count=1,
@@ -260,6 +265,8 @@ class IdentificationService:
 
         if wikidata_match:
             wikidata_label = wikidata_match.get('label')
+            wikidata_description = wikidata_match.get('description')
+            image_url = wikidata_match.get('image')
 
             # Check if this QID already exists in our graph
             existing_by_qid = await self._find_by_qid(wikidata_match['qid'])
@@ -273,6 +280,8 @@ class IdentificationService:
                     source="wikidata",
                     wikidata_qid=wikidata_match['qid'],
                     wikidata_label=wikidata_label,  # Pass Wikidata label for canonical name update
+                    wikidata_description=wikidata_description,
+                    image_url=image_url,
                     is_new=False
                 )
             else:
@@ -286,6 +295,8 @@ class IdentificationService:
                     source="wikidata",
                     wikidata_qid=wikidata_match['qid'],
                     wikidata_label=wikidata_label,
+                    wikidata_description=wikidata_description,
+                    image_url=image_url,
                     is_new=True
                 )
 

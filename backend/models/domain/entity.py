@@ -36,7 +36,9 @@ class Entity:
     wikidata_qid: Optional[str] = None
     wikidata_label: Optional[str] = None
     wikidata_description: Optional[str] = None
-    wikidata_image: Optional[str] = None  # Wikimedia Commons thumbnail URL
+
+    # Thumbnail/profile image URL (may come from Wikidata or custom upload)
+    image_url: Optional[str] = None
 
     # Status: 'pending', 'checked', 'enriched'
     status: str = 'pending'

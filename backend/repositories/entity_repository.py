@@ -63,7 +63,10 @@ class EntityRepository:
             entity_id=str(entity.id),
             canonical_name=entity.canonical_name,
             entity_type=entity.entity_type,
-            wikidata_qid=entity.wikidata_qid
+            wikidata_qid=entity.wikidata_qid,
+            wikidata_label=entity.wikidata_label,
+            wikidata_description=entity.wikidata_description,
+            image_url=entity.image_url
         )
 
         # If Neo4j returned a different ID, this entity already existed
@@ -102,6 +105,7 @@ class EntityRepository:
             wikidata_qid=entity_data.get('wikidata_qid'),
             wikidata_label=entity_data.get('wikidata_label'),
             wikidata_description=entity_data.get('wikidata_description'),
+            image_url=entity_data.get('image_url'),
             status=entity_data.get('status', 'pending'),
             confidence=entity_data.get('confidence', 0.0),
             aliases=entity_data.get('aliases', []),
@@ -165,7 +169,7 @@ class EntityRepository:
                    entity.wikidata_qid as wikidata_qid,
                    entity.wikidata_label as wikidata_label,
                    entity.wikidata_description as wikidata_description,
-                   entity.wikidata_image as wikidata_image,
+                   entity.image_url as image_url,
                    entity.profile_summary as profile_summary,
                    entity.status as status,
                    entity.aliases as aliases
@@ -184,7 +188,7 @@ class EntityRepository:
                 wikidata_qid=row.get('wikidata_qid'),
                 wikidata_label=row.get('wikidata_label'),
                 wikidata_description=row.get('wikidata_description'),
-                wikidata_image=row.get('wikidata_image'),
+                image_url=row.get('image_url'),
                 status=row.get('status', 'pending'),
                 confidence=row.get('confidence', 0.0),
                 aliases=row.get('aliases', []),

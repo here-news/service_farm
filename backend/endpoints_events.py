@@ -225,8 +225,7 @@ async def get_event_tree(event_id: str):
             'wikidata_qid': e.wikidata_qid,
             'wikidata_label': e.wikidata_label,
             'wikidata_description': e.wikidata_description,
-            'wikidata_image': e.wikidata_image,
-            'wikidata_thumbnail': e.wikidata_image,  # Alias for frontend compatibility
+            'image_url': e.image_url
         }
 
     # Build response
@@ -270,7 +269,7 @@ async def get_entity(entity_id: str):
             'wikidata_qid': entity.wikidata_qid,
             'wikidata_label': entity.wikidata_label,
             'wikidata_description': entity.wikidata_description,
-            'wikidata_image': entity.wikidata_image,
+            'image_url': entity.image_url,
             'status': entity.status,
             'confidence': entity.confidence,
             'metadata': entity.metadata,
