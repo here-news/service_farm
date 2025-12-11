@@ -168,30 +168,25 @@ async def get_iframely_metadata(url: str) -> dict:
 
 
 @router.post("/artifacts")
-async def submit_artifact(url: str):
+async def submit_artifact(url: str, preview: bool = False):
     """
     Submit URL and get instant best shot metadata for any content type
 
     Creates or retrieves an artifact (web page, video, image, PDF, etc.) from a URL.
-    Returns the best available metadata immediately, commissioning background workers
-    for full extraction and enrichment.
+    Returns the best available metadata immediately.
 
-    **ARCHITECTURE PRINCIPLE**: Resource-First, Not Pipeline
-    - Returns immediately (< 500ms) with BEST AVAILABLE state
-    - Commissions workers in background for enrichment
-    - Progressive enhancement: stub → preview → extracted → semantic → complete
+    **Parameters:**
+    - url: The URL to submit
+    - preview: If true, only fetch metadata without commissioning extraction
 
     **Endpoint:**
-    - POST /api/v2/artifacts?url=https://example.com
+    - POST /api/artifacts?url=https://example.com (full submission)
+    - POST /api/artifacts?url=https://example.com&preview=true (preview only)
 
     **Returns:**
     - New URL: Instant preview from iframely (title, description, thumbnail, author)
     - Existing URL: Best cached state from database
     - Status codes: 200 (success), 400 (invalid URL)
-
-    **Future-proof:**
-    - Currently supports web pages
-    - Designed to support videos, images, PDFs, podcasts in future
     """
     page_repo, queue = await init_services()
 
@@ -210,24 +205,25 @@ async def submit_artifact(url: str):
         entity_count = await page_repo.get_entity_count(existing.id)
         claim_count = await page_repo.get_claim_count(existing.id)
 
-        # Commission background update if needed
+        # Commission background update if needed (skip if preview mode)
         commissioned = False
-        if existing.status == 'failed':
-            # Extraction failed - retry extraction
-            await queue.enqueue('queue:extraction:high', {
-                'page_id': str(existing.id),
-                'url': url,
-                'retry_count': 0
-            })
-            commissioned = True
-        elif existing.status == 'semantic_failed':
-            # Semantic failed - retry semantic (extraction was OK)
-            await queue.enqueue('queue:semantic:high', {
-                'page_id': str(existing.id),
-                'url': url,
-                'retry_count': 0
-            })
-            commissioned = True
+        if not preview:
+            if existing.status == 'failed':
+                # Extraction failed - retry extraction
+                await queue.enqueue('queue:extraction:high', {
+                    'page_id': str(existing.id),
+                    'url': url,
+                    'retry_count': 0
+                })
+                commissioned = True
+            elif existing.status == 'semantic_failed':
+                # Semantic failed - retry semantic (extraction was OK)
+                await queue.enqueue('queue:semantic:high', {
+                    'page_id': str(existing.id),
+                    'url': url,
+                    'retry_count': 0
+                })
+                commissioned = True
 
         return {
             "page_id": str(existing.id),
@@ -286,6 +282,29 @@ async def submit_artifact(url: str):
             domain = None
 
         # Create page with iframely metadata using repository
+        # Preview mode: just return metadata without creating page or commissioning
+        if preview:
+            return {
+                "page_id": None,
+                "url": url,
+                "canonical_url": canonical_url,
+                "title": title,
+                "description": description,
+                "author": author,
+                "thumbnail_url": thumbnail_url,
+                "status": 'preview',
+                "language": language,
+                "word_count": None,
+                "entity_count": 0,
+                "claim_count": 0,
+                "pub_time": None,
+                "created_at": None,
+                "updated_at": None,
+                "_commissioned": False,
+                "_iframely_used": True
+            }
+
+        # Full submission: create page and commission extraction
         page = Page(
             id=page_id,
             url=url,
@@ -335,14 +354,36 @@ async def submit_artifact(url: str):
     else:
         # iframely failed - quick domain guess
         domain = urlparse(url).netloc.lower()
-        site_name = None  # Will be extracted during content extraction
         language = 'en'  # Default
         if any(x in domain for x in ['.cn', '.zh', 'chinese']):
             language = 'zh'
         elif any(x in domain for x in ['.fr', 'french']):
             language = 'fr'
 
-        # Create stub page using repository
+        # Preview mode: return minimal metadata without creating page
+        if preview:
+            return {
+                "page_id": None,
+                "url": url,
+                "canonical_url": canonical_url,
+                "title": None,
+                "description": None,
+                "author": None,
+                "thumbnail_url": None,
+                "status": 'stub',
+                "language": language,
+                "word_count": None,
+                "entity_count": 0,
+                "claim_count": 0,
+                "pub_time": None,
+                "created_at": None,
+                "updated_at": None,
+                "_commissioned": False,
+                "_iframely_used": False
+            }
+
+        # Full submission: create stub page and commission extraction
+        site_name = None  # Will be extracted during content extraction
         page = Page(
             id=page_id,
             url=url,
@@ -357,12 +398,6 @@ async def submit_artifact(url: str):
         )
         await page_repo.create(page)
 
-        title = None
-        description = None
-        author = None
-        thumbnail_url = None
-        status = 'stub'
-
         # Commission extraction (async, doesn't block response)
         await queue.enqueue('queue:extraction:high', {
             'page_id': str(page_id),
@@ -375,20 +410,20 @@ async def submit_artifact(url: str):
             "page_id": str(page_id),
             "url": url,
             "canonical_url": canonical_url,
-            "title": title,  # From iframely if available
-            "description": description,  # From iframely if available
-            "author": author,  # From iframely if available
-            "thumbnail_url": thumbnail_url,  # From iframely if available
-            "status": status,  # 'preview' if iframely, 'stub' if not
+            "title": None,
+            "description": None,
+            "author": None,
+            "thumbnail_url": None,
+            "status": 'stub',
             "language": language,
-            "word_count": None,  # Pending extraction
+            "word_count": None,
             "entity_count": 0,
             "claim_count": 0,
             "pub_time": None,
             "created_at": datetime.utcnow().isoformat(),
             "updated_at": None,
-            "_commissioned": True,  # Workers commissioned in background
-            "_iframely_used": iframely_meta is not None  # Diagnostic
+            "_commissioned": True,
+            "_iframely_used": False
         }
 
 

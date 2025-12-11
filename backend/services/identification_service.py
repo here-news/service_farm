@@ -33,11 +33,12 @@ logger = logging.getLogger(__name__)
 class EntityMatch:
     """Result of identifying a single mention."""
     entity_id: str  # Short ID: en_xxxxxxxx
-    canonical_name: str
+    canonical_name: str  # Current entity name (may be updated to wikidata_label)
     entity_type: str
     confidence: float
     source: str  # "local_exact", "local_fuzzy", "wikidata", "new_local"
     wikidata_qid: Optional[str] = None
+    wikidata_label: Optional[str] = None  # Authoritative Wikidata label (use this for updates)
     is_new: bool = False
 
 
@@ -258,6 +259,8 @@ class IdentificationService:
             )
 
         if wikidata_match:
+            wikidata_label = wikidata_match.get('label')
+
             # Check if this QID already exists in our graph
             existing_by_qid = await self._find_by_qid(wikidata_match['qid'])
             if existing_by_qid:
@@ -269,18 +272,20 @@ class IdentificationService:
                     confidence=wikidata_match['confidence'],
                     source="wikidata",
                     wikidata_qid=wikidata_match['qid'],
+                    wikidata_label=wikidata_label,  # Pass Wikidata label for canonical name update
                     is_new=False
                 )
             else:
-                # New entity with Wikidata QID
+                # New entity with Wikidata QID - use Wikidata label as canonical name
                 logger.debug(f"✨ Wikidata new: {mention.surface_form} → {wikidata_match['qid']}")
                 return EntityMatch(
                     entity_id=generate_entity_id(),
-                    canonical_name=wikidata_match.get('label', mention.surface_form),
+                    canonical_name=wikidata_label or mention.surface_form,
                     entity_type=entity_type,
                     confidence=wikidata_match['confidence'],
                     source="wikidata",
                     wikidata_qid=wikidata_match['qid'],
+                    wikidata_label=wikidata_label,
                     is_new=True
                 )
 

@@ -341,6 +341,9 @@ class Neo4jService:
         return result['id'] if result else None
 
     # ===== Entity Operations =====
+    # NOTE: For high-level entity operations with QID-first deduplication,
+    # relationship rewiring, and publisher domain lookup, use EntityManager.
+    # The methods below are low-level operations used by EntityRepository.
 
     @staticmethod
     def _compute_dedup_key(canonical_name: str, entity_type: str) -> str:

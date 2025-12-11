@@ -32,6 +32,7 @@ from utils.id_generator import generate_entity_id, generate_claim_id
 from models.domain.mention import ExtractionResult
 from repositories import EntityRepository, ClaimRepository, PageRepository
 from services.neo4j_service import Neo4jService
+from services.entity_manager import EntityManager
 from services.identification_service import IdentificationService, IdentificationResult
 from services.wikidata_client import WikidataClient
 from services.source_classification import (
@@ -71,13 +72,16 @@ class KnowledgeWorker:
         self.claim_repo = ClaimRepository(db_pool, self.neo4j)
         self.page_repo = PageRepository(db_pool, self.neo4j)
 
+        # EntityManager for unified entity deduplication and merging
+        self.entity_manager = EntityManager(self.neo4j)
+
         # Wikidata client for entity identification (enables QID resolution during pipeline)
         self.wikidata_client = WikidataClient()
         self.identification_service = IdentificationService(
             db_pool, self.neo4j, wikidata_client=self.wikidata_client
         )
 
-        logger.info("✅ KnowledgeWorker initialized with Wikidata integration")
+        logger.info("✅ KnowledgeWorker initialized with EntityManager and Wikidata integration")
 
     async def connect_neo4j(self):
         """Ensure Neo4j connection is established."""
@@ -196,11 +200,11 @@ class KnowledgeWorker:
                 for mention_id, match in identification.mention_to_entity.items():
                     if not match.is_new and match.wikidata_qid:
                         # Matched entity got a new QID from Wikidata - update it
-                        # Also store the wikidata_label (canonical name from Wikidata)
+                        # Use wikidata_label (authoritative name from Wikidata) for canonical name
                         await self._update_entity_qid(
                             match.entity_id,
                             match.wikidata_qid,
-                            wikidata_label=match.canonical_name
+                            wikidata_label=match.wikidata_label  # Use Wikidata label, not current name
                         )
 
                 # =========================================================
@@ -285,8 +289,8 @@ class KnowledgeWorker:
         Identify the publishing source for a page.
 
         Creates or retrieves Entity (ORGANIZATION) for the publisher.
-        Publishers are entities with a domain property, resolved through Wikidata
-        like any other organization.
+        Uses EntityManager for unified deduplication - if a publisher with
+        the same QID exists, it will be reused.
 
         Also classifies source type and assigns base prior for Bayesian analysis:
         - source_type: 'wire', 'official', 'local_news', 'international', 'aggregator', 'unknown'
@@ -306,25 +310,31 @@ class KnowledgeWorker:
         site_name = page['site_name'] or domain
 
         # Check if publisher entity already exists (by domain)
-        existing = await self._find_publisher_by_domain(domain)
+        existing = await self.entity_manager.get_by_domain(domain)
         if existing:
-            logger.debug(f"📰 Found existing publisher: {existing.canonical_name} (qid={existing.wikidata_qid})")
-            # If existing publisher has no QID, try to resolve via Wikidata
-            if not existing.wikidata_qid and site_name and site_name != domain:
-                logger.info(f"🔍 Resolving publisher via Wikidata: {site_name}")
-                await self._resolve_publisher_wikidata(existing.id, site_name)
-                # Re-fetch to get updated data
-                existing = await self._find_publisher_by_domain(domain)
+            logger.debug(f"📰 Found existing publisher: {existing.get('canonical_name')} (qid={existing.get('wikidata_qid')})")
 
-            # Update source classification if missing (for existing publishers)
-            # Use domain-based fallback since we don't have P31 here
+            # If existing publisher has no QID, try to resolve via Wikidata
+            if not existing.get('wikidata_qid') and site_name and site_name != domain:
+                logger.info(f"🔍 Resolving publisher via Wikidata: {site_name}")
+                await self._resolve_publisher_wikidata(existing['id'], site_name)
+                # Re-fetch to get updated data
+                existing = await self.entity_manager.get_by_domain(domain)
+
+            # Update source classification if missing
             source_type, has_byline = classify_source_by_domain(domain, site_name)
             base_prior = compute_base_prior(source_type, has_byline)
-            await self._ensure_publisher_classification(existing.id, source_type, base_prior)
-            return existing
+            await self.entity_manager.update_publisher_classification(
+                existing['id'], source_type, base_prior
+            )
 
-        # Create new publisher entity
-        entity_id = generate_entity_id()
+            return Entity(
+                id=existing['id'],
+                canonical_name=existing.get('canonical_name', site_name),
+                entity_type='ORGANIZATION',
+                wikidata_qid=existing.get('wikidata_qid'),
+                status=existing.get('status', 'pending')
+            )
 
         # Try to resolve via Wikidata to get canonical name, QID, and P31 for source type
         wikidata_qid = None
@@ -340,24 +350,8 @@ class KnowledgeWorker:
                     domain=domain
                 )
                 if result and result.get('accepted'):
-                    candidate_qid = result.get('qid')
+                    wikidata_qid = result.get('qid')
                     wikidata_label = result.get('label')
-
-                    # Check if entity with this QID already exists (avoid constraint violation)
-                    if candidate_qid:
-                        existing_by_qid = await self.neo4j.get_entity_by_qid(candidate_qid)
-                        if existing_by_qid:
-                            # Entity with this QID exists - use it instead of creating new
-                            logger.info(f"🔗 Publisher QID exists: {site_name} → {existing_by_qid['canonical_name']} ({candidate_qid})")
-                            return Entity(
-                                id=existing_by_qid['id'],
-                                canonical_name=existing_by_qid['canonical_name'],
-                                entity_type=existing_by_qid.get('entity_type', 'ORGANIZATION'),
-                                wikidata_qid=candidate_qid,
-                                status='resolved'
-                            )
-                        else:
-                            wikidata_qid = candidate_qid
 
                     if wikidata_label:
                         canonical_name = wikidata_label
@@ -383,73 +377,43 @@ class KnowledgeWorker:
 
         base_prior = compute_base_prior(source_type, has_byline)
 
-        publisher = Entity(
+        # Use EntityManager for unified entity creation with QID deduplication
+        # If an entity with this QID exists, it will be returned instead
+        entity_id = generate_entity_id()
+        returned_id = await self.entity_manager.get_or_create(
+            entity_id=entity_id,
+            canonical_name=canonical_name,
+            entity_type='ORGANIZATION',
+            wikidata_qid=wikidata_qid,
+            wikidata_label=wikidata_label,
+            domain=domain,
+            is_publisher=True,
+            source_type=source_type,
+            base_prior=base_prior,
+            status='resolved' if wikidata_qid else 'pending'
+        )
+
+        # If returned_id differs, an existing entity was found
+        if returned_id != entity_id:
+            logger.info(f"📰 Publisher (reused): {canonical_name} → {returned_id}")
+            existing = await self.entity_manager.get_by_id(returned_id)
+            return Entity(
+                id=returned_id,
+                canonical_name=existing.get('canonical_name', canonical_name) if existing else canonical_name,
+                entity_type='ORGANIZATION',
+                wikidata_qid=wikidata_qid,
+                status='resolved' if wikidata_qid else 'pending'
+            )
+
+        logger.info(f"📰 Publisher: {canonical_name} [{source_type}] (prior={base_prior})")
+        return Entity(
             id=entity_id,
             canonical_name=canonical_name,
-            entity_type="ORGANIZATION",
+            entity_type='ORGANIZATION',
             wikidata_qid=wikidata_qid,
             status='resolved' if wikidata_qid else 'pending'
         )
 
-        # Create Entity node in Neo4j with domain property for publisher lookup
-        # Include source_type and base_prior for Bayesian claim analysis
-        dedup_key = f"publisher_{domain.lower()}"
-        await self.neo4j._execute_write("""
-            MERGE (e:Entity {dedup_key: $dedup_key})
-            ON CREATE SET
-                e.id = $id,
-                e.canonical_name = $name,
-                e.entity_type = 'ORGANIZATION',
-                e.domain = $domain,
-                e.is_publisher = true,
-                e.wikidata_qid = $qid,
-                e.wikidata_label = $wikidata_label,
-                e.source_type = $source_type,
-                e.base_prior = $base_prior,
-                e.mention_count = 1,
-                e.status = $status,
-                e.created_at = datetime()
-            ON MATCH SET
-                e.mention_count = e.mention_count + 1,
-                e.updated_at = datetime()
-            RETURN e.id as id
-        """, {
-            'id': entity_id,
-            'dedup_key': dedup_key,
-            'domain': domain,
-            'name': canonical_name,
-            'qid': wikidata_qid,
-            'wikidata_label': wikidata_label,
-            'source_type': source_type,
-            'base_prior': base_prior,
-            'status': 'resolved' if wikidata_qid else 'pending'
-        })
-
-        logger.info(f"📰 Publisher: {canonical_name} [{source_type}] (prior={base_prior})")
-        return publisher
-
-    async def _ensure_publisher_classification(
-        self,
-        entity_id: str,
-        source_type: str,
-        base_prior: float
-    ):
-        """
-        Ensure existing publisher has source classification.
-
-        Only updates if source_type is not set (backfill for existing publishers).
-        """
-        await self.neo4j._execute_write("""
-            MATCH (e:Entity {id: $id, is_publisher: true})
-            WHERE e.source_type IS NULL
-            SET e.source_type = $source_type,
-                e.base_prior = $base_prior,
-                e.updated_at = datetime()
-        """, {
-            'id': entity_id,
-            'source_type': source_type,
-            'base_prior': base_prior
-        })
 
     async def _resolve_publisher_wikidata(self, entity_id: str, site_name: str):
         """Try to resolve an existing publisher entity via Wikidata."""
@@ -725,62 +689,12 @@ class KnowledgeWorker:
         """
         Update entity with Wikidata QID and label (enrichment during identification).
 
-        If another entity already has this QID, merge the current entity into it
-        (transfer relationships and delete duplicate).
+        Delegates to EntityManager which handles:
+        - QID conflict detection
+        - Relationship rewiring if merge needed
+        - Alias and mention count merging
         """
-        # Check if another entity already has this QID
-        existing = await self.neo4j._execute_read("""
-            MATCH (e:Entity {wikidata_qid: $qid})
-            WHERE e.id <> $entity_id
-            RETURN e.id as id
-        """, {'qid': qid, 'entity_id': str(entity_id)})
-
-        if existing:
-            # Another entity has this QID - merge into it
-            existing_id = existing[0]['id']
-            logger.info(f"🔄 Merging entity {entity_id} into existing {existing_id} (QID: {qid})")
-
-            # Transfer all relationships from current entity to existing
-            await self.neo4j._execute_write("""
-                MATCH (current:Entity {id: $current_id})
-                MATCH (existing:Entity {id: $existing_id})
-
-                // Transfer incoming MENTIONS relationships
-                OPTIONAL MATCH (c:Claim)-[r:MENTIONS]->(current)
-                FOREACH (_ IN CASE WHEN r IS NOT NULL THEN [1] ELSE [] END |
-                    MERGE (c)-[:MENTIONS]->(existing)
-                )
-
-                // Transfer INVOLVES relationships (from events)
-                OPTIONAL MATCH (ev:Event)-[r2:INVOLVES]->(current)
-                FOREACH (_ IN CASE WHEN r2 IS NOT NULL THEN [1] ELSE [] END |
-                    MERGE (ev)-[:INVOLVES]->(existing)
-                )
-
-                // Update mention count
-                SET existing.mention_count = existing.mention_count + current.mention_count
-
-                // Delete the duplicate entity
-                DETACH DELETE current
-            """, {
-                'current_id': str(entity_id),
-                'existing_id': existing_id
-            })
-            logger.info(f"✅ Merged entity {entity_id} → {existing_id}")
-        else:
-            # No conflict - update QID and wikidata_label
-            await self.neo4j._execute_write("""
-                MATCH (e:Entity {id: $entity_id})
-                WHERE e.wikidata_qid IS NULL
-                SET e.wikidata_qid = $qid,
-                    e.wikidata_label = $wikidata_label,
-                    e.updated_at = datetime()
-            """, {
-                'entity_id': str(entity_id),
-                'qid': qid,
-                'wikidata_label': wikidata_label
-            })
-            logger.info(f"🔗 Updated entity QID: {entity_id} → {qid} ({wikidata_label})")
+        await self.entity_manager.update_qid(entity_id, qid, wikidata_label)
 
     async def _generate_and_store_page_embedding(
         self,
