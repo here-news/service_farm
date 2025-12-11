@@ -399,6 +399,8 @@ class Neo4jService:
                 return existing_id
 
         # Phase 2: MERGE on dedup_key (name+type)
+        # Note: We don't set wikidata_qid here to avoid constraint violations
+        # if another entity already has this QID. QID should only be set via Phase 1.
         query = """
         MERGE (e:Entity {dedup_key: $dedup_key})
         ON CREATE SET
@@ -410,13 +412,6 @@ class Neo4jService:
         ON MATCH SET
             e.mention_count = e.mention_count + 1,
             e.updated_at = datetime()
-        WITH e
-        // If QID provided and entity doesn't have one, set it
-        SET e.wikidata_qid = CASE
-            WHEN $wikidata_qid IS NOT NULL AND e.wikidata_qid IS NULL
-            THEN $wikidata_qid
-            ELSE e.wikidata_qid
-        END
         RETURN e.id as id, e.wikidata_qid as existing_qid
         """
 

@@ -1,31 +1,17 @@
 /**
- * Background Service Worker - Polls Firestore for rogue extraction tasks
+ * Background Service Worker - Polls PostgreSQL API for rogue extraction tasks
  *
  * Flow:
- * 1. Poll Firestore every 3 seconds for pending tasks (fast pickup!)
- * 2. Pick up task and mark as "processing"
- * 3. Open URL in background tab (single navigation, no debugger overhead)
+ * 1. Poll API every 3 seconds for pending tasks
+ * 2. Pick up task (API marks as "processing")
+ * 3. Open URL in background tab with mobile User-Agent
  * 4. Content script extracts Open Graph metadata + full article text
- * 5. Upload metadata back to Firestore
+ * 5. Upload metadata back via API
  * 6. Close tab and repeat
  */
 
-import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
-import { getFirestore, collection, query, where, orderBy, limit, getDocs, doc, updateDoc, Timestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
-
-// Firebase configuration (replace with your project config)
-const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "here2-474221.firebaseapp.com",
-  projectId: "here2-474221",
-  storageBucket: "here2-474221.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
-};
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+// API Configuration - set this to your server
+const API_BASE_URL = 'http://localhost:7272/api';
 
 // Extension state
 let isProcessing = false;
@@ -33,7 +19,7 @@ let currentTaskId = null;
 let pollingInterval = null;
 
 // Configuration
-const POLL_INTERVAL_MS = 3000; // 3 seconds (10x faster!)
+const POLL_INTERVAL_MS = 3000; // 3 seconds
 const MAX_PROCESSING_TIME_MS = 60000; // 60 seconds timeout
 
 /**
@@ -45,7 +31,7 @@ function startPolling() {
   // Poll immediately on startup
   pollForTasks();
 
-  // Then poll every 3 seconds (fast pickup for instant response)
+  // Then poll every 3 seconds
   pollingInterval = setInterval(pollForTasks, POLL_INTERVAL_MS);
 }
 
@@ -61,7 +47,7 @@ function stopPolling() {
 }
 
 /**
- * Poll Firestore for pending rogue extraction tasks
+ * Poll API for pending rogue extraction tasks
  */
 async function pollForTasks() {
   // Skip if already processing a task
@@ -73,55 +59,33 @@ async function pollForTasks() {
   try {
     console.log('🔍 Polling for pending tasks...');
 
-    // Query for pending tasks (oldest first)
-    const tasksRef = collection(db, 'rogue_extraction_tasks');
-    const q = query(
-      tasksRef,
-      where('status', '==', 'pending'),
-      orderBy('created_at', 'asc'),
-      limit(1)
-    );
+    // GET /api/rogue/tasks returns pending tasks and marks them as processing
+    const response = await fetch(`${API_BASE_URL}/rogue/tasks?limit=1`);
 
-    const snapshot = await getDocs(q);
+    if (!response.ok) {
+      console.error('❌ API error:', response.status);
+      return;
+    }
 
-    if (snapshot.empty) {
+    const tasks = await response.json();
+
+    if (!tasks || tasks.length === 0) {
       console.log('✅ No pending tasks');
       updateBadge(0);
       return;
     }
 
-    // Pick up the first pending task
-    const taskDoc = snapshot.docs[0];
-    const task = taskDoc.data();
-    currentTaskId = taskDoc.id;
+    // Pick up the first task (already marked as processing by API)
+    const task = tasks[0];
+    currentTaskId = task.id;
 
     console.log(`📋 Found task: ${currentTaskId}`, task.url);
-
-    // Mark task as processing
-    await updateDoc(doc(db, 'rogue_extraction_tasks', currentTaskId), {
-      status: 'processing',
-      assigned_to: chrome.runtime.id,
-      processing_started_at: Timestamp.now()
-    });
 
     // Process the task
     await processTask(task.url, currentTaskId);
 
   } catch (error) {
     console.error('❌ Polling error:', error);
-
-    // Reset state on error
-    if (currentTaskId) {
-      try {
-        await updateDoc(doc(db, 'rogue_extraction_tasks', currentTaskId), {
-          status: 'pending', // Reset to pending so another poll can pick it up
-          error_message: error.message
-        });
-      } catch (updateError) {
-        console.error('❌ Failed to reset task status:', updateError);
-      }
-    }
-
     isProcessing = false;
     currentTaskId = null;
   }
@@ -139,16 +103,14 @@ async function processTask(url, taskId) {
   try {
     console.log(`🌐 Opening URL: ${url}`);
 
-    // Create tab directly with target URL (avoid about:blank permission issue)
+    // Create tab with target URL
     tab = await chrome.tabs.create({
       url: url,
       active: false // Don't switch to the tab
     });
 
-    // Set mobile User-Agent for this tab using declarativeNetRequest (fast, no debugger!)
-    // This matches our Playwright setup: iPhone 14 Pro Max
-    // Use simple incremental ID (Chrome API expects strict integer, not timestamp)
-    ruleId = Math.floor(Math.random() * 1000000) + 1; // Random integer 1-1000000
+    // Set mobile User-Agent for this tab using declarativeNetRequest
+    ruleId = Math.floor(Math.random() * 1000000) + 1;
     await chrome.declarativeNetRequest.updateSessionRules({
       addRules: [{
         id: ruleId,
@@ -179,12 +141,18 @@ async function processTask(url, taskId) {
     if (metadata) {
       console.log(`✅ Metadata extracted:`, metadata);
 
-      // Save metadata to Firestore
-      await updateDoc(doc(db, 'rogue_extraction_tasks', taskId), {
-        status: 'completed',
-        metadata: metadata,
-        completed_at: Timestamp.now()
+      // POST metadata to API
+      const completeResponse = await fetch(`${API_BASE_URL}/rogue/tasks/${taskId}/complete`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(metadata)
       });
+
+      if (!completeResponse.ok) {
+        throw new Error(`Failed to complete task: ${completeResponse.status}`);
+      }
 
       console.log(`✅ Task completed: ${taskId}`);
     } else {
@@ -194,12 +162,18 @@ async function processTask(url, taskId) {
   } catch (error) {
     console.error(`❌ Task failed: ${taskId}`, error);
 
-    // Mark task as failed
-    await updateDoc(doc(db, 'rogue_extraction_tasks', taskId), {
-      status: 'failed',
-      error_message: error.message,
-      failed_at: Timestamp.now()
-    });
+    // Mark task as failed via API
+    try {
+      await fetch(`${API_BASE_URL}/rogue/tasks/${taskId}/fail`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ error_message: error.message })
+      });
+    } catch (failError) {
+      console.error('❌ Failed to mark task as failed:', failError);
+    }
 
   } finally {
     // Cleanup: Remove the User-Agent rule
@@ -215,7 +189,7 @@ async function processTask(url, taskId) {
       }
     }
 
-    // Cleanup: ALWAYS close the tab (success or failure)
+    // Cleanup: ALWAYS close the tab
     if (tab) {
       try {
         await chrome.tabs.remove(tab.id);
@@ -285,7 +259,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendResponse({
       isProcessing,
       currentTaskId,
-      isPolling: pollingInterval !== null
+      isPolling: pollingInterval !== null,
+      apiBaseUrl: API_BASE_URL
     });
   } else if (message.type === 'START_POLLING') {
     startPolling();
@@ -293,6 +268,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   } else if (message.type === 'STOP_POLLING') {
     stopPolling();
     sendResponse({ success: true });
+  } else if (message.type === 'SET_API_URL') {
+    // Allow popup to configure API URL
+    // Note: This won't persist across restarts - need storage API for that
+    sendResponse({ success: true, note: 'URL change not persisted' });
   }
   return true; // Keep channel open for async response
 });
@@ -302,3 +281,4 @@ chrome.runtime.onStartup.addListener(startPolling);
 chrome.runtime.onInstalled.addListener(startPolling);
 
 console.log('🚀 HERE News Rogue URL Extractor - Background worker initialized');
+console.log(`📡 API endpoint: ${API_BASE_URL}`);

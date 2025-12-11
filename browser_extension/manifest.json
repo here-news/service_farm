@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "HERE News - Rogue URL Extractor (Gen2)",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "Extract full article text from blocked news sites using your real browser (PostgreSQL polling, mobile UA, manual extract)",
   "permissions": [
     "tabs",

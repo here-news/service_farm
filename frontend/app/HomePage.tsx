@@ -277,11 +277,13 @@ function HomePage() {
       })
       if (response.ok) {
         const data = await response.json()
-        console.log('Submissions data:', data)
-        if (data.length > 0) {
-          console.log('First submission user_picture:', data[0].user_picture)
+        // API returns {events: [], total: 0}, extract the array
+        const submissions = Array.isArray(data) ? data : (data.events || [])
+        console.log('Submissions data:', submissions)
+        if (submissions.length > 0) {
+          console.log('First submission user_picture:', submissions[0].user_picture)
         }
-        setPendingSubmissions(data)
+        setPendingSubmissions(submissions)
       }
     } catch (err) {
       console.error('Failed to load pending submissions:', err)
@@ -289,25 +291,42 @@ function HomePage() {
   }
 
   const handleSubmitEvent = async (content: string, urls: string[]) => {
-    const response = await fetch('/api/events', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({
-        content,
-        urls: urls.join(',')
-      })
-    })
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.detail || 'Failed to submit event')
+    if (urls.length === 0) {
+      throw new Error('Please include at least one URL')
     }
 
-    const data = await response.json()
+    // Submit each URL to /api/artifacts (without preview=true to commission extraction)
+    const newSubmissions: EventSubmission[] = []
+    for (const url of urls) {
+      const response = await fetch(`/api/artifacts?url=${encodeURIComponent(url)}`, {
+        method: 'POST',
+        credentials: 'include'
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.detail || `Failed to submit ${url}`)
+      }
+
+      const data = await response.json()
+      newSubmissions.push({
+        id: data.page_id,
+        user_id: 'anonymous',
+        user_name: 'You',
+        content: content || data.title || url,
+        urls: url,
+        status: 'extracting',
+        created_at: data.created_at || new Date().toISOString(),
+        preview_meta: {
+          title: data.title,
+          description: data.description,
+          thumbnail_url: data.thumbnail_url
+        }
+      })
+    }
 
     // Add to pending submissions
-    setPendingSubmissions([data, ...pendingSubmissions])
+    setPendingSubmissions([...newSubmissions, ...pendingSubmissions])
 
     // Close sharebox
     setShowShareBox(false)

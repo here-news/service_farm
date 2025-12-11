@@ -142,13 +142,8 @@ async def complete_rogue_task(task_id: str, metadata: RogueTaskMetadata):
     """
     page_repo, rogue_task_repo = await init_services()
 
-    try:
-        task_uuid = uuid.UUID(task_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid task_id format")
-
     # Get task to verify it exists and get page_id
-    task = await rogue_task_repo.get_by_id(task_uuid)
+    task = await rogue_task_repo.get_by_id(task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 
@@ -156,7 +151,7 @@ async def complete_rogue_task(task_id: str, metadata: RogueTaskMetadata):
         raise HTTPException(status_code=400, detail=f"Task already {task['status']}")
 
     # Mark task as completed
-    await rogue_task_repo.mark_completed(task_uuid)
+    await rogue_task_repo.mark_completed(task_id)
 
     # Update page with extracted metadata
     page_id = task['page_id']
@@ -213,28 +208,27 @@ async def complete_rogue_task(task_id: str, metadata: RogueTaskMetadata):
     }
 
 
+class FailTaskRequest(BaseModel):
+    error_message: str
+
+
 @router.post("/rogue/tasks/{task_id}/fail")
-async def fail_rogue_task(task_id: str, error_message: str):
+async def fail_rogue_task(task_id: str, request: FailTaskRequest):
     """
     Mark a rogue extraction task as failed
 
     Browser extension calls this if extraction fails (CAPTCHA, login wall, etc.)
 
     Args:
-        task_id: Task UUID
-        error_message: Error description
+        task_id: Task ID
+        request: JSON body with error_message
 
     Returns:
         Success status
     """
     _, rogue_task_repo = await init_services()
 
-    try:
-        task_uuid = uuid.UUID(task_id)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Invalid task_id format")
-
-    await rogue_task_repo.mark_failed(task_uuid, error_message)
+    await rogue_task_repo.mark_failed(task_id, request.error_message)
 
     return {"success": True, "task_id": task_id}
 

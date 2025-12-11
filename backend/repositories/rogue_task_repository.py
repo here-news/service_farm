@@ -82,12 +82,12 @@ class RogueTaskRepository:
 
             return [dict(task) for task in tasks]
 
-    async def get_by_id(self, task_id: uuid.UUID) -> Optional[dict]:
+    async def get_by_id(self, task_id: str) -> Optional[dict]:
         """
         Get rogue task by ID
 
         Args:
-            task_id: Task UUID
+            task_id: Task ID (string)
 
         Returns:
             Task dictionary or None
@@ -97,32 +97,32 @@ class RogueTaskRepository:
                 SELECT id, page_id, url, status, created_at, completed_at
                 FROM core.rogue_extraction_tasks
                 WHERE id = $1
-            """, task_id)
+            """, str(task_id))
 
             return dict(task) if task else None
 
-    async def mark_completed(self, task_id: uuid.UUID) -> None:
+    async def mark_completed(self, task_id: str) -> None:
         """
         Mark rogue task as completed
 
         Args:
-            task_id: Task UUID
+            task_id: Task ID (string)
         """
         async with self.db_pool.acquire() as conn:
             await conn.execute("""
                 UPDATE core.rogue_extraction_tasks
                 SET status = 'completed', completed_at = NOW()
                 WHERE id = $1
-            """, task_id)
+            """, str(task_id))
 
             logger.info(f"✅ Marked rogue task {task_id} as completed")
 
-    async def mark_failed(self, task_id: uuid.UUID, error_message: Optional[str] = None) -> None:
+    async def mark_failed(self, task_id: str, error_message: Optional[str] = None) -> None:
         """
         Mark rogue task as failed
 
         Args:
-            task_id: Task UUID
+            task_id: Task ID (string)
             error_message: Optional error message
         """
         async with self.db_pool.acquire() as conn:
@@ -130,7 +130,7 @@ class RogueTaskRepository:
                 UPDATE core.rogue_extraction_tasks
                 SET status = 'failed', error_message = $2, completed_at = NOW()
                 WHERE id = $1
-            """, task_id, error_message)
+            """, str(task_id), error_message)
 
             logger.error(f"❌ Marked rogue task {task_id} as failed: {error_message or 'Unknown error'}")
 

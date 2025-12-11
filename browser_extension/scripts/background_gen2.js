@@ -4,15 +4,15 @@
  * Polls REST API instead of Firestore for rogue extraction tasks
  *
  * Flow:
- * 1. Poll GET /api/v2/rogue/tasks every 3 seconds
+ * 1. Poll GET /api/rogue/tasks every 3 seconds
  * 2. Pick up task and open URL in background tab
  * 3. Content script extracts metadata + article text
- * 4. POST /api/v2/rogue/tasks/{id}/complete with metadata
+ * 4. POST /api/rogue/tasks/{id}/complete with metadata
  * 5. Close tab and repeat
  */
 
 // Configuration
-const API_BASE_URL = 'http://localhost:8000';  // Update for production
+const API_BASE_URL = 'http://localhost:7272';  // Update for production
 const POLL_INTERVAL_MS = 3000; // 3 seconds
 const MAX_PROCESSING_TIME_MS = 60000; // 60 seconds timeout
 
@@ -59,8 +59,8 @@ async function pollForTasks() {
   try {
     console.log('🔍 Polling for pending tasks...');
 
-    // GET /api/v2/rogue/tasks
-    const response = await fetch(`${API_BASE_URL}/api/v2/rogue/tasks?limit=1`);
+    // GET /api/rogue/tasks
+    const response = await fetch(`${API_BASE_URL}/api/rogue/tasks?limit=1`);
 
     if (!response.ok) {
       console.error('❌ API error:', response.status, await response.text());
@@ -168,7 +168,7 @@ async function processTask(task) {
 async function completeTask(taskId, metadata) {
   console.log(`📤 Completing task ${taskId}`);
 
-  const response = await fetch(`${API_BASE_URL}/api/v2/rogue/tasks/${taskId}/complete`, {
+  const response = await fetch(`${API_BASE_URL}/api/rogue/tasks/${taskId}/complete`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json'
@@ -191,8 +191,12 @@ async function failTask(taskId, errorMessage) {
   console.log(`❌ Failing task ${taskId}:`, errorMessage);
 
   try {
-    const response = await fetch(`${API_BASE_URL}/api/v2/rogue/tasks/${taskId}/fail?error_message=${encodeURIComponent(errorMessage)}`, {
-      method: 'POST'
+    const response = await fetch(`${API_BASE_URL}/api/rogue/tasks/${taskId}/fail`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ error_message: errorMessage })
     });
 
     if (response.ok) {

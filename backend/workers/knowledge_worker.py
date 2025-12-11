@@ -340,8 +340,25 @@ class KnowledgeWorker:
                     domain=domain
                 )
                 if result and result.get('accepted'):
-                    wikidata_qid = result.get('qid')
+                    candidate_qid = result.get('qid')
                     wikidata_label = result.get('label')
+
+                    # Check if entity with this QID already exists (avoid constraint violation)
+                    if candidate_qid:
+                        existing_by_qid = await self.neo4j.get_entity_by_qid(candidate_qid)
+                        if existing_by_qid:
+                            # Entity with this QID exists - use it instead of creating new
+                            logger.info(f"🔗 Publisher QID exists: {site_name} → {existing_by_qid['canonical_name']} ({candidate_qid})")
+                            return Entity(
+                                id=existing_by_qid['id'],
+                                canonical_name=existing_by_qid['canonical_name'],
+                                entity_type=existing_by_qid.get('entity_type', 'ORGANIZATION'),
+                                wikidata_qid=candidate_qid,
+                                status='resolved'
+                            )
+                        else:
+                            wikidata_qid = candidate_qid
+
                     if wikidata_label:
                         canonical_name = wikidata_label
                     logger.info(f"🔗 Publisher resolved: {site_name} → {canonical_name} ({wikidata_qid})")

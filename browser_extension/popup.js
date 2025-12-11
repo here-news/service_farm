@@ -4,7 +4,7 @@
  */
 
 // Configuration - UPDATE THIS WITH YOUR SERVICE-FARM URL
-const SERVICE_FARM_URL = 'http://localhost:8000'; // Gen2 API (port 8000)
+const SERVICE_FARM_URL = 'http://localhost:7272'; // Gen2 API
 
 // DOM elements
 const pendingCountEl = document.getElementById('pendingCount');
@@ -60,7 +60,7 @@ async function updateStatus() {
 async function updateTaskCounts() {
   try {
     // Use service-farm API to get stats
-    const response = await fetch(`${SERVICE_FARM_URL}/api/v2/rogue/stats`);
+    const response = await fetch(`${SERVICE_FARM_URL}/api/rogue/stats`);
 
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
@@ -83,7 +83,7 @@ async function updateTaskCounts() {
  */
 async function updateRecentTasks() {
   try {
-    const response = await fetch(`${SERVICE_FARM_URL}/api/v2/rogue/tasks?limit=5&recent=true`);
+    const response = await fetch(`${SERVICE_FARM_URL}/api/rogue/tasks?limit=5&recent=true`);
 
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
@@ -99,7 +99,7 @@ async function updateRecentTasks() {
     // Build task list HTML
     const html = tasks.map(task => {
       const urlHost = new URL(task.url).hostname.replace('www.', '');
-      const apiUrl = `${SERVICE_FARM_URL}/api/v2/url/${task.page_id}`;
+      const apiUrl = `${SERVICE_FARM_URL}/api/artifacts/${task.page_id}`;
 
       return `
         <div class="task-item">
@@ -153,7 +153,7 @@ async function extractCurrentPage() {
     }
 
     // Submit URL to service farm
-    const response = await fetch(`${SERVICE_FARM_URL}/api/v2/artifacts?url=${encodeURIComponent(tab.url)}`, {
+    const response = await fetch(`${SERVICE_FARM_URL}/api/artifacts?url=${encodeURIComponent(tab.url)}`, {
       method: 'POST'
     });
 
@@ -163,12 +163,8 @@ async function extractCurrentPage() {
 
     const result = await response.json();
 
-    // Show success and open result
+    // Show success
     alert(`✅ Submitted! Page ID: ${result.page_id}`);
-
-    // Open result in new tab
-    const apiUrl = `${SERVICE_FARM_URL}/api/v2/url/${result.page_id}`;
-    chrome.tabs.create({ url: apiUrl });
 
     // Refresh status
     await updateStatus();
