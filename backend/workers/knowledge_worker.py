@@ -25,6 +25,8 @@ from datetime import datetime
 from openai import AsyncOpenAI
 import logging
 
+from pgvector.asyncpg import register_vector
+
 from models.domain import Entity, Claim
 from utils.id_generator import generate_entity_id, generate_claim_id
 from models.domain.mention import ExtractionResult
@@ -809,10 +811,13 @@ class KnowledgeWorker:
 
             embedding = response.data[0].embedding
 
-            # Store in PostgreSQL core.pages table
+            # Store in PostgreSQL core.pages table using pgvector native type
+            # register_vector() enables passing Python list directly
+            await register_vector(conn)
+
             await conn.execute("""
                 UPDATE core.pages
-                SET embedding = $1::vector,
+                SET embedding = $1,
                     updated_at = NOW()
                 WHERE id = $2
             """, embedding, page_id)

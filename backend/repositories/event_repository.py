@@ -19,6 +19,8 @@ from datetime import datetime
 import asyncpg
 import numpy as np
 
+from pgvector.asyncpg import register_vector
+
 from models.domain.event import Event
 from services.neo4j_service import Neo4jService
 from utils.datetime_utils import neo4j_datetime_to_python
@@ -46,40 +48,48 @@ class EventRepository:
         Returns:
             Created event
         """
-        # Prepare metadata with summary, location, coherence
-        # NOTE: claim_ids NO LONGER stored in metadata - use graph relationships instead
-        metadata = event.metadata.copy() if event.metadata else {}
-        if event.summary:
-            metadata['summary'] = event.summary
-        if event.location:
-            metadata['location'] = event.location
-        if event.coherence:
-            metadata['coherence'] = event.coherence
-
         # Store ALL event data in Neo4j (primary storage)
-        await self.neo4j.create_event(
-            event_id=str(event.id),
-            canonical_name=event.canonical_name,
-            event_type=event.event_type,
-            status=event.status,
-            confidence=event.confidence,
-            event_scale=event.event_scale,
-            earliest_time=event.event_start,
-            latest_time=event.event_end,
-            metadata=metadata
-        )
+        # summary, location, coherence stored as direct properties
+        await self.neo4j._execute_write("""
+            CREATE (e:Event {
+                id: $event_id,
+                canonical_name: $canonical_name,
+                event_type: $event_type,
+                status: $status,
+                confidence: $confidence,
+                event_scale: $event_scale,
+                earliest_time: $earliest_time,
+                latest_time: $latest_time,
+                summary: $summary,
+                location: $location,
+                coherence: $coherence,
+                created_at: datetime(),
+                updated_at: datetime()
+            })
+        """, {
+            'event_id': str(event.id),
+            'canonical_name': event.canonical_name,
+            'event_type': event.event_type,
+            'status': event.status,
+            'confidence': event.confidence,
+            'event_scale': event.event_scale,
+            'earliest_time': event.event_start,
+            'latest_time': event.event_end,
+            'summary': event.summary,
+            'location': event.location,
+            'coherence': event.coherence
+        })
 
         # Store ONLY embedding in PostgreSQL (for vector similarity)
         if event.embedding:
-            # Convert list to PostgreSQL vector string format '[x,y,z,...]'
-            embedding_str = '[' + ','.join(str(x) for x in event.embedding) + ']'
             async with self.db_pool.acquire() as conn:
+                await register_vector(conn)
                 await conn.execute("""
                     INSERT INTO core.event_embeddings (event_id, embedding)
-                    VALUES ($1, $2::vector)
+                    VALUES ($1, $2)
                     ON CONFLICT (event_id) DO UPDATE SET
                         embedding = EXCLUDED.embedding
-                """, str(event.id), embedding_str)
+                """, str(event.id), event.embedding)
 
         logger.info(f"✨ Created event: {event.canonical_name} ({event.id})")
         return event
@@ -95,17 +105,7 @@ class EventRepository:
             Updated event
         """
         # Update Neo4j event properties
-        # NOTE: claim_ids NO LONGER stored in metadata - use graph relationships instead
-        metadata = event.metadata.copy() if event.metadata else {}
-        if event.summary:
-            metadata['summary'] = event.summary
-        if event.location:
-            metadata['location'] = event.location
-        if event.coherence:
-            metadata['coherence'] = event.coherence
-
-        # JSON serialize metadata for Neo4j (doesn't support nested structures)
-        metadata_json = json.dumps(metadata) if metadata else '{}'
+        # NOTE: summary, location, coherence stored as direct properties (not in metadata)
 
         await self.neo4j._execute_write("""
             MATCH (e:Event {id: $event_id})
@@ -116,8 +116,9 @@ class EventRepository:
                 e.event_scale = $event_scale,
                 e.earliest_time = $earliest_time,
                 e.latest_time = $latest_time,
-                e.metadata = $metadata,
                 e.coherence = $coherence,
+                e.summary = $summary,
+                e.location = $location,
                 e.updated_at = datetime()
         """, {
             'event_id': str(event.id),
@@ -128,20 +129,20 @@ class EventRepository:
             'event_scale': event.event_scale,
             'earliest_time': event.event_start,
             'latest_time': event.event_end,
-            'metadata': metadata_json,
-            'coherence': event.coherence
+            'coherence': event.coherence,
+            'summary': event.summary,
+            'location': event.location
         })
 
         # Update embedding in PostgreSQL
         if event.embedding:
-            # Convert list to PostgreSQL vector string format '[x,y,z,...]'
-            embedding_str = '[' + ','.join(str(x) for x in event.embedding) + ']'
             async with self.db_pool.acquire() as conn:
+                await register_vector(conn)
                 await conn.execute("""
                     UPDATE core.event_embeddings
-                    SET embedding = $2::vector
+                    SET embedding = $2
                     WHERE event_id = $1
-                """, str(event.id), embedding_str)
+                """, str(event.id), event.embedding)
 
         logger.debug(f"📊 Updated event: {event.canonical_name}")
         return event
@@ -180,17 +181,17 @@ class EventRepository:
         # Fetch embedding from PostgreSQL
         embedding = None
         async with self.db_pool.acquire() as conn:
+            await register_vector(conn)
             row = await conn.fetchrow("""
                 SELECT embedding FROM core.event_embeddings WHERE event_id = $1
             """, event_id)
-            if row and row['embedding']:
+            if row and row['embedding'] is not None:
                 raw_emb = row['embedding']
-                logger.info(f"Raw embedding type: {type(raw_emb)}, len: {len(raw_emb) if hasattr(raw_emb, '__len__') else 'N/A'}")
-                embedding = self._parse_embedding(raw_emb)
-                logger.info(f"Parsed embedding: {type(embedding)}, len: {len(embedding) if embedding else 'None'}")
+                # pgvector returns numpy array, convert to list
+                embedding = [float(x) for x in raw_emb]
 
-        logger.info(f"About to return Event - embedding type: {type(embedding)}, len: {len(embedding) if embedding else 'None'}")
         # Model handles UUID conversion in __post_init__
+        # Read summary, location, coherence from Neo4j node properties (not metadata)
         return Event(
             id=node['id'],
             canonical_name=node.get('canonical_name', ''),
@@ -205,9 +206,9 @@ class EventRepository:
             parent_event_id=parent_event_id,
             pages_count=0,  # Legacy field
             claims_count=0,  # Use get_event_claims() to fetch actual count from graph
-            summary=metadata.get('summary'),
-            location=metadata.get('location'),
-            coherence=metadata.get('coherence', 0.3)
+            summary=node.get('summary'),
+            location=node.get('location'),
+            coherence=node.get('coherence', 0.3)
         )
 
     async def get_sub_events(self, parent_id: str) -> List[Event]:

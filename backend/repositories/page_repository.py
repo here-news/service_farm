@@ -14,6 +14,8 @@ from typing import Optional, List
 import asyncpg
 from datetime import datetime
 
+from pgvector.asyncpg import register_vector
+
 from models.domain.page import Page
 from services.neo4j_service import Neo4jService
 from utils.id_generator import is_uuid, uuid_to_short_id
@@ -150,21 +152,19 @@ class PageRepository:
         """
         try:
             async with self.db_pool.acquire() as conn:
+                # Register pgvector type for native numpy array return
+                await register_vector(conn)
+
                 row = await conn.fetchrow("""
                     SELECT embedding
                     FROM core.pages
                     WHERE id = $1
                 """, page_id)
 
-                if row and row['embedding']:
-                    # Parse embedding from string format if needed
+                if row and row['embedding'] is not None:
+                    # pgvector returns numpy array, convert to list
                     emb = row['embedding']
-                    if isinstance(emb, str):
-                        # String format: '[x,y,z,...]'
-                        if emb.startswith('[') and emb.endswith(']'):
-                            return [float(x.strip()) for x in emb[1:-1].split(',')]
-                    elif isinstance(emb, list):
-                        return [float(x) for x in emb]
+                    return [float(x) for x in emb]
 
                 return None
 
