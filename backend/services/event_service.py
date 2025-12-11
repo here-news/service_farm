@@ -897,7 +897,7 @@ class EventService:
             for c in sorted_claims
         ])
 
-        prompt = f"""Generate a comprehensive factual summary for this event using ONLY the claims below.
+        prompt = f"""Synthesize these claims into a coherent factual narrative.
 
 Event: {event.canonical_name}
 Type: {event.event_type}
@@ -905,20 +905,16 @@ Type: {event.event_type}
 CLAIMS (with timestamps and source count):
 {claims_str}
 
-Write a detailed factual summary with sections appropriate to the event type. Use markdown headers (**Section Name**) to organize.
+Write a factual narrative that:
+- Organizes information naturally based on what the claims are actually about
+- Uses dates, figures, names, and locations from the claims
+- Shows ranges when sources conflict (e.g., "1,800-1,900 days")
+- Attributes key information to sources when relevant
+- Follows chronological or logical flow as appropriate
 
-Include:
-- Specific dates, times, locations, and figures from the claims
-- Ranges when numbers conflict (e.g., "150-160 reported")
-- Key actors, organizations, and their roles
-- Chronological developments where relevant
-- Consequences and ongoing developments
+Do NOT use generic template sections like "Casualties" or "Emergency Response" unless the claims are actually about those topics. Let the content of the claims determine the structure.
 
-Rules:
-- Use ONLY facts from the claims above
-- Prioritize claims with more sources (higher corroboration count)
-- No speculation or editorializing
-- Be comprehensive but concise"""
+Use markdown headers (**Section**) only where natural topic breaks exist in the evidence."""
 
         response = await self.openai_client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],

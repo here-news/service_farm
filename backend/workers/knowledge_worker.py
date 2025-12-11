@@ -616,46 +616,32 @@ class KnowledgeWorker:
                 wikidata_qid=ent.get('wikidata_qid')
             )
 
-        # 2. Search Wikidata for known journalists
-        wikidata_qid = None
-        wikidata_label = None
-        if self.wikidata_client:
-            try:
-                result = await self.wikidata_client.search_entity(
-                    name=author_name,
-                    entity_type='PERSON',
-                    context='journalist writer author reporter'
-                )
-                if result and result.get('accepted'):
-                    wikidata_qid = result.get('qid')
-                    wikidata_label = result.get('label')
-                    logger.debug(f"✍️ Author (wikidata): {author_name} → {wikidata_label} ({wikidata_qid})")
-            except Exception as e:
-                logger.warning(f"Wikidata search failed for author {author_name}: {e}")
+        # 2. Skip Wikidata search for authors
+        # Most article authors aren't notable enough for Wikidata entries,
+        # and generic name matching produces too many false positives
+        # (e.g., "Lucy Swan" matching an 18th century person).
+        # Authors will be linked by name; if they're also mentioned as
+        # entities in article content, they'll get QIDs through that path.
 
         # 3. Create author entity using EntityManager
         entity_id = generate_entity_id()
-        canonical_name = wikidata_label or author_name
 
         returned_id = await self.entity_manager.get_or_create(
             entity_id=entity_id,
-            canonical_name=canonical_name,
+            canonical_name=author_name,
             entity_type='PERSON',
-            wikidata_qid=wikidata_qid,
-            wikidata_label=wikidata_label,
             is_author=True,
-            status='resolved' if wikidata_qid else 'pending'
+            status='pending'  # No QID, pending enrichment
         )
 
-        # EntityManager may return existing entity ID if QID matched
+        # EntityManager may return existing entity ID if matched by name
         final_id = returned_id if returned_id else entity_id
 
         return Entity(
             id=final_id,
-            canonical_name=canonical_name,
+            canonical_name=author_name,
             entity_type='PERSON',
-            wikidata_qid=wikidata_qid,
-            status='resolved' if wikidata_qid else 'pending'
+            status='pending'
         )
 
     async def _create_claims(
