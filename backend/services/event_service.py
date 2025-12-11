@@ -892,11 +892,21 @@ class EventService:
                 return t.strftime('%Y-%m-%d %H:%M')
             return str(t)[:16] if len(str(t)) > 16 else str(t)
 
+        # Build entity lookup from all claims
+        entity_lookup = {}  # name -> id
+        for c in sorted_claims:
+            for ent in c.get('entities', []):
+                if ent.get('name') and ent.get('id'):
+                    entity_lookup[ent['name']] = ent['id']
+
         # Format claims with IDs for reference embedding
         claims_str = "\n".join([
             f"[{c['id']}] {c['text']} (sources: {c['corroboration_count'] + 1}, time: {format_time(c['event_time'])})"
             for c in sorted_claims
         ])
+
+        # Format entity list for LLM
+        entity_list = "\n".join([f"- {name} → {eid}" for name, eid in entity_lookup.items()])
 
         prompt = f"""Synthesize these claims into a coherent factual narrative with embedded references.
 
@@ -906,14 +916,18 @@ Type: {event.event_type}
 CLAIMS (each has an ID in brackets):
 {claims_str}
 
+ENTITY IDs (use these when mentioning entities):
+{entity_list}
+
 Write a factual narrative that:
 - Embeds claim references as [claim_id] after statements derived from that claim
+- Marks entity names with their ID on first mention: "Jimmy Lai [en_yo2rx1cg]"
 - Combines related claims naturally, listing multiple IDs when appropriate [id1][id2]
 - Organizes information based on what the claims are actually about
 - Uses dates, figures, names, and locations from the claims
 - Shows ranges when sources conflict (e.g., "1,800-1,900 days")
 
-Example: "The fire broke out at 2:51 p.m. [cl_abc123] and was upgraded to a Number 4 alarm by 3:34 p.m. [cl_def456]."
+Example: "Jimmy Lai [en_abc123] has been imprisoned in Hong Kong [en_def456] for 1,800 days [cl_xyz789]."
 
 Do NOT use generic template sections unless claims are actually about those topics. Let content determine structure.
 
@@ -931,14 +945,22 @@ Use markdown headers (**Section**) only where natural topic breaks exist."""
 
     async def _enrich_claims_with_corroboration(self, claims: List[Claim]) -> List[dict]:
         """
-        Enrich claims with corroboration count and metadata.
+        Enrich claims with corroboration count, entity info, and metadata.
 
-        Returns list of dicts with: text, confidence, corroboration_count, has_time
+        Returns list of dicts with: text, confidence, corroboration_count, has_time, entities
         """
         enriched = []
         for claim in claims:
             # Get corroboration count from Neo4j
             corr_count = await self.claim_repo.get_corroboration_count(claim.id)
+
+            # Build entity info: list of {id, name} for entities mentioned in this claim
+            entities = []
+            entity_ids = claim.entity_ids
+            entity_names = claim.entity_names
+            for i, eid in enumerate(entity_ids):
+                name = entity_names[i] if i < len(entity_names) else None
+                entities.append({'id': eid, 'name': name})
 
             enriched.append({
                 'id': claim.id,
@@ -947,6 +969,7 @@ Use markdown headers (**Section**) only where natural topic breaks exist."""
                 'corroboration_count': corr_count,
                 'has_time': claim.event_time is not None,
                 'event_time': claim.event_time,
+                'entities': entities,
                 'claim': claim  # Keep original for reference
             })
 
