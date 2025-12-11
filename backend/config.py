@@ -2,108 +2,89 @@ from pydantic_settings import BaseSettings
 from pydantic import field_validator
 from functools import lru_cache
 from typing import Optional
+import os
 
 
 class Settings(BaseSettings):
-    """Application settings loaded from environment variables"""
+    """
+    Application settings loaded from environment variables.
+
+    Environment variables can come from:
+    - docker-compose.yml environment section
+    - .env file (for secrets like API keys)
+    - System environment
+
+    Variable names match docker-compose conventions:
+    - POSTGRES_HOST, POSTGRES_PORT, etc. (for database)
+    - NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD (for Neo4j)
+    - GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET (for OAuth)
+    """
 
     # Environment
     environment: str = "development"
 
-    # Google OAuth
-    google_client_id: str
-    google_client_secret: str
-    google_redirect_uri: Optional[str] = None  # Optional: will be auto-constructed from request host
+    # Google OAuth (from .env)
+    google_client_id: str = ""
+    google_client_secret: str = ""
+    google_redirect_uri: Optional[str] = None
 
-    # JWT
-    jwt_secret_key: str
+    # JWT - uses SECRET_KEY from .env or generates default
+    jwt_secret_key: str = "dev-secret-key-change-in-production"
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 1440
 
-    # Database connection components
-    db_host: Optional[str] = None
-    db_port: int = 5432
-    db_user: str = "phi_user"
-    db_password: str = "phi_password_dev"
-    db_name: str = "phi_here"
+    # PostgreSQL (from docker-compose)
+    postgres_host: str = "localhost"
+    postgres_port: int = 5432
+    postgres_user: str = "herenews_user"
+    postgres_password: str = "herenews_pass"
+    postgres_db: str = "herenews"
     database_url: Optional[str] = None
 
-    # Neo4j connection components
-    neo4j_host: Optional[str] = None
-    neo4j_bolt_port: int = 7687
-    neo4j_username: str
-    neo4j_password: str
+    # Neo4j (from docker-compose)
+    neo4j_uri: str = "bolt://localhost:7687"
+    neo4j_user: str = "neo4j"
+    neo4j_password: str = "herenews_neo4j_pass"
     neo4j_database: str = "neo4j"
-    neo4j_uri: Optional[str] = None
 
-    # OpenAI
+    # OpenAI (from .env)
     openai_api_key: str = ""
 
-    # Service Farm (extraction worker)
+    # Redis
+    redis_url: str = "redis://localhost:6379"
+
+    # Service Farm
     service_farm_url: str = "http://localhost:8080"
 
     class Config:
         env_file = ".env"
         case_sensitive = False
+        extra = "ignore"  # Ignore extra env vars
+
+    @field_validator('jwt_secret_key', mode='before')
+    @classmethod
+    def get_jwt_secret(cls, v):
+        """Use SECRET_KEY from env if JWT_SECRET_KEY not set"""
+        if v and v != "dev-secret-key-change-in-production":
+            return v
+        # Fall back to SECRET_KEY (used in .env)
+        return os.getenv('SECRET_KEY', v or 'dev-secret-key-change-in-production')
 
     @field_validator('database_url', mode='before')
     @classmethod
     def construct_database_url(cls, v, info):
-        """
-        Construct database URL based on environment
-        - Production: Use localhost (running on same server)
-        - Development: Use IPv6 address from db_host
-        """
+        """Construct database URL from components if not explicitly set"""
         if v:
-            # If DATABASE_URL is explicitly set, use it
             return v
 
         data = info.data
-        environment = data.get('environment', 'development')
-        db_user = data.get('db_user', 'phi_user')
-        db_password = data.get('db_password', 'phi_password_dev')
-        db_port = data.get('db_port', 5432)
-        db_name = data.get('db_name', 'phi_here')
+        host = data.get('postgres_host', 'localhost')
+        port = data.get('postgres_port', 5432)
+        user = data.get('postgres_user', 'herenews_user')
+        password = data.get('postgres_password', 'herenews_pass')
+        db = data.get('postgres_db', 'herenews')
 
-        if environment == 'production':
-            # Production: Use localhost
-            host = 'localhost'
-        else:
-            # Development: Use IPv6 address
-            db_host = data.get('db_host')
-            if not db_host:
-                raise ValueError("db_host must be set for development environment")
-            host = f'[{db_host}]'  # IPv6 addresses need brackets
-
-        return f"postgresql+asyncpg://{db_user}:{db_password}@{host}:{db_port}/{db_name}"
-
-    @field_validator('neo4j_uri', mode='before')
-    @classmethod
-    def construct_neo4j_uri(cls, v, info):
-        """
-        Construct Neo4j URI based on environment
-        - Production: Use localhost (running on same server)
-        - Development: Use IPv6 address from neo4j_host
-        """
-        if v:
-            # If NEO4J_URI is explicitly set, use it
-            return v
-
-        data = info.data
-        environment = data.get('environment', 'development')
-        neo4j_bolt_port = data.get('neo4j_bolt_port', 7687)
-
-        if environment == 'production':
-            # Production: Use localhost
-            host = 'localhost'
-        else:
-            # Development: Use IPv6 address
-            neo4j_host = data.get('neo4j_host')
-            if not neo4j_host:
-                raise ValueError("neo4j_host must be set for development environment")
-            host = f'[{neo4j_host}]'  # IPv6 addresses need brackets
-
-        return f"bolt://{host}:{neo4j_bolt_port}"
+        return f"postgresql+asyncpg://{user}:{password}@{host}:{port}/{db}"
 
 
 @lru_cache()

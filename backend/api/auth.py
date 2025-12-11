@@ -10,9 +10,10 @@ from middleware.google_oauth import get_google_oauth
 from middleware.jwt_session import create_access_token
 from middleware.auth import get_current_user_optional
 from repositories.user_repository import UserRepository
-from models.api.user import UserCreate, UserResponse, UserPublic
+from models.api.user import UserResponse, UserPublic
+from models.domain.user import User
 from config import get_settings
-from repositories import db_pool
+from repositories import get_db_pool
 
 settings = get_settings()
 router = APIRouter(prefix="/api/auth", tags=["authentication"])
@@ -67,18 +68,20 @@ async def auth_callback(request: Request):
             raise HTTPException(status_code=400, detail="Invalid user info from Google")
 
         # Create or update user
-        user_repo = UserRepository(db_pool)
+        pool = await get_db_pool()
+        user_repo = UserRepository(pool)
         user = await user_repo.get_by_google_id(google_id)
 
         if not user:
             # Create new user
-            user_create = UserCreate(
+            user = User(
+                user_id="",  # Will be generated in __post_init__
                 email=email,
+                google_id=google_id,
                 name=name or email.split('@')[0],
-                picture=picture,
-                google_id=google_id
+                picture_url=picture
             )
-            user = await user_repo.create(user_create)
+            user = await user_repo.create(user)
         else:
             # Update last login
             await user_repo.update_last_login(user.user_id)
@@ -132,7 +135,8 @@ async def get_current_user_info(
         raise HTTPException(status_code=401, detail="Not authenticated")
 
     # Fetch full user details from database
-    user_repo = UserRepository(db_pool)
+    pool = await get_db_pool()
+    user_repo = UserRepository(pool)
     user = await user_repo.get_by_id(str(current_user.user_id))
 
     if not user:
@@ -152,7 +156,8 @@ async def auth_status(
     """
     if current_user:
         # Get full user data from database
-        user_repo = UserRepository(db_pool)
+        pool = await get_db_pool()
+        user_repo = UserRepository(pool)
         user = await user_repo.get_by_id(str(current_user.user_id))
 
         if user:

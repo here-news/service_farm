@@ -24,24 +24,27 @@ try:
 except ImportError as e:
     print(f"⚠️  Coherence feed not available: {e}")
 
-# Try to import community feature routers (may fail if dependencies missing)
-community_routers = []
+# Import auth router (core feature, load separately)
+auth_router = None
 try:
-    from api import auth, comments, chat, preview, submissions, extraction, event_page, map
-    community_routers = [
-        (auth.router, "/api/auth", ["Authentication"]),
-        (comments.router, "/api/comments", ["Comments"]),
-        (chat.router, "/api/chat", ["Chat"]),
-        (preview.router, "/api/preview", ["Preview"]),
-        (submissions.router, "/api/submissions", ["Submissions"]),
-        (extraction.router, "/api/extraction", ["Extraction"]),
-        (event_page.router, "/api/event", ["Event Pages"]),
-        (map.router, "/api/map", ["Map"]),
-    ]
-    print("✅ Community features loaded successfully")
+    from api import auth
+    auth_router = auth.router
+    print("✅ Auth loaded")
 except ImportError as e:
-    print(f"⚠️  Community features not available (missing dependencies): {e}")
-    print("   Install: authlib, python-jose, itsdangerous, email-validator")
+    print(f"⚠️  Auth not available: {e}")
+
+# Try to import other community feature routers
+community_routers = []
+for module_name, prefix, tags in [
+    ("event_page", "/api/event", ["Event Pages"]),
+    ("map", "/api/map", ["Map"]),
+    ("preview", "/api/preview", ["Preview"]),
+]:
+    try:
+        module = __import__(f"api.{module_name}", fromlist=[module_name])
+        community_routers.append((module.router, prefix, tags))
+    except ImportError as e:
+        print(f"⚠️  {module_name} not available: {e}")
 
 app = FastAPI(
     title="HereNews Service Farm",
@@ -83,6 +86,10 @@ app.include_router(events_router, prefix="/api", tags=["Events"])
 # Coherence feed (standalone)
 if coherence_router:
     app.include_router(coherence_router, prefix="/api/coherence", tags=["Coherence"])
+
+# Auth router (core) - already has /api/auth prefix in router
+if auth_router:
+    app.include_router(auth_router)
 
 # Legacy demo endpoints (archived)
 app.include_router(legacy_router, prefix="/api/demo", tags=["Legacy Demo"])

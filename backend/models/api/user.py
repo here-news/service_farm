@@ -53,6 +53,11 @@ class UserResponse(BaseModel):
     created_at: datetime
     last_login: Optional[datetime] = None
 
+    # Aliases for frontend compatibility
+    id: Optional[str] = None
+    picture: Optional[str] = None
+    credits: Optional[int] = None
+
     model_config = {
         "from_attributes": True,
         "populate_by_name": True
@@ -62,11 +67,9 @@ class UserResponse(BaseModel):
     def serialize_user_id(self, value: UUID) -> str:
         return str(value)
 
-    def model_dump(self, **kwargs):
-        """Override to include aliases for backward compatibility"""
-        data = super().model_dump(**kwargs)
-        # Add aliases for frontend compatibility
-        data['id'] = data.get('user_id')
-        data['picture'] = data.get('picture_url')
-        data['credits'] = data.get('credits_balance')
-        return data
+    def __init__(self, **data):
+        super().__init__(**data)
+        # Set aliases from main fields
+        self.id = str(self.user_id)
+        self.picture = self.picture_url
+        self.credits = self.credits_balance

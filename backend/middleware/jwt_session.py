@@ -1,16 +1,11 @@
 """
 JWT session management
-Copied from webapp/app/auth/session.py
 """
-
-import os
 from datetime import datetime, timedelta
 from jose import jwt
+from config import get_settings
 
-# Settings from environment
-JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', 'dev_secret_key_change_in_production')
-JWT_ALGORITHM = os.getenv('JWT_ALGORITHM', 'HS256')
-JWT_EXPIRE_MINUTES = int(os.getenv('JWT_EXPIRE_MINUTES', '1440'))  # 24 hours
+settings = get_settings()
 
 
 def create_access_token(user) -> str:
@@ -23,7 +18,7 @@ def create_access_token(user) -> str:
     Returns:
         JWT token string
     """
-    expire = datetime.utcnow() + timedelta(minutes=JWT_EXPIRE_MINUTES)
+    expire = datetime.utcnow() + timedelta(minutes=settings.jwt_expire_minutes)
 
     payload = {
         "sub": str(user.user_id),
@@ -35,8 +30,8 @@ def create_access_token(user) -> str:
 
     token = jwt.encode(
         payload,
-        JWT_SECRET_KEY,
-        algorithm=JWT_ALGORITHM
+        settings.jwt_secret_key,
+        algorithm=settings.jwt_algorithm
     )
 
     return token
@@ -54,8 +49,8 @@ def decode_access_token(token: str) -> dict:
     """
     payload = jwt.decode(
         token,
-        JWT_SECRET_KEY,
-        algorithms=[JWT_ALGORITHM]
+        settings.jwt_secret_key,
+        algorithms=[settings.jwt_algorithm]
     )
 
     return payload
