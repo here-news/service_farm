@@ -39,6 +39,7 @@ from services.source_classification import (
     classify_source_by_domain, classify_source_from_wikidata,
     compute_base_prior, get_prior_reason
 )
+from services.author_parser import parse_byline, ParsedAuthor
 from semantic_analyzer import EnhancedSemanticAnalyzer
 
 logger = logging.getLogger(__name__)
@@ -150,6 +151,14 @@ class KnowledgeWorker:
                 logger.info(f"📰 Publisher: {publisher.canonical_name} (qid={publisher.wikidata_qid})")
 
                 # =========================================================
+                # STAGE 0b: Author Identification
+                # =========================================================
+                authors = await self._identify_authors(page)
+                if authors:
+                    author_names = [a.canonical_name for a in authors]
+                    logger.info(f"✍️ Authors: {', '.join(author_names)}")
+
+                # =========================================================
                 # STAGE 1: Extraction (LLM)
                 # =========================================================
                 page_meta = {
@@ -213,6 +222,10 @@ class KnowledgeWorker:
 
                 # 4a. Link page to publisher
                 await self._link_page_to_publisher(str(page_id), publisher.id)
+
+                # 4a2. Link page to authors
+                for author in authors:
+                    await self._link_page_to_author(str(page_id), author.id)
 
                 # 4b. Create claims with entity links
                 claim_ids = await self._create_claims(
@@ -528,6 +541,122 @@ class KnowledgeWorker:
             'page_id': page_id,
             'publisher_id': publisher_id
         })
+
+    async def _link_page_to_author(self, page_id: str, author_id: str):
+        """Create AUTHORED_BY relationship between page and author entity."""
+        await self.neo4j._execute_write("""
+            MATCH (p:Page {id: $page_id})
+            MATCH (e:Entity {id: $author_id})
+            MERGE (p)-[r:AUTHORED_BY]->(e)
+            ON CREATE SET r.created_at = datetime()
+        """, {
+            'page_id': page_id,
+            'author_id': author_id
+        })
+
+    async def _identify_authors(self, page: dict) -> List[Entity]:
+        """
+        Identify author entities from page byline.
+
+        Parses byline to extract individual author names, then:
+        1. Searches local graph for existing author entity
+        2. Searches Wikidata for known journalists/writers
+        3. Creates new PERSON entity if no match found
+
+        Returns:
+            List of Entity objects for page authors
+        """
+        byline = page.get('byline')
+        if not byline:
+            return []
+
+        # Parse byline into individual author names
+        parsed_authors = parse_byline(byline)
+        if not parsed_authors:
+            return []
+
+        authors = []
+        for parsed in parsed_authors:
+            if not parsed.is_person:
+                # Skip organizational credits like "AP Staff"
+                continue
+
+            author_entity = await self._identify_single_author(parsed.name)
+            if author_entity:
+                authors.append(author_entity)
+
+        return authors
+
+    async def _identify_single_author(self, author_name: str) -> Optional[Entity]:
+        """
+        Identify a single author by name.
+
+        Search order:
+        1. Local graph by canonical_name (exact match)
+        2. Wikidata search for journalists/writers
+        3. Create new local entity
+        """
+        # 1. Search local graph for existing author entity
+        existing = await self.neo4j._execute_read("""
+            MATCH (e:Entity {entity_type: 'PERSON'})
+            WHERE toLower(e.canonical_name) = toLower($name)
+               OR toLower($name) IN [a IN coalesce(e.aliases, []) | toLower(a)]
+            RETURN e.id as id, e.canonical_name as canonical_name,
+                   e.wikidata_qid as wikidata_qid
+            LIMIT 1
+        """, {'name': author_name})
+
+        if existing and len(existing) > 0:
+            ent = existing[0]
+            logger.debug(f"✍️ Author (existing): {author_name} → {ent['canonical_name']}")
+            return Entity(
+                id=ent['id'],
+                canonical_name=ent['canonical_name'],
+                entity_type='PERSON',
+                wikidata_qid=ent.get('wikidata_qid')
+            )
+
+        # 2. Search Wikidata for known journalists
+        wikidata_qid = None
+        wikidata_label = None
+        if self.wikidata_client:
+            try:
+                result = await self.wikidata_client.search_entity(
+                    name=author_name,
+                    entity_type='PERSON',
+                    context='journalist writer author reporter'
+                )
+                if result and result.get('accepted'):
+                    wikidata_qid = result.get('qid')
+                    wikidata_label = result.get('label')
+                    logger.debug(f"✍️ Author (wikidata): {author_name} → {wikidata_label} ({wikidata_qid})")
+            except Exception as e:
+                logger.warning(f"Wikidata search failed for author {author_name}: {e}")
+
+        # 3. Create author entity using EntityManager
+        entity_id = generate_entity_id()
+        canonical_name = wikidata_label or author_name
+
+        returned_id = await self.entity_manager.get_or_create(
+            entity_id=entity_id,
+            canonical_name=canonical_name,
+            entity_type='PERSON',
+            wikidata_qid=wikidata_qid,
+            wikidata_label=wikidata_label,
+            is_author=True,
+            status='resolved' if wikidata_qid else 'pending'
+        )
+
+        # EntityManager may return existing entity ID if QID matched
+        final_id = returned_id if returned_id else entity_id
+
+        return Entity(
+            id=final_id,
+            canonical_name=canonical_name,
+            entity_type='PERSON',
+            wikidata_qid=wikidata_qid,
+            status='resolved' if wikidata_qid else 'pending'
+        )
 
     async def _create_claims(
         self,
