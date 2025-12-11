@@ -40,10 +40,13 @@ from services.job_queue import JobQueue
 from services.neo4j_service import Neo4jService
 from services.event_service import EventService
 from services.live_event_pool import LiveEventPool
+from services.claim_topology import ClaimTopologyService
 from repositories.claim_repository import ClaimRepository
 from repositories.entity_repository import EntityRepository
 from repositories.event_repository import EventRepository
 from repositories.page_repository import PageRepository
+
+from openai import AsyncOpenAI
 
 logging.basicConfig(
     level=logging.INFO,
@@ -88,12 +91,17 @@ class EventWorker:
             entity_repo=self.entity_repo
         )
 
-        # Initialize LiveEvent pool
+        # Initialize ClaimTopologyService for Bayesian plausibility analysis
+        openai_client = AsyncOpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+        self.topology_service = ClaimTopologyService(openai_client)
+
+        # Initialize LiveEvent pool with topology service
         self.pool = LiveEventPool(
             event_service=self.event_service,
             claim_repo=self.claim_repo,
             event_repo=self.event_repo,
-            entity_repo=self.entity_repo
+            entity_repo=self.entity_repo,
+            topology_service=self.topology_service
         )
 
     async def start(self):
