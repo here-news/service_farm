@@ -1512,7 +1512,97 @@ Answer ONLY "yes" or "no"."""
         # Update status based on confidence and claim count
         event.update_status()
 
+        # Update temporal bounds using LLM extraction from claim content
+        await self._update_temporal_bounds(event, claims)
+
         logger.debug(f"  📊 Updated metrics: confidence={event.confidence:.2f}, coherence={event.coherence:.2f}, status={event.status}")
+
+    async def _update_temporal_bounds(self, event: Event, claims: List[Claim]):
+        """
+        Update event start/end dates by extracting actual dates from claim content.
+
+        Uses lightweight LLM call (4o-mini) to infer when the event actually started/ended
+        based on claim text, not just when claims were reported.
+
+        Examples:
+        - "arrested in December 2020" → event_start = 2020-12-01
+        - "held for 1,800 days" → can calculate start from current date
+        - "fire broke out on November 25" → event_start = 2025-11-25
+        """
+        if not claims:
+            return
+
+        # Get sample of claims for temporal extraction (limit to avoid token overflow)
+        sample_claims = claims[:20]
+        claims_text = "\n".join([
+            f"- {c.text}" + (f" (reported: {c.event_time})" if c.event_time else "")
+            for c in sample_claims
+        ])
+
+        prompt = f"""Analyze these claims about "{event.canonical_name}" and extract the ACTUAL event dates.
+
+Claims:
+{claims_text}
+
+Based on the claim content (not reporting dates), determine:
+1. EVENT_START: When did this event actually begin? Look for phrases like "arrested in 2020", "fire broke out on Nov 25", "started last month", etc.
+2. EVENT_END: When did/will this event end? Use "ongoing" if still happening, or extract end date if mentioned.
+
+Respond in exactly this format (nothing else):
+EVENT_START: YYYY-MM-DD or unknown
+EVENT_END: YYYY-MM-DD or ongoing or unknown
+
+Examples:
+- "imprisoned for 1,800 days" with today's date → calculate backwards for start
+- "arrested in December 2020" → EVENT_START: 2020-12-01
+- "trial concluded yesterday" → EVENT_END: (yesterday's date)"""
+
+        try:
+            response = await self.openai_client.chat.completions.create(
+                messages=[{"role": "user", "content": prompt}],
+                model="gpt-4o-mini",
+                temperature=0,
+                max_tokens=100
+            )
+
+            result = response.choices[0].message.content.strip()
+            logger.debug(f"📅 Temporal extraction result: {result}")
+
+            # Parse response
+            from dateutil import parser as date_parser
+            from datetime import timezone
+
+            for line in result.split('\n'):
+                line = line.strip()
+                if line.startswith("EVENT_START:"):
+                    date_str = line.replace("EVENT_START:", "").strip()
+                    if date_str and date_str != "unknown":
+                        try:
+                            event.event_start = date_parser.parse(date_str)
+                            logger.info(f"📅 Extracted event_start: {event.event_start}")
+                        except Exception as e:
+                            logger.debug(f"Could not parse start date '{date_str}': {e}")
+
+                elif line.startswith("EVENT_END:"):
+                    date_str = line.replace("EVENT_END:", "").strip()
+                    if date_str == "ongoing":
+                        event.event_end = datetime.now(timezone.utc)
+                        logger.info(f"📅 Event ongoing, set event_end to now")
+                    elif date_str and date_str != "unknown":
+                        try:
+                            event.event_end = date_parser.parse(date_str)
+                            logger.info(f"📅 Extracted event_end: {event.event_end}")
+                        except Exception as e:
+                            logger.debug(f"Could not parse end date '{date_str}': {e}")
+
+        except Exception as e:
+            logger.warning(f"Failed to extract temporal bounds: {e}")
+            # Fall back to claim-based bounds
+            start, end = self._calculate_temporal_bounds(claims)
+            if start and not event.event_start:
+                event.event_start = start
+            if end and not event.event_end:
+                event.event_end = end
 
     def _calculate_temporal_bounds(self, claims: List[Claim]) -> Tuple[Optional[datetime], Optional[datetime]]:
         """Calculate earliest and latest event times from claims"""

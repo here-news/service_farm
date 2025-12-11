@@ -25,8 +25,8 @@ interface Event {
     event_type: string;
     event_scale: string;
     coherence: number;
-    event_start: string;
-    event_end?: string;
+    event_start?: string | null;
+    event_end?: string | null;
     summary: string;
 }
 
@@ -118,16 +118,18 @@ const EventPageNew: React.FC = () => {
                     <h1 className="text-3xl font-bold mb-3">{event.canonical_name}</h1>
 
                     <div className="flex flex-wrap gap-4 text-sm">
-                        <div className="flex items-center gap-2">
-                            <span>📅</span>
-                            <span className="text-gray-400">
-                                {new Date(event.event_start).toLocaleDateString('en-US', {
-                                    year: 'numeric',
-                                    month: 'long',
-                                    day: 'numeric'
-                                })}
-                            </span>
-                        </div>
+                        {event.event_start && (
+                            <div className="flex items-center gap-2">
+                                <span>📅</span>
+                                <span className="text-gray-400">
+                                    {new Date(event.event_start).toLocaleDateString('en-US', {
+                                        year: 'numeric',
+                                        month: 'long',
+                                        day: 'numeric'
+                                    })}
+                                </span>
+                            </div>
+                        )}
                         <div className="flex items-center gap-2">
                             <span>📍</span>
                             <span className="text-gray-400">{event.event_type}</span>
