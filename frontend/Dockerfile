@@ -11,7 +11,5 @@ RUN npm install
 # Copy source
 COPY . .
 
-# Build
-RUN npm run build
-
-# Output is in ../static (configured in vite.config.ts)
+# Default: build to ../static (mount point)
+CMD ["npm", "run", "build"]

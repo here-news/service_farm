@@ -53,17 +53,14 @@ services:
       timeout: 3s
       retries: 5
 
-  # Frontend Builder (builds React app to static/)
+  # Frontend Builder - builds React app directly to static/
   # Usage: docker-compose run --rm frontend
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
+    build: ./frontend
     volumes:
+      - ./frontend:/app
       - ./static:/output
-    command: sh -c "cp -r /app/dist/* /output/"
-    profiles:
-      - build
+      - /app/node_modules
 
   # Unified App (FastAPI backend + React frontend)
   app:
