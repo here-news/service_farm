@@ -892,29 +892,32 @@ class EventService:
                 return t.strftime('%Y-%m-%d %H:%M')
             return str(t)[:16] if len(str(t)) > 16 else str(t)
 
+        # Format claims with IDs for reference embedding
         claims_str = "\n".join([
-            f"- [{format_time(c['event_time'])}] {c['text']} (sources: {c['corroboration_count'] + 1})"
+            f"[{c['id']}] {c['text']} (sources: {c['corroboration_count'] + 1}, time: {format_time(c['event_time'])})"
             for c in sorted_claims
         ])
 
-        prompt = f"""Synthesize these claims into a coherent factual narrative.
+        prompt = f"""Synthesize these claims into a coherent factual narrative with embedded references.
 
 Event: {event.canonical_name}
 Type: {event.event_type}
 
-CLAIMS (with timestamps and source count):
+CLAIMS (each has an ID in brackets):
 {claims_str}
 
 Write a factual narrative that:
-- Organizes information naturally based on what the claims are actually about
+- Embeds claim references as [claim_id] after statements derived from that claim
+- Combines related claims naturally, listing multiple IDs when appropriate [id1][id2]
+- Organizes information based on what the claims are actually about
 - Uses dates, figures, names, and locations from the claims
 - Shows ranges when sources conflict (e.g., "1,800-1,900 days")
-- Attributes key information to sources when relevant
-- Follows chronological or logical flow as appropriate
 
-Do NOT use generic template sections like "Casualties" or "Emergency Response" unless the claims are actually about those topics. Let the content of the claims determine the structure.
+Example: "The fire broke out at 2:51 p.m. [cl_abc123] and was upgraded to a Number 4 alarm by 3:34 p.m. [cl_def456]."
 
-Use markdown headers (**Section**) only where natural topic breaks exist in the evidence."""
+Do NOT use generic template sections unless claims are actually about those topics. Let content determine structure.
+
+Use markdown headers (**Section**) only where natural topic breaks exist."""
 
         response = await self.openai_client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
