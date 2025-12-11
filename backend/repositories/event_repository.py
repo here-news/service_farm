@@ -319,6 +319,12 @@ class EventRepository:
                 event_start_py = neo4j_datetime_to_python(event.event_start)
                 reference_time_py = neo4j_datetime_to_python(reference_time) if isinstance(reference_time, str) else reference_time
                 if event_start_py and reference_time_py:
+                    # Ensure both are timezone-aware or both are naive for comparison
+                    from datetime import timezone
+                    if event_start_py.tzinfo is None and reference_time_py.tzinfo is not None:
+                        event_start_py = event_start_py.replace(tzinfo=timezone.utc)
+                    elif event_start_py.tzinfo is not None and reference_time_py.tzinfo is None:
+                        reference_time_py = reference_time_py.replace(tzinfo=timezone.utc)
                     time_diff_days = abs((reference_time_py - event_start_py).days)
                     time_score = max(0, 1 - (time_diff_days / time_window_days))
 

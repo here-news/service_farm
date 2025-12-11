@@ -254,6 +254,12 @@ class EventService:
                     event_time = None
 
             if claim_time and event_time:
+                # Ensure both are timezone-aware or both are naive for comparison
+                from datetime import timezone
+                if claim_time.tzinfo is None and event_time.tzinfo is not None:
+                    claim_time = claim_time.replace(tzinfo=timezone.utc)
+                elif claim_time.tzinfo is not None and event_time.tzinfo is None:
+                    event_time = event_time.replace(tzinfo=timezone.utc)
                 # Calculate days difference
                 time_diff = abs((claim_time - event_time).total_seconds() / 86400)
                 # Decay: 1.0 at 0 days, 0.5 at 7 days, 0.1 at 30 days
