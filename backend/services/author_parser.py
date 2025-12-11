@@ -177,8 +177,8 @@ def _looks_like_name(text: str) -> bool:
 
     words = text.split()
 
-    # Must have 1-4 words
-    if not (1 <= len(words) <= 4):
+    # Must have 2-4 words (single word names too ambiguous for authors)
+    if not (2 <= len(words) <= 4):
         return False
 
     # First word should start with capital (or be all caps)
