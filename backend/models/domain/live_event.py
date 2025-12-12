@@ -573,27 +573,9 @@ class LiveEvent:
         # Persist topology to graph
         await self._persist_topology(topology)
 
-        # Generate narrative with topology context
+        # Generate and persist narrative (single path)
         topology_context = self.topology_service.get_topology_context(topology)
-        narrative = await self.service.generate_structured_narrative(
-            self.event,
-            self.claims,
-            topology_context
-        )
-
-        # Update storage
-        flat_narrative = narrative.to_flat_text()
-        await self.service.event_repo.update_narrative(
-            self.event.id,
-            flat_narrative,
-            narrative.to_dict()
-        )
-
-        # Update internal state
-        self.event.narrative = narrative
-        self.event.summary = flat_narrative
-        self.last_narrative_update = datetime.utcnow()
-        self._metabolism_state.claims_since_narrative = 0
+        narrative, flat_narrative = await self._regenerate_and_persist_narrative(topology_context)
 
         # Calculate and update coherence
         new_coherence = await self._calculate_coherence()
@@ -750,35 +732,11 @@ class LiveEvent:
                 await self._persist_topology(topology)
                 topology_context = self.topology_service.get_topology_context(topology)
 
-            # Generate structured narrative
-            narrative = await self.service.generate_structured_narrative(
-                self.event,
-                self.claims,
-                topology_context
-            )
-            flat_narrative = narrative.to_flat_text()
-
-            # Update storage
-            await self.service.event_repo.update_narrative(
-                self.event.id,
-                flat_narrative,
-                narrative.to_dict()
-            )
+            # Generate and persist narrative (single path)
+            narrative, flat_narrative = await self._regenerate_and_persist_narrative(topology_context)
         else:
-            # Fallback: simple narrative
-            narrative = StructuredNarrative(
-                sections=[],
-                pattern="unknown",
-                generated_at=datetime.utcnow()
-            )
-            flat_narrative = await self.service._generate_event_narrative(self.event, self.claims)
-            await self.service.event_repo.update_narrative(self.event.id, flat_narrative)
-
-        # Update internal state
-        self.event.narrative = narrative
-        self.event.summary = flat_narrative
-        self.last_narrative_update = datetime.utcnow()
-        self._metabolism_state.claims_since_narrative = 0
+            # Fallback: no topology context
+            narrative, flat_narrative = await self._regenerate_and_persist_narrative(None)
 
         return MetabolismResult(
             action_type=ActionType.REGENERATE_NARRATIVE,
@@ -788,6 +746,47 @@ class LiveEvent:
                 'sections': len(narrative.sections) if narrative else 0
             }
         )
+
+    async def _regenerate_and_persist_narrative(self, topology_context: dict = None):
+        """
+        Single path for narrative generation and persistence.
+
+        Args:
+            topology_context: Optional topology context for claim scoring
+
+        Returns:
+            Tuple of (StructuredNarrative, flat_narrative_text)
+        """
+        # Generate structured narrative
+        narrative = await self.service.generate_structured_narrative(
+            self.event,
+            self.claims,
+            topology_context
+        )
+        flat_narrative = narrative.to_flat_text()
+
+        # Persist to storage
+        await self.service.event_repo.update_narrative(
+            self.event.id,
+            flat_narrative,
+            narrative.to_dict()
+        )
+
+        # Generate event embedding if missing
+        if not self.event.embedding and flat_narrative:
+            embedding = await self.service._generate_event_embedding(flat_narrative)
+            if embedding:
+                await self.service.event_repo.update_embedding(self.event.id, embedding)
+                self.event.embedding = embedding
+                logger.info(f"📊 Generated event embedding from narrative")
+
+        # Update internal state
+        self.event.narrative = narrative
+        self.event.summary = flat_narrative
+        self.last_narrative_update = datetime.utcnow()
+        self._metabolism_state.claims_since_narrative = 0
+
+        return narrative, flat_narrative
 
     async def _exec_emit_thought(self, action: MetabolismAction, context: dict) -> MetabolismResult:
         """

@@ -631,10 +631,10 @@ For non-update relations, omit "newer"."""
             'pattern': topology.pattern,
             'contradictions': [
                 {
-                    'claim1_id': c['claim1_id'],
-                    'claim2_id': c['claim2_id'],
-                    'text1': c['text1'],
-                    'text2': c['text2']
+                    'claim1_id': c.get('claim1_id') or c.get('source_id', ''),
+                    'claim2_id': c.get('claim2_id') or c.get('target_id', ''),
+                    'text1': c.get('text1', ''),  # May be empty if loaded from storage
+                    'text2': c.get('text2', '')   # May be empty if loaded from storage
                 }
                 for c in topology.contradictions
             ],
@@ -690,7 +690,7 @@ For non-update relations, omit "newer"."""
                 new_priors[claim.id] = 0.50
 
         # Generate embeddings for new claims only
-        new_embeddings = await self._generate_embeddings([c.text for c in new_claims])
+        new_embeddings = await self.generate_embeddings([c.text for c in new_claims])
 
         # Get embeddings for existing claims (they should already have them)
         existing_embeddings = {}
@@ -701,7 +701,7 @@ For non-update relations, omit "newer"."""
         # If existing claims don't have embeddings cached, we need them
         if not existing_embeddings and existing_claims:
             logger.info(f"  📊 Generating {len(existing_claims)} embeddings for existing claims...")
-            existing_emb_list = await self._generate_embeddings([c.text for c in existing_claims])
+            existing_emb_list = await self.generate_embeddings([c.text for c in existing_claims])
             for i, claim in enumerate(existing_claims):
                 existing_embeddings[claim.id] = existing_emb_list[i]
 

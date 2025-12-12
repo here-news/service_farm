@@ -853,6 +853,24 @@ class EventRepository:
 
         logger.debug(f"📝 Updated narrative for {event_id}: {len(narrative)} chars{section_info}")
 
+    async def update_embedding(self, event_id: str, embedding: List[float]) -> None:
+        """
+        Update event embedding.
+
+        Args:
+            event_id: Event ID
+            embedding: Embedding vector
+        """
+        await self.neo4j._execute_write("""
+            MATCH (e:Event {id: $event_id})
+            SET e.embedding = $embedding,
+                e.updated_at = datetime()
+        """, {
+            'event_id': event_id,
+            'embedding': embedding
+        })
+        logger.debug(f"📊 Updated embedding for {event_id}: {len(embedding)} dims")
+
     async def update_status(self, event_id: str, status: str) -> None:
         """
         Update event status.
@@ -1063,6 +1081,23 @@ class EventRepository:
         result = await self.neo4j._execute_read("""
             MATCH (e:Event {id: $event_id})-[:SUPPORTS]->(c:Claim)
             RETURN count(c) as count
+        """, {'event_id': event_id})
+
+        return result[0]['count'] if result else 0
+
+    async def get_event_page_count(self, event_id: str) -> int:
+        """
+        Get count of distinct source pages for an event.
+
+        Args:
+            event_id: Event ID
+
+        Returns:
+            Number of distinct pages
+        """
+        result = await self.neo4j._execute_read("""
+            MATCH (e:Event {id: $event_id})-[:SUPPORTS]->(c:Claim)<-[:CONTAINS]-(p:Page)
+            RETURN count(DISTINCT p) as count
         """, {'event_id': event_id})
 
         return result[0]['count'] if result else 0
