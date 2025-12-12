@@ -478,9 +478,13 @@ class EventRepository:
         from models.domain.claim import Claim
 
         # Fetch all claim data from Neo4j (primary storage)
+        # Join with Page via CONTAINS relationship to get page_id
         result = await self.neo4j._execute_read("""
             MATCH (e:Event {id: $event_id})-[r:SUPPORTS|CONTRADICTS|UPDATES]->(c:Claim)
-            RETURN c.id as id, c.page_id as page_id, c.text as text,
+            OPTIONAL MATCH (p:Page)-[:CONTAINS]->(c)
+            RETURN c.id as id,
+                   COALESCE(c.page_id, p.id) as page_id,
+                   c.text as text,
                    c.modality as modality, c.confidence as confidence,
                    c.event_time as event_time, c.metadata as metadata
             ORDER BY c.event_time
@@ -863,4 +867,105 @@ class EventRepository:
         })
 
         logger.debug(f"📊 Updated status for {event_id}: {status}")
+
+    async def add_thought(self, event_id: str, thought) -> None:
+        """
+        Add a thought to an event's thoughts list in Neo4j.
+
+        Thoughts are epistemic observations emitted by the living event's
+        metabolism - e.g., detected contradictions, coherence drops, etc.
+
+        Args:
+            event_id: Event ID
+            thought: Thought object from metabolism.py
+        """
+        thought_data = {
+            'id': thought.id,
+            'type': thought.type.value,
+            'content': thought.content,
+            'related_claims': thought.related_claims,
+            'related_entities': thought.related_entities,
+            'temperature': thought.temperature,
+            'coherence': thought.coherence,
+            'created_at': thought.created_at.isoformat(),
+            'acknowledged': thought.acknowledged
+        }
+
+        # Store thought in event's thoughts array property
+        await self.neo4j._execute_write("""
+            MATCH (e:Event {id: $event_id})
+            SET e.thoughts = COALESCE(e.thoughts, []) + [$thought_json],
+                e.updated_at = datetime()
+        """, {
+            'event_id': event_id,
+            'thought_json': json.dumps(thought_data)
+        })
+
+        logger.info(f"💭 Added thought to {event_id}: {thought.type.value} - {thought.content[:50]}...")
+
+    async def get_thoughts(self, event_id: str) -> List[dict]:
+        """
+        Get all thoughts for an event.
+
+        Args:
+            event_id: Event ID
+
+        Returns:
+            List of thought dicts
+        """
+        result = await self.neo4j._execute_read("""
+            MATCH (e:Event {id: $event_id})
+            RETURN e.thoughts as thoughts
+        """, {'event_id': event_id})
+
+        if not result or not result[0].get('thoughts'):
+            return []
+
+        thoughts = []
+        for thought_json in result[0]['thoughts']:
+            try:
+                thought_data = json.loads(thought_json) if isinstance(thought_json, str) else thought_json
+                thoughts.append(thought_data)
+            except (json.JSONDecodeError, TypeError):
+                continue
+
+        return thoughts
+
+    async def acknowledge_thought(self, event_id: str, thought_id: str) -> bool:
+        """
+        Mark a thought as acknowledged.
+
+        Args:
+            event_id: Event ID
+            thought_id: Thought ID (th_xxxxxxxx format)
+
+        Returns:
+            True if thought was found and acknowledged
+        """
+        # Get current thoughts
+        thoughts = await self.get_thoughts(event_id)
+
+        # Find and update the thought
+        updated = False
+        for thought in thoughts:
+            if thought.get('id') == thought_id:
+                thought['acknowledged'] = True
+                updated = True
+                break
+
+        if not updated:
+            return False
+
+        # Write back updated thoughts array
+        thought_jsons = [json.dumps(t) for t in thoughts]
+        await self.neo4j._execute_write("""
+            MATCH (e:Event {id: $event_id})
+            SET e.thoughts = $thoughts
+        """, {
+            'event_id': event_id,
+            'thoughts': thought_jsons
+        })
+
+        logger.debug(f"✓ Acknowledged thought {thought_id} for event {event_id}")
+        return True
 

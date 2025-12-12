@@ -191,11 +191,13 @@ class LiveEventPool:
 
     async def metabolism_cycle(self):
         """
-        Periodic maintenance - events update themselves.
+        Periodic maintenance - events update themselves via on_time_tick() trigger.
 
-        For each active event:
-        1. Check if narrative needs update → regenerate
-        2. Check if should hibernate → archive
+        Each event's metabolism decides what action to take based on its state:
+        - REGENERATE_NARRATIVE if narrative is stale
+        - HIBERNATE if dormant for too long
+        - EMIT_THOUGHT if anomaly detected
+        - NO_OP if all is well
 
         Called every hour by worker.
         """
@@ -209,15 +211,17 @@ class LiveEventPool:
             live_event = self.active[event_id]
 
             try:
-                # Regenerate narrative if needed
-                if live_event.needs_narrative_update():
-                    logger.info(f"📝 Updating narrative: {live_event.event.canonical_name}")
-                    await live_event.regenerate_narrative()
+                # Trigger time-based metabolism - let the event decide what to do
+                result = await live_event.on_time_tick()
 
-                # Hibernate if dormant
-                if live_event.should_hibernate():
+                # Check if event decided to hibernate
+                if hasattr(live_event, '_metabolism_state') and live_event._metabolism_state.is_hibernating:
                     logger.info(f"😴 Hibernating: {live_event.event.canonical_name} (idle {live_event.idle_time_seconds()/3600:.1f}h)")
                     await self._hibernate_event(event_id)
+
+                # Log action taken
+                if result.action_type.value != 'no_op':
+                    logger.info(f"⚡ {live_event.event.canonical_name}: {result.action_type.value}")
 
             except Exception as e:
                 logger.error(f"❌ Metabolism error for {live_event.event.canonical_name}: {e}", exc_info=True)
