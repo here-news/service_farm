@@ -1193,7 +1193,7 @@ Return a JSON object with this exact structure:
     {{
       "topic": "overview",
       "title": "",
-      "content": "A comprehensive 2-3 paragraph opening that covers the core facts of what happened, when, where, and the immediate impact. Include specific numbers, names, and dates. Embed claim refs as [cl_xxx]. Mark entities on first mention: John Lee [en_xxx].",
+      "content": "A comprehensive 2-3 paragraph opening that covers the core facts of what happened, when, where, and the immediate impact. Include specific numbers, names, and dates. Embed claim refs as [cl_xxx] or [cl_xxx][cl_yyy] for multiple. Mark entities on first mention: John Lee [en_xxx].",
       "claim_ids": ["cl_xxx", "cl_yyy", ...]
     }},
     {{
@@ -1222,7 +1222,7 @@ Return a JSON object with this exact structure:
 RULES:
 1. First section MUST have topic="overview" and title="" (empty)
 2. Create sections for each distinct aspect that has claims (casualties, response, investigation, government_reaction, public_response, background, etc.)
-3. Every factual statement MUST have [cl_xxx] reference
+3. Every factual statement MUST have [cl_xxx] reference - use [cl_xxx][cl_yyy] format for multiple claims, NOT [cl_xxx, cl_yyy]
 4. Mark entity names with [en_xxx] on FIRST mention only
 5. Claims with plausibility ≥0.70 are established facts
 6. Claims in SUPERSEDED list are "earlier reports" - include them for timeline context
