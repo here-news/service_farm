@@ -39,6 +39,9 @@ const EventSidebar: React.FC<EventSidebarProps> = ({
 }) => {
   const [showFundModal, setShowFundModal] = useState(false);
   const [fundAmount, setFundAmount] = useState(5);
+  const [displayFund, setDisplayFund] = useState(currentFund);
+  const [quickFundAnimation, setQuickFundAnimation] = useState(false);
+  const [hasQuickFunded, setHasQuickFunded] = useState(false);
 
   // Format large numbers with commas
   const formatNumber = (num: number) => {
@@ -49,9 +52,18 @@ const EventSidebar: React.FC<EventSidebarProps> = ({
     setShowFundModal(true);
   };
 
+  const handleQuickFund = () => {
+    // Quick +1 credit with animation
+    setDisplayFund(prev => prev + 1);
+    setQuickFundAnimation(true);
+    setHasQuickFunded(true);
+    setTimeout(() => setQuickFundAnimation(false), 300);
+    // TODO: Implement actual API call for +1 credit
+  };
+
   const handleSubmitFund = () => {
     // TODO: Implement actual funding API call
-    alert(`Funding ${fundAmount} credits to this event (coming soon)`);
+    setDisplayFund(prev => prev + fundAmount);
     setShowFundModal(false);
   };
 
@@ -97,11 +109,26 @@ const EventSidebar: React.FC<EventSidebarProps> = ({
         </div>
 
         <div className="p-4">
-          {/* Fund amount - absolute number */}
+          {/* Fund amount - absolute number with quick fund button */}
           <div className="mb-3">
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-bold text-amber-600">{formatNumber(currentFund)}</span>
-              <span className="text-slate-400">credits</span>
+            <div className="flex items-center gap-3">
+              <div className="flex items-baseline gap-2 flex-1">
+                <span className={`text-3xl font-bold text-amber-600 transition-transform ${quickFundAnimation ? 'scale-110' : ''}`}>
+                  {formatNumber(displayFund)}
+                </span>
+                <span className="text-slate-400">credits</span>
+              </div>
+              <button
+                onClick={handleQuickFund}
+                className={`w-10 h-10 flex items-center justify-center rounded-full transition-all hover:scale-110 active:scale-95 ${
+                  hasQuickFunded
+                    ? 'bg-amber-100 hover:bg-amber-200'
+                    : 'bg-slate-100 hover:bg-slate-200'
+                }`}
+                title="Quick fund +1 credit"
+              >
+                <span className={`text-xl transition-all ${hasQuickFunded ? '' : 'grayscale opacity-50'}`}>👍</span>
+              </button>
             </div>
           </div>
 
@@ -188,9 +215,9 @@ const EventSidebar: React.FC<EventSidebarProps> = ({
         </div>
       </div>
 
-      {/* Fund Modal */}
+      {/* Fund Modal - z-[9999] to ensure it's above Leaflet map layers */}
       {showFundModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowFundModal(false)}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[9999]" onClick={() => setShowFundModal(false)}>
           <div className="bg-white rounded-xl shadow-xl p-6 w-96 max-w-[90vw]" onClick={e => e.stopPropagation()}>
             <h2 className="text-xl font-bold text-slate-900 mb-4">Fund This Event</h2>
             <p className="text-slate-600 text-sm mb-4">

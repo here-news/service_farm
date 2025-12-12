@@ -395,9 +395,9 @@ async def get_entity(entity_id: str):
     """
     Get entity details by ID
 
-    Returns entity with Wikidata enrichment, aliases, and related claims
+    Returns entity with Wikidata enrichment, aliases, related events and claims
     """
-    _, claim_repo, entity_repo, _, _ = await init_services()
+    event_repo, claim_repo, entity_repo, _, _ = await init_services()
 
     # Validate ID format
     if not entity_id.startswith('en_'):
@@ -409,6 +409,9 @@ async def get_entity(entity_id: str):
 
     # Get claims mentioning this entity
     claims = await claim_repo.get_claims_by_entity(entity_id)
+
+    # Get related events (events that involve this entity)
+    related_events = await event_repo.get_events_by_entity(entity_id)
 
     return {
         'entity': {
@@ -437,6 +440,7 @@ async def get_entity(entity_id: str):
             for c in claims
         ],
         'claims_count': len(claims),
+        'related_events': related_events,
     }
 
 

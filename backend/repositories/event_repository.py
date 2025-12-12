@@ -1102,3 +1102,80 @@ class EventRepository:
 
         return result[0]['count'] if result else 0
 
+    async def get_events_by_entity(self, entity_id: str, limit: int = 20) -> List[dict]:
+        """
+        Get events that involve a specific entity.
+
+        Traverses the graph: Entity <- INVOLVES - Event
+        Also gets claims for each event that mention this entity.
+
+        Args:
+            entity_id: Entity ID (en_xxxxxxxx format)
+            limit: Maximum number of events to return
+
+        Returns:
+            List of event dicts with their claims mentioning the entity
+        """
+        result = await self.neo4j._execute_read("""
+            MATCH (entity:Entity {id: $entity_id})<-[:INVOLVES]-(e:Event)
+            WITH e
+            ORDER BY e.updated_at DESC
+            LIMIT $limit
+
+            // Get claims for this event that mention the entity
+            OPTIONAL MATCH (e)-[sup:SUPPORTS]->(c:Claim)-[:MENTIONS]->(entity:Entity {id: $entity_id})
+            OPTIONAL MATCH (c)<-[:CONTAINS]-(p:Page)
+
+            WITH e, collect(DISTINCT {
+                id: c.id,
+                text: c.text,
+                event_time: c.event_time,
+                confidence: c.confidence,
+                page_id: p.id,
+                plausibility: sup.plausibility
+            }) as claims
+
+            RETURN e.id as id,
+                   e.canonical_name as canonical_name,
+                   e.event_type as event_type,
+                   e.event_scale as event_scale,
+                   e.event_start as event_start,
+                   e.event_end as event_end,
+                   e.coherence as coherence,
+                   e.summary as summary,
+                   claims
+        """, {
+            'entity_id': entity_id,
+            'limit': limit
+        })
+
+        events = []
+        for row in result:
+            # Filter out null claims (from OPTIONAL MATCH)
+            claims = [c for c in row['claims'] if c.get('id')]
+
+            event_dict = {
+                'id': row['id'],
+                'slug': row['id'],  # Use ID as slug for now
+                'canonical_name': row['canonical_name'],
+                'event_type': row['event_type'] or 'event',
+                'event_scale': row.get('event_scale'),
+                'event_start': neo4j_datetime_to_python(row['event_start']).isoformat() if row.get('event_start') else None,
+                'event_end': neo4j_datetime_to_python(row['event_end']).isoformat() if row.get('event_end') else None,
+                'coherence': row.get('coherence'),
+                'summary': row.get('summary'),
+                'claims': [
+                    {
+                        'id': c['id'],
+                        'text': c['text'],
+                        'event_time': neo4j_datetime_to_python(c['event_time']).isoformat() if c.get('event_time') else None,
+                        'confidence': c.get('confidence'),
+                        'page_id': c.get('page_id'),
+                    }
+                    for c in claims
+                ]
+            }
+            events.append(event_dict)
+
+        return events
+

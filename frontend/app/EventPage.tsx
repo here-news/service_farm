@@ -6,6 +6,7 @@ import TopologyView from './components/event/TopologyView';
 import EpicenterMapCard from './components/event/EpicenterMapCard';
 import EventSidebar from './components/event/EventSidebar';
 import EventNarrativeContent from './components/event/EventNarrativeContent';
+import DebateThread from './components/event/DebateThread';
 
 interface Entity {
     id: string;
@@ -116,28 +117,18 @@ const EventPage: React.FC = () => {
 
     const renderDebate = () => {
         if (!eventData) return null;
-        // TODO: Integrate CommentThread component for debates
         return (
             <div className="flex gap-6">
                 {/* Main debate area */}
                 <div className="flex-1">
-                    <div className="bg-slate-50 rounded-lg p-8 text-center">
-                        <div className="text-4xl mb-4">💬</div>
-                        <h3 className="text-xl font-semibold text-slate-800 mb-2">Community Debate</h3>
-                        <p className="text-slate-600 mb-4">
-                            Discuss claims, challenge evidence, and contribute to collective understanding.
-                        </p>
-                        <div className="text-sm text-slate-500">
-                            Coming soon: threaded discussions with reputation-weighted voting
-                        </div>
-                    </div>
+                    <DebateThread eventId={event.id} />
                 </div>
 
                 {/* Contributors sidebar in debate view */}
                 <div className="w-64 flex-shrink-0">
                     <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
                         <div className="px-4 py-3 bg-gradient-to-r from-indigo-50 to-purple-50 border-b border-indigo-100">
-                            <h3 className="font-semibold text-slate-800">Contributors</h3>
+                            <h3 className="font-semibold text-slate-800">Top Contributors</h3>
                         </div>
                         <div className="p-4">
                             <div className="space-y-3">
@@ -156,15 +147,17 @@ const EventPage: React.FC = () => {
                                         </div>
                                         <div className="text-right">
                                             <div className="text-sm font-bold text-amber-600">{contributor.credits}</div>
-                                            <div className="text-xs text-slate-400">credits</div>
+                                            <div className="text-xs text-slate-400">earned</div>
                                         </div>
                                     </div>
                                 ))}
                             </div>
 
-                            <button className="w-full mt-4 py-2 bg-gradient-to-r from-amber-500 to-yellow-500 text-white rounded-lg font-medium text-sm hover:from-amber-600 hover:to-yellow-600 transition-all">
-                                + Add Credits
-                            </button>
+                            <div className="mt-4 pt-4 border-t border-slate-100">
+                                <div className="text-xs text-slate-500 text-center">
+                                    Contribute quality insights to earn credits
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
