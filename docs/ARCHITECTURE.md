@@ -2,11 +2,38 @@
 
 > **Mission**: Build a living, evidence-driven knowledge base that evolves with reality, combining machine curation with community consensus and economic incentives.
 
-**Version**: 2.2 (Consolidated)
-**Date**: 2025-11-28
-**Status**: Design Complete, Implementation Phase 1 Ready
+**Version**: 3.0 (Unified)
+**Date**: 2025-12-11
+**Status**: Implementation Active
 
 ---
+
+## Table of Contents
+
+### Part I: Design Philosophy
+1. [The Wikipedia Problem](#the-wikipedia-problem)
+2. [Core Principles](#core-principles)
+3. [Resource Model](#resource-model)
+4. [Confidence Model](#confidence-from-nodes-to-graph-topology)
+5. [Two-Tier Execution](#two-tier-execution-model)
+6. [Conflict Resolution](#conflict-resolution-weighted-voting)
+
+### Part II: Technical Implementation
+7. [System Architecture](#system-architecture)
+8. [Backend Stack](#backend-stack)
+9. [Frontend Stack](#frontend-stack)
+10. [Data Layer](#data-layer)
+11. [Worker Pipeline](#worker-pipeline)
+12. [DevOps & Infrastructure](#devops--infrastructure)
+
+### Part III: Operations
+13. [Best Practices](#best-practices-we-follow)
+14. [Trade-Offs](#trade-offs)
+15. [Success Metrics](#success-metrics)
+
+---
+
+# Part I: Design Philosophy
 
 ## Design Philosophy
 
@@ -587,37 +614,32 @@ weight = edge_confidence × source_credibility × stake × temporal_decay
 
 ## Implementation Roadmap
 
-### Phase 1: Core Resource Flow (2 weeks)
+### Phase 1: Core Resource Flow ✅
 - Artifact + Content resources (PostgreSQL)
 - Instant tier endpoints (`POST /artifacts`, `GET /entities/search`)
 - URL extraction worker (lazy tier)
 - Entity extraction worker with fuzzy matching
-- Test with Hong Kong Fire case (EN + ZH sources)
 
-### Phase 2: Graph Confidence (2 weeks)
+### Phase 2: Graph Confidence ✅
 - Edge schema (PostgreSQL + Neo4j)
 - Structural confidence computation
 - Temporal decay mechanism
-- Confidence recomputation worker (hourly for hot entities)
-- Test confidence evolution over 30 days
+- Confidence recomputation worker
 
-### Phase 3: Multi-Language (1 week)
+### Phase 3: Multi-Language (In Progress)
 - Language detection in instant tier
 - Cross-language entity linking (Wikidata bridge)
 - Multi-language event merging
-- Test with 3+ languages (EN, ZH, FR)
 
-### Phase 4: Conflict Resolution (1 week)
+### Phase 4: Conflict Resolution (Planned)
 - Dispute API endpoint
 - Weighted voting worker
 - Stake integration (future: economic layer)
-- Test with "2000 wrong" scenario
 
-### Phase 5: Extensibility (2 weeks)
+### Phase 5: Extensibility (Planned)
 - Image artifact extractor (OCR)
 - Video artifact extractor (Whisper + frame OCR)
 - Document artifact extractor (PyPDF2)
-- Test mixed inputs (URL + image + video about same event)
 
 ---
 
@@ -639,14 +661,414 @@ This architecture is designed to build a **breathing knowledge base** that:
 
 ---
 
-## References
+# Part II: Technical Implementation
 
-- [REST Maturity Model](https://martinfowler.com/articles/richardsonMaturityModel.html)
-- [Event-Driven Architecture](https://martinfowler.com/articles/201701-event-driven.html)
-- [Response Time Limits](https://www.nngroup.com/articles/response-times-3-important-limits/)
-- [Circuit Breaker Pattern](https://martinfowler.com/bliki/CircuitBreaker.html)
-- [Knowledge Graph Embeddings](https://arxiv.org/abs/1503.00759)
-- [Temporal Knowledge Graphs](https://arxiv.org/abs/2004.04926)
-- [Wikidata](https://www.wikidata.org/)
-- [PageRank](https://en.wikipedia.org/wiki/PageRank)
-- [Reputation Systems](https://en.wikipedia.org/wiki/Reputation_system)
+## System Architecture
+
+### High-Level Overview
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                              FRONTEND                                    │
+│                    React 18 + TypeScript + Vite                         │
+│         HomePage │ EventPage │ EntityPage │ GraphPage │ MapPage         │
+└─────────────────────────────────┬───────────────────────────────────────┘
+                                  │ HTTP/REST
+┌─────────────────────────────────▼───────────────────────────────────────┐
+│                           BACKEND API                                    │
+│                         FastAPI (Python 3.12)                            │
+│              OAuth │ Event API │ Map API │ Preview │ Feed               │
+└──────────┬──────────────────┬──────────────────────┬────────────────────┘
+           │                  │                      │
+           ▼                  ▼                      ▼
+┌──────────────────┐  ┌───────────────┐  ┌─────────────────────────────────┐
+│    PostgreSQL    │  │    Neo4j      │  │          Redis                  │
+│    (pgvector)    │  │  (Graph DB)   │  │      (Job Queue)                │
+│  Content + Embed │  │Entity Dedup   │  │  extraction │ semantic │ event │
+└──────────────────┘  └───────────────┘  └───────┬─────────┬───────┬──────┘
+                                                 │         │       │
+                      ┌──────────────────────────┼─────────┼───────┼──────┐
+                      │                   WORKERS                          │
+                      │  ┌─────────────┐ ┌──────────────┐ ┌─────────────┐  │
+                      │  │ Extraction  │ │  Knowledge   │ │    Event    │  │
+                      │  │   (×2)      │ │    (×2)      │ │    (×1)     │  │
+                      │  │ URL→Text    │ │ LLM→Entities │ │ Claims→Evt  │  │
+                      │  └─────────────┘ └──────────────┘ └─────────────┘  │
+                      └───────────────────────────────────────────────────┘
+```
+
+### Component Summary
+
+| Component | Technology | Port | Container |
+|-----------|------------|------|-----------|
+| **Frontend** | React 18 + Vite + Tailwind | 5173 (dev) | - |
+| **API** | FastAPI (Python 3.12) | 7272 → 8000 | `herenews-app` |
+| **PostgreSQL** | pgvector/pg16 | 5432 | `herenews-postgres` |
+| **Neo4j** | 5.15-community | 7474, 7687 | `herenews-neo4j` |
+| **Redis** | 7-alpine | 6379 | `herenews-redis` |
+| **Workers** | Python async | - | `herenews-worker-*` |
+
+---
+
+## Backend Stack
+
+### Framework & Structure
+
+**Framework:** FastAPI (Python 3.12)
+
+```
+backend/
+├── api/                    # Route handlers
+│   ├── auth.py            # Google OAuth + JWT
+│   ├── event_page.py      # Event visualization
+│   ├── map.py             # Geographic data
+│   ├── preview.py         # Page metadata
+│   └── coherence.py       # Feed scoring
+├── models/
+│   └── domain/            # Pure dataclasses
+│       ├── entity.py      # Entity model
+│       ├── claim.py       # Claim model
+│       └── event.py       # Event model
+├── repositories/          # Data access layer
+│   ├── entity_repository.py
+│   ├── claim_repository.py
+│   └── event_repository.py
+├── services/              # Business logic
+│   ├── neo4j_service.py   # Graph operations
+│   ├── event_service.py   # Event formation
+│   ├── knowledge_worker.py
+│   └── live_event_pool.py
+└── main.py                # FastAPI app entry
+```
+
+### API Routes
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /api/events` | List all events |
+| `GET /api/event/{id}` | Get single event with tree |
+| `GET /api/entity/{id}` | Get single entity |
+| `GET /api/claim/{id}` | Get single claim |
+| `GET /api/auth/status` | Auth status |
+| `POST /api/auth/google` | Google OAuth callback |
+| `GET /api/map/locations` | Geographic data |
+| `GET /api/preview/{url}` | Page metadata |
+| `GET /api/coherence/feed` | Scored event feed |
+| `GET /app/*` | SPA routing |
+
+### Key Services
+
+| Service | File | Purpose |
+|---------|------|---------|
+| Neo4j Service | `services/neo4j_service.py` | Graph operations, MERGE, deduplication |
+| Event Service | `services/event_service.py` | Event formation, narrative generation |
+| Knowledge Worker | `services/knowledge_worker.py` | Full extraction pipeline |
+| Live Event Pool | `services/live_event_pool.py` | In-memory event metabolism |
+| Entity Manager | `services/entity_manager.py` | Entity deduplication logic |
+| Wikidata Client | `services/wikidata_client.py` | External entity resolution |
+| Job Queue | `services/job_queue.py` | Redis job distribution |
+
+### Authentication
+
+- **Provider:** Google OAuth
+- **Session:** Starlette SessionMiddleware (24h expiry)
+- **Tokens:** JWT with optional dependency injection
+- **Endpoints:** `/api/auth/google`, `/api/auth/status`
+
+---
+
+## Frontend Stack
+
+### Technology
+
+| Technology | Purpose |
+|------------|---------|
+| React 18 | UI framework |
+| TypeScript | Type safety |
+| Vite | Build tool + dev server |
+| Tailwind CSS | Styling |
+| React Router v6 | Navigation |
+
+### Project Structure
+
+```
+frontend/
+├── app/
+│   ├── App.tsx            # Root component + router
+│   ├── HomePage.tsx       # Event feed
+│   ├── EventPage.tsx      # Event detail + tabs
+│   ├── EntityPage.tsx     # Entity profile
+│   ├── GraphPage.tsx      # Network visualization
+│   ├── MapPage.tsx        # Geographic visualization
+│   ├── components/
+│   │   ├── event/         # TimelineView, GraphView, MapView
+│   │   ├── cards/         # NewsCard, StoryCardSkeleton
+│   │   ├── story/         # StoryContent, EntityCard
+│   │   └── layout/        # Layout, navigation
+│   └── types/
+│       └── story.ts       # API response types
+├── vite.config.ts
+└── package.json
+```
+
+### Page Components
+
+| Page | Route | Purpose |
+|------|-------|---------|
+| `HomePage` | `/` | Event feed with coherence filter |
+| `EventPage` | `/event/:slug` | Event detail with tabs (Narrative, Timeline, Graph, Map) |
+| `EntityPage` | `/entity/:id` | Entity profile + mentions |
+| `GraphPage` | `/graph/:slug` | Network graph visualization |
+| `MapPage` | `/map/:slug` | Geographic visualization |
+
+### Build Configuration
+
+```bash
+# Development
+cd frontend && npm run dev    # Port 5173, proxies /api to :8000
+
+# Production
+cd frontend && npm run build  # Outputs to ../static/
+```
+
+---
+
+## Data Layer
+
+### PostgreSQL (pgvector)
+
+**Schemas:** `core`, `bridge`, `system`
+
+**Core Tables:**
+
+| Table | Purpose | Key Columns |
+|-------|---------|-------------|
+| `core.pages` | News articles | `id`, `url`, `content`, `embedding[1536]`, `status` |
+| `core.entities` | Named entities | `id`, `canonical_name`, `entity_type`, `wikidata_qid` |
+| `core.claims` | Atomic facts | `id`, `text`, `confidence`, `page_id`, `embedding` |
+| `core.events` | Event metadata | `id`, `slug`, `narrative`, `embedding`, `coherence` |
+| `core.phases` | Event phases | `id`, `event_id`, `label`, `time_range` |
+| `core.edges` | Relationships | `source_id`, `target_id`, `relation_type` |
+
+**Page Status Flow:**
+```
+stub → preview → extracted → knowledge_complete → event_complete
+```
+
+**Vector Indexes:**
+- IVF-flat for similarity search (1536-dim OpenAI embeddings)
+- GIN indexes for JSONB metadata
+
+### Neo4j (Graph Database)
+
+**Primary Use:** Entity deduplication via MERGE operations
+
+**Node Types:**
+- `Page` - Source articles
+- `Claim` - Extracted facts
+- `Entity` - Named entities (PERSON, ORG, LOCATION, etc.)
+- `Event` - Formed events
+- `Phase` - Event phases
+
+**Relationships:**
+```cypher
+(Page)-[:MENTIONS]->(Entity)
+(Claim)-[:ACTOR]->(Entity)
+(Claim)-[:SUBJECT]->(Entity)
+(Claim)-[:LOCATION]->(Entity)
+(Event)-[:SUPPORTS]->(Claim)
+(Event)-[:HAS_PHASE]->(Phase)
+```
+
+**Deduplication Strategy:**
+```cypher
+MERGE (e:Entity {canonical_name: $name, entity_type: $type})
+ON CREATE SET e.wikidata_qid = $qid
+```
+
+### Repository Pattern
+
+Repositories handle dual-write to PostgreSQL (embeddings, metadata) and Neo4j (graph relationships):
+
+```python
+class EntityRepository:
+    async def get_by_id(self, entity_id: str) -> Entity
+    async def get_by_qid(self, wikidata_qid: str) -> Entity
+    async def create(self, entity: Entity) -> Entity
+    async def merge_duplicates(self, source_id, target_id) -> None
+```
+
+### ID Formats
+
+| Type | Format | Example |
+|------|--------|---------|
+| Entity | `en_xxxxxxxx` | `en_a1b2c3d4` |
+| Claim | `cl_xxxxxxxx` | `cl_e5f6g7h8` |
+| Event | `ev_xxxxxxxx` | `ev_i9j0k1l2` |
+| Page | UUID | `550e8400-e29b-...` |
+
+---
+
+## Worker Pipeline
+
+### Queue System (Redis)
+
+| Queue | Producer | Consumer | Format |
+|-------|----------|----------|--------|
+| `queue:extraction:high` | API | Extraction Worker (×2) | `{page_id, url, retry_count}` |
+| `queue:semantic:high` | Extraction Worker | Knowledge Worker (×2) | `{page_id, status}` |
+| `queue:event:high` | Knowledge Worker | Event Worker (×1) | `{page_id, signal}` |
+
+### Pipeline Flow
+
+```
+URL Submitted
+     │
+     ▼
+┌─────────────────┐
+│ status: stub    │ ← Page created, immediate response
+└────────┬────────┘
+         │ queue:extraction:high
+         ▼
+┌─────────────────┐
+│ Extraction      │ ← Trafilatura, langdetect
+│ Worker (×2)     │    httpx + Playwright fallback
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ status:         │
+│ extracted       │
+└────────┬────────┘
+         │ queue:semantic:high
+         ▼
+┌─────────────────────────────────────────────┐
+│ Knowledge Worker (×2)                        │
+│                                             │
+│ Stage 0: Publisher identification           │
+│ Stage 1: LLM extraction (claims, entities)  │
+│ Stage 2: Wikidata identification            │
+│ Stage 3: Deduplication (by QID)             │
+│ Stage 4: Neo4j edge creation                │
+│ Stage 5: Integrity check                    │
+└────────┬────────────────────────────────────┘
+         │
+         ▼
+┌─────────────────┐
+│ status:         │
+│ knowledge_      │
+│ complete        │
+└────────┬────────┘
+         │ queue:event:high
+         ▼
+┌─────────────────────────────────────────────┐
+│ Event Worker (×1)                            │
+│                                             │
+│ • Multi-signal claim scoring                │
+│ • Event metabolism (MERGE/ADD/DELEGATE...)  │
+│ • Narrative generation via LLM              │
+│ • Sub-event creation                        │
+└────────┬────────────────────────────────────┘
+         │
+         ▼
+┌─────────────────┐
+│ status:         │
+│ event_complete  │ ← Ready for display
+└─────────────────┘
+```
+
+### Multi-Signal Claim Scoring
+
+| Signal | Weight | Description |
+|--------|--------|-------------|
+| Entity overlap | 0.20 | Shared entities between claim and event |
+| Temporal proximity | 0.20 | Time distance from event centroid |
+| Reference detection | 0.25 | Explicit references to same incident |
+| Semantic similarity | 0.15 | Embedding cosine similarity |
+| Spatial overlap | 0.10 | Location entity overlap |
+| Causal keywords | 0.10 | Causal language patterns |
+
+**Threshold:** Score ≥ 0.35 → Route to event
+
+### Event Metabolism (Claim Decisions)
+
+| Decision | Meaning | Action |
+|----------|---------|--------|
+| `MERGE` | Duplicate claim | Increase confidence |
+| `ADD` | Corroborating info | Add to event |
+| `DELEGATE` | Try sibling events | Pass to related event |
+| `YIELD` | Sub-event needed | Create child event |
+| `REJECT` | Low relevance | Don't include |
+
+---
+
+## DevOps & Infrastructure
+
+### Docker Compose Services
+
+```yaml
+services:
+  postgres:              # pgvector/pgvector:pg16, port 5432
+  neo4j:                 # neo4j:5.15-community, ports 7474/7687
+  redis:                 # redis:7-alpine, port 6379
+  app:                   # FastAPI + React, port 7272→8000
+  worker-extraction-1:   # Content extraction
+  worker-extraction-2:   # Content extraction
+  worker-knowledge-1:    # Semantic analysis
+  worker-knowledge-2:    # Semantic analysis
+  worker-event:          # Event formation
+```
+
+### Health Checks
+
+```yaml
+postgres:
+  healthcheck:
+    test: ["CMD-SHELL", "pg_isready -U herenews_user -d herenews"]
+
+neo4j:
+  healthcheck:
+    test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "$password", "RETURN 1"]
+
+redis:
+  healthcheck:
+    test: ["CMD", "redis-cli", "PING"]
+```
+
+### Volumes
+
+| Volume | Purpose |
+|--------|---------|
+| `pg_data` | PostgreSQL persistence |
+| `neo4j_data` | Neo4j persistence |
+| `./backend/` → `/app` | Backend code (hot reload) |
+| `./static/` → `/app/static` | Built frontend |
+
+### Environment Variables
+
+```bash
+# Required in .env
+OPENAI_API_KEY=sk-...
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+
+# Database (set in docker-compose)
+POSTGRES_HOST=postgres
+NEO4J_URI=bolt://neo4j:7687
+REDIS_URL=redis://redis:6379
+```
+
+### External Integrations
+
+| Service | Purpose | Usage |
+|---------|---------|-------|
+| **OpenAI GPT-4** | LLM extraction, narrative | ~5 calls/page |
+| **Wikidata API** | Entity disambiguation | QID resolution |
+| **Google OAuth** | User authentication | Login flow |
+| **Iframely API** | Page metadata | Preview fallback |
+
+---
+
+# Part III: Operations
+
+## Best Practices We Follow

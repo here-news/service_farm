@@ -2,7 +2,9 @@
 Event Tree API Endpoints
 
 GET /api/events - List all events
-GET /api/events/{event_id} - Get event detail with tree structure
+GET /api/event/{event_id} - Get single event with tree structure
+GET /api/entity/{entity_id} - Get single entity
+GET /api/claim/{claim_id} - Get single claim
 """
 import os
 import uuid
@@ -139,7 +141,7 @@ async def get_my_events():
     }
 
 
-@router.get("/events/{event_id}")
+@router.get("/event/{event_id}")
 async def get_event_tree(event_id: str):
     """
     Get event with full tree structure using domain models and repositories
@@ -251,7 +253,7 @@ async def get_event_tree(event_id: str):
     }
 
 
-@router.get("/entities/{entity_id}")
+@router.get("/entity/{entity_id}")
 async def get_entity(entity_id: str):
     """
     Get entity details by ID
@@ -301,7 +303,7 @@ async def get_entity(entity_id: str):
     }
 
 
-@router.get("/claims/{claim_id}")
+@router.get("/claim/{claim_id}")
 async def get_claim(claim_id: str):
     """
     Get claim details by ID

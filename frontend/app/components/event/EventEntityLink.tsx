@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 export interface EventEntityData {
   id: string
@@ -48,10 +49,17 @@ function EventEntityLink({
   preloadedEntity,
   eventEntities
 }: EventEntityLinkProps) {
+  const navigate = useNavigate()
   const [showTooltip, setShowTooltip] = useState(false)
   const [entityData, setEntityData] = useState<EventEntityData | null>(preloadedEntity || null)
   const [loading, setLoading] = useState(false)
   const [imageError, setImageError] = useState(false)
+
+  const handleClick = () => {
+    if (entityId && entityId.startsWith('en_')) {
+      navigate(`/entity/${entityId}`)
+    }
+  }
 
   // Try to find entity in eventEntities first
   useEffect(() => {
@@ -112,6 +120,7 @@ function EventEntityLink({
   return (
     <span style={{ position: 'relative', display: 'inline' }}>
       <span
+        onClick={handleClick}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={() => setShowTooltip(false)}
         style={{
@@ -121,6 +130,7 @@ function EventEntityLink({
           gap: '4px',
           verticalAlign: 'baseline',
         }}
+        title={entityId ? `View ${displayName} details` : displayName}
       >
         {/* Circular avatar for first mention */}
         {isFirstMention && hasImage && (

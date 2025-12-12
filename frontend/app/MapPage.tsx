@@ -246,9 +246,24 @@ const MapPage: React.FC = () => {
                                 >
                                 <Popup>
                                     <div className="text-gray-900 max-w-xs">
-                                        <h3 className="font-bold text-lg mb-1">{location.name}</h3>
+                                        <h3
+                                            className="font-bold text-lg mb-1 text-blue-600 hover:underline cursor-pointer"
+                                            onClick={() => navigate(`/entity/${location.id}`)}
+                                        >
+                                            {location.name}
+                                        </h3>
                                         {location.description && (
                                             <p className="text-sm text-gray-600 mb-2">{location.description}</p>
+                                        )}
+                                        {location.qid && (
+                                            <a
+                                                href={`https://www.wikidata.org/wiki/${location.qid}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="inline-block text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded mb-2 hover:bg-blue-200"
+                                            >
+                                                {location.qid} ↗
+                                            </a>
                                         )}
                                         <div className="text-sm font-semibold mb-2">
                                             {location.event_count} {location.event_count === 1 ? 'event' : 'events'}
@@ -258,7 +273,7 @@ const MapPage: React.FC = () => {
                                                 <div
                                                     key={event.id}
                                                     className="p-2 bg-gray-100 rounded hover:bg-gray-200 cursor-pointer transition-colors"
-                                                    onClick={() => navigate(`/event/${event.id.replace('ev_', '')}`)}
+                                                    onClick={() => navigate(`/event/${event.id}`)}
                                                 >
                                                     <div className="text-sm font-medium line-clamp-2">
                                                         {event.title}

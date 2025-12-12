@@ -83,7 +83,7 @@ const GraphPage: React.FC = () => {
 
                 // 2. Fetch details for events to get entities
                 const eventDetailsPromises = events.slice(0, 15).map((event: Event) =>
-                    fetch(`/api/events/${event.event_id || event.id}`)
+                    fetch(`/api/event/${event.event_id || event.id}`)
                         .then(res => res.json())
                         .catch(err => {
                             console.error(`Failed to fetch event ${event.event_id}:`, err);
@@ -212,6 +212,10 @@ const GraphPage: React.FC = () => {
             // Navigate to event page using full event ID
             const eventId = node.data?.event_id || node.id;
             navigate(`/event/${eventId}`);
+        } else if (node.type === 'entity') {
+            // Navigate to entity page
+            const entityId = node.id;
+            navigate(`/entity/${entityId}`);
         }
     }, [navigate]);
 
@@ -375,9 +379,10 @@ const GraphPage: React.FC = () => {
                     <span className="mr-4">
                         <span className="inline-block w-3 h-3 rounded-full bg-green-400 mr-1"></span> Locations
                     </span>
-                    <span>
-                        <span className="inline-block w-3 h-3 bg-blue-500 mr-1"></span> Events (click to view)
+                    <span className="mr-4">
+                        <span className="inline-block w-3 h-3 bg-blue-500 mr-1"></span> Events
                     </span>
+                    <span className="text-gray-500 text-xs">(click any node to view details)</span>
                 </div>
             </div>
 

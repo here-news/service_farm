@@ -1,0 +1,406 @@
+# HereNews Service Farm - Implementation Cheatsheet
+
+> Quick reference for development sessions. Print this or keep it open.
+
+---
+
+## 🚀 Quick Start
+
+```bash
+# Start everything
+docker-compose up -d
+
+# Check status
+docker-compose ps
+
+# Tail all logs
+docker-compose logs -f
+
+# Stop everything
+docker-compose down
+```
+
+---
+
+## 📦 Stack Overview
+
+| Layer | Technology | Port | Container |
+|-------|------------|------|-----------|
+| **Frontend** | React 18 + Vite + Tailwind | 5173 (dev) | - |
+| **API** | FastAPI (Python 3.12) | 7272 → 8000 | `herenews-app` |
+| **PostgreSQL** | pgvector/pg16 | 5432 | `herenews-postgres` |
+| **Neo4j** | 5.15-community | 7474, 7687 | `herenews-neo4j` |
+| **Redis** | 7-alpine | 6379 | `herenews-redis` |
+| **Workers** | Python async | - | `herenews-worker-*` |
+
+---
+
+## 🔧 Service Commands
+
+### App (FastAPI)
+```bash
+# Logs
+docker logs -f herenews-app
+
+# Restart
+docker-compose restart app
+
+# Shell into container
+docker exec -it herenews-app bash
+
+# Run script inside
+docker exec -it herenews-app python some_script.py
+```
+
+### Workers
+```bash
+# View worker logs
+docker logs -f herenews-worker-extraction-1
+docker logs -f herenews-worker-knowledge-1
+docker logs -f herenews-worker-event
+
+# Restart specific worker
+docker-compose restart worker-event
+
+# Restart all workers
+docker-compose restart worker-extraction-1 worker-extraction-2 \
+  worker-knowledge-1 worker-knowledge-2 worker-event
+```
+
+### Frontend (Local Dev)
+```bash
+cd frontend
+npm install
+npm run dev          # Dev server at :5173
+npm run build        # Build to ../static/
+```
+
+---
+
+## 🗄️ Database Access
+
+### PostgreSQL
+```bash
+# Interactive psql
+docker exec -it herenews-postgres psql -U herenews_user -d herenews
+
+# Run query
+docker exec herenews-postgres psql -U herenews_user -d herenews -c "SELECT COUNT(*) FROM core.pages"
+
+# Common queries
+SELECT status, COUNT(*) FROM core.pages GROUP BY status;
+SELECT id, slug, coherence FROM core.events ORDER BY created_at DESC LIMIT 10;
+SELECT canonical_name, entity_type FROM core.entities WHERE wikidata_qid IS NOT NULL LIMIT 20;
+```
+
+### Neo4j
+```bash
+# Browser UI
+open http://localhost:7474
+# Login: neo4j / herenews_neo4j_pass
+
+# Cypher shell
+docker exec -it herenews-neo4j cypher-shell -u neo4j -p herenews_neo4j_pass
+
+# Common queries
+MATCH (n) RETURN labels(n), COUNT(*);
+MATCH (e:Entity) RETURN e.canonical_name, e.entity_type LIMIT 20;
+MATCH (p:Page)-[:MENTIONS]->(e:Entity) RETURN p.url, e.canonical_name LIMIT 10;
+```
+
+### Redis
+```bash
+# CLI
+docker exec -it herenews-redis redis-cli
+
+# Queue inspection
+LLEN queue:extraction:high
+LLEN queue:semantic:high
+LLEN queue:event:high
+
+# View queue contents
+LRANGE queue:extraction:high 0 5
+```
+
+---
+
+## 📁 Key Files
+
+### Entry Points
+| File | Purpose |
+|------|---------|
+| `backend/main.py` | FastAPI app, routes |
+| `backend/run_extraction_worker.py` | Extraction worker entry |
+| `backend/run_knowledge_worker.py` | Knowledge worker entry |
+| `backend/run_event_worker_neo4j.py` | Event worker entry |
+
+### Core Services
+| File | Purpose |
+|------|---------|
+| `backend/services/neo4j_service.py` | Graph operations |
+| `backend/services/event_service.py` | Event formation |
+| `backend/services/knowledge_worker.py` | Extraction pipeline |
+| `backend/services/live_event_pool.py` | Event metabolism |
+| `backend/services/job_queue.py` | Redis job handling |
+
+### Repositories (Data Access)
+| File | Purpose |
+|------|---------|
+| `backend/repositories/entity_repository.py` | Entity CRUD |
+| `backend/repositories/claim_repository.py` | Claim CRUD |
+| `backend/repositories/event_repository.py` | Event CRUD |
+| `backend/repositories/page_repository.py` | Page CRUD |
+
+### API Routes
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /api/events` | List all events (plural) |
+| `GET /api/event/{id}` | Single event (singular) |
+| `GET /api/entity/{id}` | Single entity |
+| `GET /api/claim/{id}` | Single claim |
+| `GET /api/coherence/feed` | Scored event feed |
+| `GET /api/auth/status` | Auth status |
+| `GET /api/map/locations` | Geographic data |
+
+**API Examples:**
+```bash
+# List all events
+curl http://localhost:7272/api/events
+
+# Get single event
+curl http://localhost:7272/api/event/ev_bwlrv2g0
+
+# Get single entity
+curl http://localhost:7272/api/entity/en_xxxxxxxx
+
+# Get single claim
+curl http://localhost:7272/api/claim/cl_xxxxxxxx
+
+# Get coherence feed
+curl http://localhost:7272/api/coherence/feed
+```
+
+### Frontend Pages
+| File | Route | Purpose |
+|------|-------|---------|
+| `frontend/app/HomePage.tsx` | `/` | Event feed |
+| `frontend/app/EventPage.tsx` | `/event/:slug` | Event detail |
+| `frontend/app/EntityPage.tsx` | `/entity/:id` | Entity profile |
+| `frontend/app/GraphPage.tsx` | `/graph/:slug` | Network viz |
+| `frontend/app/MapPage.tsx` | `/map/:slug` | Map viz |
+
+---
+
+## 🐛 Debugging
+
+### Check Page Processing Status
+```sql
+-- Pages stuck in processing
+SELECT id, url, status, created_at
+FROM core.pages
+WHERE status NOT IN ('event_complete', 'failed')
+ORDER BY created_at DESC LIMIT 20;
+
+-- Status distribution
+SELECT status, COUNT(*) FROM core.pages GROUP BY status;
+```
+
+### Check Worker Health
+```bash
+# Are workers processing?
+docker logs --tail 50 herenews-worker-knowledge-1 | grep -E "(Processing|Complete|Error)"
+
+# Queue depths (should decrease over time)
+docker exec herenews-redis redis-cli LLEN queue:extraction:high
+docker exec herenews-redis redis-cli LLEN queue:semantic:high
+docker exec herenews-redis redis-cli LLEN queue:event:high
+```
+
+### Check Neo4j Graph
+```cypher
+-- Entity counts by type
+MATCH (e:Entity) RETURN e.entity_type, COUNT(*) ORDER BY COUNT(*) DESC;
+
+-- Pages without entities (extraction issue?)
+MATCH (p:Page) WHERE NOT (p)-[:MENTIONS]->() RETURN p.url LIMIT 10;
+
+-- Orphan entities (no page mentions)
+MATCH (e:Entity) WHERE NOT ()-[:MENTIONS]->(e) RETURN e.canonical_name LIMIT 10;
+```
+
+### Common Issues
+
+| Symptom | Check | Fix |
+|---------|-------|-----|
+| Pages stuck at `stub` | Extraction queue | `docker-compose restart worker-extraction-1` |
+| Pages stuck at `extracted` | Knowledge queue | `docker-compose restart worker-knowledge-1` |
+| Pages stuck at `knowledge_complete` | Event queue | `docker-compose restart worker-event` |
+| No entities in Neo4j | Knowledge worker logs | Check LLM API key |
+| Empty event narrative | Event worker logs | Check LLM API key |
+| Frontend 404 | App routing | Check `/app/*` route in main.py |
+
+---
+
+## 🔄 Pipeline Flow
+
+```
+URL Submitted
+     │
+     ▼
+┌─────────────────┐
+│ status: stub    │ ← Page created
+└────────┬────────┘
+         │ queue:extraction:high
+         ▼
+┌─────────────────┐
+│ Extraction      │ ← Trafilatura, langdetect
+│ Worker (×2)     │
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ status:         │
+│ extracted       │
+└────────┬────────┘
+         │ queue:semantic:high
+         ▼
+┌─────────────────┐
+│ Knowledge       │ ← LLM extraction, Wikidata
+│ Worker (×2)     │    Entity dedup in Neo4j
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ status:         │
+│ knowledge_      │
+│ complete        │
+└────────┬────────┘
+         │ queue:event:high
+         ▼
+┌─────────────────┐
+│ Event Worker    │ ← Multi-signal scoring
+│ (×1)            │    Narrative generation
+└────────┬────────┘
+         │
+         ▼
+┌─────────────────┐
+│ status:         │
+│ event_complete  │ ← Ready for display
+└─────────────────┘
+```
+
+---
+
+## 🧪 Testing
+
+### Run Repository Tests
+```bash
+docker exec -it herenews-app python test_repositories.py
+```
+
+### Run Metabolism Tests
+```bash
+docker exec -it herenews-app python -m pytest test_metabolism/ -v
+```
+
+### Manual Page Submission
+```bash
+# Via API
+curl -X POST http://localhost:7272/api/submissions \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://example.com/article"}'
+```
+
+### Reprocess Pages
+```bash
+# Requeue failed pages
+docker exec -it herenews-app python requeue_failed_pages.py
+
+# Reprocess knowledge_complete pages through event worker
+docker exec -it herenews-app python reprocess_knowledge_complete_pages.py
+
+# Reset page status for reprocessing
+docker exec -it herenews-app python reset_page_status.py <page_id>
+```
+
+---
+
+## 🛠️ Utility Scripts
+
+| Script | Purpose |
+|--------|---------|
+| `requeue_failed_pages.py` | Re-queue pages with failed status |
+| `reset_page_status.py` | Reset a page for reprocessing |
+| `queue_to_event_worker.py` | Push page to event queue |
+| `merge_duplicate_entities.py` | Merge entity duplicates |
+| `cleanup_neo4j_pages.py` | Clean orphan page nodes |
+| `reset_events.py` | Reset event data |
+| `regenerate_parent_narrative.py` | Regenerate event narrative |
+
+---
+
+## 📊 ID Formats
+
+| Type | Format | Example |
+|------|--------|---------|
+| Entity | `en_xxxxxxxx` | `en_a1b2c3d4` |
+| Claim | `cl_xxxxxxxx` | `cl_e5f6g7h8` |
+| Event | `ev_xxxxxxxx` | `ev_i9j0k1l2` |
+| Page | UUID | `550e8400-e29b-...` |
+
+---
+
+## 🌐 URLs
+
+| Service | URL |
+|---------|-----|
+| App (prod) | http://localhost:7272 |
+| App (dev) | http://localhost:5173 |
+| Neo4j Browser | http://localhost:7474 |
+| API Docs | http://localhost:7272/docs |
+
+---
+
+## ⚡ Building & Hot Reload
+
+### Rebuild Frontend
+```bash
+# Rebuild app container (includes frontend build)
+docker-compose build app
+
+# Then restart
+docker-compose restart app
+```
+
+### Hot Reload (Backend/Workers)
+```bash
+# After backend code change
+docker-compose restart app
+
+# After worker code change
+docker-compose restart worker-event
+```
+
+### Local Frontend Dev (optional)
+```bash
+cd frontend
+npm install
+npm run dev    # Dev server at :5173, proxies to :8000
+```
+
+---
+
+## 🔑 Environment Variables
+
+Required in `.env`:
+```bash
+OPENAI_API_KEY=sk-...
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+IFRAMELY_API_KEY=...    # Optional, for previews
+```
+
+---
+
+*Quick reference for implementation sessions. See `docs/ARCHITECTURE.md` for full design philosophy and technical details.*

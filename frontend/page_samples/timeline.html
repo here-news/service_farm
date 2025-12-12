@@ -349,7 +349,7 @@
 
         async function loadClaims(eventId) {
             try {
-                const response = await fetch(`http://localhost:8000/api/events/${eventId}`);
+                const response = await fetch(`http://localhost:8000/api/event/${eventId}`);
                 if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
                 const data = await response.json();

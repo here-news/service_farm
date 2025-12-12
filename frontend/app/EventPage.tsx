@@ -83,7 +83,7 @@ const EventPage: React.FC = () => {
     const loadEvent = async () => {
         try {
             setLoading(true);
-            const response = await fetch(`/api/events/${eventSlug}`);
+            const response = await fetch(`/api/event/${eventSlug}`);
             if (!response.ok) throw new Error('Event not found');
             const data = await response.json();
             setEventData(data);

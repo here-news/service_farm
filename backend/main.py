@@ -33,16 +33,15 @@ try:
 except ImportError as e:
     print(f"⚠️  Auth not available: {e}")
 
-# Try to import other community feature routers
-community_routers = []
+# Try to import other feature routers
+feature_routers = []
 for module_name, prefix, tags in [
-    ("event_page", "/api/event", ["Event Pages"]),
     ("map", "/api/map", ["Map"]),
     ("preview", "/api/preview", ["Preview"]),
 ]:
     try:
         module = __import__(f"api.{module_name}", fromlist=[module_name])
-        community_routers.append((module.router, prefix, tags))
+        feature_routers.append((module.router, prefix, tags))
     except ImportError as e:
         print(f"⚠️  {module_name} not available: {e}")
 
@@ -94,8 +93,8 @@ if auth_router:
 # Legacy demo endpoints (archived)
 app.include_router(legacy_router, prefix="/api/demo", tags=["Legacy Demo"])
 
-# Community feature routers (if available)
-for router, prefix, tags in community_routers:
+# Feature routers (if available)
+for router, prefix, tags in feature_routers:
     app.include_router(router, prefix=prefix, tags=tags)
 
 # Static files for frontend assets
@@ -116,8 +115,8 @@ async def health():
 async def api_health():
     return {"status": "ok", "service": "service_farm"}
 
-# Fallback auth endpoint (if community features not loaded)
-if not community_routers:
+# Fallback auth endpoint (if auth not loaded)
+if not auth_router:
     @app.get("/api/auth/status")
     async def auth_status_fallback():
         """Fallback when auth system is not available"""
