@@ -49,6 +49,7 @@ class ThoughtType(str, Enum):
     COHERENCE_DROP = "coherence_drop"        # Significant coherence decrease
     EMERGENCE = "emergence"                  # "New angle detected: should this branch?"
     PROGRESS = "progress"                    # "Death toll updated: 36 → 156"
+    TOPOLOGY_INSIGHT = "topology_insight"    # LLM-generated summary of epistemic state
 
 
 @dataclass

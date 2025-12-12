@@ -249,6 +249,7 @@ class LiveEvent:
         Supported commands:
         - /retopologize: Force full Bayesian topology analysis
         - /regenerate: Regenerate narrative
+        - /rethink: Regenerate just the thought (no topology recompute)
         - /status: Return current event status
         - /rehydrate: Reload claims from storage
 
@@ -266,6 +267,7 @@ class LiveEvent:
         command_actions = {
             'retopologize': ActionType.FULL_TOPOLOGY,
             'regenerate': ActionType.REGENERATE_NARRATIVE,
+            'rethink': ActionType.EMIT_THOUGHT,  # Just regenerate thought
             'status': ActionType.NO_OP,  # Status is handled specially
             'rehydrate': ActionType.NO_OP,  # Rehydrate is handled specially
         }
@@ -283,6 +285,8 @@ class LiveEvent:
             return self._get_status()
         if cmd == 'rehydrate':
             return await self._handle_rehydrate()
+        if cmd == 'rethink':
+            return await self._handle_rethink()
 
         # Create action for the command
         action = MetabolismAction(
@@ -599,9 +603,21 @@ class LiveEvent:
         logger.info(f"✨ Full topology complete: pattern={topology.pattern}, "
                    f"contradictions={len(topology.contradictions)}, coherence={new_coherence:.3f}")
 
+        # Generate epistemic thought summarizing topology + narrative state
+        thought = await self._generate_epistemic_thought(
+            topology=topology,
+            narrative=narrative,
+            coherence=new_coherence
+        )
+        if thought:
+            self._thoughts.append(thought)
+            await self.service.event_repo.add_thought(self.event.id, thought)
+            logger.info(f"💭 Generated thought: {thought.content[:80]}...")
+
         return MetabolismResult(
             action_type=ActionType.FULL_TOPOLOGY,
             success=True,
+            thoughts=[thought] if thought else [],
             data={
                 'claims_analyzed': len(self.claims),
                 'pattern': topology.pattern,
@@ -821,6 +837,172 @@ class LiveEvent:
                 'reason': action.reason
             }
         )
+
+    # ==================== Thought Generation ====================
+
+    async def _generate_epistemic_thought(
+        self,
+        topology,
+        narrative,
+        coherence: float
+    ) -> Optional[Thought]:
+        """
+        Generate an epistemic thought summarizing topology + narrative state.
+
+        Uses lightweight LLM (gpt-4o-mini) to create a concise, informative
+        summary of what we know and how reliable it is.
+
+        Example output:
+        "13 sources corroborate death toll of 17. Two local reports conflict
+        on fire origin (electrical vs arson). Timeline spans Nov 15-17."
+
+        Args:
+            topology: TopologyResult from analysis
+            narrative: StructuredNarrative generated
+            coherence: Event coherence score
+
+        Returns:
+            Thought object or None if generation fails
+        """
+        if not self.topology_service or not hasattr(self.topology_service, 'openai'):
+            logger.debug("Skipping thought generation - no OpenAI client")
+            return None
+
+        try:
+            # Build context for LLM
+            num_claims = len(self.claims)
+            num_sources = len(set(self.page_urls.values())) if self.page_urls else 0
+            num_contradictions = len(topology.contradictions) if topology.contradictions else 0
+            pattern = topology.pattern if topology else "unknown"
+
+            # Get high/low plausibility claims for context
+            high_plaus_claims = []
+            low_plaus_claims = []
+            if topology and topology.claim_plausibilities:
+                sorted_claims = sorted(
+                    topology.claim_plausibilities.items(),
+                    key=lambda x: x[1].posterior,
+                    reverse=True
+                )
+                # Top 3 high plausibility
+                for claim_id, result in sorted_claims[:3]:
+                    claim = next((c for c in self.claims if c.id == claim_id), None)
+                    if claim:
+                        high_plaus_claims.append(f"- {claim.text[:100]}... (p={result.posterior:.2f})")
+
+                # Bottom 3 (if low)
+                for claim_id, result in sorted_claims[-3:]:
+                    if result.posterior < 0.4:
+                        claim = next((c for c in self.claims if c.id == claim_id), None)
+                        if claim:
+                            low_plaus_claims.append(f"- {claim.text[:100]}... (p={result.posterior:.2f})")
+
+            # Build contradiction summary
+            contradiction_text = ""
+            if topology.contradictions:
+                contradiction_pairs = []
+                for contra in topology.contradictions[:3]:
+                    # Contradictions are dicts with claim1_id, claim2_id, text1, text2
+                    text1 = contra.get('text1', '')[:50]
+                    text2 = contra.get('text2', '')[:50]
+                    if text1 and text2:
+                        contradiction_pairs.append(f"'{text1}...' vs '{text2}...'")
+                if contradiction_pairs:
+                    contradiction_text = "Contradictions:\n" + "\n".join(contradiction_pairs)
+
+            # Narrative sections summary
+            sections_text = ""
+            if narrative and narrative.sections:
+                section_names = [s.title for s in narrative.sections[:5]]
+                sections_text = f"Narrative covers: {', '.join(section_names)}"
+
+            # Get high-plausibility claims (>0.5) for grounding facts
+            reliable_claims_text = ""
+            if topology and topology.claim_plausibilities:
+                reliable = [(cid, res.posterior) for cid, res in topology.claim_plausibilities.items()
+                           if res.posterior >= 0.5]
+                reliable.sort(key=lambda x: x[1], reverse=True)
+                texts = []
+                for cid, plaus in reliable[:8]:
+                    claim = next((c for c in self.claims if c.id == cid), None)
+                    if claim:
+                        texts.append(f"- {claim.text[:200]}")
+                reliable_claims_text = "\n".join(texts) if texts else "(still analyzing...)"
+
+            # Get update chains (what's changed over time)
+            updates_text = ""
+            if topology and hasattr(topology, 'superseded_by') and topology.superseded_by:
+                update_items = []
+                for old_id, new_id in list(topology.superseded_by.items())[:3]:
+                    old_claim = next((c for c in self.claims if c.id == old_id), None)
+                    new_claim = next((c for c in self.claims if c.id == new_id), None)
+                    if old_claim and new_claim:
+                        update_items.append(f"- UPDATED: '{old_claim.text[:60]}...' → '{new_claim.text[:60]}...'")
+                if update_items:
+                    updates_text = "Recent updates:\n" + "\n".join(update_items)
+
+            prompt = f"""You're a witty, sharp-eyed journalist writing a one-liner that captures the ESSENCE of this developing story - what's surprising, ironic, or demands attention.
+
+Event: {self.event.canonical_name}
+
+Key facts:
+{reliable_claims_text}
+
+{updates_text}
+
+{contradiction_text if contradiction_text else ""}
+
+Write ONE punchy sentence (max 180 chars) that:
+- Captures what makes this story INTERESTING right now
+- Highlights irony, tension, or the unexpected angle
+- Makes a reader say "wait, what?" or "I need to know more"
+
+STYLE:
+- Be sharp, not dry. Think NYT breaking news meets Twitter wit.
+- Lead with the hook, not the background
+- Specific details > vague summaries
+- OK to be slightly provocative if grounded in facts above
+
+Good examples:
+- "Death toll hits 17 as residents say fire alarms never sounded. Building passed inspection last month."
+- "Lai spends 77th birthday in prison cell. UK calls it 'politically motivated'; Beijing calls it justice."
+- "19-year-old suspect in court as Seyfried doubles down: 'I'm not apologizing for calling him hateful.'"
+
+Bad examples:
+- "Fire kills many in building. Investigation ongoing."
+- "Activist sentenced. International reaction mixed."
+
+Your line:"""
+
+            response = await self.topology_service.openai.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3,
+                max_tokens=150
+            )
+
+            content = response.choices[0].message.content.strip()
+            # Clean up any quotes
+            content = content.strip('"\'')
+
+            thought = Thought(
+                id=generate_id('thought'),
+                event_id=self.event.id,
+                type=ThoughtType.TOPOLOGY_INSIGHT,
+                content=content,
+                related_claims=[],
+                related_entities=[],
+                temperature=self._calculate_temperature(),
+                coherence=coherence,
+                created_at=datetime.utcnow(),
+                acknowledged=False
+            )
+
+            return thought
+
+        except Exception as e:
+            logger.warning(f"Failed to generate epistemic thought: {e}")
+            return None
 
     # ==================== Helper Methods ====================
 
@@ -1239,6 +1421,46 @@ class LiveEvent:
                 'priors_loaded': len(self.publisher_priors)
             }
         )
+
+    async def _handle_rethink(self) -> MetabolismResult:
+        """
+        Handle /rethink command - regenerate thought without recomputing topology.
+
+        Uses existing topology result to generate a fresh thought.
+        Much faster than /retopologize since it skips the expensive LLM
+        relationship classification.
+        """
+        if not self._topology_result:
+            return MetabolismResult(
+                action_type=ActionType.EMIT_THOUGHT,
+                success=False,
+                error="No topology available. Run /retopologize first."
+            )
+
+        # Generate new thought using existing topology
+        thought = await self._generate_epistemic_thought(
+            topology=self._topology_result,
+            narrative=self.event.narrative,
+            coherence=self.event.coherence or 0.5
+        )
+
+        if thought:
+            self._thoughts.append(thought)
+            await self.service.event_repo.add_thought(self.event.id, thought)
+            logger.info(f"💭 Rethink generated: {thought.content[:80]}...")
+
+            return MetabolismResult(
+                action_type=ActionType.EMIT_THOUGHT,
+                success=True,
+                thoughts=[thought],
+                data={'thought_id': thought.id, 'content': thought.content}
+            )
+        else:
+            return MetabolismResult(
+                action_type=ActionType.EMIT_THOUGHT,
+                success=False,
+                error="Failed to generate thought"
+            )
 
     # ==================== Legacy Interface ====================
     # These methods maintain backwards compatibility with existing code.

@@ -30,13 +30,14 @@ PREFIXES = {
     'source': 'sr',
     'comment': 'cm',
     'chat_session': 'cs',
+    'thought': 'th',
 }
 
 # Reverse mapping for validation
 PREFIX_TO_TYPE = {v: k for k, v in PREFIXES.items()}
 
 # Regex for validation
-ID_PATTERN = re.compile(r'^(pg|cl|en|ev|sr|cm|cs)_[0-9a-z]{8}$')
+ID_PATTERN = re.compile(r'^(pg|cl|en|ev|sr|cm|cs|th)_[0-9a-z]{8}$')
 
 
 def _random_base36(length: int = 8) -> str:

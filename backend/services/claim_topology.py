@@ -640,3 +640,262 @@ For non-update relations, omit "newer"."""
             ],
             'superseded_by': topology.superseded_by  # older_id -> newer_id
         }
+
+    async def incremental_update(
+        self,
+        new_claims: List[Claim],
+        existing_topology: TopologyResult,
+        existing_claims: List[Claim],
+        publisher_priors: Dict[str, dict] = None,
+        page_urls: Dict[str, str] = None
+    ) -> Tuple[TopologyResult, List[dict]]:
+        """
+        Incrementally update topology with new claims.
+
+        Instead of recomputing everything:
+        1. Generate embeddings only for new claims
+        2. Compare new claims against existing claims
+        3. Classify relationships only for new pairs
+        4. Update posteriors locally
+        5. Return updated topology + list of new relationships to persist
+
+        Args:
+            new_claims: New claims to add
+            existing_topology: Current topology result from hydration
+            existing_claims: Existing claims (already have embeddings)
+            publisher_priors: Priors for new claims
+            page_urls: Fallback URLs for new claims
+
+        Returns:
+            (updated_topology, new_relationships_to_persist)
+        """
+        if not new_claims:
+            return existing_topology, []
+
+        logger.info(f"🔄 Incremental topology update: {len(new_claims)} new claims vs {len(existing_claims)} existing")
+
+        publisher_priors = publisher_priors or {}
+        page_urls = page_urls or {}
+
+        # Get priors for new claims
+        new_priors = {}
+        for claim in new_claims:
+            if claim.id in publisher_priors and publisher_priors[claim.id].get('base_prior'):
+                new_priors[claim.id] = publisher_priors[claim.id]['base_prior']
+            elif claim.id in page_urls:
+                url = page_urls[claim.id]
+                source_type, has_byline = self.classify_source(url)
+                new_priors[claim.id] = self.compute_source_prior(source_type, has_byline)
+            else:
+                new_priors[claim.id] = 0.50
+
+        # Generate embeddings for new claims only
+        new_embeddings = await self._generate_embeddings([c.text for c in new_claims])
+
+        # Get embeddings for existing claims (they should already have them)
+        existing_embeddings = {}
+        for claim in existing_claims:
+            if hasattr(claim, 'embedding') and claim.embedding:
+                existing_embeddings[claim.id] = claim.embedding
+
+        # If existing claims don't have embeddings cached, we need them
+        if not existing_embeddings and existing_claims:
+            logger.info(f"  📊 Generating {len(existing_claims)} embeddings for existing claims...")
+            existing_emb_list = await self._generate_embeddings([c.text for c in existing_claims])
+            for i, claim in enumerate(existing_claims):
+                existing_embeddings[claim.id] = existing_emb_list[i]
+
+        # Find similar pairs: new claims vs existing claims
+        similar_pairs = []
+        new_emb_map = {new_claims[i].id: new_embeddings[i] for i in range(len(new_claims))}
+
+        for new_claim in new_claims:
+            new_emb = new_emb_map[new_claim.id]
+
+            # Compare against existing claims
+            for existing_claim in existing_claims:
+                if existing_claim.id not in existing_embeddings:
+                    continue
+                existing_emb = existing_embeddings[existing_claim.id]
+
+                similarity = np.dot(new_emb, existing_emb) / (
+                    np.linalg.norm(new_emb) * np.linalg.norm(existing_emb) + 1e-10
+                )
+
+                if similarity > 0.4:  # Same threshold as full analysis
+                    similar_pairs.append((new_claim, existing_claim, similarity))
+
+            # Also compare new claims against each other
+            for other_new in new_claims:
+                if other_new.id >= new_claim.id:  # Avoid duplicates
+                    continue
+                other_emb = new_emb_map[other_new.id]
+                similarity = np.dot(new_emb, other_emb) / (
+                    np.linalg.norm(new_emb) * np.linalg.norm(other_emb) + 1e-10
+                )
+                if similarity > 0.4:
+                    similar_pairs.append((new_claim, other_new, similarity))
+
+        logger.info(f"  🔗 Found {len(similar_pairs)} similar pairs to classify")
+
+        # Classify relationships for similar pairs
+        new_relationships = []
+
+        if similar_pairs:
+            # Use domain knowledge for numeric updates
+            new_numbers = {c.id: self.extract_numbers(c.text) for c in new_claims}
+            new_times = {}
+            for c in new_claims:
+                if c.event_time:
+                    new_times[c.id] = c.event_time
+
+            existing_numbers = {c.id: self.extract_numbers(c.text) for c in existing_claims}
+            existing_times = {}
+            for c in existing_claims:
+                if c.event_time:
+                    existing_times[c.id] = c.event_time
+
+            all_numbers = {**existing_numbers, **new_numbers}
+            all_times = {**existing_times, **new_times}
+
+            # Try domain classification first
+            pairs_needing_llm = []
+            for c1, c2, sim in similar_pairs:
+                relation = self.classify_relation_domain(
+                    c1.id, c2.id, all_numbers, all_times
+                )
+                if relation:
+                    new_relationships.append({
+                        'source': c1.id,
+                        'target': c2.id,
+                        'type': relation if isinstance(relation, str) else relation[0],
+                        'similarity': sim
+                    })
+                else:
+                    pairs_needing_llm.append((c1, c2, sim))
+
+            # LLM classification for remaining pairs
+            if pairs_needing_llm:
+                logger.info(f"  🤖 LLM classifying {len(pairs_needing_llm)} pairs...")
+                llm_relations = await self._batch_classify_relations(pairs_needing_llm)
+                for (c1, c2, sim), rel_type in zip(pairs_needing_llm, llm_relations):
+                    if rel_type and rel_type != 'complements':
+                        new_relationships.append({
+                            'source': c1.id,
+                            'target': c2.id,
+                            'type': rel_type,
+                            'similarity': sim
+                        })
+
+        # Update the topology result with new claims
+        updated_plausibilities = dict(existing_topology.claim_plausibilities)
+        updated_contradictions = list(existing_topology.contradictions)
+        updated_superseded = dict(existing_topology.superseded_by)
+
+        # Compute posteriors for new claims
+        for new_claim in new_claims:
+            # Find evidence from relationships
+            evidence_for = []
+            evidence_against = []
+
+            for rel in new_relationships:
+                if rel['source'] == new_claim.id:
+                    other_id = rel['target']
+                elif rel['target'] == new_claim.id:
+                    other_id = rel['source']
+                else:
+                    continue
+
+                if rel['type'] == 'corroborates':
+                    evidence_for.append(other_id)
+                elif rel['type'] == 'contradicts':
+                    evidence_against.append(other_id)
+                    # Add to contradictions list
+                    updated_contradictions.append({
+                        'claim1_id': new_claim.id,
+                        'claim2_id': other_id,
+                        'text1': new_claim.text[:100],
+                        'text2': next((c.text[:100] for c in existing_claims if c.id == other_id), ''),
+                    })
+                elif rel['type'] == 'updates':
+                    # New claim updates existing - mark existing as superseded
+                    updated_superseded[other_id] = new_claim.id
+
+            # Compute posterior for new claim
+            prior = new_priors.get(new_claim.id, 0.5)
+            posterior = prior
+
+            # Boost from corroborations
+            for corr_id in evidence_for:
+                if corr_id in updated_plausibilities:
+                    corr_prior = updated_plausibilities[corr_id].prior
+                    posterior = posterior * (1.2 + 0.3 * corr_prior)
+
+            # Penalty from contradictions
+            for contra_id in evidence_against:
+                if contra_id in updated_plausibilities:
+                    contra_post = updated_plausibilities[contra_id].posterior
+                    posterior = posterior * (0.7 - 0.2 * contra_post)
+
+            posterior = min(0.95, max(0.10, posterior))
+
+            updated_plausibilities[new_claim.id] = PlausibilityResult(
+                claim_id=new_claim.id,
+                prior=prior,
+                posterior=posterior,
+                evidence_for=evidence_for,
+                evidence_against=evidence_against,
+                confidence=posterior
+            )
+
+        # Also update existing claims affected by new evidence
+        for rel in new_relationships:
+            existing_id = None
+            if rel['source'] in updated_plausibilities and rel['target'] not in [c.id for c in new_claims]:
+                existing_id = rel['target']
+            elif rel['target'] in updated_plausibilities and rel['source'] not in [c.id for c in new_claims]:
+                existing_id = rel['source']
+
+            if existing_id and existing_id in updated_plausibilities:
+                existing_result = updated_plausibilities[existing_id]
+
+                if rel['type'] == 'corroborates':
+                    # Boost existing claim
+                    existing_result.evidence_for.append(
+                        rel['source'] if rel['target'] == existing_id else rel['target']
+                    )
+                    existing_result.posterior = min(0.95, existing_result.posterior * 1.1)
+
+                elif rel['type'] == 'contradicts':
+                    # Penalize existing claim slightly
+                    existing_result.evidence_against.append(
+                        rel['source'] if rel['target'] == existing_id else rel['target']
+                    )
+                    existing_result.posterior = max(0.10, existing_result.posterior * 0.95)
+
+        # Recompute pattern
+        n_corroborates = sum(1 for r in new_relationships if r['type'] == 'corroborates')
+        n_contradicts = len([c for c in updated_contradictions])
+        n_updates = len(updated_superseded)
+
+        if n_updates > n_contradicts and n_updates > 3:
+            pattern = 'progressive'
+        elif n_contradicts > n_corroborates * 0.3:
+            pattern = 'contradictory'
+        elif n_corroborates > len(new_claims) * 0.3:
+            pattern = 'consensus'
+        else:
+            pattern = existing_topology.pattern  # Keep existing pattern
+
+        updated_topology = TopologyResult(
+            claim_plausibilities=updated_plausibilities,
+            consensus_date=existing_topology.consensus_date,
+            contradictions=updated_contradictions,
+            pattern=pattern,
+            superseded_by=updated_superseded
+        )
+
+        logger.info(f"  ✅ Incremental update complete: {len(new_relationships)} new relationships, "
+                   f"{len(new_claims)} claims added")
+
+        return updated_topology, new_relationships

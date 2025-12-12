@@ -744,14 +744,16 @@ class EventRepository:
                    e.event_type as event_type,
                    e.status as status,
                    e.confidence as confidence,
+                   e.coherence as coherence,
                    e.event_scale as event_scale,
                    coalesce(e.event_start, e.earliest_time) as event_start,
                    coalesce(e.event_end, e.latest_time) as event_end,
                    e.created_at as created_at,
                    e.updated_at as updated_at,
                    e.metadata as metadata,
+                   e.summary as summary,
                    child_count
-            ORDER BY e.created_at DESC
+            ORDER BY e.updated_at DESC
             LIMIT $limit
         """
         params['limit'] = limit
@@ -769,6 +771,7 @@ class EventRepository:
                 'event_type': row['event_type'],
                 'status': row['status'],
                 'confidence': row['confidence'],
+                'coherence': row.get('coherence'),
                 'event_scale': row.get('event_scale'),
                 'event_start': neo4j_datetime_to_python(row['event_start']) if row.get('event_start') else None,
                 'event_end': neo4j_datetime_to_python(row['event_end']) if row.get('event_end') else None,
@@ -776,6 +779,7 @@ class EventRepository:
                 'updated_at': updated_at_str,
                 'last_updated': updated_at_str,  # Frontend expects 'last_updated'
                 'metadata': row.get('metadata', {}),
+                'summary': row.get('summary'),
                 'child_count': row['child_count']
             }
             events.append(event_dict)
@@ -968,4 +972,98 @@ class EventRepository:
 
         logger.debug(f"✓ Acknowledged thought {thought_id} for event {event_id}")
         return True
+
+    async def get_page_thumbnails_for_event(
+        self,
+        event_id: str,
+        limit: int = 5
+    ) -> List[Dict[str, str]]:
+        """
+        Get page thumbnails for an event (for homepage display).
+
+        Finds pages via Event-[SUPPORTS]->Claim<-[CONTAINS]-Page path in Neo4j,
+        then fetches thumbnail URLs from PostgreSQL (where they're stored).
+
+        Args:
+            event_id: Event ID
+            limit: Max number of thumbnails to return (default 5)
+
+        Returns:
+            List of dicts with {page_id, thumbnail_url, title, domain}
+        """
+        # First get page IDs from Neo4j graph
+        result = await self.neo4j._execute_read("""
+            MATCH (e:Event {id: $event_id})-[:SUPPORTS]->(c:Claim)<-[:CONTAINS]-(p:Page)
+            WITH DISTINCT p.id as page_id
+            RETURN page_id
+            LIMIT $limit
+        """, {
+            'event_id': event_id,
+            'limit': limit * 2  # Get more to filter those without thumbnails
+        })
+
+        if not result:
+            return []
+
+        page_ids = [row['page_id'] for row in result]
+
+        # Fetch thumbnail URLs from PostgreSQL
+        async with self.db_pool.acquire() as conn:
+            rows = await conn.fetch("""
+                SELECT id as page_id, thumbnail_url, title, domain
+                FROM core.pages
+                WHERE id = ANY($1::text[])
+                  AND thumbnail_url IS NOT NULL
+                  AND thumbnail_url != ''
+                ORDER BY pub_time DESC NULLS LAST
+                LIMIT $2
+            """, page_ids, limit)
+
+        return [dict(row) for row in rows]
+
+    async def get_latest_thought_for_event(self, event_id: str) -> Optional[Dict]:
+        """
+        Get the most recent unacknowledged thought for an event.
+
+        Used for homepage display as a stimulating byline.
+
+        Args:
+            event_id: Event ID
+
+        Returns:
+            Most recent thought dict or None
+        """
+        thoughts = await self.get_thoughts(event_id)
+        if not thoughts:
+            return None
+
+        # Filter unacknowledged thoughts and sort by created_at desc
+        unacknowledged = [t for t in thoughts if not t.get('acknowledged', False)]
+        if not unacknowledged:
+            # Fall back to most recent thought even if acknowledged
+            return thoughts[-1] if thoughts else None
+
+        # Sort by created_at descending
+        unacknowledged.sort(
+            key=lambda t: t.get('created_at', ''),
+            reverse=True
+        )
+        return unacknowledged[0]
+
+    async def get_event_claim_count(self, event_id: str) -> int:
+        """
+        Get count of claims supporting an event.
+
+        Args:
+            event_id: Event ID
+
+        Returns:
+            Number of claims
+        """
+        result = await self.neo4j._execute_read("""
+            MATCH (e:Event {id: $event_id})-[:SUPPORTS]->(c:Claim)
+            RETURN count(c) as count
+        """, {'event_id': event_id})
+
+        return result[0]['count'] if result else 0
 
