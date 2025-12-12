@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
-import { useNavigate } from 'react-router-dom';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, CircleMarker, useMap } from 'react-leaflet';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -51,11 +51,30 @@ function FitBounds({ locations }: { locations: Location[] }) {
     return null;
 }
 
+// Component to set initial view from URL params
+function SetInitialView({ lat, lon, zoom }: { lat: number; lon: number; zoom: number }) {
+    const map = useMap();
+
+    useEffect(() => {
+        map.setView([lat, lon], zoom, { animate: true });
+    }, [lat, lon, zoom, map]);
+
+    return null;
+}
+
 const MapPage: React.FC = () => {
     const [data, setData] = useState<MapData>({ locations: [], connections: [], total_locations: 0, total_connections: 0 });
     const [loading, setLoading] = useState(false); // Don't block map rendering
     const [selectedLocation, setSelectedLocation] = useState<string | null>(null);
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+
+    // Parse URL parameters for initial position
+    const focusLat = searchParams.get('lat') ? parseFloat(searchParams.get('lat')!) : null;
+    const focusLon = searchParams.get('lon') ? parseFloat(searchParams.get('lon')!) : null;
+    const focusZoom = searchParams.get('zoom') ? parseInt(searchParams.get('zoom')!) : 10;
+    const focusName = searchParams.get('name') || null;
+    const hasFocusPoint = focusLat !== null && focusLon !== null && !isNaN(focusLat) && !isNaN(focusLon);
 
     useEffect(() => {
         // Start loading data in background
@@ -159,7 +178,22 @@ const MapPage: React.FC = () => {
     return (
         <div className="h-screen flex flex-col bg-gray-900 text-white">
             <div className="p-4 border-b border-gray-800 flex justify-between items-center z-10 bg-gray-900">
-                <h1 className="text-xl font-bold">News Map: Global Story Locations</h1>
+                <div className="flex items-center gap-4">
+                    <h1 className="text-xl font-bold">News Map: Global Story Locations</h1>
+                    {hasFocusPoint && focusName && (
+                        <div className="flex items-center gap-2 px-3 py-1 bg-red-900/30 border border-red-700/50 rounded-full">
+                            <span className="text-red-400">●</span>
+                            <span className="text-red-200 text-sm">{focusName}</span>
+                            <button
+                                onClick={() => navigate('/map')}
+                                className="text-red-400 hover:text-red-300 ml-1"
+                                title="Clear focus"
+                            >
+                                ×
+                            </button>
+                        </div>
+                    )}
+                </div>
                 <div className="text-sm text-gray-400 flex items-center gap-4">
                     {data.total_locations > 0 && (
                         <span>
@@ -194,8 +228,8 @@ const MapPage: React.FC = () => {
 
                 {/* Always show map, just without markers if no data yet */}
                 <MapContainer
-                        center={[20, 0]}
-                        zoom={2}
+                        center={hasFocusPoint ? [focusLat!, focusLon!] : [20, 0]}
+                        zoom={hasFocusPoint ? focusZoom : 2}
                         className="h-full w-full"
                         style={{ background: '#111827' }}
                     >
@@ -204,7 +238,48 @@ const MapPage: React.FC = () => {
                             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
                         />
 
-                        {data.locations.length > 0 && <FitBounds locations={data.locations} />}
+                        {/* Set view from URL params if present */}
+                        {hasFocusPoint && <SetInitialView lat={focusLat!} lon={focusLon!} zoom={focusZoom} />}
+
+                        {/* Focus point marker from URL params */}
+                        {hasFocusPoint && (
+                            <>
+                                <CircleMarker
+                                    center={[focusLat!, focusLon!]}
+                                    radius={12}
+                                    pathOptions={{
+                                        color: '#ef4444',
+                                        fillColor: '#ef4444',
+                                        fillOpacity: 0.3,
+                                        weight: 2,
+                                    }}
+                                />
+                                <CircleMarker
+                                    center={[focusLat!, focusLon!]}
+                                    radius={6}
+                                    pathOptions={{
+                                        color: '#fff',
+                                        fillColor: '#ef4444',
+                                        fillOpacity: 1,
+                                        weight: 2,
+                                    }}
+                                >
+                                    {focusName && (
+                                        <Popup>
+                                            <div className="text-gray-900">
+                                                <h3 className="font-bold">{focusName}</h3>
+                                                <p className="text-xs text-gray-500">
+                                                    {focusLat!.toFixed(4)}°, {focusLon!.toFixed(4)}°
+                                                </p>
+                                            </div>
+                                        </Popup>
+                                    )}
+                                </CircleMarker>
+                            </>
+                        )}
+
+                        {/* Only fit bounds if no focus point specified */}
+                        {!hasFocusPoint && data.locations.length > 0 && <FitBounds locations={data.locations} />}
 
                         {/* Draw connections between locations */}
                         {data.locations.length > 0 && data.connections.map((conn, idx) => {

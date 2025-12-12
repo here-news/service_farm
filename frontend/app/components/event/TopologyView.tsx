@@ -716,6 +716,210 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
           </div>
         </div>
       )}
+
+      {/* Topology Details Section */}
+      <div className="border-t border-gray-800 p-4 space-y-4">
+        {/* Summary Cards */}
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-gray-800/60 rounded-lg p-3 border border-gray-700">
+            <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Pattern</div>
+            <div className="text-lg font-semibold text-white capitalize">{topology.pattern}</div>
+            {topology.pattern === 'progressive' && (
+              <div className="text-xs text-amber-400 mt-1">Metrics evolving ↑</div>
+            )}
+            {topology.pattern === 'contradictory' && (
+              <div className="text-xs text-red-400 mt-1">Active conflicts</div>
+            )}
+            {topology.pattern === 'consensus' && (
+              <div className="text-xs text-emerald-400 mt-1">Sources agree</div>
+            )}
+          </div>
+
+          <div className="bg-gray-800/60 rounded-lg p-3 border border-gray-700">
+            <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Consensus Date</div>
+            <div className="text-lg font-semibold text-white">
+              {topology.consensus_date
+                ? new Date(topology.consensus_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                : '—'}
+            </div>
+            {topology.consensus_date && (
+              <div className="text-xs text-gray-400 mt-1">Most agreed timeline</div>
+            )}
+          </div>
+
+          <div className="bg-gray-800/60 rounded-lg p-3 border border-gray-700">
+            <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Contradictions</div>
+            <div className={`text-lg font-semibold ${topology.contradictions.length > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+              {topology.contradictions.length} active
+            </div>
+            <div className="text-xs text-gray-400 mt-1">
+              Temp: {tempInfo.label}
+            </div>
+          </div>
+        </div>
+
+        {/* Update Chains */}
+        {topology.update_chains.length > 0 && (
+          <div className="bg-gray-800/40 rounded-lg p-4 border border-gray-700">
+            <h4 className="text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
+              <span className="text-blue-400">📈</span> Update Chains (Metric Progression)
+            </h4>
+            <div className="space-y-3">
+              {topology.update_chains.map((chain, idx) => {
+                // Get claim texts for the chain
+                const chainClaims = chain.chain.map(claimId => {
+                  const claim = topology.claims.find(c => c.id === claimId);
+                  return claim;
+                }).filter(Boolean) as TopologyClaim[];
+
+                // Extract numeric values from claims if possible
+                const values = chainClaims.map(c => {
+                  const match = c.text.match(/(\d+(?:,\d+)?)/);
+                  return match ? match[1] : '?';
+                });
+
+                return (
+                  <div key={idx} className="bg-gray-900/50 rounded p-3">
+                    <div className="text-xs text-gray-400 uppercase tracking-wide mb-2 font-medium">
+                      {chain.metric}
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap text-sm">
+                      {chainClaims.map((claim, i) => {
+                        const isCurrent = claim.id === chain.current;
+                        return (
+                          <React.Fragment key={claim.id}>
+                            <span
+                              className={`px-2 py-1 rounded cursor-pointer transition-colors ${
+                                isCurrent
+                                  ? 'bg-blue-600 text-white font-medium'
+                                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                              }`}
+                              onClick={() => setSelectedClaim(claim)}
+                              title={claim.text}
+                            >
+                              {values[i]}
+                            </span>
+                            {i < chainClaims.length - 1 && (
+                              <span className="text-gray-500">→</span>
+                            )}
+                          </React.Fragment>
+                        );
+                      })}
+                    </div>
+                    <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
+                      {chainClaims.map((claim, i) => (
+                        <React.Fragment key={claim.id}>
+                          <span className={claim.id === chain.current ? 'text-blue-400' : ''}>
+                            {Math.round(claim.plausibility * 100)}%
+                          </span>
+                          {i < chainClaims.length - 1 && <span className="w-4" />}
+                        </React.Fragment>
+                      ))}
+                      <span className="ml-auto text-gray-400">(plausibility)</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Active Contradictions */}
+        {topology.contradictions.length > 0 && (
+          <div className="bg-gray-800/40 rounded-lg p-4 border border-gray-700">
+            <h4 className="text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
+              <span className="text-red-400">⚡</span> Contradictions (Active Tensions)
+            </h4>
+            <div className="space-y-3">
+              {topology.contradictions.slice(0, 5).map((contradiction, idx) => {
+                const claim1 = topology.claims.find(c => c.id === contradiction.claim1_id);
+                const claim2 = topology.claims.find(c => c.id === contradiction.claim2_id);
+                if (!claim1 || !claim2) return null;
+
+                return (
+                  <div key={idx} className="bg-red-950/30 rounded p-3 border border-red-900/30">
+                    <div className="flex items-start gap-3">
+                      <div className="flex-1">
+                        <div
+                          className="text-sm text-gray-200 cursor-pointer hover:text-white line-clamp-2"
+                          onClick={() => setSelectedClaim(claim1)}
+                        >
+                          "{claim1.text.length > 80 ? claim1.text.slice(0, 80) + '...' : claim1.text}"
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          {Math.round(claim1.plausibility * 100)}% plausible
+                        </div>
+                      </div>
+                      <div className="text-red-400 text-lg font-bold px-2">vs</div>
+                      <div className="flex-1">
+                        <div
+                          className="text-sm text-gray-200 cursor-pointer hover:text-white line-clamp-2"
+                          onClick={() => setSelectedClaim(claim2)}
+                        >
+                          "{claim2.text.length > 80 ? claim2.text.slice(0, 80) + '...' : claim2.text}"
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          {Math.round(claim2.plausibility * 100)}% plausible
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              {topology.contradictions.length > 5 && (
+                <div className="text-xs text-gray-500 text-center">
+                  +{topology.contradictions.length - 5} more contradictions
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Source Diversity */}
+        {Object.keys(topology.source_diversity).length > 0 && (
+          <div className="bg-gray-800/40 rounded-lg p-4 border border-gray-700">
+            <h4 className="text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
+              <span className="text-purple-400">📊</span> Source Diversity
+            </h4>
+            <div className="space-y-2">
+              {Object.entries(topology.source_diversity)
+                .sort((a, b) => b[1].avg_prior - a[1].avg_prior)
+                .map(([sourceType, data]) => {
+                  const maxCount = Math.max(...Object.values(topology.source_diversity).map(d => d.count));
+                  const barWidth = (data.count / maxCount) * 100;
+                  const priorColor = data.avg_prior >= 0.7 ? 'text-emerald-400' :
+                                     data.avg_prior >= 0.5 ? 'text-amber-400' : 'text-red-400';
+
+                  return (
+                    <div key={sourceType} className="flex items-center gap-3">
+                      <div className="w-24 text-sm text-gray-400 capitalize">
+                        {sourceType.replace(/_/g, ' ')}
+                      </div>
+                      <div className={`w-12 text-sm font-medium ${priorColor}`}>
+                        {Math.round(data.avg_prior * 100)}%
+                      </div>
+                      <div className="flex-1 h-5 bg-gray-900 rounded overflow-hidden relative">
+                        <div
+                          className="h-full bg-gradient-to-r from-purple-600 to-purple-400 transition-all duration-300"
+                          style={{ width: `${barWidth}%` }}
+                        />
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-300">
+                          {data.count} claims
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+            <div className="text-xs text-gray-500 mt-3 flex items-center gap-4">
+              <span>Prior = credibility score</span>
+              <span className="text-emerald-400">■ High (≥70%)</span>
+              <span className="text-amber-400">■ Medium (≥50%)</span>
+              <span className="text-red-400">■ Low (&lt;50%)</span>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

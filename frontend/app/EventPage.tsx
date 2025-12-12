@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import TimelineView from './components/event/TimelineView';
 import TopologyView from './components/event/TopologyView';
-import MapView from './components/event/MapView';
+import EpicenterMapCard from './components/event/EpicenterMapCard';
 import EventNarrativeContent from './components/event/EventNarrativeContent';
 
 interface Entity {
@@ -67,7 +67,7 @@ interface EventData {
     parent: any | null;
 }
 
-type TabType = 'narrative' | 'timeline' | 'topology' | 'map';
+type TabType = 'narrative' | 'timeline' | 'topology';
 
 const EventPage: React.FC = () => {
     const { eventSlug } = useParams<{ eventSlug: string }>();
@@ -103,11 +103,6 @@ const EventPage: React.FC = () => {
     const renderTopology = () => {
         if (!eventData) return null;
         return <TopologyView eventId={event.id} eventName={event.canonical_name} />;
-    };
-
-    const renderMap = () => {
-        if (!eventData) return null;
-        return <MapView entities={eventData.entities} claims={eventData.claims} eventName={event.canonical_name} />;
     };
 
     if (loading) {
@@ -187,8 +182,7 @@ const EventPage: React.FC = () => {
                         {[
                             { id: 'narrative', label: 'Narrative', icon: '📰' },
                             { id: 'timeline', label: 'Timeline', icon: '⏱️' },
-                            { id: 'topology', label: 'Topology', icon: '🔮' },
-                            { id: 'map', label: 'Map', icon: '🗺️' }
+                            { id: 'topology', label: 'Topology', icon: '🔮' }
                         ].map(tab => (
                             <button
                                 key={tab.id}
@@ -209,7 +203,15 @@ const EventPage: React.FC = () => {
                 {/* Content */}
                 <div className="p-6">
                     {activeTab === 'narrative' && (
-                        <div className="max-w-4xl mx-auto">
+                        <div className="max-w-4xl mx-auto relative">
+                            {/* Floating Epicenter Map Card */}
+                            <div className="float-right ml-4 mb-4 z-10">
+                                <EpicenterMapCard
+                                    entities={entities}
+                                    eventName={event.canonical_name}
+                                />
+                            </div>
+
                             {/* Key Figures bar */}
                             {event.narrative?.key_figures && event.narrative.key_figures.length > 0 && (
                                 <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 mb-6 flex flex-wrap gap-6">
@@ -261,12 +263,6 @@ const EventPage: React.FC = () => {
                     {activeTab === 'topology' && (
                         <div>
                             {renderTopology()}
-                        </div>
-                    )}
-
-                    {activeTab === 'map' && (
-                        <div>
-                            {renderMap()}
                         </div>
                     )}
                 </div>
