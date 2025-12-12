@@ -941,38 +941,42 @@ class LiveEvent:
                 if update_items:
                     updates_text = "Recent updates:\n" + "\n".join(update_items)
 
-            prompt = f"""You're a witty, sharp-eyed journalist writing a one-liner that captures the ESSENCE of this developing story - what's surprising, ironic, or demands attention.
+            prompt = f"""You're an investigative editor reviewing this developing story. Identify the KEY UNANSWERED QUESTION that readers should be asking.
 
 Event: {self.event.canonical_name}
 
-Key facts:
+Established facts:
 {reliable_claims_text}
 
 {updates_text}
 
 {contradiction_text if contradiction_text else ""}
 
-Write ONE punchy sentence (max 180 chars) that:
-- Captures what makes this story INTERESTING right now
-- Highlights irony, tension, or the unexpected angle
-- Makes a reader say "wait, what?" or "I need to know more"
+Write ONE sharp question (max 180 chars) that:
+- Asks what we DON'T yet know but SHOULD
+- Highlights a gap, contradiction, or suspicious detail
+- Makes readers think critically about the story
 
-STYLE:
-- Be sharp, not dry. Think NYT breaking news meets Twitter wit.
-- Lead with the hook, not the background
-- Specific details > vague summaries
-- OK to be slightly provocative if grounded in facts above
+BALANCE:
+- If there's a dispute: ask which side has better evidence
+- If numbers changed: ask why
+- If someone's blamed: ask if that's fair
+- If it's developing: ask what we're waiting to learn
+
+FORMAT: Start with a brief factual anchor, then the question.
 
 Good examples:
-- "Death toll hits 17 as residents say fire alarms never sounded. Building passed inspection last month."
-- "Lai spends 77th birthday in prison cell. UK calls it 'politically motivated'; Beijing calls it justice."
-- "19-year-old suspect in court as Seyfried doubles down: 'I'm not apologizing for calling him hateful.'"
+- "Death toll at 17, but fire alarms reportedly silent—did the building pass safety inspection?"
+- "Lai imprisoned 1,800 days without trial conclusion. What's the legal basis for indefinite detention?"
+- "Seyfried won't apologize for 'hateful' comment. Was Kirk's rhetoric actually harmful, or is this politicized grief?"
+- "Casualty count rose from 5 to 36 in 48 hours. Were early reports suppressed, or is this normal for disaster response?"
 
-Bad examples:
-- "Fire kills many in building. Investigation ongoing."
-- "Activist sentenced. International reaction mixed."
+Bad examples (too assertive, not questioning):
+- "Fire kills 17 due to negligence." (states conclusion)
+- "Lai is a political prisoner." (takes a side)
+- "Seyfried is right to speak out." (editorializes)
 
-Your line:"""
+Your question:"""
 
             response = await self.topology_service.openai.chat.completions.create(
                 model="gpt-4o-mini",
