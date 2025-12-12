@@ -1122,7 +1122,17 @@ Use markdown headers (**Section**) only where natural topic breaks exist."""
             date_val = str(c['event_time']) if c['event_time'] else 'z'
             return (-plaus, -has_date, date_val)
 
-        sorted_claims = sorted(enriched_claims, key=sort_key)[:50]
+        sorted_claims = sorted(enriched_claims, key=sort_key)
+
+        # Filter to claims with plausibility >= 0.4 (include moderate+ confidence)
+        # Fall back to top 30 if too few pass threshold
+        high_plaus_claims = [c for c in sorted_claims if c.get('plausibility', 0.5) >= 0.4]
+        if len(high_plaus_claims) < 30:
+            sorted_claims = sorted_claims[:max(30, len(high_plaus_claims))]
+        else:
+            sorted_claims = high_plaus_claims
+
+        logger.info(f"📝 Narrative generation: {len(sorted_claims)} claims (from {len(enriched_claims)} total, threshold 0.4)")
 
         # Format claims with timestamps and plausibility
         def format_time(t):
@@ -1160,7 +1170,7 @@ Use markdown headers (**Section**) only where natural topic breaks exist."""
         pattern = topology_context.get('pattern', 'unknown')
         superseded_ids = set(topology_context.get('superseded_by', {}).keys())
 
-        prompt = f"""Analyze these claims and produce a structured JSON narrative for the event "{event.canonical_name}".
+        prompt = f"""Analyze these claims and produce a COMPREHENSIVE structured JSON narrative for the event "{event.canonical_name}".
 
 EVENT TYPE: {event.event_type}
 DATE: {consensus_date or 'uncertain'}
@@ -1183,14 +1193,20 @@ Return a JSON object with this exact structure:
     {{
       "topic": "overview",
       "title": "",
-      "content": "Opening paragraph with core facts. Embed claim refs as [cl_xxx]. Mark entities on first mention: John Lee [en_xxx].",
-      "claim_ids": ["cl_xxx", "cl_yyy"]
+      "content": "A comprehensive 2-3 paragraph opening that covers the core facts of what happened, when, where, and the immediate impact. Include specific numbers, names, and dates. Embed claim refs as [cl_xxx]. Mark entities on first mention: John Lee [en_xxx].",
+      "claim_ids": ["cl_xxx", "cl_yyy", ...]
     }},
     {{
       "topic": "casualties",
-      "title": "Casualties",
-      "content": "Details about deaths/injuries with [cl_xxx] refs...",
-      "claim_ids": ["cl_xxx"]
+      "title": "Casualties and Impact",
+      "content": "Detailed account of casualties including deaths, injuries, missing persons, and displaced individuals. Include how numbers evolved over time if applicable. Each fact with [cl_xxx] refs...",
+      "claim_ids": ["cl_xxx", ...]
+    }},
+    {{
+      "topic": "response",
+      "title": "Emergency Response",
+      "content": "Comprehensive details of emergency response efforts, rescue operations, resources deployed, challenges faced. Multiple paragraphs if warranted...",
+      "claim_ids": ["cl_xxx", ...]
     }}
   ],
   "key_figures": [
@@ -1204,23 +1220,31 @@ Return a JSON object with this exact structure:
 }}
 
 RULES:
-1. First section MUST have topic="overview" and title="" (empty) - it's the opening paragraph
-2. Only create sections for topics that have claims (casualties, response, investigation, government_reaction, background, etc.)
-3. NO headline - the event's canonical_name IS the title
-4. NO summary/conclusion section at the end
-5. Every factual statement MUST have [cl_xxx] reference
-6. Mark entity names with [en_xxx] on FIRST mention only
-7. Claims with plausibility ≥0.70 are established facts - state confidently
-8. Claims in SUPERSEDED list should be "earlier reports" or "initial estimates"
-9. key_figures: Extract key numeric values (death_toll, injuries, missing, arrests, etc.)
-10. For progressive patterns: use highest-plausibility figure, reference earlier as "initial reports"
+1. First section MUST have topic="overview" and title="" (empty)
+2. Create sections for each distinct aspect that has claims (casualties, response, investigation, government_reaction, public_response, background, etc.)
+3. Every factual statement MUST have [cl_xxx] reference
+4. Mark entity names with [en_xxx] on FIRST mention only
+5. Claims with plausibility ≥0.70 are established facts
+6. Claims in SUPERSEDED list are "earlier reports" - include them for timeline context
+7. key_figures: Extract key numeric values (death_toll, injuries, missing, arrests, etc.)
+8. For progressive patterns: show how numbers evolved over time
+9. NO summary/conclusion section, NO headline
+
+CONTENT DEPTH: For each claim, include the full context - who, what, when, where, why. Don't compress multiple claims into single sentences. Let each significant claim have its own sentence or paragraph.
 
 Return ONLY valid JSON, no markdown code blocks."""
 
         response = await self.openai_client.chat.completions.create(
-            messages=[{"role": "user", "content": prompt}],
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a journalist writing detailed news articles. Write LONG, comprehensive content. Each section should be 2-4 paragraphs. Never summarize - elaborate on every claim with full context. Aim for 4000+ characters total output."
+                },
+                {"role": "user", "content": prompt}
+            ],
             model="gpt-4o",
-            temperature=0.2,
+            temperature=0.4,
+            max_tokens=4096,
             response_format={"type": "json_object"}
         )
 
