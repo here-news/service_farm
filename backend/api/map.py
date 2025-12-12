@@ -1,106 +1,131 @@
 """
-Map API router - provides location data from top stories
+Map API router - provides location data from events and entities
 """
-
 from fastapi import APIRouter
-from services.neo4j_client import neo4j_client
+from repositories.entity_repository import EntityRepository
+from repositories.event_repository import EventRepository
+from services.neo4j_service import Neo4jService
+import asyncpg
+import os
 
-router = APIRouter(prefix="/api/map", tags=["map"])
+router = APIRouter()
+
+# Database connection pool (will be initialized on first request)
+_db_pool = None
+_neo4j = None
+
+
+async def get_services():
+    """Get or create service instances"""
+    global _db_pool, _neo4j
+
+    if _neo4j is None:
+        _neo4j = Neo4jService()
+        await _neo4j.connect()
+
+    if _db_pool is None:
+        _db_pool = await asyncpg.create_pool(
+            host=os.getenv('POSTGRES_HOST', 'postgres'),
+            port=int(os.getenv('POSTGRES_PORT', 5432)),
+            user=os.getenv('POSTGRES_USER', 'herenews'),
+            password=os.getenv('POSTGRES_PASSWORD', 'herenews_pass'),
+            database=os.getenv('POSTGRES_DB', 'herenews'),
+            min_size=1,
+            max_size=5
+        )
+
+    return _db_pool, _neo4j
 
 
 @router.get("/locations")
 async def get_map_locations(limit: int = 100):
     """
-    Get locations from top stories with their coordinates and connections
+    Get locations from events with their coordinates.
 
-    Returns:
-    - Locations with lat/lon coordinates
-    - Stories associated with each location
-    - Connections between locations via shared stories
+    Returns location entities (GPE/LOC/LOCATION) that have coordinates,
+    along with the events they appear in.
     """
     try:
-        with neo4j_client.driver.session(database=neo4j_client.database) as session:
-            # Get top stories with their locations
-            result = session.run('''
-                // Get recent stories (fetch more to find diverse locations)
-                MATCH (s:Story)
-                WHERE s.created_at IS NOT NULL
-                WITH s
-                ORDER BY s.created_at DESC
-                LIMIT $limit
+        db_pool, neo4j = await get_services()
+        entity_repo = EntityRepository(db_pool, neo4j)
+        event_repo = EventRepository(db_pool, neo4j)
 
-                // Get locations mentioned in these stories
-                MATCH (s)-[:MENTIONS_LOCATION]->(loc:Location)
-                WHERE loc.latitude IS NOT NULL
-                  AND loc.longitude IS NOT NULL
-                  AND loc.latitude <> 0
-                  AND loc.longitude <> 0
+        # Get recent events
+        events_data = await event_repo.list_root_events(limit=limit)
 
-                // Collect stories for each location
-                WITH loc, collect(DISTINCT {
-                    id: s.id,
-                    title: coalesce(s.title, s.topic),
-                    coherence: s.health_indicator,
-                    cover_image: s.cover_image
-                }) as stories
+        # Collect location entities from all events
+        location_map = {}  # entity_id -> {entity, event_ids}
 
-                RETURN loc.canonical_id as id,
-                       loc.canonical_name as name,
-                       loc.latitude as latitude,
-                       loc.longitude as longitude,
-                       loc.wikidata_qid as qid,
-                       loc.wikidata_thumbnail as thumbnail,
-                       loc.description as description,
-                       stories
-                ORDER BY size(stories) DESC
-            ''', limit=limit)
+        for event_data in events_data:
+            event_id = event_data['id']
 
-            locations = []
-            location_map = {}
+            # Get entities for this event
+            entities = await entity_repo.get_by_event_id(event_id)
 
-            for record in result:
-                location_id = record['id']
-                location_data = {
-                    'id': location_id,
-                    'name': record['name'],
-                    'latitude': record['latitude'],
-                    'longitude': record['longitude'],
-                    'qid': record['qid'],
-                    'thumbnail': record['thumbnail'],
-                    'description': record['description'],
-                    'stories': record['stories'],
-                    'story_count': len(record['stories'])
-                }
-                locations.append(location_data)
-                location_map[location_id] = location_data
+            for entity in entities:
+                # Filter to location entities with coordinates
+                if entity.entity_type in ('GPE', 'LOC', 'LOCATION'):
+                    if entity.latitude and entity.longitude:
+                        entity_id = str(entity.id)
 
-            # Build connections between locations (via shared stories)
-            connections = []
-            for i, loc1 in enumerate(locations):
-                for loc2 in locations[i+1:]:
-                    # Find shared stories
-                    stories1 = set(s['id'] for s in loc1['stories'])
-                    stories2 = set(s['id'] for s in loc2['stories'])
-                    shared_stories = stories1.intersection(stories2)
+                        if entity_id not in location_map:
+                            location_map[entity_id] = {
+                                'entity': entity,
+                                'event_ids': [],
+                                'events': []
+                            }
 
-                    if shared_stories:
-                        connections.append({
-                            'source': loc1['id'],
-                            'target': loc2['id'],
-                            'shared_story_count': len(shared_stories),
-                            'shared_story_ids': list(shared_stories)
+                        location_map[entity_id]['event_ids'].append(event_id)
+                        location_map[entity_id]['events'].append({
+                            'id': event_id,
+                            'title': event_data.get('canonical_name', 'Untitled'),
+                            'status': event_data.get('status')
                         })
 
-            return {
-                "status": "success",
-                "locations": locations,
-                "connections": connections,
-                "total_locations": len(locations),
-                "total_connections": len(connections)
-            }
+        # Build response
+        locations = []
+        for entity_id, data in location_map.items():
+            entity = data['entity']
+            locations.append({
+                'id': entity_id,
+                'name': entity.canonical_name,
+                'latitude': entity.latitude,
+                'longitude': entity.longitude,
+                'qid': entity.wikidata_qid,
+                'thumbnail': entity.image_url,
+                'description': entity.wikidata_description,
+                'events': data['events'],
+                'event_count': len(data['events'])
+            })
+
+        # Sort by event count (most mentioned locations first)
+        locations.sort(key=lambda x: x['event_count'], reverse=True)
+
+        # Build connections (locations that share events)
+        connections = []
+        location_list = list(location_map.items())
+        for i, (loc1_id, loc1_data) in enumerate(location_list):
+            for loc2_id, loc2_data in location_list[i+1:]:
+                shared = set(loc1_data['event_ids']) & set(loc2_data['event_ids'])
+                if shared:
+                    connections.append({
+                        'source': loc1_id,
+                        'target': loc2_id,
+                        'shared_event_count': len(shared),
+                        'shared_event_ids': list(shared)
+                    })
+
+        return {
+            "status": "success",
+            "locations": locations,
+            "connections": connections,
+            "total_locations": len(locations),
+            "total_connections": len(connections)
+        }
 
     except Exception as e:
-        print(f"Error fetching map locations: {e}")
+        import traceback
+        traceback.print_exc()
         return {
             "status": "error",
             "locations": [],

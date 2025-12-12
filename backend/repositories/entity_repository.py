@@ -66,7 +66,9 @@ class EntityRepository:
             wikidata_qid=entity.wikidata_qid,
             wikidata_label=entity.wikidata_label,
             wikidata_description=entity.wikidata_description,
-            image_url=entity.image_url
+            image_url=entity.image_url,
+            latitude=entity.latitude,
+            longitude=entity.longitude
         )
 
         # If Neo4j returned a different ID, this entity already existed
@@ -172,7 +174,9 @@ class EntityRepository:
                    entity.image_url as image_url,
                    entity.profile_summary as profile_summary,
                    entity.status as status,
-                   entity.aliases as aliases
+                   entity.aliases as aliases,
+                   entity.latitude as latitude,
+                   entity.longitude as longitude
             ORDER BY entity.canonical_name
         """, {'event_id': event_id})
 
@@ -189,6 +193,8 @@ class EntityRepository:
                 wikidata_label=row.get('wikidata_label'),
                 wikidata_description=row.get('wikidata_description'),
                 image_url=row.get('image_url'),
+                latitude=row.get('latitude'),
+                longitude=row.get('longitude'),
                 status=row.get('status', 'pending'),
                 confidence=row.get('confidence', 0.0),
                 aliases=row.get('aliases', []),

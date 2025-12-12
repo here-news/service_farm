@@ -184,6 +184,8 @@ async def get_event_tree(event_id: str):
         """Convert Event domain model to API dict"""
         result = {
             'id': str(e.id),
+            'event_id': str(e.id),  # GraphPage expects event_id
+            'title': e.canonical_name,  # GraphPage expects title
             'canonical_name': e.canonical_name,
             'event_type': e.event_type,
             'event_scale': e.event_scale,
@@ -234,7 +236,9 @@ async def get_event_tree(event_id: str):
             'wikidata_qid': e.wikidata_qid,
             'wikidata_label': e.wikidata_label,
             'wikidata_description': e.wikidata_description,
-            'image_url': e.image_url
+            'image_url': e.image_url,
+            'latitude': e.latitude,
+            'longitude': e.longitude
         }
 
     # Build response

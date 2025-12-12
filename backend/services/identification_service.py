@@ -41,6 +41,8 @@ class EntityMatch:
     wikidata_label: Optional[str] = None  # Authoritative Wikidata label (use this for updates)
     wikidata_description: Optional[str] = None  # Description from Wikidata
     image_url: Optional[str] = None  # Image URL (from Wikidata or custom)
+    latitude: Optional[float] = None  # Coordinates for LOCATION entities
+    longitude: Optional[float] = None
     is_new: bool = False
 
 
@@ -145,6 +147,8 @@ class IdentificationService:
                             wikidata_label=match.wikidata_label,
                             wikidata_description=match.wikidata_description,
                             image_url=match.image_url,
+                            latitude=match.latitude,
+                            longitude=match.longitude,
                             aliases=mention.aliases,
                             profile_summary=mention.description,
                             mention_count=1,
@@ -267,6 +271,8 @@ class IdentificationService:
             wikidata_label = wikidata_match.get('label')
             wikidata_description = wikidata_match.get('description')
             image_url = wikidata_match.get('image')
+            latitude = wikidata_match.get('latitude')
+            longitude = wikidata_match.get('longitude')
 
             # Check if this QID already exists in our graph
             existing_by_qid = await self._find_by_qid(wikidata_match['qid'])
@@ -282,6 +288,8 @@ class IdentificationService:
                     wikidata_label=wikidata_label,  # Pass Wikidata label for canonical name update
                     wikidata_description=wikidata_description,
                     image_url=image_url,
+                    latitude=latitude,
+                    longitude=longitude,
                     is_new=False
                 )
             else:
@@ -297,6 +305,8 @@ class IdentificationService:
                     wikidata_label=wikidata_label,
                     wikidata_description=wikidata_description,
                     image_url=image_url,
+                    latitude=latitude,
+                    longitude=longitude,
                     is_new=True
                 )
 

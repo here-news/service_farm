@@ -4,11 +4,11 @@ import { useNavigate } from 'react-router-dom';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
-interface Story {
+interface Event {
     id: string;
     title: string;
     coherence?: number;
-    cover_image?: string;
+    status?: string;
 }
 
 interface Location {
@@ -19,15 +19,15 @@ interface Location {
     qid?: string;
     thumbnail?: string;
     description?: string;
-    stories: Story[];
-    story_count: number;
+    events: Event[];
+    event_count: number;
 }
 
 interface Connection {
     source: string;
     target: string;
-    shared_story_count: number;
-    shared_story_ids: string[];
+    shared_event_count: number;
+    shared_event_ids: string[];
 }
 
 interface MapData {
@@ -84,17 +84,17 @@ const MapPage: React.FC = () => {
     const locationMap = new Map<string, Location>();
     data.locations.forEach(loc => locationMap.set(loc.id, loc));
 
-    // Get color based on story count
-    const getLocationColor = (storyCount: number) => {
-        if (storyCount >= 5) return '#ef4444'; // Red for hot spots
-        if (storyCount >= 3) return '#f59e0b'; // Orange
-        if (storyCount >= 2) return '#eab308'; // Yellow
-        return '#3b82f6'; // Blue for single story
+    // Get color based on event count
+    const getLocationColor = (eventCount: number) => {
+        if (eventCount >= 5) return '#ef4444'; // Red for hot spots
+        if (eventCount >= 3) return '#f59e0b'; // Orange
+        if (eventCount >= 2) return '#eab308'; // Yellow
+        return '#3b82f6'; // Blue for single event
     };
 
-    // Get marker size based on story count
-    const getMarkerSize = (storyCount: number) => {
-        return Math.min(8 + storyCount * 3, 25); // Size between 8 and 25
+    // Get marker size based on event count
+    const getMarkerSize = (eventCount: number) => {
+        return Math.min(8 + eventCount * 3, 25); // Size between 8 and 25
     };
 
     // Memoize location icons to avoid recreating on every render
@@ -102,8 +102,8 @@ const MapPage: React.FC = () => {
         const icons = new Map<string, L.DivIcon>();
 
         data.locations.forEach(location => {
-            const color = getLocationColor(location.story_count);
-            const size = getMarkerSize(location.story_count) * 2; // Double for better visibility
+            const color = getLocationColor(location.event_count);
+            const size = getMarkerSize(location.event_count) * 2; // Double for better visibility
 
             if (location.thumbnail) {
                 // Icon with thumbnail image
@@ -169,15 +169,15 @@ const MapPage: React.FC = () => {
                     <div className="flex items-center gap-2">
                         <div className="flex items-center gap-1">
                             <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                            <span className="text-xs">1-2 stories</span>
+                            <span className="text-xs">1-2 events</span>
                         </div>
                         <div className="flex items-center gap-1">
                             <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                            <span className="text-xs">3-4 stories</span>
+                            <span className="text-xs">3-4 events</span>
                         </div>
                         <div className="flex items-center gap-1">
                             <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                            <span className="text-xs">5+ stories</span>
+                            <span className="text-xs">5+ events</span>
                         </div>
                     </div>
                 </div>
@@ -222,8 +222,8 @@ const MapPage: React.FC = () => {
                                     ]}
                                     pathOptions={{
                                         color: '#a78bfa',
-                                        weight: Math.min(conn.shared_story_count, 4),
-                                        opacity: 0.3 + (conn.shared_story_count * 0.1)
+                                        weight: Math.min(conn.shared_event_count, 4),
+                                        opacity: 0.3 + (conn.shared_event_count * 0.1)
                                     }}
                                 />
                             );
@@ -251,21 +251,21 @@ const MapPage: React.FC = () => {
                                             <p className="text-sm text-gray-600 mb-2">{location.description}</p>
                                         )}
                                         <div className="text-sm font-semibold mb-2">
-                                            {location.story_count} {location.story_count === 1 ? 'story' : 'stories'}
+                                            {location.event_count} {location.event_count === 1 ? 'event' : 'events'}
                                         </div>
                                         <div className="space-y-1 max-h-48 overflow-y-auto">
-                                            {location.stories.map((story) => (
+                                            {location.events.map((event) => (
                                                 <div
-                                                    key={story.id}
+                                                    key={event.id}
                                                     className="p-2 bg-gray-100 rounded hover:bg-gray-200 cursor-pointer transition-colors"
-                                                    onClick={() => navigate(`/story/${story.id}`)}
+                                                    onClick={() => navigate(`/event/${event.id.replace('ev_', '')}`)}
                                                 >
                                                     <div className="text-sm font-medium line-clamp-2">
-                                                        {story.title}
+                                                        {event.title}
                                                     </div>
-                                                    {story.coherence !== undefined && (
+                                                    {event.status && (
                                                         <div className="text-xs text-gray-500 mt-1">
-                                                            Coherence: {(story.coherence * 100).toFixed(0)}%
+                                                            Status: {event.status}
                                                         </div>
                                                     )}
                                                 </div>

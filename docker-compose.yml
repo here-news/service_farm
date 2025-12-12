@@ -37,9 +37,10 @@ services:
       - neo4j_logs:/logs
     healthcheck:
       test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "herenews_neo4j_pass", "RETURN 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
 
   # Redis for job queues
   redis:
@@ -53,20 +54,11 @@ services:
       timeout: 3s
       retries: 5
 
-  # Frontend Builder - builds React app directly to static/
-  # Usage: docker-compose run --rm frontend
-  frontend:
-    build: ./frontend
-    volumes:
-      - ./frontend:/app
-      - ./static:/output
-      - /app/node_modules
-
-  # Unified App (FastAPI backend + React frontend)
+  # Unified App (FastAPI backend + React frontend built-in)
   app:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: Dockerfile.app
     container_name: herenews-app
     environment:
       POSTGRES_HOST: postgres
@@ -80,11 +72,13 @@ services:
       NEO4J_PASSWORD: herenews_neo4j_pass
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       IFRAMELY_API_KEY: ${IFRAMELY_API_KEY}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
     ports:
       - "7272:8000"  # External: 7272, Internal: 8000
     volumes:
-      - ./backend:/app
-      - ./static:/app/static  # Serve built frontend
+      - ./backend:/app  # Dev: mount backend for hot reload
+      # Frontend served from /static in image (not affected by /app mount)
     depends_on:
       postgres:
         condition: service_healthy

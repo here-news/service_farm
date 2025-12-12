@@ -172,6 +172,14 @@ class WikidataClient:
                 image_url = await self._fetch_entity_image(best['qid'])
                 if image_url:
                     best['image'] = image_url
+
+                # Fetch P625 coordinates for LOCATION entities
+                if entity_type == 'LOCATION':
+                    coords = await self._fetch_entity_coordinates(best['qid'])
+                    if coords:
+                        best['latitude'] = coords['latitude']
+                        best['longitude'] = coords['longitude']
+
                 logger.info(f"🔗 Wikidata match: {name} → {best['qid']} ({best['label']}) [P={best['confidence']:.2f}]")
                 return best
 
@@ -338,6 +346,44 @@ class WikidataClient:
         except Exception as e:
             logger.debug(f"Failed to get {property_id} for {qid}: {e}")
             return []
+
+    async def _fetch_entity_coordinates(self, qid: str) -> Optional[Dict[str, float]]:
+        """
+        Fetch P625 (coordinate location) for a Wikidata entity.
+
+        Returns dict with 'latitude' and 'longitude' or None.
+        """
+        try:
+            params = {
+                'action': 'wbgetentities',
+                'ids': qid,
+                'format': 'json',
+                'props': 'claims'
+            }
+
+            async with self.session.get(self.api_url, params=params, timeout=10) as resp:
+                if resp.status != 200:
+                    return None
+
+                data = await resp.json()
+                entity = data.get('entities', {}).get(qid, {})
+                claims = entity.get('claims', {})
+
+                # P625 = coordinate location
+                for claim in claims.get('P625', []):
+                    mainsnak = claim.get('mainsnak', {})
+                    datavalue = mainsnak.get('datavalue', {})
+                    if datavalue.get('type') == 'globecoordinate':
+                        value = datavalue.get('value', {})
+                        lat = value.get('latitude')
+                        lon = value.get('longitude')
+                        if lat is not None and lon is not None:
+                            return {'latitude': lat, 'longitude': lon}
+
+                return None
+        except Exception as e:
+            logger.debug(f"Failed to fetch P625 coordinates for {qid}: {e}")
+            return None
 
     async def _fetch_entity_image(self, qid: str) -> Optional[str]:
         """

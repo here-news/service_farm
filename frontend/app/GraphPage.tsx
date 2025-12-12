@@ -2,33 +2,34 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
 import { useNavigate } from 'react-router-dom';
 
-interface Story {
-    story_id: string;
+interface Event {
+    event_id: string;
+    id: string;
     title: string;
     coherence?: number;
-    tcf_score?: number;
-    cover_image?: string;
+    status?: string;
 }
 
-interface Person {
+interface Entity {
     id: string;
-    name: string;
-    canonical_id?: string;
-    wikidata_thumbnail?: string;
+    canonical_name: string;
+    entity_type?: string;
+    wikidata_qid?: string;
+    image_url?: string;
 }
 
 interface GraphNode {
     id: string;
     name: string;
-    type: 'person' | 'story';
+    type: 'entity' | 'event';
     val: number;
     color?: string;
     imgUrl?: string;
     img?: HTMLImageElement;
     data?: any;
+    eventIds?: string[];
     x?: number;
     y?: number;
-    storyIds?: string[]; // For people: which stories they appear in
 }
 
 interface GraphLink {
@@ -70,110 +71,111 @@ const GraphPage: React.FC = () => {
     useEffect(() => {
         const fetchData = async () => {
             try {
-                // 1. Fetch more stories to get better people overlap
+                // 1. Fetch events from coherence feed
                 const feedResponse = await fetch('/api/coherence/feed?limit=30');
                 const feedResult = await feedResponse.json();
 
-                if (!feedResult.stories || feedResult.stories.length === 0) {
+                const events = feedResult.events || [];
+                if (events.length === 0) {
                     setLoading(false);
                     return;
                 }
 
-                const stories = feedResult.stories;
-
-                // 2. Fetch details for more stories to find people overlaps
-                const storyDetailsPromises = stories.slice(0, 20).map((story: Story) =>
-                    fetch(`/api/stories/${story.story_id}`)
+                // 2. Fetch details for events to get entities
+                const eventDetailsPromises = events.slice(0, 15).map((event: Event) =>
+                    fetch(`/api/events/${event.event_id || event.id}`)
                         .then(res => res.json())
                         .catch(err => {
-                            console.error(`Failed to fetch story ${story.story_id}:`, err);
+                            console.error(`Failed to fetch event ${event.event_id}:`, err);
                             return null;
                         })
                 );
 
-                const storyDetailsResults = await Promise.all(storyDetailsPromises);
-                const validStoryDetails = storyDetailsResults.filter(r => r && r.story);
+                const eventDetailsResults = await Promise.all(eventDetailsPromises);
+                const validEventDetails = eventDetailsResults.filter(r => r && r.event);
 
-                // 3. Extract all people across all stories
-                const peopleMap = new Map<string, { person: Person; storyIds: string[] }>();
-                const storyMap = new Map<string, Story>();
+                // 3. Extract all entities across all events
+                const entityMap = new Map<string, { entity: Entity; eventIds: string[] }>();
+                const eventMap = new Map<string, Event>();
 
-                validStoryDetails.forEach((result) => {
-                    const story = result.story;
-                    storyMap.set(story.id, story);
+                validEventDetails.forEach((result) => {
+                    const event = result.event;
+                    const eventId = event.event_id || event.id;
+                    eventMap.set(eventId, event);
 
-                    // Extract people entities
-                    const people = story.entities?.people || [];
-                    people.forEach((person: any) => {
-                        const personId = person.canonical_id || person.id;
-                        const personName = person.canonical_name || person.name;
+                    // Extract entities (people, orgs, locations)
+                    const entities = result.entities || [];
+                    entities.forEach((entity: Entity) => {
+                        const entityId = entity.id;
+                        const entityName = entity.canonical_name;
 
-                        if (personId && personName) {
-                            if (!peopleMap.has(personId)) {
-                                peopleMap.set(personId, {
-                                    person: {
-                                        id: personId,
-                                        name: personName,
-                                        canonical_id: person.canonical_id,
-                                        wikidata_thumbnail: person.wikidata_thumbnail
-                                    },
-                                    storyIds: []
+                        if (entityId && entityName) {
+                            if (!entityMap.has(entityId)) {
+                                entityMap.set(entityId, {
+                                    entity: entity,
+                                    eventIds: []
                                 });
                             }
-                            peopleMap.get(personId)!.storyIds.push(story.id);
+                            entityMap.get(entityId)!.eventIds.push(eventId);
                         }
                     });
                 });
 
-                // 4. Build graph data: People as primary nodes, Stories as secondary
+                // 4. Build graph data
                 const nodes: GraphNode[] = [];
                 const links: GraphLink[] = [];
                 const addedNodeIds = new Set<string>();
 
-                // Add people nodes (primary, larger, circular)
-                peopleMap.forEach(({ person, storyIds }, personId) => {
-                    // Show all people with BIG circles (people are the focus!)
-                    if (storyIds.length >= 1) {
-                        // Make everyone BIG by default, then scale up for importance
-                        const baseSize = 22; // Big baseline (was 12 - too small!)
-                        const bonus = Math.min(storyIds.length * 6, 30); // 6 per story
+                // Add entity nodes - filter to entities appearing in multiple events or persons
+                entityMap.forEach(({ entity, eventIds }, entityId) => {
+                    const isPerson = entity.entity_type === 'PERSON';
+                    const isImportant = eventIds.length >= 2 || isPerson;
+
+                    if (isImportant) {
+                        const baseSize = isPerson ? 25 : 18;
+                        const bonus = Math.min(eventIds.length * 5, 25);
+
+                        // Color by entity type
+                        let color = '#a78bfa'; // Purple for people
+                        if (entity.entity_type === 'ORGANIZATION') color = '#f59e0b'; // Orange
+                        if (entity.entity_type === 'LOCATION') color = '#10b981'; // Green
 
                         nodes.push({
-                            id: personId,
-                            name: person.name,
-                            type: 'person',
+                            id: entityId,
+                            name: entity.canonical_name,
+                            type: 'entity',
                             val: baseSize + bonus,
-                            color: '#a78bfa', // Purple for people
-                            imgUrl: person.wikidata_thumbnail,
-                            data: person,
-                            storyIds: storyIds
+                            color,
+                            imgUrl: entity.image_url,
+                            data: entity,
+                            eventIds
                         });
-                        addedNodeIds.add(personId);
+                        addedNodeIds.add(entityId);
                     }
                 });
 
-                // Add story nodes (secondary, smaller, rectangular)
-                storyMap.forEach((story, storyId) => {
+                // Add event nodes
+                eventMap.forEach((event, eventId) => {
                     nodes.push({
-                        id: storyId,
-                        name: story.title,
-                        type: 'story',
-                        val: 1, // Base size, actual size determined by text
-                        color: '#3b82f6', // Blue for stories
-                        data: story
+                        id: eventId,
+                        name: event.title || 'Untitled Event',
+                        type: 'event',
+                        val: 1,
+                        color: '#3b82f6', // Blue for events
+                        data: event
                     });
-                    addedNodeIds.add(storyId);
+                    addedNodeIds.add(eventId);
                 });
 
-                // Add links: people -> stories they appear in
-                peopleMap.forEach(({ storyIds }, personId) => {
-                    if (addedNodeIds.has(personId)) {
-                        storyIds.forEach(storyId => {
-                            if (addedNodeIds.has(storyId)) {
+                // Add links: entities -> events they appear in
+                entityMap.forEach(({ eventIds }, entityId) => {
+                    if (addedNodeIds.has(entityId)) {
+                        eventIds.forEach(eventId => {
+                            if (addedNodeIds.has(eventId)) {
                                 links.push({
-                                    source: personId,
-                                    target: storyId,
-                                    color: 'rgba(167, 139, 250, 0.2)', // Purple, transparent
+                                    source: entityId,
+                                    target: eventId,
+                                    color: 'rgba(167, 139, 250, 0.3)',
                                     width: 1
                                 });
                             }
@@ -193,7 +195,7 @@ const GraphPage: React.FC = () => {
                 });
 
                 setData({ nodes, links });
-                console.log(`GraphPage: Loaded ${nodes.length} nodes (${Array.from(peopleMap.keys()).length} people, ${storyMap.size} stories) and ${links.length} links`);
+                console.log(`GraphPage: Loaded ${nodes.length} nodes and ${links.length} links`);
 
             } catch (error) {
                 console.error('Error fetching graph data:', error);
@@ -206,32 +208,27 @@ const GraphPage: React.FC = () => {
     }, []);
 
     const handleNodeClick = useCallback((node: any) => {
-        // Only story boxes are clickable - navigate to story page
-        if (node.type === 'story') {
-            navigate(`/story/${node.id}`);
+        if (node.type === 'event') {
+            // Navigate to event page using full event ID
+            const eventId = node.data?.event_id || node.id;
+            navigate(`/event/${eventId}`);
         }
-        // People are not clickable - just decorative
     }, [navigate]);
 
-    // Configure force simulation after graph loads
+    // Configure force simulation
     useEffect(() => {
         if (graphRef.current && data.nodes.length > 0) {
             const fg = graphRef.current;
 
-            // Moderate repulsion to spread people out without scattering too far
             fg.d3Force('charge').strength((node: any) => {
-                return node.type === 'person' ? -800 : -100;
+                return node.type === 'entity' ? -600 : -200;
             });
 
-            // Medium link distance - not too close, not too far
-            fg.d3Force('link').distance(() => {
-                return 120; // Medium distance for balanced spacing
-            }).strength(0.8); // Moderate pull toward connected nodes
+            fg.d3Force('link').distance(() => 100).strength(0.6);
         }
     }, [data.nodes]);
 
     const nodeCanvasObject = useCallback((node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
-        // Skip rendering if node position is not yet defined or invalid
         if (typeof node.x !== 'number' || typeof node.y !== 'number' ||
             !isFinite(node.x) || !isFinite(node.y)) {
             return;
@@ -240,17 +237,10 @@ const GraphPage: React.FC = () => {
         const label = node.name;
         const fontSize = 12 / globalScale;
 
-        // No highlighting - people are just visual, stories are interactive
-        const opacity = 1.0;
-
-        ctx.globalAlpha = opacity;
-
-        if (node.type === 'person') {
-            // --- Draw Person Node (Circle) ---
+        if (node.type === 'entity') {
             const size = node.val;
 
             if (node.img) {
-                // Draw circular image
                 ctx.save();
                 ctx.beginPath();
                 ctx.arc(node.x, node.y, size, 0, 2 * Math.PI, false);
@@ -259,7 +249,6 @@ const GraphPage: React.FC = () => {
                 ctx.clip();
 
                 try {
-                    // Maintain aspect ratio - cover style
                     const imgWidth = node.img.width;
                     const imgHeight = node.img.height;
                     const circleDiameter = size * 2;
@@ -277,43 +266,40 @@ const GraphPage: React.FC = () => {
                         scaledHeight
                     );
                 } catch (e) {
-                    ctx.fillStyle = '#a78bfa';
+                    ctx.fillStyle = node.color;
                     ctx.fill();
                 }
 
                 ctx.restore();
             } else {
-                // No image, just colored circle
                 ctx.beginPath();
                 ctx.arc(node.x, node.y, size, 0, 2 * Math.PI, false);
                 ctx.fillStyle = node.color || '#a78bfa';
                 ctx.fill();
             }
 
-            // Border (consistent - no selection state)
+            // Border
             ctx.beginPath();
             ctx.arc(node.x, node.y, size, 0, 2 * Math.PI, false);
             ctx.lineWidth = 1.5 / globalScale;
-            ctx.strokeStyle = '#8b5cf6'; // Purple
+            ctx.strokeStyle = node.color || '#8b5cf6';
             ctx.stroke();
 
-            // Label (always show for people)
+            // Label
             ctx.font = `${fontSize}px Sans-Serif`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
             ctx.fillText(label, node.x, node.y + size + fontSize + 2);
 
-        } else if (node.type === 'story') {
-            // --- Draw Story Node (Text Only - No Box) ---
-            // Small, faded text that doesn't obscure people
-            ctx.font = `${fontSize * 0.7}px Sans-Serif`;
+        } else if (node.type === 'event') {
+            // Event node - text box
+            ctx.font = `${fontSize * 0.8}px Sans-Serif`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
 
-            // Measure text to size for hit detection
             const maxWidth = 150 / globalScale;
-            const lineHeight = fontSize * 0.7 * 1.2;
+            const lineHeight = fontSize * 0.8 * 1.2;
 
             // Word wrap
             const words = label.split(' ');
@@ -331,18 +317,15 @@ const GraphPage: React.FC = () => {
                     currentLine = testLine;
                 }
             }
-            if (currentLine) {
-                lines.push(currentLine);
-            }
+            if (currentLine) lines.push(currentLine);
 
-            // Limit to 2 lines for compactness
             const displayLines = lines.slice(0, 2);
             if (lines.length > 2) {
                 displayLines[1] = displayLines[1].substring(0, displayLines[1].length - 3) + '...';
             }
 
-            // Draw subtle box to show it's clickable
-            const padding = 4 / globalScale;
+            // Calculate box size
+            const padding = 6 / globalScale;
             let maxLineWidth = 0;
             for (const line of displayLines) {
                 const metrics = ctx.measureText(line);
@@ -351,16 +334,16 @@ const GraphPage: React.FC = () => {
             const width = maxLineWidth + padding * 2;
             const height = displayLines.length * lineHeight + padding * 2;
 
-            // Very subtle box to indicate clickability
-            ctx.fillStyle = 'rgba(30, 58, 138, 0.2)';
+            // Draw box
+            ctx.fillStyle = 'rgba(30, 58, 138, 0.4)';
             ctx.fillRect(node.x - width / 2, node.y - height / 2, width, height);
 
-            ctx.strokeStyle = 'rgba(59, 130, 246, 0.3)';
-            ctx.lineWidth = 0.5 / globalScale;
+            ctx.strokeStyle = 'rgba(59, 130, 246, 0.5)';
+            ctx.lineWidth = 1 / globalScale;
             ctx.strokeRect(node.x - width / 2, node.y - height / 2, width, height);
 
-            // Draw text - faded gray
-            ctx.fillStyle = 'rgba(156, 163, 175, 0.7)';
+            // Draw text
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
             let textY = node.y - ((displayLines.length - 1) * lineHeight) / 2;
 
             for (const line of displayLines) {
@@ -368,27 +351,32 @@ const GraphPage: React.FC = () => {
                 textY += lineHeight;
             }
         }
-
-        ctx.globalAlpha = 1.0;
     }, [data.nodes]);
 
     const linkColor = useCallback((link: any) => {
-        // All links same color - no selection highlighting
         return link.color || 'rgba(167, 139, 250, 0.2)';
     }, []);
 
     const linkWidth = useCallback((link: any) => {
-        // All links same width - no selection highlighting
         return link.width || 1;
     }, []);
 
     return (
         <div className="h-screen flex flex-col bg-gray-900 text-white">
             <div className="p-4 border-b border-gray-800 flex justify-between items-center z-10 bg-gray-900">
-                <h1 className="text-xl font-bold">Knowledge Graph: People & Stories</h1>
+                <h1 className="text-xl font-bold">Knowledge Graph: Entities & Events</h1>
                 <div className="text-sm text-gray-400">
+                    <span className="mr-4">
+                        <span className="inline-block w-3 h-3 rounded-full bg-purple-400 mr-1"></span> People
+                    </span>
+                    <span className="mr-4">
+                        <span className="inline-block w-3 h-3 rounded-full bg-orange-400 mr-1"></span> Organizations
+                    </span>
+                    <span className="mr-4">
+                        <span className="inline-block w-3 h-3 rounded-full bg-green-400 mr-1"></span> Locations
+                    </span>
                     <span>
-                        People (circles) • Stories (text boxes) • Click story to view details
+                        <span className="inline-block w-3 h-3 bg-blue-500 mr-1"></span> Events (click to view)
                     </span>
                 </div>
             </div>
@@ -411,12 +399,11 @@ const GraphPage: React.FC = () => {
                         nodeCanvasObject={nodeCanvasObject}
                         nodePointerAreaPaint={(node: any, color, ctx) => {
                             ctx.fillStyle = color;
-                            if (node.type === 'person') {
+                            if (node.type === 'entity') {
                                 ctx.beginPath();
                                 ctx.arc(node.x, node.y, node.val, 0, 2 * Math.PI, false);
                                 ctx.fill();
                             } else {
-                                // Approximate hit area for story text boxes
                                 const approxWidth = 120;
                                 const approxHeight = 40;
                                 ctx.fillRect(node.x - approxWidth / 2, node.y - approxHeight / 2, approxWidth, approxHeight);

@@ -40,6 +40,10 @@ class Entity:
     # Thumbnail/profile image URL (may come from Wikidata or custom upload)
     image_url: Optional[str] = None
 
+    # Coordinates for LOCATION entities (from Wikidata P625)
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+
     # Status: 'pending', 'checked', 'enriched'
     status: str = 'pending'
 

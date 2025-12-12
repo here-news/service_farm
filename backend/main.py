@@ -99,8 +99,9 @@ for router, prefix, tags in community_routers:
     app.include_router(router, prefix=prefix, tags=tags)
 
 # Static files for frontend assets
-static_path = Path("/app/static")
-if static_path.exists():
+# Check /static first (Docker image), then /app/static (local dev)
+static_path = Path("/static") if Path("/static").exists() else Path("/app/static")
+if static_path.exists() and (static_path / "assets").exists():
     app.mount("/app/assets", StaticFiles(directory=str(static_path / "assets")), name="assets")
 
 @app.get("/")
@@ -132,10 +133,11 @@ if not community_routers:
 @app.get("/app/{full_path:path}", response_class=HTMLResponse)
 async def serve_spa(full_path: str = ""):
     """Serve React frontend for all /app/* routes (SPA routing)"""
-    index_path = Path("/app/static/index.html")
+    # Check /static first (Docker image), then /app/static (local dev)
+    index_path = Path("/static/index.html") if Path("/static/index.html").exists() else Path("/app/static/index.html")
     if not index_path.exists():
         return HTMLResponse(
-            content="<h1>Frontend Not Built</h1><p>Run: docker run --rm -v $(pwd)/frontend:/app -v $(pwd)/static:/static -w /app node:18-alpine npm run build</p>",
+            content="<h1>Frontend Not Built</h1><p>Rebuild the app container: docker-compose build app</p>",
             status_code=503
         )
     with open(index_path, "r", encoding="utf-8") as f:

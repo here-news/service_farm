@@ -366,7 +366,9 @@ class Neo4jService:
         wikidata_qid: str = None,
         wikidata_label: str = None,
         wikidata_description: str = None,
-        image_url: str = None
+        image_url: str = None,
+        latitude: float = None,
+        longitude: float = None
     ) -> str:
         """
         Create or update Entity node in Neo4j (primary entity storage).
@@ -417,11 +419,15 @@ class Neo4jService:
             e.wikidata_label = $wikidata_label,
             e.wikidata_description = $wikidata_description,
             e.image_url = $image_url,
+            e.latitude = $latitude,
+            e.longitude = $longitude,
             e.mention_count = 1,
             e.created_at = datetime()
         ON MATCH SET
             e.mention_count = e.mention_count + 1,
-            e.updated_at = datetime()
+            e.updated_at = datetime(),
+            e.latitude = COALESCE($latitude, e.latitude),
+            e.longitude = COALESCE($longitude, e.longitude)
         RETURN e.id as id, e.wikidata_qid as existing_qid
         """
 
@@ -433,6 +439,8 @@ class Neo4jService:
             'wikidata_label': wikidata_label,
             'wikidata_description': wikidata_description,
             'image_url': image_url,
+            'latitude': latitude,
+            'longitude': longitude,
             'dedup_key': dedup_key
         })
 
