@@ -43,7 +43,7 @@ const EntityPage: React.FC = () => {
         try {
             setLoading(true);
             setError(null);
-            const response = await fetch(`/api/entities/${entityId}`);
+            const response = await fetch(`/api/entity/${entityId}`);
             if (!response.ok) {
                 throw new Error('Entity not found');
             }
