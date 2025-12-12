@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import TimelineView from './components/event/TimelineView';
-import GraphView from './components/event/GraphView';
+import TopologyView from './components/event/TopologyView';
 import MapView from './components/event/MapView';
 import EventNarrativeContent from './components/event/EventNarrativeContent';
 
@@ -22,6 +22,7 @@ interface Claim {
     text: string;
     event_time?: string;
     confidence?: number;
+    page_id?: string;
 }
 
 interface NarrativeSection {
@@ -66,7 +67,7 @@ interface EventData {
     parent: any | null;
 }
 
-type TabType = 'narrative' | 'timeline' | 'graph' | 'map';
+type TabType = 'narrative' | 'timeline' | 'topology' | 'map';
 
 const EventPage: React.FC = () => {
     const { eventSlug } = useParams<{ eventSlug: string }>();
@@ -99,9 +100,9 @@ const EventPage: React.FC = () => {
         return <TimelineView claims={eventData.claims} />;
     };
 
-    const renderGraph = () => {
+    const renderTopology = () => {
         if (!eventData) return null;
-        return <GraphView entities={eventData.entities} claims={eventData.claims} eventName={event.canonical_name} />;
+        return <TopologyView eventId={event.id} eventName={event.canonical_name} />;
     };
 
     const renderMap = () => {
@@ -186,7 +187,7 @@ const EventPage: React.FC = () => {
                         {[
                             { id: 'narrative', label: 'Narrative', icon: '📰' },
                             { id: 'timeline', label: 'Timeline', icon: '⏱️' },
-                            { id: 'graph', label: 'Graph', icon: '🕸️' },
+                            { id: 'topology', label: 'Topology', icon: '🔮' },
                             { id: 'map', label: 'Map', icon: '🗺️' }
                         ].map(tab => (
                             <button
@@ -257,9 +258,9 @@ const EventPage: React.FC = () => {
                         </div>
                     )}
 
-                    {activeTab === 'graph' && (
+                    {activeTab === 'topology' && (
                         <div>
-                            {renderGraph()}
+                            {renderTopology()}
                         </div>
                     )}
 
