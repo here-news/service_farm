@@ -41,6 +41,7 @@ from services.neo4j_service import Neo4jService
 from services.event_service import EventService
 from services.live_event_pool import LiveEventPool
 from services.claim_topology import ClaimTopologyService
+from services.topology_persistence import TopologyPersistence
 from repositories.claim_repository import ClaimRepository
 from repositories.entity_repository import EntityRepository
 from repositories.event_repository import EventRepository
@@ -85,15 +86,21 @@ class EventWorker:
         self.claim_repo = ClaimRepository(db_pool, neo4j_service)
         self.entity_repo = EntityRepository(db_pool, neo4j_service)
         self.event_repo = EventRepository(db_pool, neo4j_service)
-        self.event_service = EventService(
-            event_repo=self.event_repo,
-            claim_repo=self.claim_repo,
-            entity_repo=self.entity_repo
-        )
 
         # Initialize ClaimTopologyService for Bayesian plausibility analysis
         openai_client = AsyncOpenAI(api_key=os.getenv('OPENAI_API_KEY'))
         self.topology_service = ClaimTopologyService(openai_client)
+
+        # Initialize TopologyPersistence for storing topology graph
+        self.topology_persistence = TopologyPersistence(neo4j_service)
+
+        # Initialize EventService with topology persistence
+        self.event_service = EventService(
+            event_repo=self.event_repo,
+            claim_repo=self.claim_repo,
+            entity_repo=self.entity_repo,
+            topology_persistence=self.topology_persistence
+        )
 
         # Initialize LiveEvent pool with topology service
         self.pool = LiveEventPool(

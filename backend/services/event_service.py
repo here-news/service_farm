@@ -43,11 +43,13 @@ class EventService:
         event_repo: EventRepository,
         claim_repo: ClaimRepository,
         entity_repo: EntityRepository,
-        openai_client: AsyncOpenAI = None
+        openai_client: AsyncOpenAI = None,
+        topology_persistence=None  # TopologyPersistence service
     ):
         self.event_repo = event_repo
         self.claim_repo = claim_repo
         self.entity_repo = entity_repo
+        self.topology_persistence = topology_persistence
 
         # LLM client for intelligent reasoning
         self.openai_client = openai_client or AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))

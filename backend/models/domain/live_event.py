@@ -391,7 +391,8 @@ class LiveEvent:
         2. Compute plausibility posteriors for all claims
         3. Detect date consensus and penalize outliers
         4. Identify and report contradictions
-        5. Generate structured narrative via EventService with topology context
+        5. Persist topology to graph (for visualization/API)
+        6. Generate structured narrative via EventService with topology context
 
         Returns:
             StructuredNarrative with sections and key figures
@@ -409,8 +410,8 @@ class LiveEvent:
         self._topology_result = topology
         self.last_topology_update = datetime.utcnow()
 
-        # Store plausibilities on claims (for graph update)
-        await self._update_claim_plausibilities(topology)
+        # Persist full topology to graph (edges + metadata)
+        await self._persist_topology(topology)
 
         # Get topology context for narrative generation
         topology_context = self.topology_service.get_topology_context(topology)
@@ -429,11 +430,69 @@ class LiveEvent:
 
         return narrative
 
-    async def _update_claim_plausibilities(self, topology):
+    async def _persist_topology(self, topology):
         """
-        Update plausibility scores on SUPPORTS relationships in graph.
+        Persist full topology to Neo4j graph.
 
-        This allows querying claims by plausibility for an event.
+        Stores:
+        - Claim-to-claim edges (CORROBORATES, CONTRADICTS, UPDATES)
+        - Plausibility scores on SUPPORTS edges
+        - Topology metadata on Event node (pattern, consensus_date, etc.)
+
+        This enables the /topology API endpoint to serve pre-computed data.
+        """
+        if not topology.claim_plausibilities:
+            return
+
+        try:
+            # Use TopologyPersistence service if available via event service
+            if hasattr(self.service, 'topology_persistence') and self.service.topology_persistence:
+                # Compute source diversity from publisher_priors
+                source_diversity = self._compute_source_diversity()
+
+                await self.service.topology_persistence.store_topology(
+                    event_id=self.event.id,
+                    topology_result=topology,
+                    source_diversity=source_diversity
+                )
+                logger.info(f"💾 Persisted full topology: {len(topology.claim_plausibilities)} claims, "
+                           f"{len(topology.contradictions)} contradictions")
+            else:
+                # Fallback: just store plausibilities (legacy behavior)
+                await self._update_claim_plausibilities_legacy(topology)
+
+        except Exception as e:
+            logger.warning(f"Failed to persist topology: {e}")
+            # Fallback to legacy plausibility storage
+            await self._update_claim_plausibilities_legacy(topology)
+
+    def _compute_source_diversity(self) -> Dict[str, Dict]:
+        """
+        Compute source diversity stats from publisher priors.
+
+        Returns: {source_type: {count: N, avg_prior: X}}
+        """
+        source_stats = {}
+        for claim_id, prior_data in self.publisher_priors.items():
+            source_type = prior_data.get('source_type', 'unknown')
+            if source_type not in source_stats:
+                source_stats[source_type] = {'count': 0, 'total_prior': 0.0}
+            source_stats[source_type]['count'] += 1
+            source_stats[source_type]['total_prior'] += prior_data.get('base_prior', 0.5)
+
+        # Compute averages
+        for source_type, stats in source_stats.items():
+            if stats['count'] > 0:
+                stats['avg_prior'] = stats['total_prior'] / stats['count']
+            del stats['total_prior']
+
+        return source_stats
+
+    async def _update_claim_plausibilities_legacy(self, topology):
+        """
+        Legacy: Update plausibility scores on SUPPORTS relationships in graph.
+
+        Used as fallback when TopologyPersistence is not available.
         """
         if not topology.claim_plausibilities:
             return
