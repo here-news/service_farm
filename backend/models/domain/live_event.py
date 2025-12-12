@@ -122,9 +122,10 @@ class LiveEvent:
 
     async def _hydrate_plausibilities(self, claim_repo):
         """
-        Load cached plausibility scores from Neo4j.
+        Load cached plausibility scores and topology from Neo4j.
 
         Plausibilities are stored on SUPPORTS relationships during topology analysis.
+        Topology metadata is stored on Event node.
         Loading them avoids re-running expensive topology on every hydrate.
         """
         # Dict to store plausibilities: claim_id -> float
@@ -138,6 +139,61 @@ class LiveEvent:
             # Mark topology as already computed (don't need to re-run)
             self.last_topology_update = datetime.utcnow()
             logger.debug(f"📊 Loaded {len(plausibilities)} cached plausibilities")
+
+        # Also try to reconstruct cached TopologyResult from stored data
+        await self._hydrate_topology_result()
+
+    async def _hydrate_topology_result(self):
+        """
+        Reconstruct TopologyResult from persisted topology data.
+
+        This allows skipping expensive LLM re-analysis when topology is fresh.
+        """
+        if not hasattr(self.service, 'topology_persistence') or not self.service.topology_persistence:
+            return
+
+        try:
+            topology_data = await self.service.topology_persistence.get_topology(self.event.id)
+            if not topology_data:
+                return
+
+            # Import here to avoid circular dependency
+            from services.claim_topology import TopologyResult, PlausibilityResult
+
+            # Reconstruct PlausibilityResults from stored data
+            claim_plausibilities = {}
+            for c in topology_data.claims:
+                claim_plausibilities[c.id] = PlausibilityResult(
+                    claim_id=c.id,
+                    prior=c.prior,
+                    posterior=c.plausibility,
+                    evidence_for=[],  # Not stored, but not needed for narrative
+                    evidence_against=[],
+                    confidence=c.plausibility
+                )
+
+            # Reconstruct superseded_by from update chains
+            superseded_by = {}
+            for chain in topology_data.update_chains:
+                chain_list = chain.chain
+                for i in range(len(chain_list) - 1):
+                    superseded_by[chain_list[i]] = chain_list[i + 1]
+
+            # Build minimal TopologyResult
+            self._topology_result = TopologyResult(
+                claim_plausibilities=claim_plausibilities,
+                consensus_date=topology_data.consensus_date,
+                contradictions=topology_data.contradictions,
+                pattern=topology_data.pattern,
+                superseded_by=superseded_by
+            )
+
+            logger.info(f"📊 Hydrated topology: pattern={topology_data.pattern}, "
+                       f"{len(claim_plausibilities)} claims")
+
+        except Exception as e:
+            logger.warning(f"Failed to hydrate topology result: {e}")
+            self._topology_result = None
 
     async def examine(self, new_claims: List[Claim]):
         """
@@ -388,7 +444,7 @@ class LiveEvent:
 
         Jaynes-informed approach:
         1. Use stored publisher priors (assigned at extraction time)
-        2. Compute plausibility posteriors for all claims
+        2. Compute plausibility posteriors for all claims (or use cached)
         3. Detect date consensus and penalize outliers
         4. Identify and report contradictions
         5. Persist topology to graph (for visualization/API)
@@ -399,19 +455,24 @@ class LiveEvent:
         """
         logger.info(f"🧬 Using Bayesian topology for {len(self.claims)} claims")
 
-        # Run topology analysis with stored publisher priors
-        topology = await self.topology_service.analyze(
-            claims=self.claims,
-            publisher_priors=self.publisher_priors,
-            page_urls=self.page_urls
-        )
+        # Check if we can use cached topology (skip expensive LLM analysis)
+        if self._topology_result and not self.needs_topology_update():
+            topology = self._topology_result
+            logger.info(f"📊 Using cached topology (pattern={topology.pattern})")
+        else:
+            # Run full topology analysis with stored publisher priors
+            topology = await self.topology_service.analyze(
+                claims=self.claims,
+                publisher_priors=self.publisher_priors,
+                page_urls=self.page_urls
+            )
 
-        # Cache result for potential reuse
-        self._topology_result = topology
-        self.last_topology_update = datetime.utcnow()
+            # Cache result for potential reuse
+            self._topology_result = topology
+            self.last_topology_update = datetime.utcnow()
 
-        # Persist full topology to graph (edges + metadata)
-        await self._persist_topology(topology)
+            # Persist full topology to graph (edges + metadata)
+            await self._persist_topology(topology)
 
         # Get topology context for narrative generation
         topology_context = self.topology_service.get_topology_context(topology)
@@ -520,10 +581,26 @@ class LiveEvent:
         if not self.last_topology_update:
             return True
 
-        if self.last_claim_added and self.last_claim_added > self.last_topology_update:
-            return True
+        # Handle timezone-aware vs naive datetime comparison
+        last_claim = self.last_claim_added
+        last_topo = self.last_topology_update
 
-        hours_since = (datetime.utcnow() - self.last_topology_update).total_seconds() / 3600
+        if last_claim:
+            # Normalize to naive UTC for comparison
+            if hasattr(last_claim, 'tzinfo') and last_claim.tzinfo is not None:
+                last_claim = last_claim.replace(tzinfo=None)
+            if hasattr(last_topo, 'tzinfo') and last_topo.tzinfo is not None:
+                last_topo = last_topo.replace(tzinfo=None)
+
+            if last_claim > last_topo:
+                return True
+
+        # Check time since last topology update
+        topo_for_compare = self.last_topology_update
+        if hasattr(topo_for_compare, 'tzinfo') and topo_for_compare.tzinfo is not None:
+            topo_for_compare = topo_for_compare.replace(tzinfo=None)
+
+        hours_since = (datetime.utcnow() - topo_for_compare).total_seconds() / 3600
         return hours_since > 6
 
     def idle_time_seconds(self) -> float:
