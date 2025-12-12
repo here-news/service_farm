@@ -82,12 +82,14 @@ async def init_services():
 async def list_events(
     status: Optional[str] = None,
     scale: Optional[str] = None,
-    limit: int = 50
+    limit: int = 50,
+    min_coherence: float = 0.0
 ):
     """
     List root events (events without parents) with filters
 
-    Uses EventRepository to query Neo4j for root events
+    Uses EventRepository to query Neo4j for root events.
+    Enriches with page thumbnails and latest thought for homepage display.
     """
     event_repo, _, _, _, _ = await init_services()
 
@@ -104,9 +106,15 @@ async def list_events(
         elif metadata is None:
             metadata = {}
 
-        # Extract coherence and summary from metadata (they might be there)
-        coherence = metadata.get('coherence', row.get('coherence'))
-        summary = metadata.get('summary')
+        # Extract coherence - prefer direct field, fallback to metadata
+        coherence = row.get('coherence') or metadata.get('coherence')
+
+        # Filter by minimum coherence
+        if coherence is not None and coherence < min_coherence:
+            continue
+
+        # Extract summary - prefer direct field, fallback to metadata
+        summary = row.get('summary') or metadata.get('summary')
 
         # Convert datetimes to ISO format strings
         event_start = row.get('event_start')
@@ -114,8 +122,20 @@ async def list_events(
         created_at = row.get('created_at')
         updated_at = row.get('updated_at')
 
+        event_id = row['id']
+
+        # Fetch page thumbnails for this event (for fanning cards display)
+        page_thumbnails = await event_repo.get_page_thumbnails_for_event(event_id, limit=5)
+
+        # Fetch latest thought (for stimulating byline)
+        latest_thought = await event_repo.get_latest_thought_for_event(event_id)
+
+        # Fetch claim count and page count
+        claim_count = await event_repo.get_event_claim_count(event_id)
+        page_count = await event_repo.get_event_page_count(event_id)
+
         event_dict = {
-            'id': row['id'],
+            'id': event_id,
             'title': row['canonical_name'],  # Frontend expects 'title'
             'canonical_name': row['canonical_name'],
             'event_type': row['event_type'],
@@ -130,7 +150,11 @@ async def list_events(
             'coherence': coherence,
             'child_count': row['child_count'],
             'summary': summary,
-            # Note: claims_count removed - use graph relationships via API instead
+            'claim_count': claim_count,
+            'page_count': page_count,
+            # New fields for homepage display
+            'page_thumbnails': page_thumbnails,
+            'thought': latest_thought,
         }
         events.append(event_dict)
 
@@ -190,6 +214,12 @@ async def get_event_tree(event_id: str):
 
     # Get claims linked to this event from Neo4j graph
     claims = await event_repo.get_event_claims(event_id)
+
+    # Fetch page thumbnails for header background
+    page_thumbnails = await event_repo.get_page_thumbnails_for_event(event_id, limit=5)
+
+    # Fetch latest thought for header display
+    latest_thought = await event_repo.get_latest_thought_for_event(event_id)
 
     # Convert domain models to API response format
     import json
@@ -263,6 +293,8 @@ async def get_event_tree(event_id: str):
         'parent': event_to_dict(parent_event) if parent_event else None,
         'entities': [entity_to_dict(e) for e in entities],
         'claims': [claim_to_dict(c) for c in claims],
+        'page_thumbnails': page_thumbnails,
+        'thought': latest_thought,
     }
 
 

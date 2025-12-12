@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import TimelineView from './components/event/TimelineView';
+import TimelineCard from './components/event/TimelineCard';
 import TopologyView from './components/event/TopologyView';
 import EpicenterMapCard from './components/event/EpicenterMapCard';
+import EventSidebar from './components/event/EventSidebar';
 import EventNarrativeContent from './components/event/EventNarrativeContent';
 
 interface Entity {
@@ -59,15 +61,32 @@ interface Event {
     narrative?: StructuredNarrative;
 }
 
+interface Thought {
+    id: string;
+    type: string;
+    content: string;
+    temperature?: number;
+    coherence?: number;
+    created_at?: string;
+}
+
+interface PageThumbnail {
+    page_id: string;
+    thumbnail_url: string;
+    title?: string;
+}
+
 interface EventData {
     event: Event;
     entities: Entity[];
     claims: Claim[];
     children: any[];
     parent: any | null;
+    thought?: Thought | null;
+    page_thumbnails?: PageThumbnail[];
 }
 
-type TabType = 'narrative' | 'timeline' | 'topology';
+type TabType = 'narrative' | 'debate' | 'topology';
 
 const EventPage: React.FC = () => {
     const { eventSlug } = useParams<{ eventSlug: string }>();
@@ -95,9 +114,62 @@ const EventPage: React.FC = () => {
         }
     };
 
-    const renderTimeline = () => {
+    const renderDebate = () => {
         if (!eventData) return null;
-        return <TimelineView claims={eventData.claims} />;
+        // TODO: Integrate CommentThread component for debates
+        return (
+            <div className="flex gap-6">
+                {/* Main debate area */}
+                <div className="flex-1">
+                    <div className="bg-slate-50 rounded-lg p-8 text-center">
+                        <div className="text-4xl mb-4">💬</div>
+                        <h3 className="text-xl font-semibold text-slate-800 mb-2">Community Debate</h3>
+                        <p className="text-slate-600 mb-4">
+                            Discuss claims, challenge evidence, and contribute to collective understanding.
+                        </p>
+                        <div className="text-sm text-slate-500">
+                            Coming soon: threaded discussions with reputation-weighted voting
+                        </div>
+                    </div>
+                </div>
+
+                {/* Contributors sidebar in debate view */}
+                <div className="w-64 flex-shrink-0">
+                    <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+                        <div className="px-4 py-3 bg-gradient-to-r from-indigo-50 to-purple-50 border-b border-indigo-100">
+                            <h3 className="font-semibold text-slate-800">Contributors</h3>
+                        </div>
+                        <div className="p-4">
+                            <div className="space-y-3">
+                                {[
+                                    { name: 'Alice Chen', credits: 45, role: 'Fact Checker' },
+                                    { name: 'Bob Smith', credits: 32, role: 'Source Analyst' },
+                                    { name: 'Carol Wu', credits: 28, role: 'Editor' },
+                                ].map((contributor, idx) => (
+                                    <div key={idx} className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-400 to-purple-400 flex items-center justify-center text-white font-semibold">
+                                            {contributor.name.charAt(0)}
+                                        </div>
+                                        <div className="flex-1">
+                                            <div className="font-medium text-slate-800">{contributor.name}</div>
+                                            <div className="text-xs text-slate-500">{contributor.role}</div>
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="text-sm font-bold text-amber-600">{contributor.credits}</div>
+                                            <div className="text-xs text-slate-400">credits</div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            <button className="w-full mt-4 py-2 bg-gradient-to-r from-amber-500 to-yellow-500 text-white rounded-lg font-medium text-sm hover:from-amber-600 hover:to-yellow-600 transition-all">
+                                + Add Credits
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
     };
 
     const renderTopology = () => {
@@ -126,146 +198,216 @@ const EventPage: React.FC = () => {
         );
     }
 
-    const { event, entities, claims } = eventData;
+    const { event, entities, claims, thought, page_thumbnails } = eventData;
+
+    // Get first available thumbnail for header background
+    const headerThumbnail = page_thumbnails?.find(t => t.thumbnail_url)?.thumbnail_url;
+
+    // Format date range with ~ for missing start/end
+    const formatEventDate = () => {
+        const formatDate = (dateStr: string) => {
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric'
+            });
+        };
+
+        if (event.event_start && event.event_end) {
+            return `${formatDate(event.event_start)} ~ ${formatDate(event.event_end)}`;
+        }
+        if (event.event_start) {
+            return `${formatDate(event.event_start)} ~`;
+        }
+        if (event.event_end) {
+            return `~ ${formatDate(event.event_end)}`;
+        }
+        return null;
+    };
+
 
     return (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-            {/* Event Header */}
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mb-6">
-                <h1 className="text-3xl font-bold text-slate-900 mb-4">{event.canonical_name}</h1>
+            {/* Event Header - Redesigned */}
+            <div className="relative rounded-xl shadow-sm border border-slate-200 mb-6 overflow-hidden">
+                {/* Background thumbnail watermark - fades from bottom-right to top-left */}
+                {headerThumbnail && (
+                    <div
+                        className="absolute inset-0"
+                        style={{
+                            backgroundImage: `url(${headerThumbnail})`,
+                            backgroundSize: 'cover',
+                            backgroundPosition: 'center',
+                            filter: 'grayscale(50%)',
+                            maskImage: 'linear-gradient(to top left, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0) 60%)',
+                            WebkitMaskImage: 'linear-gradient(to top left, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0) 60%)',
+                        }}
+                    />
+                )}
 
-                <div className="flex flex-wrap gap-4 text-sm">
-                    {event.event_start && (
-                        <div className="flex items-center gap-2 text-slate-600">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                            </svg>
-                            <span>
-                                {new Date(event.event_start).toLocaleDateString('en-US', {
-                                    year: 'numeric',
-                                    month: 'long',
-                                    day: 'numeric'
-                                })}
+                <div className="relative p-6">
+                    {/* Top row: Type badge and date */}
+                    <div className="flex items-center justify-between mb-3">
+                        <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-600 text-xs font-medium uppercase tracking-wide">
+                            {event.event_type}
+                        </span>
+                        {formatEventDate() && (
+                            <span className="text-sm text-slate-500 flex items-center gap-1.5">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                                {formatEventDate()}
                             </span>
+                        )}
+                    </div>
+
+                    {/* Title */}
+                    <h1 className="text-3xl font-bold text-slate-900 mb-4 leading-tight">
+                        {event.canonical_name}
+                    </h1>
+
+                    {/* Thought - the "voice" of the event organism */}
+                    {thought && (
+                        <div className="flex items-start gap-3 bg-white/40 rounded-lg p-3">
+                            <span className="text-lg flex-shrink-0">
+                                {thought.type === 'question' ? '🤔' :
+                                 thought.type === 'anomaly' ? '⚠️' :
+                                 thought.type === 'contradiction' ? '⚡' :
+                                 thought.type === 'progress' ? '📈' :
+                                 thought.type === 'emergence' ? '🌱' : '💭'}
+                            </span>
+                            <p className="text-slate-700 text-sm leading-relaxed flex-1 italic">
+                                "{thought.content}"
+                            </p>
                         </div>
                     )}
-                    <div className="flex items-center gap-2 text-slate-600">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                        </svg>
-                        <span>{event.event_type}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <span className="px-3 py-1 rounded-full bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-sm font-semibold">
-                            φ {Math.round(event.coherence * 100)}%
-                        </span>
-                    </div>
-                    <div className="flex items-center gap-2 text-slate-600">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        <span>{claims.length} claims</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-slate-600">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                        </svg>
-                        <span>{entities.length} entities</span>
-                    </div>
                 </div>
             </div>
 
-            {/* Tabs */}
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 mb-6">
-                <div className="border-b border-slate-200">
-                    <div className="flex">
-                        {[
-                            { id: 'narrative', label: 'Narrative', icon: '📰' },
-                            { id: 'timeline', label: 'Timeline', icon: '⏱️' },
-                            { id: 'topology', label: 'Topology', icon: '🔮' }
-                        ].map(tab => (
-                            <button
-                                key={tab.id}
-                                onClick={() => setActiveTab(tab.id as TabType)}
-                                className={`px-6 py-4 font-medium transition-all border-b-2 ${
-                                    activeTab === tab.id
-                                        ? 'text-indigo-600 border-indigo-600'
-                                        : 'text-slate-500 border-transparent hover:text-slate-700 hover:border-slate-300'
-                                }`}
-                            >
-                                <span className="mr-2">{tab.icon}</span>
-                                {tab.label}
-                            </button>
-                        ))}
-                    </div>
-                </div>
-
-                {/* Content */}
-                <div className="p-6">
-                    {activeTab === 'narrative' && (
-                        <div className="max-w-4xl mx-auto relative">
-                            {/* Floating Epicenter Map Card */}
-                            <div className="float-right ml-4 mb-4 z-10">
-                                <EpicenterMapCard
-                                    entities={entities}
-                                    eventName={event.canonical_name}
-                                />
-                            </div>
-
-                            {/* Key Figures bar */}
-                            {event.narrative?.key_figures && event.narrative.key_figures.length > 0 && (
-                                <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 mb-6 flex flex-wrap gap-6">
-                                    {event.narrative.key_figures.map((fig, idx) => (
-                                        <div key={idx} className="flex items-center gap-2">
-                                            <span className="text-slate-500 text-sm capitalize">
-                                                {fig.label.replace(/_/g, ' ')}:
+            {/* Main content area with sidebar */}
+            <div className="flex gap-6">
+                {/* Main content */}
+                <div className="flex-1 min-w-0">
+                    {/* Tabs */}
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200">
+                        <div className="border-b border-slate-200">
+                            <div className="flex">
+                                {[
+                                    { id: 'narrative', label: 'Narrative', icon: '📰', suffix: null },
+                                    { id: 'debate', label: 'Debate', icon: '💬', suffix: null },
+                                    { id: 'topology', label: 'Topology', icon: '🔮', suffix: `φ ${Math.round(event.coherence * 100)}%` }
+                                ].map(tab => (
+                                    <button
+                                        key={tab.id}
+                                        onClick={() => setActiveTab(tab.id as TabType)}
+                                        className={`px-6 py-4 font-medium transition-all border-b-2 ${
+                                            activeTab === tab.id
+                                                ? 'text-indigo-600 border-indigo-600'
+                                                : 'text-slate-500 border-transparent hover:text-slate-700 hover:border-slate-300'
+                                        }`}
+                                    >
+                                        <span className="mr-2">{tab.icon}</span>
+                                        {tab.label}
+                                        {tab.suffix && (
+                                            <span className={`ml-2 px-2 py-0.5 rounded-full text-xs font-semibold ${
+                                                activeTab === tab.id
+                                                    ? 'bg-indigo-100 text-indigo-700'
+                                                    : 'bg-slate-100 text-slate-600'
+                                            }`}>
+                                                {tab.suffix}
                                             </span>
-                                            <span className="text-xl font-bold text-slate-900">{fig.value}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
 
-                            {/* Narrative content */}
-                            <div className="prose prose-slate max-w-none">
-                                {event.narrative?.sections ? (
-                                    event.narrative.sections.map((section, idx) => (
-                                        <div key={idx} className={idx > 0 ? 'mt-8' : ''}>
-                                            {section.title && (
-                                                <h2 className="text-xl font-bold text-slate-800 mb-4">
-                                                    {section.title}
-                                                </h2>
-                                            )}
+                        {/* Content */}
+                        <div className="p-6">
+                            {activeTab === 'narrative' && (
+                                <div className="relative">
+                                    {/* Floating cards - Map and Timeline stacked */}
+                                    <div className="float-right ml-6 mb-4 space-y-4 z-10">
+                                        <EpicenterMapCard
+                                            entities={entities}
+                                            eventName={event.canonical_name}
+                                        />
+                                        <TimelineCard
+                                            claims={claims}
+                                            eventSlug={eventSlug || ''}
+                                        />
+                                    </div>
+
+                                    {/* Key Figures bar */}
+                                    {event.narrative?.key_figures && event.narrative.key_figures.length > 0 && (
+                                        <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 mb-6 flex flex-wrap gap-6">
+                                            {event.narrative.key_figures.map((fig, idx) => (
+                                                <div key={idx} className="flex items-center gap-2">
+                                                    <span className="text-slate-500 text-sm capitalize">
+                                                        {fig.label.replace(/_/g, ' ')}:
+                                                    </span>
+                                                    <span className="text-xl font-bold text-slate-900">{fig.value}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {/* Narrative content - full width, no max constraint */}
+                                    <div className="prose prose-slate max-w-none">
+                                        {event.narrative?.sections ? (
+                                            event.narrative.sections.map((section, idx) => (
+                                                <div key={idx} className={idx > 0 ? 'mt-8' : ''}>
+                                                    {section.title && (
+                                                        <h2 className="text-xl font-bold text-slate-800 mb-4">
+                                                            {section.title}
+                                                        </h2>
+                                                    )}
+                                                    <EventNarrativeContent
+                                                        content={section.content}
+                                                        entities={entities}
+                                                        claims={claims}
+                                                    />
+                                                </div>
+                                            ))
+                                        ) : (
                                             <EventNarrativeContent
-                                                content={section.content}
+                                                content={event.summary}
                                                 entities={entities}
                                                 claims={claims}
                                             />
-                                        </div>
-                                    ))
-                                ) : (
-                                    <EventNarrativeContent
-                                        content={event.summary}
-                                        entities={entities}
-                                        claims={claims}
-                                    />
-                                )}
-                            </div>
-                        </div>
-                    )}
+                                        )}
+                                    </div>
 
-                    {activeTab === 'timeline' && (
-                        <div className="max-w-4xl mx-auto">
-                            {renderTimeline()}
-                        </div>
-                    )}
+                                    {/* Clear float */}
+                                    <div className="clear-both" />
+                                </div>
+                            )}
 
-                    {activeTab === 'topology' && (
-                        <div>
-                            {renderTopology()}
+                            {activeTab === 'debate' && renderDebate()}
+
+                            {activeTab === 'topology' && (
+                                <div>
+                                    {renderTopology()}
+                                </div>
+                            )}
                         </div>
-                    )}
+                    </div>
                 </div>
+
+                {/* Right Sidebar - only show on narrative tab */}
+                {activeTab === 'narrative' && (
+                    <EventSidebar
+                        eventId={event.id}
+                        eventSlug={eventSlug || ''}
+                        currentFund={273003}
+                        distributedPercent={34}
+                        contributorCount={127}
+                        claimCount={claims.length}
+                        sourceCount={entities.filter(e => e.entity_type === 'ORG').length || 3}
+                        onNavigateToDebate={() => setActiveTab('debate')}
+                    />
+                )}
             </div>
         </div>
     );

@@ -101,26 +101,49 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
     return () => clearInterval(interval);
   }, []);
 
-  // Handle resize
+  // Handle resize with ResizeObserver for reliable dimension tracking
   useEffect(() => {
     const updateDimensions = () => {
       if (containerRef.current) {
         const rect = containerRef.current.getBoundingClientRect();
-        setDimensions({
-          width: rect.width || containerRef.current.offsetWidth || 800,
-          height: Math.max(500, rect.height || containerRef.current.offsetHeight || 500)
+        const newWidth = rect.width || containerRef.current.offsetWidth || 800;
+        const newHeight = Math.max(500, rect.height || containerRef.current.offsetHeight || 500);
+
+        // Only update if dimensions actually changed
+        setDimensions(prev => {
+          if (prev.width !== newWidth || prev.height !== newHeight) {
+            return { width: newWidth, height: newHeight };
+          }
+          return prev;
         });
       }
     };
 
+    // Use ResizeObserver for more reliable tracking
+    const resizeObserver = new ResizeObserver(() => {
+      updateDimensions();
+    });
+
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current);
+    }
+
     window.addEventListener('resize', updateDimensions);
-    // Delay initial measurement to ensure CSS is applied
-    const timer = setTimeout(updateDimensions, 100);
+
+    // Multiple delayed measurements to catch tab switches
+    const timers = [
+      setTimeout(updateDimensions, 0),
+      setTimeout(updateDimensions, 100),
+      setTimeout(updateDimensions, 300),
+      setTimeout(updateDimensions, 500),
+    ];
+
     updateDimensions();
 
     return () => {
       window.removeEventListener('resize', updateDimensions);
-      clearTimeout(timer);
+      resizeObserver.disconnect();
+      timers.forEach(t => clearTimeout(t));
     };
   }, []);
 
@@ -165,13 +188,13 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
       contradictedIds.add(c.claim2_id);
     });
 
-    // Add EVENT node at center (fixed position)
-    // Truncate event name for display
+    // Prepare EVENT node data (will be added last for top z-index)
+    // Truncate event name for display (wider box now fits ~45 chars)
     const displayName = eventName
-      ? (eventName.length > 30 ? eventName.slice(0, 30) + '...' : eventName)
+      ? (eventName.length > 45 ? eventName.slice(0, 45) + '...' : eventName)
       : 'Event';
 
-    nodes.push({
+    const eventNode: GraphNode = {
       id: 'event-center',
       name: displayName,
       type: 'event',
@@ -186,9 +209,9 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
         pattern: topology.pattern,
         version: Math.floor(topology.claims.length / 3) + 1 // Mock version
       }
-    });
+    };
 
-    // Add claim nodes
+    // Add claim nodes first (so event renders on top)
     topology.claims.forEach(claim => {
       const isContradicted = contradictedIds.has(claim.id);
 
@@ -220,30 +243,30 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
         isContradicted
       });
 
-      // Link from event to high-confidence claims
+      // Link from event to high-confidence claims - light mode: visible on light bg
       if (claim.plausibility >= 0.6 && !claim.is_superseded) {
         links.push({
           source: 'event-center',
           target: claim.id,
           type: 'SUPPORTS',
-          color: 'rgba(99, 102, 241, 0.3)',
-          width: 1
+          color: 'rgba(99, 102, 241, 0.5)',
+          width: 1.5
         });
       }
     });
 
-    // Add relationship links
+    // Add relationship links - light mode: solid colors for visibility
     topology.relationships.forEach(rel => {
-      let color = 'rgba(16, 185, 129, 0.5)'; // Green for corroborates
-      let width = 1.5;
+      let color = '#10b981'; // Solid emerald-500 for corroborates
+      let width = 2;
       let dashed = false;
 
       if (rel.type === 'CONTRADICTS') {
-        color = 'rgba(239, 68, 68, 0.8)'; // Red
+        color = '#dc2626'; // Solid red-600 for visibility
         width = 2.5;
         dashed = true;
       } else if (rel.type === 'UPDATES') {
-        color = 'rgba(59, 130, 246, 0.6)'; // Blue
+        color = '#2563eb'; // Solid blue-600 for visibility
         width = 2;
         dashed = true;
       }
@@ -257,6 +280,9 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
         dashed
       });
     });
+
+    // Add EVENT node last so it renders on top of all claims
+    nodes.push(eventNode);
 
     setGraphData({ nodes, links });
   }, [topology]);
@@ -297,21 +323,21 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
   }, []);
 
   // Custom node rendering
-  const nodeCanvasObject = useCallback((node: GraphNode, ctx: CanvasRenderingContext2D, globalScale: number) => {
+  const nodeCanvasObject = useCallback((node: GraphNode, ctx: CanvasRenderingContext2D, _globalScale: number) => {
     if (typeof node.x !== 'number' || typeof node.y !== 'number') return;
 
     // Use definite values after the guard (TypeScript narrowing)
     const x = node.x;
     const y = node.y;
 
-    const fontSize = Math.max(10 / globalScale, 8);
-
     if (node.type === 'event') {
       // Event node - rounded rectangle with event info
+      // Use fixed graph coordinates for proportional zoom scaling
       const eventData = node.eventData;
-      const baseWidth = 160 / globalScale;
-      const baseHeight = 80 / globalScale;
-      const padding = 8 / globalScale;
+      const baseWidth = 220;  // Wider to fit longer event names
+      const baseHeight = 90;
+      const padding = 10;
+      const eventFontSize = 11;
 
       // Animated pulse for glow
       const pulseScale = 1 + Math.sin(pulsePhase) * 0.08;
@@ -320,15 +346,15 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
       // Outer glow (animated)
       ctx.save();
       ctx.shadowColor = '#6366f1';
-      ctx.shadowBlur = (15 + Math.sin(pulsePhase) * 8) / globalScale;
+      ctx.shadowBlur = 15 + Math.sin(pulsePhase) * 8;
       ctx.fillStyle = `rgba(99, 102, 241, ${glowAlpha})`;
       ctx.beginPath();
       ctx.roundRect(
-        x - (baseWidth * pulseScale) / 2 - 6 / globalScale,
-        y - (baseHeight * pulseScale) / 2 - 6 / globalScale,
-        baseWidth * pulseScale + 12 / globalScale,
-        baseHeight * pulseScale + 12 / globalScale,
-        12 / globalScale
+        x - (baseWidth * pulseScale) / 2 - 6,
+        y - (baseHeight * pulseScale) / 2 - 6,
+        baseWidth * pulseScale + 12,
+        baseHeight * pulseScale + 12,
+        12
       );
       ctx.fill();
       ctx.restore();
@@ -340,16 +366,16 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
       gradient.addColorStop(1, '#818cf8');
       ctx.fillStyle = gradient;
       ctx.beginPath();
-      ctx.roundRect(x - baseWidth / 2, y - baseHeight / 2, baseWidth, baseHeight, 8 / globalScale);
+      ctx.roundRect(x - baseWidth / 2, y - baseHeight / 2, baseWidth, baseHeight, 8);
       ctx.fill();
 
       // Border
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-      ctx.lineWidth = 2 / globalScale;
+      ctx.lineWidth = 2;
       ctx.stroke();
 
       // Event name (title)
-      ctx.font = `bold ${fontSize * 1.1}px Sans-Serif`;
+      ctx.font = `bold ${eventFontSize * 1.1}px Sans-Serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'top';
       ctx.fillStyle = 'white';
@@ -358,7 +384,7 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
       // Stats row
       if (eventData) {
         const statsY = y + padding / 2;
-        ctx.font = `${fontSize * 0.75}px Sans-Serif`;
+        ctx.font = `${eventFontSize * 0.85}px Sans-Serif`;
         ctx.textBaseline = 'middle';
 
         // Coherence
@@ -378,7 +404,7 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
         ctx.fillText(`${eventData.claimCount} claims`, x + baseWidth / 2 - padding, statsY);
 
         // Pattern badge at bottom
-        ctx.font = `${fontSize * 0.65}px Sans-Serif`;
+        ctx.font = `${eventFontSize * 0.75}px Sans-Serif`;
         ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
         ctx.textAlign = 'center';
         ctx.fillText(eventData.pattern.toUpperCase(), x, y + baseHeight / 2 - padding);
@@ -391,9 +417,11 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
       const size = node.val;
 
       // Calculate box dimensions based on text
-      ctx.font = `${fontSize * 0.9}px Sans-Serif`;
-      const maxWidth = 140 / globalScale;
-      const padding = 8 / globalScale;
+      // Use fixed graph coordinates - these scale proportionally with zoom
+      const claimFontSize = 12;  // Fixed in graph space, scales with zoom
+      ctx.font = `${claimFontSize}px Sans-Serif`;
+      const maxWidth = 140;  // Fixed in graph space
+      const padding = 8;
 
       // Word wrap
       const words = node.name.split(' ');
@@ -413,18 +441,18 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
       if (currentLine) lines.push(currentLine);
       const displayLines = lines.slice(0, 3);
 
-      const lineHeight = fontSize * 1.2;
+      const lineHeight = claimFontSize * 1.3;
       let boxWidth = 0;
       displayLines.forEach(line => {
         const w = ctx.measureText(line).width;
         if (w > boxWidth) boxWidth = w;
       });
-      boxWidth += padding * 2;
+      boxWidth = Math.max(boxWidth + padding * 2, 80);  // Minimum width
       const boxHeight = displayLines.length * lineHeight + padding * 2;
 
       // Selection highlight
       if (isSelected) {
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+        ctx.fillStyle = 'rgba(99, 102, 241, 0.15)';
         ctx.fillRect(
           x - boxWidth / 2 - 4,
           y - boxHeight / 2 - 4,
@@ -433,25 +461,26 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
         );
       }
 
-      // Background
+      // Background - light mode: white with subtle tint
       ctx.fillStyle = claim?.is_superseded
-        ? 'rgba(107, 114, 128, 0.3)'
+        ? 'rgba(241, 245, 249, 0.95)'  // slate-100
         : node.isContradicted
-          ? 'rgba(239, 68, 68, 0.2)'
-          : 'rgba(30, 41, 59, 0.8)';
+          ? 'rgba(254, 242, 242, 0.95)'  // red-50
+          : 'rgba(255, 255, 255, 0.95)';  // white
       ctx.fillRect(x - boxWidth / 2, y - boxHeight / 2, boxWidth, boxHeight);
 
       // Left accent bar
       ctx.fillStyle = node.color;
-      ctx.fillRect(x - boxWidth / 2, y - boxHeight / 2, 3 / globalScale, boxHeight);
+      ctx.fillRect(x - boxWidth / 2, y - boxHeight / 2, 3, boxHeight);
 
       // Border
-      ctx.strokeStyle = node.color;
-      ctx.lineWidth = (isSelected ? 2 : 1) / globalScale;
+      ctx.strokeStyle = claim?.is_superseded ? 'rgba(148, 163, 184, 0.6)' : node.color;
+      ctx.lineWidth = isSelected ? 2 : 1;
       ctx.strokeRect(x - boxWidth / 2, y - boxHeight / 2, boxWidth, boxHeight);
 
-      // Text
-      ctx.fillStyle = claim?.is_superseded ? 'rgba(156, 163, 175, 0.8)' : 'rgba(226, 232, 240, 0.95)';
+      // Text - dark text for light mode
+      ctx.font = `${claimFontSize}px Sans-Serif`;
+      ctx.fillStyle = claim?.is_superseded ? 'rgba(100, 116, 139, 0.8)' : 'rgba(30, 41, 59, 0.95)';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
 
@@ -464,27 +493,28 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
       // Plausibility badge
       if (claim) {
         const badgeText = `${Math.round(claim.plausibility * 100)}%`;
-        ctx.font = `bold ${fontSize * 0.7}px Sans-Serif`;
-        const badgeWidth = ctx.measureText(badgeText).width + 6 / globalScale;
-        const badgeX = x + boxWidth / 2 - badgeWidth - 2 / globalScale;
-        const badgeY = y - boxHeight / 2 + 2 / globalScale;
+        const badgeFontSize = claimFontSize * 0.8;
+        ctx.font = `bold ${badgeFontSize}px Sans-Serif`;
+        const badgeWidth = ctx.measureText(badgeText).width + 6;
+        const badgeX = x + boxWidth / 2 - badgeWidth - 2;
+        const badgeY = y - boxHeight / 2 + 2;
 
         ctx.fillStyle = node.color;
         ctx.globalAlpha = 0.3;
-        ctx.fillRect(badgeX, badgeY, badgeWidth, fontSize);
+        ctx.fillRect(badgeX, badgeY, badgeWidth, badgeFontSize * 1.2);
         ctx.globalAlpha = 1;
 
         ctx.fillStyle = node.color;
         ctx.textAlign = 'center';
-        ctx.fillText(badgeText, badgeX + badgeWidth / 2, badgeY + fontSize / 2);
+        ctx.fillText(badgeText, badgeX + badgeWidth / 2, badgeY + badgeFontSize * 0.6);
       }
 
       // Contradiction indicator
       if (node.isContradicted) {
-        ctx.font = `${fontSize}px Sans-Serif`;
+        ctx.font = `${claimFontSize}px Sans-Serif`;
         ctx.fillStyle = '#ef4444';
         ctx.textAlign = 'left';
-        ctx.fillText('⚡', x - boxWidth / 2 + 6 / globalScale, y - boxHeight / 2 + fontSize);
+        ctx.fillText('⚡', x - boxWidth / 2 + 6, y - boxHeight / 2 + claimFontSize);
       }
     }
   }, [selectedClaim, pulsePhase]);
@@ -538,28 +568,28 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
   // Helper functions for display
   const getPatternStyle = (pattern: string) => {
     switch (pattern) {
-      case 'consensus': return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30';
-      case 'progressive': return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
-      case 'contradictory': return 'bg-red-500/20 text-red-400 border-red-500/30';
-      case 'mixed': return 'bg-amber-500/20 text-amber-400 border-amber-500/30';
-      default: return 'bg-gray-500/20 text-gray-400 border-gray-500/30';
+      case 'consensus': return 'bg-emerald-100 text-emerald-700 border-emerald-300';
+      case 'progressive': return 'bg-blue-100 text-blue-700 border-blue-300';
+      case 'contradictory': return 'bg-red-100 text-red-700 border-red-300';
+      case 'mixed': return 'bg-amber-100 text-amber-700 border-amber-300';
+      default: return 'bg-slate-100 text-slate-600 border-slate-300';
     }
   };
 
   const getTemperatureInfo = (temp: number) => {
-    if (temp < 0.2) return { label: 'Stable', color: 'text-emerald-400' };
-    if (temp < 0.4) return { label: 'Cool', color: 'text-blue-400' };
-    if (temp < 0.6) return { label: 'Warm', color: 'text-amber-400' };
-    if (temp < 0.8) return { label: 'Hot', color: 'text-orange-400' };
-    return { label: 'Volatile', color: 'text-red-400' };
+    if (temp < 0.2) return { label: 'Stable', color: 'text-emerald-600' };
+    if (temp < 0.4) return { label: 'Cool', color: 'text-blue-600' };
+    if (temp < 0.6) return { label: 'Warm', color: 'text-amber-600' };
+    if (temp < 0.8) return { label: 'Hot', color: 'text-orange-600' };
+    return { label: 'Volatile', color: 'text-red-600' };
   };
 
   if (loading) {
     return (
-      <div className="h-[500px] bg-gray-900 rounded-lg flex items-center justify-center">
+      <div className="h-[500px] bg-slate-50 rounded-lg flex items-center justify-center border border-slate-200">
         <div className="text-center">
           <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
-          <p className="text-gray-400 text-sm">Loading topology...</p>
+          <p className="text-slate-500 text-sm">Loading topology...</p>
         </div>
       </div>
     );
@@ -567,10 +597,10 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
 
   if (error) {
     return (
-      <div className="h-[400px] bg-gray-900 rounded-lg flex items-center justify-center">
+      <div className="h-[400px] bg-slate-50 rounded-lg flex items-center justify-center border border-slate-200">
         <div className="text-center">
-          <p className="text-gray-400 mb-2">{error}</p>
-          <p className="text-gray-500 text-sm">Topology analysis runs when claims are processed.</p>
+          <p className="text-slate-600 mb-2">{error}</p>
+          <p className="text-slate-500 text-sm">Topology analysis runs when claims are processed.</p>
         </div>
       </div>
     );
@@ -578,8 +608,8 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
 
   if (!topology || topology.claims.length === 0) {
     return (
-      <div className="h-[400px] bg-gray-900 rounded-lg flex items-center justify-center">
-        <p className="text-gray-400">No claims available</p>
+      <div className="h-[400px] bg-slate-50 rounded-lg flex items-center justify-center border border-slate-200">
+        <p className="text-slate-500">No claims available</p>
       </div>
     );
   }
@@ -589,29 +619,29 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
   const corroborations = topology.relationships.filter(r => r.type === 'CORROBORATES');
 
   return (
-    <div className="bg-gray-900 rounded-lg overflow-hidden">
+    <div className="bg-white rounded-lg overflow-hidden border border-slate-200">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-slate-50">
         <div className="flex items-center gap-3">
           <span className={`px-3 py-1 rounded-full text-sm font-medium border ${getPatternStyle(topology.pattern)}`}>
             {topology.pattern.charAt(0).toUpperCase() + topology.pattern.slice(1)}
           </span>
-          <span className="text-gray-400 text-sm">
+          <span className="text-slate-600 text-sm font-medium">
             φ {Math.round(topology.organism_state.coherence * 100)}%
           </span>
           <span className={`text-sm ${tempInfo.color}`}>
             {tempInfo.label}
           </span>
         </div>
-        <div className="flex items-center gap-3 text-sm text-gray-500">
+        <div className="flex items-center gap-3 text-sm text-slate-500">
           {contradictions.length > 0 && (
-            <span className="text-red-400">
+            <span className="text-red-600">
               <span className="inline-block w-2 h-2 rounded-full bg-red-500 mr-1"></span>
               {contradictions.length} conflicts
             </span>
           )}
           {corroborations.length > 0 && (
-            <span className="text-emerald-400">
+            <span className="text-emerald-600">
               <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-1"></span>
               {corroborations.length} support
             </span>
@@ -640,40 +670,42 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
               ctx.fillRect(node.x! - 70, node.y! - 30, 140, 60);
             }
           }}
+          nodeVal={(node: GraphNode) => node.val}
           onNodeClick={handleNodeClick}
-          backgroundColor="#111827"
+          backgroundColor="#f8fafc"
           d3AlphaDecay={0.02}
           d3VelocityDecay={0.3}
           cooldownTicks={100}
+          nodeCanvasObjectMode={() => 'replace'}
         />
 
         {/* Legend */}
-        <div className="absolute bottom-4 left-4 bg-gray-800/90 rounded-lg p-3 text-xs space-y-1.5">
-          <div className="font-medium text-gray-300 mb-2">Legend</div>
+        <div className="absolute bottom-4 left-4 bg-white/95 backdrop-blur-sm rounded-lg p-3 text-xs space-y-1.5 shadow-sm border border-slate-200">
+          <div className="font-medium text-slate-700 mb-2">Legend</div>
           <div className="flex items-center gap-2">
             <span className="w-3 h-3 rounded-full bg-emerald-500"></span>
-            <span className="text-gray-400">High confidence</span>
+            <span className="text-slate-600">High confidence</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="w-3 h-3 rounded-full bg-blue-500"></span>
-            <span className="text-gray-400">Good confidence</span>
+            <span className="text-slate-600">Good confidence</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="w-3 h-3 rounded-full bg-amber-500"></span>
-            <span className="text-gray-400">Low confidence</span>
+            <span className="text-slate-600">Low confidence</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="w-3 h-3 rounded-full bg-red-500"></span>
-            <span className="text-gray-400">In contradiction</span>
+            <span className="text-slate-600">In contradiction</span>
           </div>
-          <div className="border-t border-gray-700 pt-1.5 mt-1.5">
+          <div className="border-t border-slate-200 pt-1.5 mt-1.5">
             <div className="flex items-center gap-2">
               <span className="w-4 h-0.5 bg-red-500"></span>
-              <span className="text-gray-400">Contradicts</span>
+              <span className="text-slate-600">Contradicts</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="w-4 h-0.5 bg-emerald-500"></span>
-              <span className="text-gray-400">Supports</span>
+              <span className="text-slate-600">Supports</span>
             </div>
           </div>
         </div>
@@ -681,35 +713,35 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
 
       {/* Selected claim detail */}
       {selectedClaim && (
-        <div className="border-t border-gray-800 p-4 bg-gray-800/80">
+        <div className="border-t border-slate-200 p-4 bg-indigo-50">
           <div className="flex justify-between items-start mb-2">
             <div className="flex items-center gap-2">
-              <span className="text-white font-medium">
+              <span className="text-slate-800 font-medium">
                 {Math.round(selectedClaim.plausibility * 100)}% plausible
               </span>
-              <span className="text-gray-500 text-sm">
+              <span className="text-slate-500 text-sm">
                 (prior: {Math.round(selectedClaim.prior * 100)}%)
               </span>
             </div>
             <button
               onClick={() => setSelectedClaim(null)}
-              className="text-gray-500 hover:text-white"
+              className="text-slate-400 hover:text-slate-700"
             >
               ×
             </button>
           </div>
-          <p className="text-gray-200 text-sm mb-2">{selectedClaim.text}</p>
+          <p className="text-slate-700 text-sm mb-2">{selectedClaim.text}</p>
           <div className="flex flex-wrap gap-2 text-xs">
             {selectedClaim.is_superseded && (
-              <span className="px-2 py-1 bg-gray-700 rounded text-gray-400">Superseded</span>
+              <span className="px-2 py-1 bg-slate-200 rounded text-slate-600">Superseded</span>
             )}
             {selectedClaim.corroboration_count > 0 && (
-              <span className="px-2 py-1 bg-emerald-900/50 text-emerald-400 rounded">
+              <span className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded">
                 +{selectedClaim.corroboration_count} corroborating
               </span>
             )}
             {selectedClaim.event_time && (
-              <span className="px-2 py-1 bg-gray-700 text-gray-400 rounded">
+              <span className="px-2 py-1 bg-slate-200 text-slate-600 rounded">
                 {new Date(selectedClaim.event_time).toLocaleDateString()}
               </span>
             )}
@@ -718,41 +750,41 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
       )}
 
       {/* Topology Details Section */}
-      <div className="border-t border-gray-800 p-4 space-y-4">
+      <div className="border-t border-slate-200 p-4 space-y-4 bg-slate-50">
         {/* Summary Cards */}
         <div className="grid grid-cols-3 gap-3">
-          <div className="bg-gray-800/60 rounded-lg p-3 border border-gray-700">
-            <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Pattern</div>
-            <div className="text-lg font-semibold text-white capitalize">{topology.pattern}</div>
+          <div className="bg-white rounded-lg p-3 border border-slate-200 shadow-sm">
+            <div className="text-xs text-slate-500 uppercase tracking-wide mb-1">Pattern</div>
+            <div className="text-lg font-semibold text-slate-800 capitalize">{topology.pattern}</div>
             {topology.pattern === 'progressive' && (
-              <div className="text-xs text-amber-400 mt-1">Metrics evolving ↑</div>
+              <div className="text-xs text-amber-600 mt-1">Metrics evolving ↑</div>
             )}
             {topology.pattern === 'contradictory' && (
-              <div className="text-xs text-red-400 mt-1">Active conflicts</div>
+              <div className="text-xs text-red-600 mt-1">Active conflicts</div>
             )}
             {topology.pattern === 'consensus' && (
-              <div className="text-xs text-emerald-400 mt-1">Sources agree</div>
+              <div className="text-xs text-emerald-600 mt-1">Sources agree</div>
             )}
           </div>
 
-          <div className="bg-gray-800/60 rounded-lg p-3 border border-gray-700">
-            <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Consensus Date</div>
-            <div className="text-lg font-semibold text-white">
+          <div className="bg-white rounded-lg p-3 border border-slate-200 shadow-sm">
+            <div className="text-xs text-slate-500 uppercase tracking-wide mb-1">Consensus Date</div>
+            <div className="text-lg font-semibold text-slate-800">
               {topology.consensus_date
                 ? new Date(topology.consensus_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
                 : '—'}
             </div>
             {topology.consensus_date && (
-              <div className="text-xs text-gray-400 mt-1">Most agreed timeline</div>
+              <div className="text-xs text-slate-500 mt-1">Most agreed timeline</div>
             )}
           </div>
 
-          <div className="bg-gray-800/60 rounded-lg p-3 border border-gray-700">
-            <div className="text-xs text-gray-500 uppercase tracking-wide mb-1">Contradictions</div>
-            <div className={`text-lg font-semibold ${topology.contradictions.length > 0 ? 'text-red-400' : 'text-emerald-400'}`}>
+          <div className="bg-white rounded-lg p-3 border border-slate-200 shadow-sm">
+            <div className="text-xs text-slate-500 uppercase tracking-wide mb-1">Contradictions</div>
+            <div className={`text-lg font-semibold ${topology.contradictions.length > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
               {topology.contradictions.length} active
             </div>
-            <div className="text-xs text-gray-400 mt-1">
+            <div className="text-xs text-slate-500 mt-1">
               Temp: {tempInfo.label}
             </div>
           </div>
@@ -760,9 +792,9 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
 
         {/* Update Chains */}
         {topology.update_chains.length > 0 && (
-          <div className="bg-gray-800/40 rounded-lg p-4 border border-gray-700">
-            <h4 className="text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
-              <span className="text-blue-400">📈</span> Update Chains (Metric Progression)
+          <div className="bg-white rounded-lg p-4 border border-slate-200 shadow-sm">
+            <h4 className="text-sm font-medium text-slate-700 mb-3 flex items-center gap-2">
+              <span className="text-blue-500">📈</span> Update Chains (Metric Progression)
             </h4>
             <div className="space-y-3">
               {topology.update_chains.map((chain, idx) => {
@@ -779,8 +811,8 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
                 });
 
                 return (
-                  <div key={idx} className="bg-gray-900/50 rounded p-3">
-                    <div className="text-xs text-gray-400 uppercase tracking-wide mb-2 font-medium">
+                  <div key={idx} className="bg-slate-50 rounded p-3 border border-slate-100">
+                    <div className="text-xs text-slate-500 uppercase tracking-wide mb-2 font-medium">
                       {chain.metric}
                     </div>
                     <div className="flex items-center gap-2 flex-wrap text-sm">
@@ -792,7 +824,7 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
                               className={`px-2 py-1 rounded cursor-pointer transition-colors ${
                                 isCurrent
                                   ? 'bg-blue-600 text-white font-medium'
-                                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                  : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
                               }`}
                               onClick={() => setSelectedClaim(claim)}
                               title={claim.text}
@@ -800,22 +832,22 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
                               {values[i]}
                             </span>
                             {i < chainClaims.length - 1 && (
-                              <span className="text-gray-500">→</span>
+                              <span className="text-slate-400">→</span>
                             )}
                           </React.Fragment>
                         );
                       })}
                     </div>
-                    <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
+                    <div className="flex items-center gap-2 mt-2 text-xs text-slate-500">
                       {chainClaims.map((claim, i) => (
                         <React.Fragment key={claim.id}>
-                          <span className={claim.id === chain.current ? 'text-blue-400' : ''}>
+                          <span className={claim.id === chain.current ? 'text-blue-600' : ''}>
                             {Math.round(claim.plausibility * 100)}%
                           </span>
                           {i < chainClaims.length - 1 && <span className="w-4" />}
                         </React.Fragment>
                       ))}
-                      <span className="ml-auto text-gray-400">(plausibility)</span>
+                      <span className="ml-auto text-slate-400">(plausibility)</span>
                     </div>
                   </div>
                 );
@@ -826,9 +858,9 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
 
         {/* Active Contradictions */}
         {topology.contradictions.length > 0 && (
-          <div className="bg-gray-800/40 rounded-lg p-4 border border-gray-700">
-            <h4 className="text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
-              <span className="text-red-400">⚡</span> Contradictions (Active Tensions)
+          <div className="bg-white rounded-lg p-4 border border-slate-200 shadow-sm">
+            <h4 className="text-sm font-medium text-slate-700 mb-3 flex items-center gap-2">
+              <span className="text-red-500">⚡</span> Contradictions (Active Tensions)
             </h4>
             <div className="space-y-3">
               {topology.contradictions.slice(0, 5).map((contradiction, idx) => {
@@ -837,28 +869,28 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
                 if (!claim1 || !claim2) return null;
 
                 return (
-                  <div key={idx} className="bg-red-950/30 rounded p-3 border border-red-900/30">
+                  <div key={idx} className="bg-red-50 rounded p-3 border border-red-200">
                     <div className="flex items-start gap-3">
                       <div className="flex-1">
                         <div
-                          className="text-sm text-gray-200 cursor-pointer hover:text-white line-clamp-2"
+                          className="text-sm text-slate-700 cursor-pointer hover:text-slate-900 line-clamp-2"
                           onClick={() => setSelectedClaim(claim1)}
                         >
                           "{claim1.text.length > 80 ? claim1.text.slice(0, 80) + '...' : claim1.text}"
                         </div>
-                        <div className="text-xs text-gray-500 mt-1">
+                        <div className="text-xs text-slate-500 mt-1">
                           {Math.round(claim1.plausibility * 100)}% plausible
                         </div>
                       </div>
-                      <div className="text-red-400 text-lg font-bold px-2">vs</div>
+                      <div className="text-red-500 text-lg font-bold px-2">vs</div>
                       <div className="flex-1">
                         <div
-                          className="text-sm text-gray-200 cursor-pointer hover:text-white line-clamp-2"
+                          className="text-sm text-slate-700 cursor-pointer hover:text-slate-900 line-clamp-2"
                           onClick={() => setSelectedClaim(claim2)}
                         >
                           "{claim2.text.length > 80 ? claim2.text.slice(0, 80) + '...' : claim2.text}"
                         </div>
-                        <div className="text-xs text-gray-500 mt-1">
+                        <div className="text-xs text-slate-500 mt-1">
                           {Math.round(claim2.plausibility * 100)}% plausible
                         </div>
                       </div>
@@ -867,7 +899,7 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
                 );
               })}
               {topology.contradictions.length > 5 && (
-                <div className="text-xs text-gray-500 text-center">
+                <div className="text-xs text-slate-500 text-center">
                   +{topology.contradictions.length - 5} more contradictions
                 </div>
               )}
@@ -877,9 +909,9 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
 
         {/* Source Diversity */}
         {Object.keys(topology.source_diversity).length > 0 && (
-          <div className="bg-gray-800/40 rounded-lg p-4 border border-gray-700">
-            <h4 className="text-sm font-medium text-gray-300 mb-3 flex items-center gap-2">
-              <span className="text-purple-400">📊</span> Source Diversity
+          <div className="bg-white rounded-lg p-4 border border-slate-200 shadow-sm">
+            <h4 className="text-sm font-medium text-slate-700 mb-3 flex items-center gap-2">
+              <span className="text-purple-500">📊</span> Source Diversity
             </h4>
             <div className="space-y-2">
               {Object.entries(topology.source_diversity)
@@ -887,23 +919,23 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
                 .map(([sourceType, data]) => {
                   const maxCount = Math.max(...Object.values(topology.source_diversity).map(d => d.count));
                   const barWidth = (data.count / maxCount) * 100;
-                  const priorColor = data.avg_prior >= 0.7 ? 'text-emerald-400' :
-                                     data.avg_prior >= 0.5 ? 'text-amber-400' : 'text-red-400';
+                  const priorColor = data.avg_prior >= 0.7 ? 'text-emerald-600' :
+                                     data.avg_prior >= 0.5 ? 'text-amber-600' : 'text-red-600';
 
                   return (
                     <div key={sourceType} className="flex items-center gap-3">
-                      <div className="w-24 text-sm text-gray-400 capitalize">
+                      <div className="w-24 text-sm text-slate-600 capitalize">
                         {sourceType.replace(/_/g, ' ')}
                       </div>
                       <div className={`w-12 text-sm font-medium ${priorColor}`}>
                         {Math.round(data.avg_prior * 100)}%
                       </div>
-                      <div className="flex-1 h-5 bg-gray-900 rounded overflow-hidden relative">
+                      <div className="flex-1 h-5 bg-slate-100 rounded overflow-hidden relative">
                         <div
-                          className="h-full bg-gradient-to-r from-purple-600 to-purple-400 transition-all duration-300"
+                          className="h-full bg-gradient-to-r from-purple-500 to-purple-400 transition-all duration-300"
                           style={{ width: `${barWidth}%` }}
                         />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-300">
+                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-600">
                           {data.count} claims
                         </span>
                       </div>
@@ -911,11 +943,11 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
                   );
                 })}
             </div>
-            <div className="text-xs text-gray-500 mt-3 flex items-center gap-4">
+            <div className="text-xs text-slate-500 mt-3 flex items-center gap-4">
               <span>Prior = credibility score</span>
-              <span className="text-emerald-400">■ High (≥70%)</span>
-              <span className="text-amber-400">■ Medium (≥50%)</span>
-              <span className="text-red-400">■ Low (&lt;50%)</span>
+              <span className="text-emerald-600">■ High (≥70%)</span>
+              <span className="text-amber-600">■ Medium (≥50%)</span>
+              <span className="text-red-600">■ Low (&lt;50%)</span>
             </div>
           </div>
         )}

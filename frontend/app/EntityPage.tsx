@@ -104,7 +104,7 @@ const EntityPage: React.FC = () => {
         <div className="min-h-screen bg-gray-50">
             {/* Header */}
             <div className="bg-white border-b">
-                <div className="max-w-4xl mx-auto px-4 py-8">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                     <div className="flex items-start gap-6">
                         {/* Image */}
                         {entity.image_url ? (
@@ -172,7 +172,7 @@ const EntityPage: React.FC = () => {
             </div>
 
             {/* Stats */}
-            <div className="max-w-4xl mx-auto px-4 py-4">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
                 <div className="flex gap-4">
                     <div className="bg-white rounded-lg px-4 py-3 shadow-sm">
                         <div className="text-2xl font-bold text-gray-900">{entity.mention_count || 0}</div>
@@ -194,7 +194,7 @@ const EntityPage: React.FC = () => {
             </div>
 
             {/* Claims Section */}
-            <div className="max-w-4xl mx-auto px-4 py-6">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
                 <h2 className="text-xl font-bold text-gray-900 mb-4">
                     Related Claims
                 </h2>
@@ -232,7 +232,7 @@ const EntityPage: React.FC = () => {
 
             {/* Wikidata Link */}
             {entity.wikidata_qid && (
-                <div className="max-w-4xl mx-auto px-4 py-6">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
                     <div className="bg-blue-50 rounded-lg p-4 border border-blue-100">
                         <div className="flex items-center gap-3">
                             <span className="text-2xl">🔗</span>
