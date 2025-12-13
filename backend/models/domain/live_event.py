@@ -584,12 +584,22 @@ class LiveEvent:
         narrative, flat_narrative = await self._regenerate_and_persist_narrative(topology_context)
 
         # Calculate and update coherence
+        old_coherence = self.event.coherence or 0.0
         new_coherence = await self._calculate_coherence()
         await self.service.event_repo.update_coherence(self.event.id, new_coherence)
         self.event.coherence = new_coherence
 
+        # Bump version (major if coherence leap ≥0.1, otherwise minor)
+        new_version = await self.service.event_repo.bump_version(
+            event_id=self.event.id,
+            old_coherence=old_coherence,
+            new_coherence=new_coherence
+        )
+        self.event.version_major, self.event.version_minor = map(int, new_version.split('.'))
+
         logger.info(f"✨ Full topology complete: pattern={topology.pattern}, "
-                   f"contradictions={len(topology.contradictions)}, coherence={new_coherence:.3f}")
+                   f"contradictions={len(topology.contradictions)}, coherence={new_coherence:.3f}, "
+                   f"version={new_version}")
 
         # Generate epistemic thought summarizing topology + narrative state
         thought = await self._generate_epistemic_thought(
@@ -611,7 +621,8 @@ class LiveEvent:
                 'pattern': topology.pattern,
                 'contradictions': len(topology.contradictions),
                 'coherence': new_coherence,
-                'narrative_sections': len(narrative.sections)
+                'narrative_sections': len(narrative.sections),
+                'version': new_version
             }
         )
 
@@ -744,12 +755,20 @@ class LiveEvent:
             # Fallback: no topology context
             narrative, flat_narrative = await self._regenerate_and_persist_narrative(None)
 
+        # Bump minor version for narrative regeneration
+        new_version = await self.service.event_repo.bump_version(
+            event_id=self.event.id,
+            major=False  # Narrative-only = minor bump
+        )
+        self.event.version_major, self.event.version_minor = map(int, new_version.split('.'))
+
         return MetabolismResult(
             action_type=ActionType.REGENERATE_NARRATIVE,
             success=True,
             data={
                 'narrative_length': len(flat_narrative),
-                'sections': len(narrative.sections) if narrative else 0
+                'sections': len(narrative.sections) if narrative else 0,
+                'version': new_version
             }
         )
 

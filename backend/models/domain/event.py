@@ -194,6 +194,12 @@ class Event:
     # Metadata
     metadata: dict = field(default_factory=dict)
 
+    # Semantic versioning: major.minor
+    # - Minor bump: narrative regeneration, claim additions
+    # - Major bump: coherence leap (≥0.1 increase), pattern change, significant restructure
+    version_major: int = 0
+    version_minor: int = 1
+
     # Timestamps
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
@@ -237,6 +243,23 @@ class Event:
     def has_temporal_bounds(self) -> bool:
         """Check if event has temporal bounds"""
         return self.event_start is not None and self.event_end is not None
+
+    @property
+    def version(self) -> str:
+        """Semantic version string (major.minor)"""
+        return f"{self.version_major}.{self.version_minor}"
+
+    def bump_minor(self) -> str:
+        """Bump minor version (narrative update, claim addition). Returns new version."""
+        self.version_minor += 1
+        return self.version
+
+    def bump_major(self, reset_minor: bool = True) -> str:
+        """Bump major version (coherence leap, pattern change). Returns new version."""
+        self.version_major += 1
+        if reset_minor:
+            self.version_minor = 0
+        return self.version
 
     def update_status(self):
         """

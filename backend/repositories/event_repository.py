@@ -63,6 +63,8 @@ class EventRepository:
                 summary: $summary,
                 location: $location,
                 coherence: $coherence,
+                version_major: $version_major,
+                version_minor: $version_minor,
                 created_at: datetime(),
                 updated_at: datetime()
             })
@@ -77,7 +79,9 @@ class EventRepository:
             'event_end': event.event_end,
             'summary': event.summary,
             'location': event.location,
-            'coherence': event.coherence
+            'coherence': event.coherence,
+            'version_major': event.version_major,
+            'version_minor': event.version_minor
         })
 
         # Store ONLY embedding in PostgreSQL (for vector similarity)
@@ -119,6 +123,8 @@ class EventRepository:
                 e.coherence = $coherence,
                 e.summary = $summary,
                 e.location = $location,
+                e.version_major = $version_major,
+                e.version_minor = $version_minor,
                 e.updated_at = datetime()
         """, {
             'event_id': str(event.id),
@@ -131,7 +137,9 @@ class EventRepository:
             'event_end': event.event_end,
             'coherence': event.coherence,
             'summary': event.summary,
-            'location': event.location
+            'location': event.location,
+            'version_major': event.version_major,
+            'version_minor': event.version_minor
         })
 
         # Update embedding in PostgreSQL
@@ -146,6 +154,63 @@ class EventRepository:
 
         logger.debug(f"📊 Updated event: {event.canonical_name}")
         return event
+
+    async def bump_version(
+        self,
+        event_id: str,
+        major: bool = False,
+        old_coherence: float = None,
+        new_coherence: float = None
+    ) -> str:
+        """
+        Bump event version and return new version string.
+
+        Versioning rules:
+        - Minor bump: narrative regeneration, claim additions
+        - Major bump: coherence leap (≥0.1 increase), pattern change
+
+        Args:
+            event_id: Event ID
+            major: Force major bump
+            old_coherence: Previous coherence (for auto-detecting major bump)
+            new_coherence: New coherence (for auto-detecting major bump)
+
+        Returns:
+            New version string (e.g., "1.3")
+        """
+        # Auto-detect major bump from coherence leap
+        if not major and old_coherence is not None and new_coherence is not None:
+            coherence_delta = new_coherence - old_coherence
+            if coherence_delta >= 0.1:
+                major = True
+                logger.info(f"📈 Coherence leap detected: {old_coherence:.2f} → {new_coherence:.2f} (+{coherence_delta:.2f})")
+
+        if major:
+            result = await self.neo4j._execute_write("""
+                MATCH (e:Event {id: $event_id})
+                SET e.version_major = COALESCE(e.version_major, 0) + 1,
+                    e.version_minor = 0,
+                    e.updated_at = datetime()
+                RETURN e.version_major as major, e.version_minor as minor
+            """, {'event_id': event_id})
+        else:
+            result = await self.neo4j._execute_write("""
+                MATCH (e:Event {id: $event_id})
+                SET e.version_major = COALESCE(e.version_major, 0),
+                    e.version_minor = COALESCE(e.version_minor, 0) + 1,
+                    e.updated_at = datetime()
+                RETURN e.version_major as major, e.version_minor as minor
+            """, {'event_id': event_id})
+
+        if result:
+            major_v = result['major'] if result['major'] is not None else 0
+            minor_v = result['minor'] if result['minor'] is not None else 1
+            version = f"{major_v}.{minor_v}"
+            bump_type = "MAJOR" if major else "minor"
+            logger.info(f"🏷️ Event {event_id} version bump ({bump_type}): {version}")
+            return version
+
+        return "0.1"
 
     async def get_by_id(self, event_id: str) -> Optional[Event]:
         """
@@ -223,7 +288,9 @@ class EventRepository:
             summary=node.get('summary'),
             narrative=structured_narrative,
             location=node.get('location'),
-            coherence=node.get('coherence', 0.3)
+            coherence=node.get('coherence', 0.3),
+            version_major=node.get('version_major', 0),
+            version_minor=node.get('version_minor', 1)
         )
 
     async def get_sub_events(self, parent_id: str) -> List[Event]:
