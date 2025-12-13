@@ -128,14 +128,14 @@ class EventService:
                 logger.debug(f"  ✓ MERGE: {claim.text[:50]}...")
                 await self._merge_duplicate(event, claim, existing_claims)
                 # Link claim to event in Neo4j graph (via repository)
-                await self.event_repo.link_claim(event, claim, relationship_type="SUPPORTS")
+                await self.event_repo.link_claim(event, claim, relationship_type="INTAKES")
                 claims_added.append(claim)
 
             elif decision == ClaimDecision.ADD:
                 # Novel but fits this event's topic
                 logger.debug(f"  ✓ ADD: {claim.text[:50]}...")
                 # Link claim to event in Neo4j graph (via repository)
-                await self.event_repo.link_claim(event, claim, relationship_type="SUPPORTS")
+                await self.event_repo.link_claim(event, claim, relationship_type="INTAKES")
                 claims_added.append(claim)
 
             elif decision == ClaimDecision.DELEGATE:
@@ -443,7 +443,7 @@ class EventService:
 
         # Link all source claims to this event
         for claim in claims:
-            await self.event_repo.link_claim(created_event, claim, relationship_type="SUPPORTS")
+            await self.event_repo.link_claim(created_event, claim, relationship_type="INTAKES")
         logger.info(f"🔗 Linked {len(claims)} claims to root event")
 
         # Build graph structure: Event -> Entity relationships
@@ -495,7 +495,7 @@ class EventService:
                     logger.info(f"🔀 Merging {len(claims)} claims into existing sub-event '{best_match.canonical_name}' (similarity={best_similarity:.2f})")
                     # Add claims to existing sub-event instead of creating new one
                     for claim in claims:
-                        await self.event_repo.link_claim(best_match, claim, relationship_type="SUPPORTS")
+                        await self.event_repo.link_claim(best_match, claim, relationship_type="INTAKES")
                     # Update metrics
                     existing_claims = await self.event_repo.get_event_claims(best_match.id)
                     await self._update_event_metrics(best_match, existing_claims)
@@ -553,7 +553,7 @@ class EventService:
 
         # Link all source claims to this sub-event
         for claim in claims:
-            await self.event_repo.link_claim(created_sub_event, claim, relationship_type="SUPPORTS")
+            await self.event_repo.link_claim(created_sub_event, claim, relationship_type="INTAKES")
         logger.info(f"🔗 Linked {len(claims)} claims to sub-event")
 
         # Build graph structure: Event -> Entity relationships

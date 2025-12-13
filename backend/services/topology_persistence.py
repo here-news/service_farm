@@ -3,7 +3,7 @@ TopologyPersistence - Persistent storage for claim topology graph
 
 Stores and retrieves the epistemic topology for events:
 - Claim-to-claim relationships (CORROBORATES, CONTRADICTS, UPDATES)
-- Plausibility scores (on SUPPORTS edges)
+- Plausibility scores (on INTAKES edges)
 - Topology metadata (pattern, consensus_date, coherence, temperature)
 - Update chains (metric progressions)
 
@@ -74,7 +74,7 @@ class TopologyPersistence:
     The topology is stored as:
     - Claim-to-Claim edges: CORROBORATES, CONTRADICTS, UPDATES
     - Event node properties: topology_* fields
-    - SUPPORTS edge properties: plausibility, prior, is_superseded
+    - INTAKES edge properties: plausibility, prior, is_superseded
     """
 
     def __init__(self, neo4j_service: Neo4jService):
@@ -110,7 +110,7 @@ class TopologyPersistence:
             source_diversity=source_diversity
         )
 
-        # 2. Store plausibilities on SUPPORTS edges
+        # 2. Store plausibilities on INTAKES edges
         for claim_id, result in topology_result.claim_plausibilities.items():
             is_superseded = claim_id in topology_result.superseded_by
             await self._store_claim_plausibility(
@@ -174,7 +174,7 @@ class TopologyPersistence:
         corroboration_count: int,
         contradiction_count: int
     ) -> None:
-        """Store plausibility data on SUPPORTS edge."""
+        """Store plausibility data on INTAKES edge."""
         await self.neo4j._execute_write("""
             MATCH (e:Event {id: $event_id})-[s:INTAKES]->(c:Claim {id: $claim_id})
             SET s.plausibility = $plausibility,

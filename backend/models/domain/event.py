@@ -164,7 +164,7 @@ class Event:
     # Recursive structure
     parent_event_id: Optional[str] = None  # Short ID: ev_xxxxxxxx
 
-    # NOTE: Claims are linked via Neo4j graph relationships (Event-[SUPPORTS]->Claim)
+    # NOTE: Claims are linked via Neo4j graph relationships (Event-[INTAKES]->Claim)
     # Use EventRepository.get_event_claims() to fetch claims for an event
 
     # Quality metrics

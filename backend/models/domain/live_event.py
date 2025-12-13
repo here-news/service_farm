@@ -1036,7 +1036,7 @@ Your question:"""
         # Also load page URLs as fallback for claims without stored priors
         self.page_urls = await claim_repo.get_page_urls_for_claims(claim_ids)
 
-        # Load cached plausibilities from Neo4j (stored on SUPPORTS relationship)
+        # Load cached plausibilities from Neo4j (stored on INTAKES relationship)
         await self._hydrate_plausibilities(claim_repo)
 
         # Set last claim time (convert Neo4j DateTime to Python datetime)
@@ -1065,7 +1065,7 @@ Your question:"""
         """
         Load cached plausibility scores and topology from Neo4j.
 
-        Plausibilities are stored on SUPPORTS relationships during topology analysis.
+        Plausibilities are stored on INTAKES relationships during topology analysis.
         Topology metadata is stored on Event node.
         Loading them avoids re-running expensive topology on every hydrate.
         """
@@ -1142,7 +1142,7 @@ Your question:"""
 
         Stores:
         - Claim-to-claim edges (CORROBORATES, CONTRADICTS, UPDATES)
-        - Plausibility scores on SUPPORTS edges
+        - Plausibility scores on INTAKES edges
         - Topology metadata on Event node (pattern, consensus_date, etc.)
         """
         if not topology.claim_plausibilities:
@@ -1191,7 +1191,7 @@ Your question:"""
 
     async def _update_claim_plausibilities_legacy(self, topology):
         """
-        Legacy: Update plausibility scores on SUPPORTS relationships in graph.
+        Legacy: Update plausibility scores on INTAKES relationships in graph.
         """
         if not topology.claim_plausibilities:
             return

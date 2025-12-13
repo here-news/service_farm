@@ -834,12 +834,12 @@ class Neo4jService:
         self,
         event_id: str,
         claim_id: str,
-        relationship_type: str = "SUPPORTS"  # SUPPORTS, CONTRADICTS, UPDATES
+        relationship_type: str = "INTAKES"  # Event->Claim uses INTAKES only
     ):
         """
         Link Claim to Event with specified relationship type
 
-        Creates direct graph relationship: Event-[SUPPORTS]->Claim
+        Creates direct graph relationship: Event-[INTAKES]->Claim
         This makes it easy to query all claims for an event via Cypher
         """
         query = f"""

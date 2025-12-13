@@ -419,14 +419,14 @@ class EventRepository:
             logger.warning(f"Failed to parse embedding: {e}")
         return None
 
-    async def link_claim(self, event: Event, claim, relationship_type: str = "SUPPORTS") -> None:
+    async def link_claim(self, event: Event, claim, relationship_type: str = "INTAKES") -> None:
         """
         Link a claim to an event in Neo4j knowledge graph
 
         Args:
             event: Event domain model
             claim: Claim domain model
-            relationship_type: Type of relationship (SUPPORTS, CONTRADICTS, UPDATES)
+            relationship_type: Type of relationship (INTAKES only for Event->Claim)
 
         This creates:
         1. Claim node in Neo4j (if not exists)
@@ -484,7 +484,7 @@ class EventRepository:
         # Fetch all claim data from Neo4j (primary storage)
         # Join with Page via CONTAINS relationship to get page_id
         result = await self.neo4j._execute_read("""
-            MATCH (e:Event {id: $event_id})-[r:INTAKES|CONTRADICTS|UPDATES]->(c:Claim)
+            MATCH (e:Event {id: $event_id})-[r:INTAKES]->(c:Claim)
             OPTIONAL MATCH (p:Page)-[:EMITS]->(c)
             RETURN c.id as id,
                    COALESCE(c.page_id, p.id) as page_id,
@@ -542,7 +542,7 @@ class EventRepository:
 
         # Step 1: Get claim IDs from Neo4j graph
         neo4j_result = await self.neo4j._execute_read("""
-            MATCH (e:Event {id: $event_id})-[r:INTAKES|CONTRADICTS|UPDATES]->(c:Claim)
+            MATCH (e:Event {id: $event_id})-[r:INTAKES]->(c:Claim)
             RETURN c.id as claim_id, type(r) as relationship
         """, {'event_id': event_id})
 
@@ -631,7 +631,7 @@ class EventRepository:
         plausibility: float
     ) -> None:
         """
-        Update plausibility score on SUPPORTS relationship between event and claim.
+        Update plausibility score on INTAKES relationship between event and claim.
 
         This stores Bayesian posterior as a property on the relationship,
         allowing queries like "get high-plausibility claims for event".
@@ -1003,7 +1003,7 @@ class EventRepository:
         """
         Get page thumbnails for an event (for homepage display).
 
-        Finds pages via Event-[SUPPORTS]->Claim<-[CONTAINS]-Page path in Neo4j,
+        Finds pages via Event-[INTAKES]->Claim<-[EMITS]-Page path in Neo4j,
         then fetches thumbnail URLs from PostgreSQL (where they're stored).
 
         Args:
