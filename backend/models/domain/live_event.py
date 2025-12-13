@@ -252,6 +252,8 @@ class LiveEvent:
         - /rethink: Regenerate just the thought (no topology recompute)
         - /status: Return current event status
         - /rehydrate: Reload claims from storage
+        - /evaluate_affinity: Compute affinity scores for all claims
+        - /prune: Remove low-affinity claims from event
 
         Returns:
             MetabolismResult with action taken and command result
@@ -270,6 +272,8 @@ class LiveEvent:
             'rethink': ActionType.EMIT_THOUGHT,  # Just regenerate thought
             'status': ActionType.NO_OP,  # Status is handled specially
             'rehydrate': ActionType.NO_OP,  # Rehydrate is handled specially
+            'evaluate_affinity': ActionType.EVALUATE_AFFINITY,
+            'prune': ActionType.PRUNE_CLAIMS,
         }
 
         if cmd not in command_actions:
@@ -501,6 +505,8 @@ class LiveEvent:
             ActionType.REGENERATE_NARRATIVE: self._exec_regenerate_narrative,
             ActionType.EMIT_THOUGHT: self._exec_emit_thought,
             ActionType.HIBERNATE: self._exec_hibernate,
+            ActionType.EVALUATE_AFFINITY: self._exec_evaluate_affinity,
+            ActionType.PRUNE_CLAIMS: self._exec_prune_claims,
         }
 
         executor = executors.get(action.type)
@@ -835,6 +841,306 @@ class LiveEvent:
                 'idle_seconds': self.idle_time_seconds(),
                 'reason': action.reason
             }
+        )
+
+    async def _exec_evaluate_affinity(self, action: MetabolismAction, context: dict) -> MetabolismResult:
+        """
+        Execute EVALUATE_AFFINITY action.
+
+        Computes affinity score for each claim based on:
+        1. Entity overlap with event's core entities
+        2. Semantic similarity to event embedding
+        3. Topology integration (corroborations - contradictions)
+        4. Narrative inclusion (is claim referenced?)
+
+        Stores affinity on INTAKES relationship for later pruning decisions.
+        """
+        logger.info(f"🔍 Evaluating claim affinity for: {self.event.canonical_name}")
+
+        if not self.claims:
+            return MetabolismResult(
+                action_type=ActionType.EVALUATE_AFFINITY,
+                success=True,
+                data={'evaluated': 0, 'low_affinity': []}
+            )
+
+        # Semantic similarity is the PRIMARY signal for affinity (topical relevance)
+        # Plausibility measures corroboration, not relevance - isolated claims can still belong
+        # Without embeddings, we can't meaningfully determine affinity
+        claims_with_embeddings = [c for c in self.claims if c.embedding]
+        claims_needing_embeddings = [c for c in self.claims if not c.embedding and c.text]
+
+        if claims_needing_embeddings:
+            # Generate embeddings - required for meaningful affinity evaluation
+            # This is the key discriminator between "Epstein photos" and "Venezuela oil"
+            logger.info(f"  📊 Generating embeddings for {len(claims_needing_embeddings)} claims (required for affinity)...")
+            await self.service._generate_claim_embeddings(claims_needing_embeddings)
+
+        # Get core entities (top by mention count across claims)
+        core_entities = self._get_core_entity_ids(top_n=5)
+
+        # Extract claim IDs referenced in narrative
+        narrative_claim_ids = self._extract_narrative_claim_ids()
+
+        # Get topology data for each claim from cached topology result
+        plausibilities = {}
+        corroboration_counts = {}
+        contradiction_counts = {}
+        if self._topology_result and hasattr(self._topology_result, 'claim_plausibilities'):
+            for cid, result in self._topology_result.claim_plausibilities.items():
+                plausibilities[cid] = result.posterior
+                corroboration_counts[cid] = len(result.evidence_for)
+                contradiction_counts[cid] = len(result.evidence_against)
+            logger.info(f"  📊 Using cached topology: {len(plausibilities)} claim plausibilities")
+        else:
+            logger.info(f"  ⚠️ No cached topology - using default plausibility (0.5)")
+
+        low_affinity_claims = []
+        evaluated = 0
+
+        for claim in self.claims:
+            affinity, breakdown = self._compute_claim_affinity(
+                claim,
+                core_entities,
+                narrative_claim_ids,
+                plausibilities.get(claim.id, 0.5),
+                corroboration_counts.get(claim.id, 0),
+                contradiction_counts.get(claim.id, 0),
+                return_breakdown=True
+            )
+
+            # Store on relationship
+            await self.service.event_repo.update_claim_affinity(
+                self.event.id, claim.id, affinity
+            )
+            evaluated += 1
+
+            # Log all claims with breakdown for analysis
+            logger.debug(f"  📊 {affinity:.3f} [sem={breakdown['semantic']:.2f} topo={breakdown['topology']:.2f} narr={breakdown['narrative']:.2f} ent={breakdown['entity']:.2f}]: {claim.text[:50]}...")
+
+            # Track min/max for summary
+            if not hasattr(self, '_affinity_stats'):
+                self._affinity_stats = {'min': affinity, 'max': affinity, 'min_claim': claim.text[:50], 'max_claim': claim.text[:50]}
+            if affinity < self._affinity_stats['min']:
+                self._affinity_stats['min'] = affinity
+                self._affinity_stats['min_claim'] = claim.text[:50]
+            if affinity > self._affinity_stats['max']:
+                self._affinity_stats['max'] = affinity
+                self._affinity_stats['max_claim'] = claim.text[:50]
+
+            # Flag claims below threshold for potential pruning
+            # With semantic embeddings as primary signal (0.50 weight):
+            # - Unrelated claims: ~0.15-0.20 (low semantic, low plausibility)
+            # - Tangential claims: ~0.30-0.50 (moderate semantic, varies)
+            # - Core event claims: ~0.60-0.80+ (high semantic, in narrative)
+            if affinity < self.AFFINITY_THRESHOLD:
+                low_affinity_claims.append({
+                    'claim_id': claim.id,
+                    'affinity': affinity,
+                    'text': claim.text[:80],
+                    'breakdown': breakdown
+                })
+                logger.info(f"  ⚠️ Low affinity ({affinity:.3f}): {claim.text[:50]}...")
+                logger.info(f"      Breakdown: sem={breakdown['semantic']:.2f}, topo={breakdown['topology']:.2f}, narr={breakdown['narrative']:.2f}, ent={breakdown['entity']:.2f}")
+
+        # Log affinity distribution summary
+        if hasattr(self, '_affinity_stats'):
+            stats = self._affinity_stats
+            logger.info(f"  📈 Affinity range: {stats['min']:.3f} - {stats['max']:.3f}")
+            logger.info(f"      Min: {stats['min_claim']}...")
+            logger.info(f"      Max: {stats['max_claim']}...")
+            del self._affinity_stats
+
+        logger.info(f"✅ Evaluated {evaluated} claims, {len(low_affinity_claims)} below threshold")
+
+        return MetabolismResult(
+            action_type=ActionType.EVALUATE_AFFINITY,
+            success=True,
+            data={
+                'evaluated': evaluated,
+                'low_affinity': low_affinity_claims
+            }
+        )
+
+    def _compute_claim_affinity(
+        self,
+        claim: Claim,
+        core_entities: Set[str],
+        narrative_claim_ids: Set[str],
+        plausibility: float,
+        corroboration_count: int,
+        contradiction_count: int,
+        return_breakdown: bool = False
+    ):
+        """
+        Compute how well a claim belongs to this event.
+
+        Returns affinity score 0.0-1.0 where:
+        - 1.0 = strongly belongs
+        - 0.0 = doesn't belong at all
+
+        Key insight: At claim level, entity overlap is WEAK signal.
+        Claims are granular - one claim mentions "Coast Guard", another "Venezuela".
+        Both belong to same event but share no entities.
+
+        Signals (rebalanced):
+        - semantic: Similarity to event embedding (0.50 weight) - PRIMARY
+        - topology: Corroborations vs contradictions (0.25 weight)
+        - narrative: Referenced in narrative (0.15 weight)
+        - entity: Overlap with core entities (0.10 weight) - WEAK at claim level
+        """
+        scores = {}
+
+        # Signal 1: Semantic similarity to event embedding - PRIMARY SIGNAL
+        if hasattr(claim, 'embedding') and claim.embedding and self.event.embedding:
+            import numpy as np
+            claim_emb = np.array(claim.embedding)
+            event_emb = np.array(self.event.embedding)
+            dot = np.dot(claim_emb, event_emb)
+            norm = np.linalg.norm(claim_emb) * np.linalg.norm(event_emb)
+            if norm > 0:
+                scores['semantic'] = max(0.0, float(dot / norm))
+            else:
+                scores['semantic'] = 0.0
+        else:
+            # No embedding - can't verify semantic similarity
+            # This is suspicious: primary signal is unknown
+            # Give low score to flag for review
+            scores['semantic'] = 0.0
+
+        # Signal 2: Topology integration - SECONDARY signal
+        # Plausibility measures corroboration (epistemic reliability), NOT relevance
+        # An isolated claim can still belong to the event - it's just not corroborated
+        # Use plausibility but don't over-weight it for affinity decisions
+        # Key insight: isolated (plaus ~0.5) is neutral, not negative
+        scores['topology'] = plausibility
+
+        # Signal 3: Narrative inclusion
+        scores['narrative'] = 1.0 if claim.id in narrative_claim_ids else 0.0
+
+        # Signal 4: Entity overlap - weak at claim level
+        if core_entities and claim.entity_ids:
+            claim_entities = set(claim.entity_ids)
+            overlap = len(claim_entities & core_entities)
+            scores['entity'] = min(1.0, overlap / 2)
+        else:
+            scores['entity'] = 0.0
+
+        # Weighted sum - semantic is primary
+        affinity = (
+            0.50 * scores['semantic'] +
+            0.25 * scores['topology'] +
+            0.15 * scores['narrative'] +
+            0.10 * scores['entity']
+        )
+
+        if return_breakdown:
+            return affinity, scores
+        return affinity
+
+    def _get_core_entity_ids(self, top_n: int = 5) -> Set[str]:
+        """Get the most-mentioned entity IDs across claims."""
+        from collections import Counter
+        entity_counts = Counter()
+        for claim in self.claims:
+            if claim.entity_ids:
+                entity_counts.update(claim.entity_ids)
+
+        # Return top N entities
+        top_entities = [eid for eid, _ in entity_counts.most_common(top_n)]
+        return set(top_entities)
+
+    def _extract_narrative_claim_ids(self) -> Set[str]:
+        """Extract claim IDs referenced in the narrative."""
+        import re
+        claim_ids = set()
+
+        if not self.event.narrative:
+            return claim_ids
+
+        # Check structured narrative sections
+        if hasattr(self.event.narrative, 'sections'):
+            for section in self.event.narrative.sections:
+                if hasattr(section, 'claim_ids') and section.claim_ids:
+                    claim_ids.update(section.claim_ids)
+                # Also parse from content text
+                if hasattr(section, 'content'):
+                    matches = re.findall(r'\[cl_[a-z0-9]+\]', section.content)
+                    for m in matches:
+                        claim_ids.add(m[1:-1])  # Remove brackets
+
+        # Also check summary text
+        if self.event.summary:
+            matches = re.findall(r'\[cl_[a-z0-9]+\]', self.event.summary)
+            for m in matches:
+                claim_ids.add(m[1:-1])
+
+        return claim_ids
+
+    # Affinity threshold for flagging/pruning claims
+    AFFINITY_THRESHOLD = 0.20
+
+    async def _exec_prune_claims(self, action: MetabolismAction, context: dict) -> MetabolismResult:
+        """
+        Execute PRUNE_CLAIMS action.
+
+        Removes claims below affinity threshold from the event.
+        Claims are not deleted - just disconnected from this event.
+        They can be re-absorbed by other events.
+        """
+        threshold = action.params.get('threshold', self.AFFINITY_THRESHOLD)
+
+        logger.info(f"✂️ Pruning low-affinity claims from: {self.event.canonical_name}")
+
+        # Get claims below threshold
+        low_affinity = await self.service.event_repo.get_low_affinity_claims(
+            self.event.id, threshold
+        )
+
+        if not low_affinity:
+            logger.info("  No claims below threshold")
+            return MetabolismResult(
+                action_type=ActionType.PRUNE_CLAIMS,
+                success=True,
+                data={'pruned': 0, 'claims': []}
+            )
+
+        # Extract claim IDs
+        claim_ids_to_prune = [c['claim_id'] for c in low_affinity]
+
+        # Batch prune
+        pruned = await self.service.event_repo.prune_claims_batch(
+            self.event.id, claim_ids_to_prune
+        )
+
+        # Update local state
+        self.claims = [c for c in self.claims if c.id not in claim_ids_to_prune]
+
+        # Log what was pruned
+        for c in low_affinity:
+            logger.info(f"  🗑️ Pruned ({c['affinity']:.3f}): {c['text'][:50]}...")
+
+        return MetabolismResult(
+            action_type=ActionType.PRUNE_CLAIMS,
+            success=True,
+            data={
+                'pruned': pruned,
+                'claims': low_affinity
+            }
+        )
+
+    def _is_affluent_idling(self) -> bool:
+        """
+        Check if event is in "affluent idling" state.
+
+        Affluent idling = has resources (claims, stability) but is idle.
+        Good time for housekeeping like affinity evaluation.
+        """
+        return (
+            self.idle_time_seconds() > 3600 * 6 and  # Idle 6+ hours
+            len(self.claims) >= 5 and                 # Has meaningful content
+            self._metabolism_state.coherence > 0.6 and  # Stable
+            not self._metabolism_state.is_hibernating
         )
 
     # ==================== Thought Generation ====================

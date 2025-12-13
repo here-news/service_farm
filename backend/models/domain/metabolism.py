@@ -27,6 +27,8 @@ class ActionType(str, Enum):
     EMIT_THOUGHT = "emit_thought"            # Surface an epistemic observation
     HIBERNATE = "hibernate"                  # Enter dormant state
     SPAWN_SUB_EVENT = "spawn_sub_event"      # Create child event for divergent facet
+    EVALUATE_AFFINITY = "evaluate_affinity"  # Re-score claims for belonging
+    PRUNE_CLAIMS = "prune_claims"            # Remove low-affinity claims
 
 
 class TriggerType(str, Enum):
@@ -77,6 +79,8 @@ class MetabolismAction:
                 ActionType.REGENERATE_NARRATIVE: 70,
                 ActionType.EMIT_THOUGHT: 60,
                 ActionType.SPAWN_SUB_EVENT: 50,
+                ActionType.EVALUATE_AFFINITY: 40,  # Low priority - only during affluent idling
+                ActionType.PRUNE_CLAIMS: 45,       # Slightly higher than evaluate (act on results)
                 ActionType.NO_OP: 0,
             }
             self.priority = priority_map.get(self.type, 0)

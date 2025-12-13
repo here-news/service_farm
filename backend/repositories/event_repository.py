@@ -707,6 +707,131 @@ class EventRepository:
 
         return plausibilities
 
+    async def update_claim_affinity(
+        self,
+        event_id: str,
+        claim_id: str,
+        affinity: float
+    ) -> None:
+        """
+        Update affinity score on INTAKES relationship between event and claim.
+
+        Affinity measures how well a claim belongs to this event based on:
+        - Entity overlap with event's core entities
+        - Semantic similarity to event embedding
+        - Topology integration (corroborations vs contradictions)
+        - Narrative inclusion
+
+        Args:
+            event_id: Event ID
+            claim_id: Claim ID
+            affinity: Affinity score (0.0-1.0)
+        """
+        await self.neo4j._execute_write("""
+            MATCH (e:Event {id: $event_id})-[r:INTAKES]->(c:Claim {id: $claim_id})
+            SET r.affinity = $affinity,
+                r.affinity_updated = datetime()
+        """, {
+            'event_id': event_id,
+            'claim_id': claim_id,
+            'affinity': affinity
+        })
+
+    async def get_low_affinity_claims(
+        self,
+        event_id: str,
+        threshold: float = 0.15
+    ) -> List[Dict]:
+        """
+        Get claims with affinity below threshold.
+
+        Returns claims that may not belong to this event.
+
+        Args:
+            event_id: Event ID
+            threshold: Affinity threshold (default 0.15)
+
+        Returns:
+            List of dicts with claim_id, affinity, text
+        """
+        result = await self.neo4j._execute_read("""
+            MATCH (e:Event {id: $event_id})-[r:INTAKES]->(c:Claim)
+            WHERE r.affinity IS NOT NULL AND r.affinity < $threshold
+            RETURN c.id as claim_id, r.affinity as affinity, c.text as text
+            ORDER BY r.affinity ASC
+        """, {
+            'event_id': event_id,
+            'threshold': threshold
+        })
+
+        return [dict(row) for row in result]
+
+    async def prune_claim(
+        self,
+        event_id: str,
+        claim_id: str
+    ) -> bool:
+        """
+        Remove INTAKES relationship between event and claim.
+
+        The claim becomes orphaned from this event but:
+        - Page-[:EMITS]->Claim relationship remains
+        - Claim-[:CORROBORATES|CONTRADICTS|UPDATES]->Claim relationships remain
+        - Claim can be re-absorbed by another event
+
+        Args:
+            event_id: Event ID
+            claim_id: Claim ID to prune
+
+        Returns:
+            True if relationship was deleted, False if not found
+        """
+        result = await self.neo4j._execute_write("""
+            MATCH (e:Event {id: $event_id})-[r:INTAKES]->(c:Claim {id: $claim_id})
+            DELETE r
+            RETURN count(r) as deleted
+        """, {
+            'event_id': event_id,
+            'claim_id': claim_id
+        })
+
+        deleted = result[0]['deleted'] if result else 0
+        logger.info(f"🗑️ Pruned claim {claim_id} from event {event_id}: {'success' if deleted else 'not found'}")
+        return deleted > 0
+
+    async def prune_claims_batch(
+        self,
+        event_id: str,
+        claim_ids: List[str]
+    ) -> int:
+        """
+        Remove multiple INTAKES relationships in one operation.
+
+        Args:
+            event_id: Event ID
+            claim_ids: List of claim IDs to prune
+
+        Returns:
+            Number of relationships deleted
+        """
+        if not claim_ids:
+            return 0
+
+        result = await self.neo4j._execute_write("""
+            MATCH (e:Event {id: $event_id})-[r:INTAKES]->(c:Claim)
+            WHERE c.id IN $claim_ids
+            DELETE r
+            RETURN count(r) as deleted
+        """, {
+            'event_id': event_id,
+            'claim_ids': claim_ids
+        })
+
+        # _execute_write returns single record (dict), not list
+        deleted = result['deleted'] if result else 0
+        logger.info(f"🗑️ Batch pruned {deleted} claims from event {event_id}")
+        return deleted
+
     async def list_root_events(
         self,
         status: Optional[str] = None,
