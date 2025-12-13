@@ -1,5 +1,6 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useContext } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { ParagraphVisibilityContext } from './EventNarrativeContent'
 
 export interface ClaimSource {
   page_id: string
@@ -54,6 +55,9 @@ function EventClaimLink({
   const [claimData, setClaimData] = useState<EventClaimData | null>(preloadedClaim || null)
   const [loading, setLoading] = useState(false)
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Get visibility from parent paragraph context
+  const isInView = useContext(ParagraphVisibilityContext)
 
   // Find claim in eventClaims on mount
   React.useEffect(() => {
@@ -145,6 +149,7 @@ function EventClaimLink({
 
 
   // Display as a subtle but visible citation dot
+  // Only shows when paragraph scrolls into view
   // Hover: shows popup with claim preview
   // Click: navigates to /page/{pg_id}/#cl_id
   return (
@@ -159,15 +164,16 @@ function EventClaimLink({
         style={{
           cursor: 'pointer',
           display: 'inline-block',
-          width: '8px',
-          height: '8px',
+          width: isInView ? '8px' : '0px',
+          height: isInView ? '8px' : '0px',
           borderRadius: '50%',
           backgroundColor: showPopup ? '#4f46e5' : '#818cf8',
-          marginLeft: '2px',
-          marginRight: '1px',
+          marginLeft: isInView ? '2px' : '0px',
+          marginRight: isInView ? '1px' : '0px',
           verticalAlign: 'super',
-          transition: 'all 0.15s',
-          boxShadow: showPopup ? '0 0 0 3px rgba(99, 102, 241, 0.3)' : 'none'
+          transition: 'all 0.25s ease-out',
+          boxShadow: showPopup ? '0 0 0 3px rgba(99, 102, 241, 0.3)' : 'none',
+          opacity: isInView ? 1 : 0,
         }}
         className="hover:bg-indigo-600 hover:scale-125"
         title="Click to view source"

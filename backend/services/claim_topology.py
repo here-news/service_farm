@@ -247,10 +247,13 @@ For "updates": Also specify which claim is newer (A or B).
 - If numbers INCREASE over time (e.g., "5 dead" → "36 dead"), this is an UPDATE where the higher number is newer.
 - In disasters, casualty counts typically increase as more victims are found.
 
+For "contradicts": Include a brief "note" (max 100 chars) explaining WHY they conflict.
+
 {chr(10).join(pairs_text)}
 
 Return JSON: {{"results": [{{"pair": 1, "relation": "updates", "newer": "B"}}]}}
-For non-update relations, omit "newer"."""
+For contradicts: {{"pair": 2, "relation": "contradicts", "note": "A says 5 dead, B says 3 dead at same time"}}
+For non-update/non-contradicts relations, omit "newer" and "note"."""
 
         try:
             response = await self.openai.chat.completions.create(
@@ -271,6 +274,7 @@ For non-update relations, omit "newer"."""
                     c1, c2, _ = pairs[idx]
                     relation = item.get('relation', 'complements')
                     newer = item.get('newer')  # 'A' or 'B' for updates
+                    note = item.get('note')  # Explanation for contradicts
 
                     # For updates, store as tuple: (relation, newer_claim_id, older_claim_id)
                     if relation == 'updates' and newer:
@@ -278,6 +282,10 @@ For non-update relations, omit "newer"."""
                             results[(c1.id, c2.id)] = ('updates', c1.id, c2.id)  # c1 is newer
                         else:
                             results[(c1.id, c2.id)] = ('updates', c2.id, c1.id)  # c2 is newer
+                    # For contradicts, store as tuple with note: (relation, note)
+                    elif relation == 'contradicts':
+                        key = tuple(sorted([c1.id, c2.id]))
+                        results[key] = ('contradicts', note) if note else 'contradicts'
                     else:
                         key = tuple(sorted([c1.id, c2.id]))
                         results[key] = relation
@@ -532,9 +540,14 @@ For non-update relations, omit "newer"."""
                 if pair not in seen:
                     seen.add(pair)
                     key = tuple(sorted([cid, contra_id]))
-                    if relations.get(key) == 'contradicts':
+                    rel = relations.get(key)
+                    # Check for contradicts (either string or tuple with note)
+                    is_contradiction = rel == 'contradicts' or (isinstance(rel, tuple) and rel[0] == 'contradicts')
+                    if is_contradiction:
                         c1 = next(c for c in claims if c.id == cid)
                         c2 = next(c for c in claims if c.id == contra_id)
+                        # Extract note if present
+                        note = rel[1] if isinstance(rel, tuple) and len(rel) > 1 else None
                         contradictions.append({
                             'claim1_id': cid,
                             'claim2_id': contra_id,
@@ -542,6 +555,7 @@ For non-update relations, omit "newer"."""
                             'text2': c2.text[:100],
                             'posterior1': results[cid].posterior,
                             'posterior2': results[contra_id].posterior,
+                            'note': note,
                         })
 
         # Determine pattern

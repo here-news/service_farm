@@ -1,6 +1,10 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, createContext, useContext } from 'react'
 import EventEntityLink, { EventEntityData } from './EventEntityLink'
 import EventClaimLink, { EventClaimData } from './EventClaimLink'
+import { useInView } from '../../hooks/useInView'
+
+// Context to pass visibility state to child components
+export const ParagraphVisibilityContext = createContext<boolean>(true)
 
 interface Entity {
   id: string
@@ -36,6 +40,31 @@ interface ParsedPart {
 
 // Track which entities have been mentioned
 const mentionedEntities = new Set<string>()
+
+// Wrapper component for paragraphs with scroll-based visibility
+interface VisibilityWrapperProps {
+  children: React.ReactNode
+  className?: string
+  as?: 'p' | 'h2' | 'h3' | 'li' | 'ul'
+}
+
+function VisibilityWrapper({ children, className, as: Component = 'p' }: VisibilityWrapperProps) {
+  // Reveal when element passes middle of screen, stay revealed permanently
+  const [ref, isRevealed] = useInView<HTMLElement>({
+    triggerOnce: true, // Once revealed, stays revealed
+  })
+
+  return (
+    <ParagraphVisibilityContext.Provider value={isRevealed}>
+      <Component
+        ref={ref as React.RefObject<any>}
+        className={className}
+      >
+        {children}
+      </Component>
+    </ParagraphVisibilityContext.Provider>
+  )
+}
 
 function EventNarrativeContent({ content, entities, claims }: EventNarrativeContentProps) {
   // Reset mentions for each render
@@ -368,16 +397,16 @@ function EventNarrativeContent({ content, entities, claims }: EventNarrativeCont
       const heading = parts[0]
       if (heading.level === 2) {
         return (
-          <h2 key={blockIndex} className="text-2xl font-bold text-slate-800 mt-8 mb-4">
+          <VisibilityWrapper key={blockIndex} as="h2" className="text-2xl font-bold text-slate-800 mt-8 mb-4">
             {heading.content}
-          </h2>
+          </VisibilityWrapper>
         )
       }
       if (heading.level === 3) {
         return (
-          <h3 key={blockIndex} className="text-xl font-bold text-slate-700 mt-6 mb-3">
+          <VisibilityWrapper key={blockIndex} as="h3" className="text-xl font-bold text-slate-700 mt-6 mb-3">
             {heading.content}
-          </h3>
+          </VisibilityWrapper>
         )
       }
     }
@@ -385,17 +414,17 @@ function EventNarrativeContent({ content, entities, claims }: EventNarrativeCont
     // Check if this is a bullet point
     if (parts.length > 0 && parts[0].type === 'bullet') {
       return (
-        <li key={blockIndex} className="text-slate-700 pl-2 mb-2">
+        <VisibilityWrapper key={blockIndex} as="li" className="text-slate-700 pl-2 mb-2">
           {parts.slice(1).map((part, i) => renderPart(part, i))}
-        </li>
+        </VisibilityWrapper>
       )
     }
 
     // Regular paragraph
     return (
-      <p key={blockIndex} className="text-slate-700 leading-relaxed mb-4">
+      <VisibilityWrapper key={blockIndex} as="p" className="text-slate-700 leading-relaxed mb-4">
         {parts.map((part, i) => renderPart(part, i))}
-      </p>
+      </VisibilityWrapper>
     )
   }
 

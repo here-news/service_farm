@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useContext } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { ParagraphVisibilityContext } from './EventNarrativeContent'
 
 export interface EventEntityData {
   id: string
@@ -54,6 +55,9 @@ function EventEntityLink({
   const [entityData, setEntityData] = useState<EventEntityData | null>(preloadedEntity || null)
   const [loading, setLoading] = useState(false)
   const [imageError, setImageError] = useState(false)
+
+  // Get visibility from parent paragraph context
+  const isInView = useContext(ParagraphVisibilityContext)
 
   const handleClick = () => {
     if (entityId && entityId.startsWith('en_')) {
@@ -117,6 +121,9 @@ function EventEntityLink({
   const isPerson = entityData?.entity_type?.toLowerCase() === 'person'
   const hasImage = entityData?.image_url && !imageError
 
+  // Only show headshot when paragraph is in view
+  const showHeadshot = isFirstMention && hasImage && isInView
+
   return (
     <span style={{ position: 'relative', display: 'inline' }}>
       <span
@@ -127,28 +134,40 @@ function EventEntityLink({
           cursor: 'pointer',
           display: 'inline-flex',
           alignItems: 'center',
-          gap: '4px',
+          gap: '6px',
           verticalAlign: 'baseline',
         }}
         title={entityId ? `View ${displayName} details` : displayName}
       >
-        {/* Circular avatar for first mention */}
-        {isFirstMention && hasImage && (
-          <img
-            src={entityData.image_url}
-            alt={displayName}
-            onError={() => setImageError(true)}
-            style={{
-              width: '20px',
-              height: '20px',
-              borderRadius: '50%',
-              objectFit: 'cover',
-              border: `2px solid ${entityColor}`,
-              verticalAlign: 'middle',
-              display: 'inline-block',
-            }}
-          />
-        )}
+        {/* Larger headshot - only shows when paragraph scrolls into view */}
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            width: showHeadshot ? '32px' : '0px',
+            height: showHeadshot ? '32px' : '0px',
+            opacity: showHeadshot ? 1 : 0,
+            transition: 'all 0.3s ease-out',
+            overflow: 'hidden',
+            flexShrink: 0,
+          }}
+        >
+          {isFirstMention && hasImage && (
+            <img
+              src={entityData.image_url}
+              alt={displayName}
+              onError={() => setImageError(true)}
+              style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '50%',
+                objectFit: 'cover',
+                border: `2px solid ${entityColor}`,
+                boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+              }}
+            />
+          )}
+        </span>
         <span
           style={{
             color: entityColor,

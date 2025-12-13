@@ -29,6 +29,12 @@ interface OrganismState {
   last_updated?: string;
 }
 
+interface ContradictionData {
+  claim1_id: string;
+  claim2_id: string;
+  note?: string; // LLM-generated explanation of why claims contradict
+}
+
 interface TopologyData {
   event_id: string;
   pattern: string;
@@ -36,7 +42,7 @@ interface TopologyData {
   claims: TopologyClaim[];
   relationships: TopologyRelationship[];
   update_chains: Array<{ metric: string; chain: string[]; current: string }>;
-  contradictions: Array<{ claim1_id: string; claim2_id: string }>;
+  contradictions: ContradictionData[];
   source_diversity: Record<string, { count: number; avg_prior: number }>;
   organism_state: OrganismState;
 }
@@ -76,6 +82,7 @@ interface GraphLink {
   color: string;
   width: number;
   dashed?: boolean;
+  note?: string; // Contradiction explanation
 }
 
 interface GraphData {
@@ -89,6 +96,8 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
+  const [hoveredLink, setHoveredLink] = useState<GraphLink | null>(null);
+  const [linkTooltipPos, setLinkTooltipPos] = useState<{ x: number; y: number } | null>(null);
   const [graphData, setGraphData] = useState<GraphData>({ nodes: [], links: [] });
   const [pulsePhase, setPulsePhase] = useState(0);
 
@@ -258,16 +267,29 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
       }
     });
 
+    // Build a map of contradiction notes for quick lookup
+    const contradictionNotes = new Map<string, string>();
+    topology.contradictions.forEach(c => {
+      if (c.note) {
+        // Key by both directions since edges can be either way
+        contradictionNotes.set(`${c.claim1_id}-${c.claim2_id}`, c.note);
+        contradictionNotes.set(`${c.claim2_id}-${c.claim1_id}`, c.note);
+      }
+    });
+
     // Add relationship links - light mode: solid colors for visibility
     topology.relationships.forEach(rel => {
       let color = '#10b981'; // Solid emerald-500 for corroborates
       let width = 2;
       let dashed = false;
+      let note: string | undefined;
 
       if (rel.type === 'CONTRADICTS') {
         color = '#dc2626'; // Solid red-600 for visibility
         width = 2.5;
         dashed = true;
+        // Look up note for this contradiction
+        note = contradictionNotes.get(`${rel.source}-${rel.target}`);
       } else if (rel.type === 'UPDATES') {
         color = '#2563eb'; // Solid blue-600 for visibility
         width = 2;
@@ -280,7 +302,8 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
         type: rel.type,
         color,
         width,
-        dashed
+        dashed,
+        note
       });
     });
 
@@ -331,6 +354,37 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
   // Node hover handler - track hovered node for highlighting
   const handleNodeHover = useCallback((node: GraphNode | null, _prevNode: GraphNode | null) => {
     setHoveredNode(node);
+  }, []);
+
+  // Track mouse position for link tooltip
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      if (hoveredLink && containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        setLinkTooltipPos({
+          x: e.clientX - rect.left,
+          y: e.clientY - rect.top
+        });
+      }
+    };
+
+    if (hoveredLink) {
+      window.addEventListener('mousemove', handleMouseMove);
+    }
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+    };
+  }, [hoveredLink]);
+
+  // Link hover handler - show tooltip for contradiction notes
+  const handleLinkHover = useCallback((link: any | null, _prevLink: any | null) => {
+    if (link && link.type === 'CONTRADICTS' && link.note) {
+      setHoveredLink(link);
+    } else {
+      setHoveredLink(null);
+      setLinkTooltipPos(null);
+    }
   }, []);
 
   // Custom node rendering
@@ -593,12 +647,22 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
 
     if (!source.x || !source.y || !target.x || !target.y) return;
 
+    // Check if this link is hovered - handle both string IDs and resolved node objects
+    const getNodeId = (node: any): string => typeof node === 'string' ? node : node?.id || '';
+    const hoveredSourceId = hoveredLink ? getNodeId(hoveredLink.source) : '';
+    const hoveredTargetId = hoveredLink ? getNodeId(hoveredLink.target) : '';
+    const linkSourceId = getNodeId(link.source);
+    const linkTargetId = getNodeId(link.target);
+    const isHovered = hoveredLink &&
+      (hoveredSourceId === linkSourceId && hoveredTargetId === linkTargetId);
+
     ctx.beginPath();
     ctx.moveTo(source.x, source.y);
     ctx.lineTo(target.x, target.y);
 
-    ctx.strokeStyle = link.color;
-    ctx.lineWidth = link.width / globalScale;
+    // Highlight hovered links
+    ctx.strokeStyle = isHovered ? '#991b1b' : link.color; // darker red when hovered
+    ctx.lineWidth = (isHovered ? link.width * 1.5 : link.width) / globalScale;
 
     if (link.dashed) {
       ctx.setLineDash([6 / globalScale, 4 / globalScale]);
@@ -609,13 +673,14 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
     ctx.stroke();
     ctx.setLineDash([]);
 
-    // Arrow for CONTRADICTS
+    // Arrow and info icon for CONTRADICTS
     if (link.type === 'CONTRADICTS') {
       const angle = Math.atan2(target.y - source.y, target.x - source.x);
       const midX = (source.x + target.x) / 2;
       const midY = (source.y + target.y) / 2;
       const arrowSize = 8 / globalScale;
 
+      // Draw arrow
       ctx.beginPath();
       ctx.moveTo(midX, midY);
       ctx.lineTo(
@@ -627,10 +692,34 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
         midY - arrowSize * Math.sin(angle + Math.PI / 6)
       );
       ctx.closePath();
-      ctx.fillStyle = link.color;
+      ctx.fillStyle = isHovered ? '#991b1b' : link.color;
       ctx.fill();
+
+      // Draw info icon if link has a note
+      if (link.note) {
+        const iconSize = 12 / globalScale;
+        // Position icon slightly offset from midpoint
+        const iconX = midX + 15 / globalScale;
+        const iconY = midY - 15 / globalScale;
+
+        // Circle background
+        ctx.beginPath();
+        ctx.arc(iconX, iconY, iconSize, 0, 2 * Math.PI);
+        ctx.fillStyle = isHovered ? '#fef2f2' : '#fee2e2'; // red-50 or red-100
+        ctx.fill();
+        ctx.strokeStyle = isHovered ? '#991b1b' : '#dc2626';
+        ctx.lineWidth = 1.5 / globalScale;
+        ctx.stroke();
+
+        // "i" text
+        ctx.font = `bold ${iconSize * 1.2}px Sans-Serif`;
+        ctx.fillStyle = isHovered ? '#991b1b' : '#dc2626';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('i', iconX, iconY + 1 / globalScale);
+      }
     }
-  }, []);
+  }, [hoveredLink]);
 
   // Helper functions for display
   const getPatternStyle = (pattern: string) => {
@@ -740,6 +829,8 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
           nodeVal={(node: GraphNode) => node.val}
           onNodeClick={handleNodeClick}
           onNodeHover={handleNodeHover}
+          onLinkHover={handleLinkHover}
+          linkWidth={(link: GraphLink) => link.note ? 4 : link.width}
           nodeLabel={() => ''}
           backgroundColor="#f8fafc"
           d3AlphaDecay={0.02}
@@ -747,6 +838,39 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
           cooldownTicks={100}
           nodeCanvasObjectMode={() => 'replace'}
         />
+
+        {/* Contradiction note tooltip */}
+        {hoveredLink && hoveredLink.note && linkTooltipPos && (
+          <div
+            className="absolute z-50 pointer-events-none"
+            style={{
+              left: linkTooltipPos.x,
+              top: linkTooltipPos.y,
+              transform: 'translate(-50%, -100%)',
+              marginTop: '-12px'
+            }}
+          >
+            <div className="bg-slate-900 text-white px-3 py-2 rounded-lg shadow-lg max-w-xs">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-red-400 text-sm">⚡ Contradiction</span>
+              </div>
+              <p className="text-sm text-slate-200 leading-snug">
+                {hoveredLink.note}
+              </p>
+            </div>
+            {/* Arrow pointing down */}
+            <div
+              className="absolute left-1/2 -translate-x-1/2"
+              style={{
+                width: 0,
+                height: 0,
+                borderLeft: '6px solid transparent',
+                borderRight: '6px solid transparent',
+                borderTop: '6px solid #0f172a'
+              }}
+            />
+          </div>
+        )}
 
         {/* Legend */}
         <div className="absolute bottom-4 left-4 bg-white/95 backdrop-blur-sm rounded-lg p-3 text-xs space-y-1.5 shadow-sm border border-slate-200">
@@ -926,6 +1050,15 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
                         </div>
                       </div>
                     </div>
+                    {/* Contradiction note/explanation */}
+                    {contradiction.note && (
+                      <div className="mt-2 pt-2 border-t border-red-200">
+                        <div className="flex items-start gap-2 text-xs">
+                          <span className="text-red-500 flex-shrink-0">📝</span>
+                          <span className="text-slate-600 italic">{contradiction.note}</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}

@@ -41,6 +41,7 @@ class TopologyRelationship:
     target_id: str
     rel_type: str  # CORROBORATES, CONTRADICTS, UPDATES
     similarity: Optional[float] = None
+    note: Optional[str] = None  # Explanation for CONTRADICTS relationships
 
 
 @dataclass
@@ -215,6 +216,14 @@ class TopologyPersistence:
 
         edges_created = 0
 
+        # Build a lookup for contradiction notes from topology_result.contradictions
+        # contradictions: [{claim1_id, claim2_id, note, ...}, ...]
+        contradiction_notes = {}
+        for contra in topology_result.contradictions:
+            pair = tuple(sorted([contra['claim1_id'], contra['claim2_id']]))
+            if contra.get('note'):
+                contradiction_notes[pair] = contra['note']
+
         # First handle update chains (superseded_by maps old -> new)
         for old_id, new_id in topology_result.superseded_by.items():
             await self.neo4j._execute_write("""
@@ -242,17 +251,19 @@ class TopologyPersistence:
                     """, {'id1': pair[0], 'id2': pair[1]})
                     edges_created += 1
 
-            # Contradictions
+            # Contradictions (with note if available)
             for contra_id in result.evidence_against:
                 pair = tuple(sorted([claim_id, contra_id]))
                 if pair not in seen_pairs:
                     seen_pairs.add(pair)
+                    note = contradiction_notes.get(pair)
                     await self.neo4j._execute_write("""
                         MATCH (c1:Claim {id: $id1})
                         MATCH (c2:Claim {id: $id2})
                         MERGE (c1)-[r:CONTRADICTS]-(c2)
-                        ON CREATE SET r.created_at = datetime()
-                    """, {'id1': pair[0], 'id2': pair[1]})
+                        ON CREATE SET r.created_at = datetime(), r.note = $note
+                        ON MATCH SET r.note = $note
+                    """, {'id1': pair[0], 'id2': pair[1], 'note': note})
                     edges_created += 1
 
         logger.debug(f"📊 Created {edges_created} topology edges")
@@ -350,7 +361,7 @@ class TopologyPersistence:
             MATCH (e)-[:INTAKES]->(c2:Claim)
             MATCH (c1)-[r:CORROBORATES|CONTRADICTS|UPDATES]->(c2)
             RETURN c1.id as source_id, c2.id as target_id,
-                   type(r) as rel_type, r.similarity as similarity
+                   type(r) as rel_type, r.similarity as similarity, r.note as note
         """, {'event_id': event_id})
 
         # Build claims list
@@ -375,7 +386,8 @@ class TopologyPersistence:
                 source_id=r['source_id'],
                 target_id=r['target_id'],
                 rel_type=r['rel_type'],
-                similarity=r['similarity']
+                similarity=r['similarity'],
+                note=r.get('note')
             )
             for r in rel_result
         ]
@@ -401,9 +413,13 @@ class TopologyPersistence:
             except:
                 pass
 
-        # Extract contradictions from relationships
+        # Extract contradictions from relationships (with notes)
         contradictions = [
-            {'claim1_id': r.source_id, 'claim2_id': r.target_id}
+            {
+                'claim1_id': r.source_id,
+                'claim2_id': r.target_id,
+                'note': r.note
+            }
             for r in relationships
             if r.rel_type == 'CONTRADICTS'
         ]
@@ -447,37 +463,48 @@ class TopologyPersistence:
         claim1_id: str,
         claim2_id: str,
         rel_type: str,
-        similarity: float = None
+        similarity: float = None,
+        note: str = None
     ) -> None:
         """
         Add a single relationship between claims.
 
         Used for incremental updates when new claims arrive.
+
+        Args:
+            claim1_id: First claim ID
+            claim2_id: Second claim ID
+            rel_type: Relationship type (CORROBORATES, CONTRADICTS, UPDATES)
+            similarity: Optional similarity score
+            note: Optional explanation (for CONTRADICTS relationships)
         """
         rel_type_upper = rel_type.upper()
         if rel_type_upper not in ('CORROBORATES', 'CONTRADICTS', 'UPDATES'):
             raise ValueError(f"Invalid relationship type: {rel_type}")
 
+        # Build query with optional properties
+        props = ['r.created_at = datetime()']
+        params = {'id1': claim1_id, 'id2': claim2_id}
+
+        if similarity is not None:
+            props.append('r.similarity = $similarity')
+            params['similarity'] = similarity
+
+        if note is not None and rel_type_upper == 'CONTRADICTS':
+            props.append('r.note = $note')
+            params['note'] = note
+
+        props_str = ', '.join(props)
+
         query = f"""
             MATCH (c1:Claim {{id: $id1}})
             MATCH (c2:Claim {{id: $id2}})
             MERGE (c1)-[r:{rel_type_upper}]->(c2)
-            ON CREATE SET r.created_at = datetime()
+            ON CREATE SET {props_str}
+            ON MATCH SET {props_str}
         """
-        if similarity is not None:
-            query = f"""
-                MATCH (c1:Claim {{id: $id1}})
-                MATCH (c2:Claim {{id: $id2}})
-                MERGE (c1)-[r:{rel_type_upper}]->(c2)
-                ON CREATE SET r.created_at = datetime(), r.similarity = $similarity
-                ON MATCH SET r.similarity = $similarity
-            """
 
-        await self.neo4j._execute_write(query, {
-            'id1': claim1_id,
-            'id2': claim2_id,
-            'similarity': similarity
-        })
+        await self.neo4j._execute_write(query, params)
 
     async def update_claim_plausibility(
         self,
