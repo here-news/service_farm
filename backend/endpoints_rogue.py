@@ -21,6 +21,7 @@ from pydantic import BaseModel
 import asyncpg
 
 from repositories import PageRepository, RogueTaskRepository
+from services.job_queue import JobQueue
 
 router = APIRouter()
 
@@ -28,11 +29,12 @@ router = APIRouter()
 db_pool = None
 page_repo = None
 rogue_task_repo = None
+job_queue = None
 
 
 async def init_services():
-    """Initialize database pool and repositories"""
-    global db_pool, page_repo, rogue_task_repo
+    """Initialize database pool, repositories, and job queue"""
+    global db_pool, page_repo, rogue_task_repo, job_queue
 
     if db_pool is None:
         db_pool = await asyncpg.create_pool(
@@ -51,7 +53,11 @@ async def init_services():
     if rogue_task_repo is None:
         rogue_task_repo = RogueTaskRepository(db_pool)
 
-    return page_repo, rogue_task_repo
+    if job_queue is None:
+        job_queue = JobQueue(os.getenv('REDIS_URL', 'redis://redis:6379'))
+        await job_queue.connect()
+
+    return page_repo, rogue_task_repo, job_queue
 
 
 class RogueTask(BaseModel):
@@ -93,7 +99,7 @@ async def get_rogue_tasks(limit: int = 1, status: Optional[str] = None, recent: 
     Returns:
         List of tasks
     """
-    _, rogue_task_repo = await init_services()
+    _, rogue_task_repo, _ = await init_services()
 
     if recent:
         # Recent tasks mode - for UI display
@@ -140,7 +146,7 @@ async def complete_rogue_task(task_id: str, metadata: RogueTaskMetadata):
     Returns:
         Success status
     """
-    page_repo, rogue_task_repo = await init_services()
+    page_repo, rogue_task_repo, job_queue = await init_services()
 
     # Get task to verify it exists and get page_id
     task = await rogue_task_repo.get_by_id(task_id)
@@ -155,6 +161,7 @@ async def complete_rogue_task(task_id: str, metadata: RogueTaskMetadata):
 
     # Update page with extracted metadata
     page_id = task['page_id']
+    url = task['url']
     page = await page_repo.get_by_id(page_id)
 
     if not page:
@@ -171,10 +178,12 @@ async def complete_rogue_task(task_id: str, metadata: RogueTaskMetadata):
 
     # Determine new status based on content quality
     if metadata.content_text and metadata.word_count >= 100:
-        new_status = 'extraction_complete'
+        new_status = 'extracted'  # Use 'extracted' to match normal extraction flow
+        should_queue = True
     else:
         # At least we have metadata, mark as preview
         new_status = 'preview'
+        should_queue = False
 
     # Update page with extracted content
     await page_repo.update_extracted_content(
@@ -190,14 +199,25 @@ async def complete_rogue_task(task_id: str, metadata: RogueTaskMetadata):
         pub_time=pub_time
     )
 
-    # Update status separately if needed
-    if new_status != 'extraction_complete':
-        await page_repo.update_status(page_id, new_status)
+    # Update status
+    await page_repo.update_status(page_id, new_status)
+
+    # Queue for knowledge worker if we have enough content
+    queued = False
+    if should_queue:
+        semantic_job = {
+            'page_id': page_id,
+            'url': url,
+            'text': metadata.content_text
+        }
+        await job_queue.enqueue('queue:semantic:high', semantic_job)
+        queued = True
 
     return {
         "success": True,
         "task_id": task_id,
         "page_updated": True,
+        "queued_for_knowledge": queued,
         "extracted_fields": {
             "title": bool(metadata.title),
             "description": bool(metadata.description),
@@ -226,7 +246,7 @@ async def fail_rogue_task(task_id: str, request: FailTaskRequest):
     Returns:
         Success status
     """
-    _, rogue_task_repo = await init_services()
+    _, rogue_task_repo, _ = await init_services()
 
     await rogue_task_repo.mark_failed(task_id, request.error_message)
 
@@ -240,7 +260,7 @@ async def get_rogue_stats():
 
     Returns counts by status for monitoring
     """
-    _, rogue_task_repo = await init_services()
+    _, rogue_task_repo, _ = await init_services()
 
     # Get stats by status
     stats_by_status = await rogue_task_repo.get_stats()
