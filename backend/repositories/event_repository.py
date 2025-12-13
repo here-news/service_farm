@@ -358,24 +358,28 @@ class EventRepository:
             # Page embeddings differ from event narrative embeddings even for same event
             # Entity overlap + temporal proximity are more reliable "same event" signals
             #
-            # Adaptive weighting: if time or semantic scores are missing (0.0),
-            # redistribute their weight to entity overlap for robustness
-            if time_score == 0.0 and semantic_score == 0.0:
-                # Both missing - rely entirely on entity overlap
+            # Bayesian scoring: Time is a GATE, not a signal.
+            # Many unrelated events happen on the same day - time proximity
+            # alone tells us almost nothing (anti-Jaynes to weight it highly).
+            #
+            # Time gate: If claim is outside the event's time window, it's
+            # already filtered out by the query. Being inside the window
+            # is necessary but not sufficient - it doesn't increase match score.
+            #
+            # Entity overlap and semantic similarity are the real signals:
+            # - Specific entity overlap (Venezuela + PDVSA + Maduro) is strong evidence
+            # - High semantic similarity between page and event is strong evidence
+            #
+            if semantic_score == 0.0:
+                # No embedding - rely on entity overlap alone
                 match_score = entity_overlap_score
-            elif time_score == 0.0:
-                # Time missing - split its weight to entity and semantic
-                match_score = 0.55 * entity_overlap_score + 0.45 * semantic_score
-            elif semantic_score == 0.0:
-                # Semantic missing - split its weight to entity and time
-                match_score = 0.55 * entity_overlap_score + 0.45 * time_score
             else:
-                # All signals present - use balanced weights
+                # Entity overlap is primary signal, semantic is secondary
                 match_score = (
-                    0.40 * entity_overlap_score +
-                    0.30 * time_score +
-                    0.30 * semantic_score
+                    0.60 * entity_overlap_score +
+                    0.40 * semantic_score
                 )
+                # Time is NOT included - it's a gate, not a score
 
             logger.info(
                 f"📊 Candidate: {event.canonical_name} - "

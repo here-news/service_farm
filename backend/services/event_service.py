@@ -72,13 +72,18 @@ class EventService:
         # Below DELEGATE_THRESHOLD → REJECT
 
         # Signal weights for ensemble scoring
+        # Bayesian principle: Weight signals by their discriminative power
+        # - Time proximity is weak (many unrelated events same day) → 0 weight (gate only)
+        # - Entity overlap is strong (specific entities = specific event)
+        # - Reference to event name is very strong (explicit mention)
+        # - Semantic similarity is moderate (can be fooled by similar topics)
         self.SIGNAL_WEIGHTS = {
-            'entity': 0.20,       # Entity overlap (reduced from sole signal)
-            'temporal': 0.20,     # Time proximity to event
-            'reference': 0.25,    # Event name/location mentioned (HIGH IMPACT!)
-            'semantic': 0.15,     # Embedding similarity
-            'spatial': 0.10,      # Location overlap
-            'causal': 0.10        # Causal keywords
+            'entity': 0.35,       # Entity overlap - strong signal
+            'temporal': 0.0,      # Time is a GATE, not a score (anti-Jaynes)
+            'reference': 0.35,    # Event name/location mentioned - very strong
+            'semantic': 0.20,     # Embedding similarity - moderate
+            'spatial': 0.05,      # Location overlap - weak
+            'causal': 0.05        # Causal keywords - weak
         }
 
     async def examine_claims(
