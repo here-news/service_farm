@@ -24,6 +24,9 @@ from services.update_detector import UpdateDetector
 from utils.datetime_utils import neo4j_datetime_to_python
 from utils.id_generator import generate_event_id
 
+# Import routing weights (single source of truth)
+from services.routing_config import WEIGHT_ENTITY, WEIGHT_SEMANTIC
+
 logger = logging.getLogger(__name__)
 
 
@@ -1778,8 +1781,10 @@ Answer ONLY "yes" or "no"."""
             if norm_event > 0 and norm_claim > 0:
                 semantic_sim = dot_product / (norm_event * norm_claim)
 
-        # Combined score
-        return 0.6 * entity_overlap + 0.4 * semantic_sim
+        # Combined score using shared routing weights
+        if semantic_sim == 0.0:
+            return entity_overlap
+        return WEIGHT_ENTITY * entity_overlap + WEIGHT_SEMANTIC * semantic_sim
 
     async def _merge_duplicate(
         self,

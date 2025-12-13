@@ -3,7 +3,7 @@ LiveEventPool - Manages living event organisms
 
 The pool:
 - Maintains active events in memory
-- Routes claims to appropriate events
+- Routes claims to appropriate events (with scoring logic)
 - Bootstraps new events
 - Hydrates existing events
 - Executes metabolism cycles (with Bayesian topology)
@@ -12,14 +12,17 @@ The pool:
 Prevents duplicate events across workers via careful routing logic.
 """
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 from datetime import datetime
+
+import numpy as np
 
 from models.domain.live_event import LiveEvent
 from models.domain.event import Event
 from models.domain.claim import Claim
 from services.event_service import EventService
 from services.claim_topology import ClaimTopologyService
+from services.routing_config import WEIGHT_ENTITY, WEIGHT_SEMANTIC, ROUTING_THRESHOLD
 from repositories.event_repository import EventRepository
 from repositories.claim_repository import ClaimRepository
 from repositories.entity_repository import EntityRepository
@@ -88,7 +91,7 @@ class LiveEventPool:
         Layer 2: Route all page claims to appropriate living event.
 
         This is the pool's core logic:
-        - Find matching event via semantic (page) + entity + time signals
+        - Find matching event via semantic (page) + entity signals
         - Activate event (load if hibernated)
         - Let event process ALL claims via its own metabolism (Layer 3)
 
@@ -102,45 +105,118 @@ class LiveEventPool:
         for claim in claims:
             all_entity_ids.update(claim.entity_ids)
 
-        # Use first claim's time as reference (all claims from same page)
-        reference_time = claims[0].event_time if claims[0].event_time else None
-
-        # Find candidate events using multi-signal matching
-        # Page embedding captures semantic similarity of the entire article
-        # Use 30-day window to catch ongoing coverage of developing events
-        candidates = await self.event_repo.find_candidates(
+        # Get candidate events (data only, no scoring)
+        candidates_data = await self.event_repo.get_candidate_events(
             entity_ids=all_entity_ids,
-            reference_time=reference_time,
-            time_window_days=30,
-            page_embedding=page_embedding
+            limit=20
         )
 
-        if candidates:
-            best_event, best_score = candidates[0]
+        if not candidates_data:
+            logger.info(f"📝 No candidates found, creating new root event ({len(claims)} claims)")
+            event = await self.service.create_root_event(claims)
+            await self._bootstrap_event(event)
+            return
 
-            logger.info(f"🔍 Best candidate: {best_event.canonical_name} (score: {best_score:.2f})")
+        # Score candidates using routing weights
+        scored_candidates = []
+        for event, event_entity_ids, _source_page_ids in candidates_data:
+            # Debug: Check embeddings
+            has_page_emb = page_embedding is not None and len(page_embedding) > 0
+            has_event_emb = event.embedding is not None and len(event.embedding) > 0
 
-            # Lowered threshold from 0.25 to 0.20 after rebalancing scoring weights
-            # With 40% entity + 30% time weighting, 0.20 is a reasonable bar
-            if best_score > 0.20:
-                # Activate event (load from storage if needed)
-                if best_event.id not in self.active:
-                    await self._load_event(best_event.id)
+            score, entity_score, semantic_score = self._score_candidate(
+                page_entity_ids=all_entity_ids,
+                event_entity_ids=event_entity_ids,
+                page_embedding=page_embedding,
+                event_embedding=event.embedding,
+                return_breakdown=True
+            )
+            scored_candidates.append((event, score))
 
-                # Layer 3: Let living event process ALL claims via its own metabolism
-                live_event = self.active[best_event.id]
-                result = await live_event.examine(claims)
+            logger.info(
+                f"📊 Candidate: {event.canonical_name} "
+                f"(score: {score:.2f}, entity: {entity_score:.2f}, semantic: {semantic_score:.2f}, "
+                f"page_emb: {has_page_emb}, event_emb: {has_event_emb})"
+            )
 
-                # Bootstrap any sub-events created during examination
-                for sub_event in result.sub_events_created:
-                    await self._bootstrap_event(sub_event)
+        # Sort by score descending
+        scored_candidates.sort(key=lambda x: x[1], reverse=True)
+        best_event, best_score = scored_candidates[0]
 
-                return
+        logger.info(f"🔍 Best candidate: {best_event.canonical_name} (score: {best_score:.2f})")
+
+        if best_score > ROUTING_THRESHOLD:
+            # Activate event (load from storage if needed)
+            if best_event.id not in self.active:
+                await self._load_event(best_event.id)
+
+            # Layer 3: Let living event process ALL claims via its own metabolism
+            live_event = self.active[best_event.id]
+            result = await live_event.examine(claims)
+
+            # Bootstrap any sub-events created during examination
+            for sub_event in result.sub_events_created:
+                await self._bootstrap_event(sub_event)
+
+            return
 
         # No match - create new root event with all claims and bootstrap it
         logger.info(f"📝 Creating new root event for page ({len(claims)} claims)")
         event = await self.service.create_root_event(claims)
         await self._bootstrap_event(event)
+
+    def _score_candidate(
+        self,
+        page_entity_ids: set,
+        event_entity_ids: set,
+        page_embedding: Optional[List[float]],
+        event_embedding: Optional[List[float]],
+        return_breakdown: bool = False
+    ):
+        """
+        Score how well a page matches an existing event.
+
+        Uses module-level WEIGHT_ENTITY and WEIGHT_SEMANTIC constants.
+
+        Args:
+            page_entity_ids: Entity IDs from incoming page's claims
+            event_entity_ids: Entity IDs already linked to event
+            page_embedding: Semantic embedding of incoming page content
+            event_embedding: Semantic embedding of event
+            return_breakdown: If True, return (score, entity_score, semantic_score)
+
+        Returns:
+            Match score 0.0-1.0 (or tuple if return_breakdown=True)
+        """
+        # Entity overlap (Jaccard similarity)
+        if event_entity_ids:
+            intersection = len(page_entity_ids & event_entity_ids)
+            union = len(page_entity_ids | event_entity_ids)
+            entity_score = intersection / union if union > 0 else 0.0
+        else:
+            entity_score = 0.0
+
+        # Semantic similarity (cosine between page and event embeddings)
+        semantic_score = 0.0
+        if page_embedding and event_embedding:
+            vec1 = np.array(page_embedding)
+            vec2 = np.array(event_embedding)
+            dot_product = np.dot(vec1, vec2)
+            norm1 = np.linalg.norm(vec1)
+            norm2 = np.linalg.norm(vec2)
+            if norm1 > 0 and norm2 > 0:
+                semantic_score = float(dot_product / (norm1 * norm2))
+
+        # Combined score
+        if semantic_score == 0.0:
+            # No embedding available - rely on entity overlap alone
+            score = entity_score
+        else:
+            score = WEIGHT_ENTITY * entity_score + WEIGHT_SEMANTIC * semantic_score
+
+        if return_breakdown:
+            return score, entity_score, semantic_score
+        return score
 
     async def _load_event(self, event_id: str):
         """

@@ -253,146 +253,59 @@ class EventRepository:
 
         return sub_events
 
-    async def find_candidates(
+    async def get_candidate_events(
         self,
         entity_ids: Set[str],
-        reference_time: datetime,
-        time_window_days: int = 14,
-        page_embedding: Optional[List[float]] = None
-    ) -> List[Tuple[Event, float]]:
+        limit: int = 20
+    ) -> List[Tuple[Event, Set[str], List[str]]]:
         """
-        Find candidate events that might match new information
+        Get candidate events that share entities with the given set.
 
-        Scoring (rebalanced for better same-event detection):
-        - Entity overlap: 40% (reliable signal for same event)
-        - Time proximity: 30% (critical for matching event instances)
-        - Semantic similarity: 30% (page vs narrative embedding can differ)
-
-        Rationale: Page embeddings differ from event narrative embeddings even
-        for same event. Entity overlap + time are more reliable signals.
+        Pure data access - no scoring logic. Returns events with their
+        entity IDs and source page IDs for the caller to score.
 
         Args:
             entity_ids: Entity IDs (en_xxxxxxxx format) to match against
-            reference_time: Reference time for temporal proximity
-            time_window_days: Time window in days
-            page_embedding: Optional embedding for semantic matching
+            limit: Maximum candidates to return
 
         Returns:
-            List of (event, match_score) sorted by score descending
+            List of (event, event_entity_ids, source_page_ids) tuples,
+            sorted by overlap count desc
         """
         if not entity_ids:
             return []
 
-        # Log inputs for debugging
-        logger.info(f"🔍 Finding candidates: {len(entity_ids)} entities, "
-                   f"ref_time={reference_time}, page_emb={'YES' if page_embedding else 'NO'}")
-
-        # Get events that share entities (from Neo4j)
         entity_id_strings = list(entity_ids)
 
-        # Query Neo4j for events with entity overlap
+        # Query Neo4j for events with entity overlap and their source pages
         events_with_overlap = await self.neo4j._execute_read("""
             MATCH (e:Event)-[:INVOLVES]->(entity:Entity)
             WHERE entity.id IN $entity_ids
             WITH e, count(DISTINCT entity) as overlap_count
             WHERE overlap_count > 0
-            RETURN e.id as event_id, overlap_count
+            // Get source pages for this event
+            OPTIONAL MATCH (e)-[:INTAKES]->(c:Claim)<-[:EMITS]-(p:Page)
+            WITH e, overlap_count, collect(DISTINCT p.id) as page_ids
+            RETURN e.id as event_id, overlap_count, page_ids
             ORDER BY overlap_count DESC
-            LIMIT 20
-        """, {'entity_ids': entity_id_strings})
+            LIMIT $limit
+        """, {'entity_ids': entity_id_strings, 'limit': limit})
 
         if not events_with_overlap:
-            logger.debug("No candidate events found with entity overlap")
             return []
 
         candidates = []
-
         for row in events_with_overlap:
             event_id = row['event_id']
-            entity_overlap_count = row['overlap_count']
+            source_page_ids = row['page_ids'] or []
 
-            # Get full event from Neo4j (model handles UUID conversion)
             event = await self.get_by_id(event_id)
             if not event:
                 continue
 
-            # Get event's entities for overlap calculation
             event_entity_ids = await self._get_event_entity_ids(event_id)
+            candidates.append((event, event_entity_ids, source_page_ids))
 
-            # Calculate entity overlap score (Jaccard similarity)
-            if event_entity_ids:
-                intersection = len(entity_ids & event_entity_ids)
-                union = len(entity_ids | event_entity_ids)
-                entity_overlap_score = intersection / union if union > 0 else 0.0
-            else:
-                entity_overlap_score = 0.0
-
-            # Calculate temporal proximity score
-            time_score = 0.0
-            if event.event_start and reference_time:
-                # Defensive conversion for both timestamps
-                event_start_py = neo4j_datetime_to_python(event.event_start)
-                reference_time_py = neo4j_datetime_to_python(reference_time) if isinstance(reference_time, str) else reference_time
-                if event_start_py and reference_time_py:
-                    # Ensure both are timezone-aware or both are naive for comparison
-                    from datetime import timezone
-                    if event_start_py.tzinfo is None and reference_time_py.tzinfo is not None:
-                        event_start_py = event_start_py.replace(tzinfo=timezone.utc)
-                    elif event_start_py.tzinfo is not None and reference_time_py.tzinfo is None:
-                        reference_time_py = reference_time_py.replace(tzinfo=timezone.utc)
-                    time_diff_days = abs((reference_time_py - event_start_py).days)
-                    time_score = max(0, 1 - (time_diff_days / time_window_days))
-
-            # Calculate semantic similarity score
-            semantic_score = 0.0
-            if page_embedding and event.embedding:
-                vec1 = np.array(page_embedding)
-                vec2 = np.array(event.embedding)
-                dot_product = np.dot(vec1, vec2)
-                norm1 = np.linalg.norm(vec1)
-                norm2 = np.linalg.norm(vec2)
-                if norm1 > 0 and norm2 > 0:
-                    semantic_score = float(dot_product / (norm1 * norm2))
-
-            # Combined score - rebalanced to prioritize entity+time over semantic
-            # Page embeddings differ from event narrative embeddings even for same event
-            # Entity overlap + temporal proximity are more reliable "same event" signals
-            #
-            # Bayesian scoring: Time is a GATE, not a signal.
-            # Many unrelated events happen on the same day - time proximity
-            # alone tells us almost nothing (anti-Jaynes to weight it highly).
-            #
-            # Time gate: If claim is outside the event's time window, it's
-            # already filtered out by the query. Being inside the window
-            # is necessary but not sufficient - it doesn't increase match score.
-            #
-            # Entity overlap and semantic similarity are the real signals:
-            # - Specific entity overlap (Venezuela + PDVSA + Maduro) is strong evidence
-            # - High semantic similarity between page and event is strong evidence
-            #
-            if semantic_score == 0.0:
-                # No embedding - rely on entity overlap alone
-                match_score = entity_overlap_score
-            else:
-                # Entity overlap is primary signal, semantic is secondary
-                match_score = (
-                    0.60 * entity_overlap_score +
-                    0.40 * semantic_score
-                )
-                # Time is NOT included - it's a gate, not a score
-
-            logger.info(
-                f"📊 Candidate: {event.canonical_name} - "
-                f"entity={entity_overlap_score:.2f}, time={time_score:.2f}, "
-                f"semantic={semantic_score:.2f}, total={match_score:.2f}"
-            )
-
-            candidates.append((event, match_score))
-
-        # Sort by score descending
-        candidates.sort(key=lambda x: x[1], reverse=True)
-
-        logger.info(f"Found {len(candidates)} candidate events (best: {candidates[0][1]:.2f})" if candidates else "No candidates found")
         return candidates
 
     async def _get_event_entity_ids(self, event_id: str) -> Set[str]:
@@ -832,6 +745,36 @@ class EventRepository:
         logger.info(f"🗑️ Batch pruned {deleted} claims from event {event_id}")
         return deleted
 
+    async def prune_orphaned_entities(self, event_id: str) -> List[str]:
+        """
+        Remove INVOLVES relationships for entities no longer connected via claims.
+
+        After claim pruning, some entities may no longer be mentioned by any
+        of the event's remaining claims. This method removes those orphaned
+        Event-[INVOLVES]->Entity relationships.
+
+        Args:
+            event_id: Event ID
+
+        Returns:
+            List of entity IDs that were disconnected
+        """
+        # Find entities that are INVOLVES'd but not mentioned by any remaining claim
+        result = await self.neo4j._execute_write("""
+            MATCH (e:Event {id: $event_id})-[inv:INVOLVES]->(entity:Entity)
+            WHERE NOT EXISTS {
+                MATCH (e)-[:INTAKES]->(c:Claim)-[:MENTIONS]->(entity)
+            }
+            WITH entity, inv
+            DELETE inv
+            RETURN collect(entity.id) as pruned_entities
+        """, {'event_id': event_id})
+
+        pruned = result['pruned_entities'] if result else []
+        if pruned:
+            logger.info(f"🔗✂️ Disconnected {len(pruned)} orphaned entities from event {event_id}")
+        return pruned
+
     async def list_root_events(
         self,
         status: Optional[str] = None,
@@ -984,20 +927,20 @@ class EventRepository:
 
     async def update_embedding(self, event_id: str, embedding: List[float]) -> None:
         """
-        Update event embedding.
+        Update event embedding in PostgreSQL.
 
         Args:
             event_id: Event ID
             embedding: Embedding vector
         """
-        await self.neo4j._execute_write("""
-            MATCH (e:Event {id: $event_id})
-            SET e.embedding = $embedding,
-                e.updated_at = datetime()
-        """, {
-            'event_id': event_id,
-            'embedding': embedding
-        })
+        async with self.db_pool.acquire() as conn:
+            await register_vector(conn)
+            await conn.execute("""
+                INSERT INTO core.event_embeddings (event_id, embedding)
+                VALUES ($1, $2)
+                ON CONFLICT (event_id) DO UPDATE SET
+                    embedding = EXCLUDED.embedding
+            """, event_id, embedding)
         logger.debug(f"📊 Updated embedding for {event_id}: {len(embedding)} dims")
 
     async def update_status(self, event_id: str, status: str) -> None:

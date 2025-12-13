@@ -1108,7 +1108,7 @@ class LiveEvent:
         # Extract claim IDs
         claim_ids_to_prune = [c['claim_id'] for c in low_affinity]
 
-        # Batch prune
+        # Batch prune claims
         pruned = await self.service.event_repo.prune_claims_batch(
             self.event.id, claim_ids_to_prune
         )
@@ -1120,12 +1120,20 @@ class LiveEvent:
         for c in low_affinity:
             logger.info(f"  🗑️ Pruned ({c['affinity']:.3f}): {c['text'][:50]}...")
 
+        # Prune orphaned entities (no longer connected via any remaining claims)
+        pruned_entities = await self.service.event_repo.prune_orphaned_entities(
+            self.event.id
+        )
+        if pruned_entities:
+            logger.info(f"  🔗✂️ Disconnected {len(pruned_entities)} orphaned entities")
+
         return MetabolismResult(
             action_type=ActionType.PRUNE_CLAIMS,
             success=True,
             data={
                 'pruned': pruned,
-                'claims': low_affinity
+                'claims': low_affinity,
+                'pruned_entities': pruned_entities
             }
         )
 
