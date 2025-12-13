@@ -12,13 +12,20 @@ type FeedItem =
   | { type: 'event'; data: Event; timestamp: string }
   | { type: 'submission'; data: EventSubmission; timestamp: string }
 
+// Get event ID helper
+function getEventId(event: Event): string | undefined {
+  return event.id || event.event_id || event.story_id
+}
+
 function HomePage() {
   const [events, setEvents] = useState<Event[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [hasMore, setHasMore] = useState(true)
-  const [newEventsCount, setNewEventsCount] = useState(0)
+
+  // Use ref to track events for background refresh (avoids stale closure)
+  const eventsRef = useRef<Event[]>([])
 
   // ShareBox state
   const [showShareBox, setShowShareBox] = useState(false)
@@ -204,7 +211,7 @@ function HomePage() {
   const startBackgroundRefresh = () => {
     refreshIntervalRef.current = setInterval(() => {
       checkNewEvents()
-    }, 30000) // 30 seconds
+    }, 15000) // 15 seconds - responsive updates
   }
 
   const stopBackgroundRefresh = () => {
@@ -212,6 +219,11 @@ function HomePage() {
       clearInterval(refreshIntervalRef.current)
     }
   }
+
+  // Keep eventsRef in sync with events state
+  useEffect(() => {
+    eventsRef.current = events
+  }, [events])
 
   const checkNewEvents = async () => {
     try {
@@ -224,45 +236,59 @@ function HomePage() {
       if (!response.ok) return
 
       const data: FeedResponse = await response.json()
-      const newEvents = data.events || []
+      const fetchedEvents = data.events || []
 
-      // Defensive check: ensure events is an array
-      if (!Array.isArray(events)) {
-        console.warn('events is not an array:', events)
+      if (fetchedEvents.length === 0) return
+
+      // Use ref to get current events (avoids stale closure)
+      const currentEvents = eventsRef.current
+      if (!Array.isArray(currentEvents) || currentEvents.length === 0) {
+        // No current events, just set the fetched ones
+        setEvents(fetchedEvents)
         return
       }
 
-      if (newEvents.length > 0 && events.length > 0) {
-        const firstNewId = newEvents[0].id || newEvents[0].event_id || newEvents[0].story_id
-        const hasNew = !events.some(e => {
-          const eId = e.id || e.event_id || e.story_id
-          return eId === firstNewId
+      // Build map of current events for quick lookup
+      const currentEventMap = new Map<string, Event>()
+      currentEvents.forEach(e => {
+        const id = getEventId(e)
+        if (id) currentEventMap.set(id, e)
+      })
+
+      // Build map of fetched events
+      const fetchedEventMap = new Map<string, Event>()
+      fetchedEvents.forEach(e => {
+        const id = getEventId(e)
+        if (id) fetchedEventMap.set(id, e)
+      })
+
+      // Auto-merge: update existing events and prepend truly new ones
+      setEvents(prevEvents => {
+        // Update existing events with fresh data
+        const updatedEvents = prevEvents.map(e => {
+          const id = getEventId(e)
+          if (id && fetchedEventMap.has(id)) {
+            return fetchedEventMap.get(id)!
+          }
+          return e
         })
 
-        if (hasNew) {
-          const newCount = newEvents.findIndex(e => {
-            const eId = e.id || e.event_id || e.story_id
-            return events.some(existing => {
-              const existingId = existing.id || existing.event_id || existing.story_id
-              return existingId === eId
-            })
-          })
-          setNewEventsCount(newCount === -1 ? newEvents.length : newCount)
+        // Find truly new events (in fetched but not in current)
+        const newEvents = fetchedEvents.filter(e => {
+          const id = getEventId(e)
+          return id && !currentEventMap.has(id)
+        })
 
-          // Auto-hide after 5 seconds
-          setTimeout(() => {
-            setNewEventsCount(0)
-          }, 5000)
+        // Prepend new events to the list
+        if (newEvents.length > 0) {
+          return [...newEvents, ...updatedEvents]
         }
-      }
+
+        return updatedEvents
+      })
     } catch (err) {
       console.error('Background refresh failed:', err)
     }
-  }
-
-  const refreshFeed = () => {
-    setNewEventsCount(0)
-    loadFeed(true)
   }
 
   const handleEventClick = (eventId: string) => {
@@ -333,16 +359,6 @@ function HomePage() {
 
   return (
     <>
-      {/* New Events Banner */}
-      {newEventsCount > 0 && (
-        <div
-          onClick={refreshFeed}
-          className="fixed top-20 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-6 py-3 rounded-lg shadow-lg cursor-pointer z-50 animate-slideDown"
-        >
-          {newEventsCount} new {newEventsCount === 1 ? 'event' : 'events'} available - Click to refresh
-        </div>
-      )}
-
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="bg-white rounded-xl shadow-lg p-6">
           {/* ShareBox Trigger Button */}
@@ -432,10 +448,8 @@ function HomePage() {
               </div>
 
               {loadingMore && (
-                <div className="mt-6 grid gap-6">
-                  {Array(3).fill(0).map((_, i) => (
-                    <StoryCardSkeleton key={i} />
-                  ))}
+                <div className="flex justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
                 </div>
               )}
 

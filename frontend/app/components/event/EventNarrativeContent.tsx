@@ -138,71 +138,163 @@ function EventNarrativeContent({ content, entities, claims }: EventNarrativeCont
     const parts: ParsedPart[] = []
     let lastIndex = 0
 
-    // Combined regex for:
-    // - EntityName [en_id] - name followed by entity ID in brackets (current format)
-    //   Entity names are typically 1-4 words before [en_id], not containing brackets
-    // - [[EntityName|en_id]] or [[EntityName]] - wiki-style links
-    // - {{claim:cl_id}} or {{cite:cl_id}} - mustache-style claims
-    // - [cl_xxxxxxxx] standalone claim references
-    // Order matters: entity name pattern must come first to capture the name
-    const regex = /((?:[A-Z][a-zA-Z'-]*(?:\s+(?:of\s+)?[A-Z][a-zA-Z'-]*){0,5}))\s*\[(en_[a-zA-Z0-9]+)\]|\[\[([^\]|]+)(?:\|([^\]]+))?\]\]|\{\{(?:claim|cite):([^}]+)\}\}|\[(cl_[a-zA-Z0-9]+)\]/g
+    // Two-pass parsing to handle adjacent entities correctly:
+    // Pass 1: Match entity IDs [en_xxx] and claim IDs [cl_xxx]
+    // Pass 2: Link entity names to their IDs
+
+    // First, find all bracketed references
+    // Matches: [en_xxxxxxxx] or [cl_xxxxxxxx] or [[Name|id]] or {{claim:id}}
+    const bracketRegex = /\[(en_[a-zA-Z0-9]+)\]|\[(cl_[a-zA-Z0-9]+)\]|\[\[([^\]|]+)(?:\|([^\]]+))?\]\]|\{\{(?:claim|cite):([^}]+)\}\}/g
+
+    // Collect all matches first to build entity name mapping
+    const matches: Array<{
+      index: number
+      length: number
+      type: 'entity' | 'claim' | 'entity_wiki'
+      id?: string
+      name?: string
+    }> = []
+
     let match
-
-    while ((match = regex.exec(text)) !== null) {
-      // Add text before match
-      if (match.index > lastIndex) {
-        parts.push({
-          type: 'text',
-          content: text.substring(lastIndex, match.index)
-        })
-      }
-
-      if (match[1] && match[2]) {
-        // Entity match: "Name [en_id]" format
-        const entityName = match[1].trim()
-        const entityId = match[2]
-
-        parts.push({
+    while ((match = bracketRegex.exec(text)) !== null) {
+      if (match[1]) {
+        // [en_xxx] entity reference
+        matches.push({
+          index: match.index,
+          length: match[0].length,
           type: 'entity',
-          content: entityName,
-          entityName,
-          entityId
+          id: match[1]
+        })
+      } else if (match[2]) {
+        // [cl_xxx] claim reference
+        matches.push({
+          index: match.index,
+          length: match[0].length,
+          type: 'claim',
+          id: match[2]
         })
       } else if (match[3]) {
-        // Entity match: [[Name|id]] or [[Name]]
-        const entityName = match[3]
-        const entityId = match[4] || undefined
-
-        parts.push({
-          type: 'entity',
-          content: entityName,
-          entityName,
-          entityId
+        // [[Name|id]] or [[Name]] wiki-style
+        matches.push({
+          index: match.index,
+          length: match[0].length,
+          type: 'entity_wiki',
+          name: match[3],
+          id: match[4]
         })
       } else if (match[5]) {
-        // Claim match: {{claim:id}} or {{cite:id}}
-        parts.push({
+        // {{claim:id}} mustache-style
+        matches.push({
+          index: match.index,
+          length: match[0].length,
           type: 'claim',
-          content: match[0],
-          claimId: match[5]
-        })
-      } else if (match[6]) {
-        // Standalone claim reference: [cl_xxxxxxxx]
-        parts.push({
-          type: 'claim',
-          content: match[0],
-          claimId: match[6]
+          id: match[5]
         })
       }
+    }
 
-      lastIndex = regex.lastIndex
+    // Now process text, looking backwards from [en_xxx] to find entity name
+    let currentPos = 0
+
+    for (const m of matches) {
+      // Add text before this match
+      if (m.index > currentPos) {
+        const beforeText = text.substring(currentPos, m.index)
+
+        if (m.type === 'entity') {
+          // Look for entity name immediately before [en_xxx]
+          // Only match on the SAME LINE to avoid picking up text from previous lines
+          // Split by newline and only look at the last line
+          const lines = beforeText.split('\n')
+          const lastLine = lines[lines.length - 1]
+          const textBeforeLastLine = lines.length > 1 ? lines.slice(0, -1).join('\n') + '\n' : ''
+
+          // Pattern: Entity names are capitalized words, possibly with spaces
+          // Match greedily but only within the last line
+          const nameMatch = lastLine.match(/([A-Z][a-zA-Z''\-]*(?:\s+(?:of\s+)?[A-Z][a-zA-Z''\-]*){0,5})\s*$/)
+
+          if (nameMatch) {
+            // Add text before the entity name (including previous lines)
+            const textBeforeName = textBeforeLastLine + lastLine.substring(0, lastLine.length - nameMatch[0].length)
+            if (textBeforeName) {
+              parts.push({ type: 'text', content: textBeforeName })
+            }
+            // Add entity with its name
+            parts.push({
+              type: 'entity',
+              content: nameMatch[1].trim(),
+              entityName: nameMatch[1].trim(),
+              entityId: m.id
+            })
+          } else {
+            // No name found, add all text before and lookup entity name from map
+            if (beforeText) {
+              parts.push({ type: 'text', content: beforeText })
+            }
+            // Lookup entity name from entityMap
+            const entity = entityMap.get(m.id || '')
+            parts.push({
+              type: 'entity',
+              content: entity?.canonical_name || m.id || 'Unknown',
+              entityName: entity?.canonical_name,
+              entityId: m.id
+            })
+          }
+        } else {
+          // For claims and wiki entities, just add the text before
+          if (beforeText) {
+            parts.push({ type: 'text', content: beforeText })
+          }
+
+          if (m.type === 'claim') {
+            parts.push({
+              type: 'claim',
+              content: m.id || '',
+              claimId: m.id
+            })
+          } else if (m.type === 'entity_wiki') {
+            parts.push({
+              type: 'entity',
+              content: m.name || '',
+              entityName: m.name,
+              entityId: m.id
+            })
+          }
+        }
+      } else {
+        // Match starts at currentPos (adjacent to previous match)
+        if (m.type === 'entity') {
+          const entity = entityMap.get(m.id || '')
+          parts.push({
+            type: 'entity',
+            content: entity?.canonical_name || m.id || 'Unknown',
+            entityName: entity?.canonical_name,
+            entityId: m.id
+          })
+        } else if (m.type === 'claim') {
+          parts.push({
+            type: 'claim',
+            content: m.id || '',
+            claimId: m.id
+          })
+        } else if (m.type === 'entity_wiki') {
+          parts.push({
+            type: 'entity',
+            content: m.name || '',
+            entityName: m.name,
+            entityId: m.id
+          })
+        }
+      }
+
+      currentPos = m.index + m.length
     }
 
     // Add remaining text
-    if (lastIndex < text.length) {
+    if (currentPos < text.length) {
       parts.push({
         type: 'text',
-        content: text.substring(lastIndex)
+        content: text.substring(currentPos)
       })
     }
 

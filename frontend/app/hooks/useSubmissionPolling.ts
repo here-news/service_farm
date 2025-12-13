@@ -51,8 +51,10 @@ export function useSubmissionPolling({
         })
 
         if (response.ok) {
-          const data: EventSubmission[] = await response.json()
-          onUpdate(data)
+          const data = await response.json()
+          // API returns {events: [], total: 0}, extract the array
+          const submissions = Array.isArray(data) ? data : (data.events || [])
+          onUpdate(submissions)
         }
       } catch (err) {
         console.error('Failed to poll submission status:', err)

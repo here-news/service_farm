@@ -31,6 +31,7 @@ class TopologyClaimData:
     event_time: Optional[str]
     source_type: Optional[str] = None
     corroboration_count: int = 0
+    page_id: Optional[str] = None
 
 
 @dataclass
@@ -332,7 +333,8 @@ class TopologyPersistence:
                        is_superseded: s.is_superseded,
                        event_time: c.event_time,
                        source_type: pub.source_type,
-                       corroboration_count: s.corroboration_count
+                       corroboration_count: s.corroboration_count,
+                       page_id: p.id
                    }) as claims
         """, {'event_id': event_id})
 
@@ -363,7 +365,8 @@ class TopologyPersistence:
                     is_superseded=c['is_superseded'] or False,
                     event_time=c['event_time'],
                     source_type=c['source_type'],
-                    corroboration_count=c['corroboration_count'] or 0
+                    corroboration_count=c['corroboration_count'] or 0,
+                    page_id=c.get('page_id')
                 ))
 
         # Build relationships list

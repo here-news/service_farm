@@ -403,4 +403,4 @@ IFRAMELY_API_KEY=...    # Optional, for previews
 
 ---
 
-*Quick reference for implementation sessions. See `docs/ARCHITECTURE.md` for full design philosophy and technical details.*
+*Quick reference for implementation sessions. See `docs/architecture.principles.md` for full design philosophy and technical details.*

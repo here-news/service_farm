@@ -536,6 +536,19 @@ weight = edge_confidence × source_credibility × stake × temporal_decay
 - Events have version history
 - Graph snapshots for rollback
 
+### 8. **Domain Models Over Raw Data**
+- **ALWAYS** use Repository methods that return domain models (Page, Entity, Claim, Event)
+- **NEVER** use raw dict returns from Neo4j/PostgreSQL in API endpoints
+- Domain models handle:
+  - Type conversions (Neo4j DateTime → Python datetime)
+  - ID format normalization (UUID ↔ short ID)
+  - Default values and validation
+- **Anti-pattern**: `page_repo.get_claims(page_id)` returning raw dicts with Neo4j DateTime objects
+- **Correct pattern**: `claim_repo.get_by_page(page_id)` returning `List[Claim]` domain models
+- When serializing to API responses, domain models provide `.isoformat()` for dates
+
+**Why**: Raw database results leak implementation details and cause serialization bugs (Neo4j DateTime objects don't JSON serialize). Domain models provide a clean contract between layers.
+
 ---
 
 ## What We Explicitly Don't Do

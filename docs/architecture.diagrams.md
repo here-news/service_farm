@@ -1,6 +1,6 @@
 # Architecture Diagrams: Breathing Knowledge Base
 
-**Purpose**: Visual representation of the architecture described in [ARCHITECTURE.md](../ARCHITECTURE.md)
+**Purpose**: Visual representation of the architecture described in [architecture.principles.md](architecture.principles.md)
 
 **Format**: Mermaid (renders natively in GitHub/markdown)
 
@@ -628,4 +628,3 @@ If you need more visual control (colors, grouping, annotations):
 - Use [draw.io](https://app.diagrams.net/)
 - Import Mermaid as starting point
 - Export as `.drawio` or `.svg`
-

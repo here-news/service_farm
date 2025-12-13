@@ -49,6 +49,23 @@ export interface CoherenceBreakdown {
   }
 }
 
+export interface PageThumbnail {
+  page_id: string
+  thumbnail_url: string
+  title: string
+  domain: string
+}
+
+export interface Thought {
+  id: string
+  type: string
+  content: string
+  temperature?: number
+  coherence?: number
+  created_at: string
+  acknowledged: boolean
+}
+
 export interface Story {
   story_id?: string  // Legacy support
   event_id?: string  // New field
@@ -83,6 +100,11 @@ export interface Story {
   artifact_count?: number
   related_stories?: RelatedStory[]
   coherence_breakdown?: CoherenceBreakdown
+
+  // Homepage display fields
+  page_thumbnails?: PageThumbnail[]
+  page_count?: number
+  thought?: Thought
 }
 
 export interface FeedResponse {

@@ -349,6 +349,7 @@ async def get_event_topology(event_id: str):
                 'event_time': c.event_time,
                 'source_type': c.source_type,
                 'corroboration_count': c.corroboration_count,
+                'page_id': c.page_id,
             }
             for c in topology.claims
         ],

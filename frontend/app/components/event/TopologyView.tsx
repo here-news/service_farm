@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import ForceGraph2D from 'react-force-graph-2d';
 
 // Types matching the /api/event/{id}/topology response
@@ -11,6 +12,7 @@ interface TopologyClaim {
   event_time?: string;
   source_type?: string;
   corroboration_count: number;
+  page_id?: string;
 }
 
 interface TopologyRelationship {
@@ -82,10 +84,11 @@ interface GraphData {
 }
 
 const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
+  const navigate = useNavigate();
   const [topology, setTopology] = useState<TopologyData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedClaim, setSelectedClaim] = useState<TopologyClaim | null>(null);
+  const [hoveredNode, setHoveredNode] = useState<GraphNode | null>(null);
   const [graphData, setGraphData] = useState<GraphData>({ nodes: [], links: [] });
   const [pulsePhase, setPulsePhase] = useState(0);
 
@@ -315,11 +318,19 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
     }
   }, [graphData]);
 
-  // Node click handler
+  // Node click handler - navigate to source page
   const handleNodeClick = useCallback((node: GraphNode) => {
     if (node.type === 'claim' && node.claim) {
-      setSelectedClaim(prev => prev?.id === node.claim?.id ? null : node.claim!);
+      // If claim has page_id, navigate to it
+      if (node.claim.page_id) {
+        navigate(`/page/${node.claim.page_id}#${node.claim.id}`);
+      }
     }
+  }, [navigate]);
+
+  // Node hover handler - track hovered node for highlighting
+  const handleNodeHover = useCallback((node: GraphNode | null, _prevNode: GraphNode | null) => {
+    setHoveredNode(node);
   }, []);
 
   // Custom node rendering
@@ -413,18 +424,19 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
     } else {
       // Claim node - rounded rectangle
       const claim = node.claim;
-      const isSelected = selectedClaim?.id === node.id;
+      const isHovered = hoveredNode?.id === node.id;
       const size = node.val;
 
       // Calculate box dimensions based on text
       // Use fixed graph coordinates - these scale proportionally with zoom
-      const claimFontSize = 12;  // Fixed in graph space, scales with zoom
+      const claimFontSize = isHovered ? 11 : 12;  // Slightly smaller when expanded
       ctx.font = `${claimFontSize}px Sans-Serif`;
-      const maxWidth = 140;  // Fixed in graph space
+      const maxWidth = isHovered ? 220 : 140;  // Wider when hovered
       const padding = 8;
 
-      // Word wrap
-      const words = node.name.split(' ');
+      // Word wrap - show more text when hovered
+      const textToWrap = isHovered ? (claim?.text || node.name) : node.name;
+      const words = textToWrap.split(' ');
       const lines: string[] = [];
       let currentLine = '';
 
@@ -439,7 +451,13 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
         }
       }
       if (currentLine) lines.push(currentLine);
-      const displayLines = lines.slice(0, 3);
+
+      // Show more lines when hovered (up to 8), otherwise 3
+      const maxLines = isHovered ? 8 : 3;
+      const displayLines = lines.slice(0, maxLines);
+      if (lines.length > maxLines) {
+        displayLines[displayLines.length - 1] += '...';
+      }
 
       const lineHeight = claimFontSize * 1.3;
       let boxWidth = 0;
@@ -448,25 +466,33 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
         if (w > boxWidth) boxWidth = w;
       });
       boxWidth = Math.max(boxWidth + padding * 2, 80);  // Minimum width
-      const boxHeight = displayLines.length * lineHeight + padding * 2;
 
-      // Selection highlight
-      if (isSelected) {
-        ctx.fillStyle = 'rgba(99, 102, 241, 0.15)';
+      // Add extra height for metadata when hovered
+      const metaHeight = isHovered ? 36 : 0;  // Space for source type + click hint
+      const boxHeight = displayLines.length * lineHeight + padding * 2 + metaHeight;
+
+      // Selection highlight / glow effect when hovered
+      if (isHovered) {
+        ctx.shadowColor = 'rgba(99, 102, 241, 0.5)';
+        ctx.shadowBlur = 15;
+        ctx.fillStyle = 'rgba(99, 102, 241, 0.1)';
         ctx.fillRect(
           x - boxWidth / 2 - 4,
           y - boxHeight / 2 - 4,
           boxWidth + 8,
           boxHeight + 8
         );
+        ctx.shadowBlur = 0;
       }
 
       // Background - light mode: white with subtle tint
       ctx.fillStyle = claim?.is_superseded
-        ? 'rgba(241, 245, 249, 0.95)'  // slate-100
+        ? 'rgba(241, 245, 249, 0.98)'  // slate-100
         : node.isContradicted
-          ? 'rgba(254, 242, 242, 0.95)'  // red-50
-          : 'rgba(255, 255, 255, 0.95)';  // white
+          ? 'rgba(254, 242, 242, 0.98)'  // red-50
+          : isHovered
+            ? 'rgba(255, 255, 255, 1)'  // solid white when hovered
+            : 'rgba(255, 255, 255, 0.95)';  // white
       ctx.fillRect(x - boxWidth / 2, y - boxHeight / 2, boxWidth, boxHeight);
 
       // Left accent bar
@@ -475,7 +501,7 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
 
       // Border
       ctx.strokeStyle = claim?.is_superseded ? 'rgba(148, 163, 184, 0.6)' : node.color;
-      ctx.lineWidth = isSelected ? 2 : 1;
+      ctx.lineWidth = isHovered ? 2 : 1;
       ctx.strokeRect(x - boxWidth / 2, y - boxHeight / 2, boxWidth, boxHeight);
 
       // Text - dark text for light mode
@@ -484,13 +510,15 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
 
-      let textY = y - ((displayLines.length - 1) * lineHeight) / 2;
+      // Offset text up when showing metadata
+      const textStartY = y - ((displayLines.length - 1) * lineHeight) / 2 - (metaHeight / 2);
+      let textY = textStartY;
       displayLines.forEach(line => {
         ctx.fillText(line, x, textY);
         textY += lineHeight;
       });
 
-      // Plausibility badge
+      // Plausibility badge (top right)
       if (claim) {
         const badgeText = `${Math.round(claim.plausibility * 100)}%`;
         const badgeFontSize = claimFontSize * 0.8;
@@ -509,15 +537,54 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
         ctx.fillText(badgeText, badgeX + badgeWidth / 2, badgeY + badgeFontSize * 0.6);
       }
 
-      // Contradiction indicator
+      // Contradiction indicator (top left)
       if (node.isContradicted) {
         ctx.font = `${claimFontSize}px Sans-Serif`;
         ctx.fillStyle = '#ef4444';
         ctx.textAlign = 'left';
         ctx.fillText('⚡', x - boxWidth / 2 + 6, y - boxHeight / 2 + claimFontSize);
       }
+
+      // Metadata section when hovered
+      if (isHovered && claim) {
+        const metaY = y + boxHeight / 2 - metaHeight + 4;
+
+        // Divider line
+        ctx.strokeStyle = 'rgba(148, 163, 184, 0.3)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x - boxWidth / 2 + 8, metaY);
+        ctx.lineTo(x + boxWidth / 2 - 8, metaY);
+        ctx.stroke();
+
+        // Source type
+        const metaFontSize = 10;
+        ctx.font = `${metaFontSize}px Sans-Serif`;
+        ctx.textAlign = 'left';
+        ctx.fillStyle = 'rgba(100, 116, 139, 0.9)';
+
+        const sourceText = claim.source_type
+          ? claim.source_type.replace(/_/g, ' ')
+          : 'source';
+        ctx.fillText(sourceText, x - boxWidth / 2 + 8, metaY + 14);
+
+        // Click to view hint (if has page_id)
+        if (claim.page_id) {
+          ctx.fillStyle = 'rgba(99, 102, 241, 0.9)';
+          ctx.textAlign = 'right';
+          ctx.fillText('click to view →', x + boxWidth / 2 - 8, metaY + 14);
+        }
+
+        // Date if available
+        if (claim.event_time) {
+          ctx.fillStyle = 'rgba(100, 116, 139, 0.7)';
+          ctx.textAlign = 'left';
+          const dateStr = new Date(claim.event_time).toLocaleDateString();
+          ctx.fillText(dateStr, x - boxWidth / 2 + 8, metaY + 26);
+        }
+      }
     }
-  }, [selectedClaim, pulsePhase]);
+  }, [hoveredNode, pulsePhase]);
 
   // Link rendering
   const linkCanvasObject = useCallback((link: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
@@ -672,6 +739,8 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
           }}
           nodeVal={(node: GraphNode) => node.val}
           onNodeClick={handleNodeClick}
+          onNodeHover={handleNodeHover}
+          nodeLabel={() => ''}
           backgroundColor="#f8fafc"
           d3AlphaDecay={0.02}
           d3VelocityDecay={0.3}
@@ -710,44 +779,6 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
           </div>
         </div>
       </div>
-
-      {/* Selected claim detail */}
-      {selectedClaim && (
-        <div className="border-t border-slate-200 p-4 bg-indigo-50">
-          <div className="flex justify-between items-start mb-2">
-            <div className="flex items-center gap-2">
-              <span className="text-slate-800 font-medium">
-                {Math.round(selectedClaim.plausibility * 100)}% plausible
-              </span>
-              <span className="text-slate-500 text-sm">
-                (prior: {Math.round(selectedClaim.prior * 100)}%)
-              </span>
-            </div>
-            <button
-              onClick={() => setSelectedClaim(null)}
-              className="text-slate-400 hover:text-slate-700"
-            >
-              ×
-            </button>
-          </div>
-          <p className="text-slate-700 text-sm mb-2">{selectedClaim.text}</p>
-          <div className="flex flex-wrap gap-2 text-xs">
-            {selectedClaim.is_superseded && (
-              <span className="px-2 py-1 bg-slate-200 rounded text-slate-600">Superseded</span>
-            )}
-            {selectedClaim.corroboration_count > 0 && (
-              <span className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded">
-                +{selectedClaim.corroboration_count} corroborating
-              </span>
-            )}
-            {selectedClaim.event_time && (
-              <span className="px-2 py-1 bg-slate-200 text-slate-600 rounded">
-                {new Date(selectedClaim.event_time).toLocaleDateString()}
-              </span>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Topology Details Section */}
       <div className="border-t border-slate-200 p-4 space-y-4 bg-slate-50">
@@ -826,7 +857,7 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
                                   ? 'bg-blue-600 text-white font-medium'
                                   : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
                               }`}
-                              onClick={() => setSelectedClaim(claim)}
+                              onClick={() => claim.page_id && navigate(`/page/${claim.page_id}#${claim.id}`)}
                               title={claim.text}
                             >
                               {values[i]}
@@ -873,8 +904,8 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
                     <div className="flex items-start gap-3">
                       <div className="flex-1">
                         <div
-                          className="text-sm text-slate-700 cursor-pointer hover:text-slate-900 line-clamp-2"
-                          onClick={() => setSelectedClaim(claim1)}
+                          className="text-sm text-slate-700 cursor-pointer hover:text-slate-900 hover:text-indigo-600 line-clamp-2"
+                          onClick={() => claim1.page_id && navigate(`/page/${claim1.page_id}#${claim1.id}`)}
                         >
                           "{claim1.text.length > 80 ? claim1.text.slice(0, 80) + '...' : claim1.text}"
                         </div>
@@ -885,8 +916,8 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
                       <div className="text-red-500 text-lg font-bold px-2">vs</div>
                       <div className="flex-1">
                         <div
-                          className="text-sm text-slate-700 cursor-pointer hover:text-slate-900 line-clamp-2"
-                          onClick={() => setSelectedClaim(claim2)}
+                          className="text-sm text-slate-700 cursor-pointer hover:text-slate-900 hover:text-indigo-600 line-clamp-2"
+                          onClick={() => claim2.page_id && navigate(`/page/${claim2.page_id}#${claim2.id}`)}
                         >
                           "{claim2.text.length > 80 ? claim2.text.slice(0, 80) + '...' : claim2.text}"
                         </div>

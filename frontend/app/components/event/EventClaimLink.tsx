@@ -1,4 +1,5 @@
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 export interface ClaimSource {
   page_id: string
@@ -38,26 +39,21 @@ interface EventClaimLinkProps {
     text: string
     event_time?: string
     confidence?: number
+    page_id?: string
   }>
-}
-
-const modalityColors: Record<string, { bg: string; text: string }> = {
-  observation: { bg: '#065f46', text: '#a7f3d0' },
-  prediction: { bg: '#1e40af', text: '#bfdbfe' },
-  speculation: { bg: '#92400e', text: '#fde68a' },
-  opinion: { bg: '#7c3aed', text: '#ddd6fe' },
-  default: { bg: '#374151', text: '#d1d5db' }
 }
 
 function EventClaimLink({
   claimId,
-  displayText,
+  displayText: _displayText, // Reserved for future use
   preloadedClaim,
   eventClaims
 }: EventClaimLinkProps) {
+  const navigate = useNavigate()
   const [showPopup, setShowPopup] = useState(false)
   const [claimData, setClaimData] = useState<EventClaimData | null>(preloadedClaim || null)
   const [loading, setLoading] = useState(false)
+  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Find claim in eventClaims on mount
   React.useEffect(() => {
@@ -74,28 +70,20 @@ function EventClaimLink({
           text: found.text,
           event_time: found.event_time,
           confidence: found.confidence,
+          page_id: found.page_id,
         })
       }
     }
   }, [claimId, eventClaims, preloadedClaim])
 
-  // Fetch full claim data (with source) on click
-  const handleClick = async (e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-
-    setShowPopup(!showPopup)
-
-    // If we already have full data with source, skip fetch
-    if (claimData?.source !== undefined) {
-      return
-    }
-
+  // Fetch full claim data on hover (for popup)
+  const fetchClaimData = async () => {
+    if (claimData?.source !== undefined) return
     if (!claimId || !claimId.startsWith('cl_')) return
 
     setLoading(true)
     try {
-      const response = await fetch(`/api/claims/${claimId}`)
+      const response = await fetch(`/api/claim/${claimId}`)
       if (response.ok) {
         const data = await response.json()
         setClaimData({
@@ -111,66 +99,81 @@ function EventClaimLink({
     }
   }
 
-  // Close popup when clicking outside
-  React.useEffect(() => {
-    if (!showPopup) return
+  // Handle hover - show popup after short delay
+  const handleMouseEnter = () => {
+    hoverTimeoutRef.current = setTimeout(() => {
+      setShowPopup(true)
+      fetchClaimData()
+    }, 300) // 300ms delay before showing popup
+  }
 
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as HTMLElement
-      if (!target.closest('.claim-popup-container')) {
-        setShowPopup(false)
-      }
+  const handleMouseLeave = () => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current)
+      hoverTimeoutRef.current = null
     }
+    setShowPopup(false)
+  }
 
-    document.addEventListener('click', handleClickOutside)
-    return () => document.removeEventListener('click', handleClickOutside)
-  }, [showPopup])
+  // Handle click - navigate to page with claim anchor
+  const handleClick = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
 
-  const formatDateTime = (dateStr: string | null | undefined) => {
-    if (!dateStr) return null
-    try {
-      const date = new Date(dateStr)
-      return date.toLocaleString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
+    const pageId = claimData?.source?.page_id || claimData?.page_id
+    if (pageId) {
+      navigate(`/page/${pageId}#${claimId}`)
+    } else {
+      // If no page_id yet, fetch it first
+      fetchClaimData().then(() => {
+        const pid = claimData?.source?.page_id || claimData?.page_id
+        if (pid) {
+          navigate(`/page/${pid}#${claimId}`)
+        }
       })
-    } catch {
-      return dateStr
     }
   }
 
-  const modalityStyle = claimData?.modality
-    ? modalityColors[claimData.modality] || modalityColors.default
-    : modalityColors.default
+  // Cleanup timeout on unmount
+  React.useEffect(() => {
+    return () => {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current)
+      }
+    }
+  }, [])
 
-  // Display as superscript citation marker
-  const markerText = displayText || `[${claimId.replace('cl_', '').slice(0, 4)}]`
 
+  // Display as a subtle but visible citation dot
+  // Hover: shows popup with claim preview
+  // Click: navigates to /page/{pg_id}/#cl_id
   return (
-    <span className="claim-popup-container" style={{ position: 'relative', display: 'inline' }}>
-      <sup
+    <span
+      className="claim-popup-container"
+      style={{ position: 'relative', display: 'inline' }}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
+      <span
         onClick={handleClick}
         style={{
           cursor: 'pointer',
-          color: '#60a5fa',
-          fontWeight: 600,
-          fontSize: '0.7em',
-          marginLeft: '1px',
-          padding: '0 2px',
-          borderRadius: '2px',
-          backgroundColor: showPopup ? 'rgba(96, 165, 250, 0.2)' : 'transparent',
-          transition: 'all 0.2s'
+          display: 'inline-block',
+          width: '8px',
+          height: '8px',
+          borderRadius: '50%',
+          backgroundColor: showPopup ? '#4f46e5' : '#818cf8',
+          marginLeft: '2px',
+          marginRight: '1px',
+          verticalAlign: 'super',
+          transition: 'all 0.15s',
+          boxShadow: showPopup ? '0 0 0 3px rgba(99, 102, 241, 0.3)' : 'none'
         }}
-        className="hover:bg-blue-500/20"
-        title={claimData?.text || 'Click to view claim'}
-      >
-        {markerText}
-      </sup>
+        className="hover:bg-indigo-600 hover:scale-125"
+        title="Click to view source"
+      />
 
-      {/* Popup */}
+      {/* Hover Popup - compact preview */}
       {showPopup && (
         <div
           style={{
@@ -178,18 +181,18 @@ function EventClaimLink({
             bottom: '100%',
             left: '50%',
             transform: 'translateX(-50%)',
-            marginBottom: '12px',
-            backgroundColor: '#111827',
+            marginBottom: '8px',
+            backgroundColor: '#1f2937',
             color: 'white',
-            padding: '16px',
-            borderRadius: '12px',
-            minWidth: '320px',
-            maxWidth: '450px',
+            padding: '10px 12px',
+            borderRadius: '8px',
+            minWidth: '250px',
+            maxWidth: '350px',
             zIndex: 1001,
-            boxShadow: '0 8px 30px rgba(0,0,0,0.6)',
-            border: '1px solid #374151'
+            boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+            border: '1px solid #374151',
+            pointerEvents: 'none' // Popup doesn't capture mouse - allows click through
           }}
-          onClick={(e) => e.stopPropagation()}
         >
           {/* Arrow pointing down */}
           <div
@@ -200,130 +203,42 @@ function EventClaimLink({
               transform: 'translateX(-50%)',
               width: 0,
               height: 0,
-              borderLeft: '10px solid transparent',
-              borderRight: '10px solid transparent',
-              borderTop: '10px solid #111827'
+              borderLeft: '6px solid transparent',
+              borderRight: '6px solid transparent',
+              borderTop: '6px solid #1f2937'
             }}
           />
 
-          {/* Close button */}
-          <button
-            onClick={() => setShowPopup(false)}
-            style={{
-              position: 'absolute',
-              top: '8px',
-              right: '8px',
-              background: 'none',
-              border: 'none',
-              color: '#9ca3af',
-              cursor: 'pointer',
-              fontSize: '16px',
-              lineHeight: 1,
-              padding: '4px'
-            }}
-            className="hover:text-white"
-          >
-            x
-          </button>
-
           {loading ? (
-            <div className="flex items-center gap-2 text-gray-400 py-4">
-              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
-              <span>Loading claim details...</span>
+            <div className="flex items-center gap-2 text-gray-400 text-sm">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-400"></div>
+              <span>Loading...</span>
             </div>
           ) : claimData ? (
             <div>
-              {/* Claim text */}
-              <div className="text-gray-200 text-sm leading-relaxed mb-3 pr-6">
+              {/* Claim text - compact */}
+              <div className="text-gray-200 text-sm leading-snug line-clamp-3">
                 "{claimData.text}"
               </div>
 
-              {/* Metadata row */}
-              <div className="flex flex-wrap gap-2 mb-3">
-                {/* Event time */}
-                {claimData.event_time && (
-                  <div className="flex items-center gap-1 text-xs bg-gray-800 px-2 py-1 rounded">
-                    <span className="text-gray-500">When:</span>
-                    <span className="text-gray-300">{formatDateTime(claimData.event_time)}</span>
-                  </div>
-                )}
-
-                {/* Confidence */}
+              {/* Compact metadata row */}
+              <div className="flex items-center gap-2 mt-2 text-xs text-gray-400">
                 {claimData.confidence !== undefined && (
-                  <div className="flex items-center gap-1 text-xs bg-gray-800 px-2 py-1 rounded">
-                    <span className="text-gray-500">Confidence:</span>
-                    <span className="text-green-400">{Math.round(claimData.confidence * 100)}%</span>
-                  </div>
-                )}
-
-                {/* Modality */}
-                {claimData.modality && (
-                  <span
-                    className="text-xs px-2 py-1 rounded font-medium"
-                    style={{
-                      backgroundColor: modalityStyle.bg,
-                      color: modalityStyle.text
-                    }}
-                  >
-                    {claimData.modality}
+                  <span className="text-green-400">
+                    {Math.round(claimData.confidence * 100)}%
                   </span>
                 )}
-
-                {/* Topic key */}
-                {claimData.topic_key && (
-                  <span className="text-xs bg-purple-900/50 text-purple-300 px-2 py-1 rounded">
-                    {claimData.topic_key}
+                {claimData.source?.site_name && (
+                  <span className="truncate">
+                    {claimData.source.site_name}
                   </span>
                 )}
-              </div>
-
-              {/* Source */}
-              {claimData.source && (
-                <div className="border-t border-gray-700 pt-3 mt-3">
-                  <div className="text-xs text-gray-500 mb-1">Source:</div>
-                  <a
-                    href={claimData.source.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm text-blue-400 hover:text-blue-300 hover:underline block truncate"
-                    title={claimData.source.url}
-                  >
-                    {claimData.source.title || claimData.source.site_name || claimData.source.domain || claimData.source.url}
-                  </a>
-                  {claimData.source.site_name && claimData.source.title && (
-                    <div className="text-xs text-gray-500 mt-1">
-                      {claimData.source.site_name}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Mentioned entities */}
-              {claimData.entities && claimData.entities.length > 0 && (
-                <div className="border-t border-gray-700 pt-3 mt-3">
-                  <div className="text-xs text-gray-500 mb-2">Mentioned entities:</div>
-                  <div className="flex flex-wrap gap-1">
-                    {claimData.entities.map(entity => (
-                      <span
-                        key={entity.id}
-                        className="text-xs px-2 py-0.5 rounded bg-gray-800 text-gray-300"
-                        title={entity.entity_type}
-                      >
-                        {entity.canonical_name}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Claim ID */}
-              <div className="text-xs text-gray-600 mt-3 pt-2 border-t border-gray-800">
-                ID: {claimData.id}
+                <span className="text-indigo-400 ml-auto">Click to view</span>
               </div>
             </div>
           ) : (
-            <div className="text-gray-400 text-sm py-2">
-              Unable to load claim details
+            <div className="text-gray-400 text-sm">
+              Click to view source
             </div>
           )}
         </div>

@@ -203,6 +203,60 @@ class EntityRepository:
 
         return entities
 
+    async def get_by_page_id(self, page_id: str) -> List[Entity]:
+        """
+        Retrieve all entities mentioned in a page's claims from Neo4j
+
+        Args:
+            page_id: Page ID (pg_xxxxxxxx format)
+
+        Returns:
+            List of Entity models mentioned in the page
+        """
+        # Query Neo4j for entities via Page -> CONTAINS -> Claim -> MENTIONS -> Entity
+        results = await self.neo4j._execute_read("""
+            MATCH (p:Page {id: $page_id})-[:CONTAINS]->(c:Claim)-[:MENTIONS]->(entity:Entity)
+            WITH DISTINCT entity
+            RETURN entity.id as id,
+                   entity.canonical_name as canonical_name,
+                   entity.entity_type as entity_type,
+                   entity.mention_count as mention_count,
+                   entity.confidence as confidence,
+                   entity.wikidata_qid as wikidata_qid,
+                   entity.wikidata_label as wikidata_label,
+                   entity.wikidata_description as wikidata_description,
+                   entity.image_url as image_url,
+                   entity.profile_summary as profile_summary,
+                   entity.status as status,
+                   entity.aliases as aliases,
+                   entity.latitude as latitude,
+                   entity.longitude as longitude
+            ORDER BY entity.mention_count DESC
+        """, {'page_id': page_id})
+
+        # Convert to Entity models
+        entities = []
+        for row in results:
+            entities.append(Entity(
+                id=row['id'],
+                canonical_name=row['canonical_name'],
+                entity_type=row['entity_type'],
+                mention_count=row.get('mention_count', 0),
+                profile_summary=row.get('profile_summary'),
+                wikidata_qid=row.get('wikidata_qid'),
+                wikidata_label=row.get('wikidata_label'),
+                wikidata_description=row.get('wikidata_description'),
+                image_url=row.get('image_url'),
+                latitude=row.get('latitude'),
+                longitude=row.get('longitude'),
+                status=row.get('status', 'pending'),
+                confidence=row.get('confidence', 0.0),
+                aliases=row.get('aliases', []),
+                metadata={}
+            ))
+
+        return entities
+
     async def get_by_canonical_name(
         self, canonical_name: str, entity_type: Optional[str] = None
     ) -> Optional[Entity]:
