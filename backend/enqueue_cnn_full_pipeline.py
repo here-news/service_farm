@@ -44,7 +44,7 @@ async def main():
 
     if event:
         claims_before = await neo4j._execute_read("""
-            MATCH (e:Event {id: $event_id})-[:SUPPORTS]->(c:Claim)
+            MATCH (e:Event {id: $event_id})-[:INTAKES]->(c:Claim)
             RETURN count(c) as count
         """, {'event_id': event[0]['id']})
 
@@ -106,7 +106,7 @@ async def main():
 
     # Check claims
     claims = await neo4j._execute_read("""
-        MATCH (p:Page {id: $page_id})-[:CONTAINS]->(c:Claim)
+        MATCH (p:Page {id: $page_id})-[:EMITS]->(c:Claim)
         RETURN count(c) as count
     """, {'page_id': page_id})
 
@@ -136,7 +136,7 @@ async def main():
 
     # Check final state
     event_link = await neo4j._execute_read("""
-        MATCH (e:Event)-[:SUPPORTS]->(c:Claim)<-[:CONTAINS]-(p:Page {id: $page_id})
+        MATCH (e:Event)-[:INTAKES]->(c:Claim)<-[:EMITS]-(p:Page {id: $page_id})
         RETURN e.id as event_id, e.canonical_name as event_name, count(c) as claim_count
     """, {'page_id': page_id})
 
@@ -149,7 +149,7 @@ async def main():
 
         # Get final event state
         total_claims = await neo4j._execute_read("""
-            MATCH (e:Event {id: $event_id})-[:SUPPORTS]->(c:Claim)
+            MATCH (e:Event {id: $event_id})-[:INTAKES]->(c:Claim)
             RETURN count(c) as count
         """, {'event_id': link['event_id']})
 

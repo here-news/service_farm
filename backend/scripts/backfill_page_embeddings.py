@@ -40,7 +40,7 @@ async def get_pages_without_embeddings(conn) -> list:
 async def get_claims_for_page(neo4j: Neo4jService, page_id: str) -> list:
     """Get claim texts for a page from Neo4j"""
     result = await neo4j._execute_read("""
-        MATCH (p:Page {id: $page_id})-[:CONTAINS]->(c:Claim)
+        MATCH (p:Page {id: $page_id})-[:EMITS]->(c:Claim)
         RETURN c.text as text
     """, {'page_id': page_id})
     return [r['text'] for r in result if r['text']]

@@ -163,7 +163,7 @@ class CoherenceService:
         with self.neo4j_client.driver.session(database=self.neo4j_client.database) as session:
             # Get claim count for this story (through Page artifacts)
             result = session.run('''
-                MATCH (s:Story)-[:HAS_ARTIFACT]->(p:Page)-[:HAS_CLAIM]->(c:Claim)
+                MATCH (s:Story)-[:HAS_ARTIFACT]->(p:Page)-[:EMITS]->(c:Claim)
                 WHERE s.id = $story_id
                 RETURN count(DISTINCT c) as claim_count
             ''', story_id=story_id)
@@ -173,7 +173,7 @@ class CoherenceService:
 
             # Get max claims for normalization
             result = session.run('''
-                MATCH (s:Story)-[:HAS_ARTIFACT]->(p:Page)-[:HAS_CLAIM]->(c:Claim)
+                MATCH (s:Story)-[:HAS_ARTIFACT]->(p:Page)-[:EMITS]->(c:Claim)
                 WITH s, count(DISTINCT c) as claims
                 RETURN max(claims) as max_claims
             ''')

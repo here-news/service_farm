@@ -215,7 +215,7 @@ class EntityRepository:
         """
         # Query Neo4j for entities via Page -> CONTAINS -> Claim -> MENTIONS -> Entity
         results = await self.neo4j._execute_read("""
-            MATCH (p:Page {id: $page_id})-[:CONTAINS]->(c:Claim)-[:MENTIONS]->(entity:Entity)
+            MATCH (p:Page {id: $page_id})-[:EMITS]->(c:Claim)-[:MENTIONS]->(entity:Entity)
             WITH DISTINCT entity
             RETURN entity.id as id,
                    entity.canonical_name as canonical_name,

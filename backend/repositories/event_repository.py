@@ -175,7 +175,7 @@ class EventRepository:
 
         # NOTE: claim_ids NO LONGER in metadata - use EventRepository.get_event_claims() to fetch
 
-        # Get parent_event_id from Neo4j :CONTAINS relationships
+        # Get parent_event_id from Neo4j :SPAWNS relationships
         parent_event_id = await self.neo4j.get_parent_event_id(event_id=event_id)
 
         # Fetch embedding from PostgreSQL
@@ -230,7 +230,7 @@ class EventRepository:
         """
         Get all sub-events for a parent event
 
-        Uses Neo4j :CONTAINS relationships as source of truth
+        Uses Neo4j :SPAWNS relationships as source of truth
 
         Args:
             parent_id: Parent event ID (ev_xxxxxxxx format)
@@ -484,8 +484,8 @@ class EventRepository:
         # Fetch all claim data from Neo4j (primary storage)
         # Join with Page via CONTAINS relationship to get page_id
         result = await self.neo4j._execute_read("""
-            MATCH (e:Event {id: $event_id})-[r:SUPPORTS|CONTRADICTS|UPDATES]->(c:Claim)
-            OPTIONAL MATCH (p:Page)-[:CONTAINS]->(c)
+            MATCH (e:Event {id: $event_id})-[r:INTAKES|CONTRADICTS|UPDATES]->(c:Claim)
+            OPTIONAL MATCH (p:Page)-[:EMITS]->(c)
             RETURN c.id as id,
                    COALESCE(c.page_id, p.id) as page_id,
                    c.text as text,
@@ -542,7 +542,7 @@ class EventRepository:
 
         # Step 1: Get claim IDs from Neo4j graph
         neo4j_result = await self.neo4j._execute_read("""
-            MATCH (e:Event {id: $event_id})-[r:SUPPORTS|CONTRADICTS|UPDATES]->(c:Claim)
+            MATCH (e:Event {id: $event_id})-[r:INTAKES|CONTRADICTS|UPDATES]->(c:Claim)
             RETURN c.id as claim_id, type(r) as relationship
         """, {'event_id': event_id})
 
@@ -642,7 +642,7 @@ class EventRepository:
             plausibility: Posterior probability (0.0-1.0)
         """
         await self.neo4j._execute_write("""
-            MATCH (e:Event {id: $event_id})-[r:SUPPORTS]->(c:Claim {id: $claim_id})
+            MATCH (e:Event {id: $event_id})-[r:INTAKES]->(c:Claim {id: $claim_id})
             SET r.plausibility = $plausibility,
                 r.plausibility_updated = datetime()
         """, {
@@ -667,7 +667,7 @@ class EventRepository:
             Plausibility score (0.0-1.0) or None if not set
         """
         result = await self.neo4j._execute_read("""
-            MATCH (e:Event {id: $event_id})-[r:SUPPORTS]->(c:Claim {id: $claim_id})
+            MATCH (e:Event {id: $event_id})-[r:INTAKES]->(c:Claim {id: $claim_id})
             RETURN r.plausibility as plausibility
         """, {
             'event_id': event_id,
@@ -694,7 +694,7 @@ class EventRepository:
             Dict mapping claim_id -> plausibility score
         """
         result = await self.neo4j._execute_read("""
-            MATCH (e:Event {id: $event_id})-[r:SUPPORTS]->(c:Claim)
+            MATCH (e:Event {id: $event_id})-[r:INTAKES]->(c:Claim)
             WHERE r.plausibility IS NOT NULL
             RETURN c.id as claim_id, r.plausibility as plausibility
         """, {
@@ -726,7 +726,7 @@ class EventRepository:
         """
         query = """
             MATCH (e:Event)
-            WHERE NOT exists((e)<-[:CONTAINS]-())
+            WHERE NOT exists((e)<-[:SPAWNS]-())
         """
 
         params = {}
@@ -741,7 +741,7 @@ class EventRepository:
 
         query += """
             WITH e
-            OPTIONAL MATCH (e)-[:CONTAINS]->(sub:Event)
+            OPTIONAL MATCH (e)-[:SPAWNS]->(sub:Event)
             WITH e, count(sub) as child_count
             RETURN e.id as id,
                    e.canonical_name as canonical_name,
@@ -1015,7 +1015,7 @@ class EventRepository:
         """
         # First get page IDs from Neo4j graph
         result = await self.neo4j._execute_read("""
-            MATCH (e:Event {id: $event_id})-[:SUPPORTS]->(c:Claim)<-[:CONTAINS]-(p:Page)
+            MATCH (e:Event {id: $event_id})-[:INTAKES]->(c:Claim)<-[:EMITS]-(p:Page)
             WITH DISTINCT p.id as page_id
             RETURN page_id
             LIMIT $limit
@@ -1083,7 +1083,7 @@ class EventRepository:
             Number of claims
         """
         result = await self.neo4j._execute_read("""
-            MATCH (e:Event {id: $event_id})-[:SUPPORTS]->(c:Claim)
+            MATCH (e:Event {id: $event_id})-[:INTAKES]->(c:Claim)
             RETURN count(c) as count
         """, {'event_id': event_id})
 
@@ -1100,7 +1100,7 @@ class EventRepository:
             Number of distinct pages
         """
         result = await self.neo4j._execute_read("""
-            MATCH (e:Event {id: $event_id})-[:SUPPORTS]->(c:Claim)<-[:CONTAINS]-(p:Page)
+            MATCH (e:Event {id: $event_id})-[:INTAKES]->(c:Claim)<-[:EMITS]-(p:Page)
             RETURN count(DISTINCT p) as count
         """, {'event_id': event_id})
 
@@ -1127,8 +1127,8 @@ class EventRepository:
             LIMIT $limit
 
             // Get claims for this event that mention the entity
-            OPTIONAL MATCH (e)-[sup:SUPPORTS]->(c:Claim)-[:MENTIONS]->(entity:Entity {id: $entity_id})
-            OPTIONAL MATCH (c)<-[:CONTAINS]-(p:Page)
+            OPTIONAL MATCH (e)-[sup:INTAKES]->(c:Claim)-[:MENTIONS]->(entity:Entity {id: $entity_id})
+            OPTIONAL MATCH (c)<-[:EMITS]-(p:Page)
 
             WITH e, collect(DISTINCT {
                 id: c.id,

@@ -48,7 +48,7 @@ async def get_feed(limit: int = 20, offset: int = 0, min_coherence: float = 0.0)
             WHERE e.coherence IS NOT NULL
               AND e.coherence >= $min_coherence
               AND e.summary IS NOT NULL
-            OPTIONAL MATCH (e)-[:SUPPORTS]->(c:Claim)
+            OPTIONAL MATCH (e)-[:INTAKES]->(c:Claim)
             WITH e, count(c) as claim_count
             RETURN e.id as id,
                    e.canonical_name as canonical_name,

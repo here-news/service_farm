@@ -12,11 +12,12 @@ Node Types:
 - Event: {id, canonical_name, event_type, status, scale}
 
 Relationships:
-- (Page)-[:CONTAINS]->(Claim)
+- (Page)-[:EMITS]->(Claim) - page emits/sources claims
 - (Page)-[:PUBLISHED_BY]->(Entity) - where Entity.is_publisher=true
 - (Claim)-[:MENTIONS]->(Entity)
 - (Claim)-[:ACTOR|SUBJECT|LOCATION]->(Entity) - semantic roles
-- (Event)-[:SUPPORTS]->(Claim)
+- (Event)-[:INTAKES]->(Claim) - living event absorbs claims
+- (Event)-[:SPAWNS]->(Event) - parent event spawns child
 - (Event)-[:INVOLVES]->(Entity)
 - (Entity)-[:PART_OF|LOCATED_IN|WORKS_FOR]->(Entity)
 
@@ -230,7 +231,7 @@ class Neo4jService:
 
     async def get_parent_event_id(self, event_id: str) -> Optional[str]:
         """
-        Get parent event ID from Neo4j relationships (:CONTAINS)
+        Get parent event ID from Neo4j relationships (:SPAWNS)
 
         Args:
             event_id: Child event ID
@@ -239,7 +240,7 @@ class Neo4jService:
             Parent event ID or None if root event
         """
         query = """
-        MATCH (parent:Event)-[:CONTAINS]->(child:Event {id: $event_id})
+        MATCH (parent:Event)-[:SPAWNS]->(child:Event {id: $event_id})
         RETURN parent.id as parent_id
         LIMIT 1
         """
@@ -249,7 +250,7 @@ class Neo4jService:
 
     async def get_sub_event_ids(self, event_id: str) -> List[str]:
         """
-        Get all sub-event IDs from Neo4j relationships (:CONTAINS)
+        Get all sub-event IDs from Neo4j relationships (:SPAWNS)
 
         Args:
             event_id: Parent event ID
@@ -258,7 +259,7 @@ class Neo4jService:
             List of sub-event IDs
         """
         query = """
-        MATCH (parent:Event {id: $event_id})-[:CONTAINS]->(child:Event)
+        MATCH (parent:Event {id: $event_id})-[:SPAWNS]->(child:Event)
         RETURN child.id as child_id
         ORDER BY child.created_at
         """
@@ -270,7 +271,7 @@ class Neo4jService:
         self,
         parent_id: str,
         child_id: str,
-        relationship_type: str = "CONTAINS"
+        relationship_type: str = "SPAWNS"
     ) -> bool:
         """
         Create relationship between parent and child events
@@ -278,7 +279,7 @@ class Neo4jService:
         Args:
             parent_id: Parent event ID
             child_id: Child event ID
-            relationship_type: Type of relationship (CONTAINS, PHASE_OF, etc.)
+            relationship_type: Type of relationship (SPAWNS, PHASE_OF, etc.)
 
         Returns:
             True if successful
@@ -983,11 +984,11 @@ class Neo4jService:
         await self._execute_write(query, {'page_id': page_id, 'status': status})
 
     async def link_page_to_claim(self, page_id: str, claim_id: str) -> None:
-        """Create CONTAINS relationship between Page and Claim."""
+        """Create EMITS relationship between Page and Claim."""
         query = """
         MATCH (p:Page {id: $page_id})
         MATCH (c:Claim {id: $claim_id})
-        MERGE (p)-[r:CONTAINS]->(c)
+        MERGE (p)-[r:EMITS]->(c)
         ON CREATE SET r.created_at = datetime()
         """
         await self._execute_write(query, {
@@ -998,7 +999,7 @@ class Neo4jService:
     async def get_page_claims(self, page_id: str) -> List[Dict]:
         """Get all claims for a page."""
         query = """
-        MATCH (p:Page {id: $page_id})-[:CONTAINS]->(c:Claim)
+        MATCH (p:Page {id: $page_id})-[:EMITS]->(c:Claim)
         RETURN c.id as id, c.text as text, c.confidence as confidence,
                c.modality as modality, c.event_time as event_time
         ORDER BY c.created_at
@@ -1008,7 +1009,7 @@ class Neo4jService:
     async def get_page_entities(self, page_id: str) -> List[Dict]:
         """Get all entities mentioned in a page's claims."""
         query = """
-        MATCH (p:Page {id: $page_id})-[:CONTAINS]->(c:Claim)-[:MENTIONS]->(e:Entity)
+        MATCH (p:Page {id: $page_id})-[:EMITS]->(c:Claim)-[:MENTIONS]->(e:Entity)
         RETURN DISTINCT e.id as id, e.canonical_name as canonical_name,
                e.entity_type as entity_type, e.wikidata_qid as wikidata_qid,
                e.mention_count as mention_count

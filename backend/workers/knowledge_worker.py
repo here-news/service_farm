@@ -656,7 +656,7 @@ class KnowledgeWorker:
         Create claims with entity links using UUIDs.
 
         Neo4j relationships created:
-        - (Page)-[:CONTAINS]->(Claim)
+        - (Page)-[:EMITS]->(Claim)
         - (Claim)-[:MENTIONS]->(Entity)
         """
         claim_ids = []

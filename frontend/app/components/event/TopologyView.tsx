@@ -251,7 +251,7 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
         links.push({
           source: 'event-center',
           target: claim.id,
-          type: 'SUPPORTS',
+          type: 'INTAKES',
           color: 'rgba(99, 102, 241, 0.5)',
           width: 1.5
         });
@@ -302,7 +302,7 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
 
       // Keep claims close to event
       fg.d3Force('link').distance((link: GraphLink) => {
-        if (link.type === 'SUPPORTS') return 80;
+        if (link.type === 'INTAKES') return 80;
         if (link.type === 'CONTRADICTS') return 120;
         return 100;
       }).strength(0.5);

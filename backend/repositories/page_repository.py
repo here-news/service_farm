@@ -419,7 +419,7 @@ class PageRepository:
             return 0
 
         result = await self.neo4j._execute_read("""
-            MATCH (p:Page {id: $page_id})-[:CONTAINS]->(c:Claim)
+            MATCH (p:Page {id: $page_id})-[:EMITS]->(c:Claim)
             RETURN count(c) as count
         """, {'page_id': page_id})
 
@@ -439,7 +439,7 @@ class PageRepository:
             return 0
 
         result = await self.neo4j._execute_read("""
-            MATCH (p:Page {id: $page_id})-[:CONTAINS]->(c:Claim)-[:MENTIONS]->(e:Entity)
+            MATCH (p:Page {id: $page_id})-[:EMITS]->(c:Claim)-[:MENTIONS]->(e:Entity)
             RETURN count(DISTINCT e) as count
         """, {'page_id': page_id})
 
@@ -459,7 +459,7 @@ class PageRepository:
             return []
 
         results = await self.neo4j._execute_read("""
-            MATCH (p:Page {id: $page_id})-[:CONTAINS]->(c:Claim)
+            MATCH (p:Page {id: $page_id})-[:EMITS]->(c:Claim)
             RETURN c.id as id, c.text as text, c.confidence as confidence,
                    c.event_time as event_time, c.created_at as created_at
             ORDER BY c.created_at
@@ -481,7 +481,7 @@ class PageRepository:
             return []
 
         results = await self.neo4j._execute_read("""
-            MATCH (p:Page {id: $page_id})-[:CONTAINS]->(c:Claim)-[:MENTIONS]->(e:Entity)
+            MATCH (p:Page {id: $page_id})-[:EMITS]->(c:Claim)-[:MENTIONS]->(e:Entity)
             WITH DISTINCT e
             RETURN e.id as id, e.canonical_name as canonical_name,
                    e.entity_type as entity_type, e.wikidata_qid as wikidata_qid,

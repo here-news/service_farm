@@ -176,7 +176,7 @@ class TopologyPersistence:
     ) -> None:
         """Store plausibility data on SUPPORTS edge."""
         await self.neo4j._execute_write("""
-            MATCH (e:Event {id: $event_id})-[s:SUPPORTS]->(c:Claim {id: $claim_id})
+            MATCH (e:Event {id: $event_id})-[s:INTAKES]->(c:Claim {id: $claim_id})
             SET s.plausibility = $plausibility,
                 s.prior = $prior,
                 s.is_superseded = $is_superseded,
@@ -196,8 +196,8 @@ class TopologyPersistence:
     async def _clear_topology_edges(self, event_id: str) -> None:
         """Clear existing topology edges between claims in this event."""
         await self.neo4j._execute_write("""
-            MATCH (e:Event {id: $event_id})-[:SUPPORTS]->(c1:Claim)
-            MATCH (e)-[:SUPPORTS]->(c2:Claim)
+            MATCH (e:Event {id: $event_id})-[:INTAKES]->(c1:Claim)
+            MATCH (e)-[:INTAKES]->(c2:Claim)
             MATCH (c1)-[r:CORROBORATES|CONTRADICTS|UPDATES]->(c2)
             DELETE r
         """, {'event_id': event_id})
@@ -315,8 +315,8 @@ class TopologyPersistence:
         # Query 1: Get event metadata and claims with plausibilities
         result = await self.neo4j._execute_read("""
             MATCH (e:Event {id: $event_id})
-            OPTIONAL MATCH (e)-[s:SUPPORTS]->(c:Claim)
-            OPTIONAL MATCH (p:Page)-[:CONTAINS]->(c)
+            OPTIONAL MATCH (e)-[s:INTAKES]->(c:Claim)
+            OPTIONAL MATCH (p:Page)-[:EMITS]->(c)
             OPTIONAL MATCH (p)-[:PUBLISHED_BY]->(pub:Entity {is_publisher: true})
             RETURN e.topology_pattern as pattern,
                    e.topology_consensus_date as consensus_date,
@@ -346,8 +346,8 @@ class TopologyPersistence:
 
         # Query 2: Get claim-to-claim relationships
         rel_result = await self.neo4j._execute_read("""
-            MATCH (e:Event {id: $event_id})-[:SUPPORTS]->(c1:Claim)
-            MATCH (e)-[:SUPPORTS]->(c2:Claim)
+            MATCH (e:Event {id: $event_id})-[:INTAKES]->(c1:Claim)
+            MATCH (e)-[:INTAKES]->(c2:Claim)
             MATCH (c1)-[r:CORROBORATES|CONTRADICTS|UPDATES]->(c2)
             RETURN c1.id as source_id, c2.id as target_id,
                    type(r) as rel_type, r.similarity as similarity
@@ -499,14 +499,14 @@ class TopologyPersistence:
 
         if is_superseded is not None:
             await self.neo4j._execute_write("""
-                MATCH (e:Event {id: $event_id})-[s:SUPPORTS]->(c:Claim {id: $claim_id})
+                MATCH (e:Event {id: $event_id})-[s:INTAKES]->(c:Claim {id: $claim_id})
                 SET s.plausibility = $plausibility,
                     s.is_superseded = $is_superseded,
                     s.updated_at = datetime()
             """, {**params, 'is_superseded': is_superseded})
         else:
             await self.neo4j._execute_write("""
-                MATCH (e:Event {id: $event_id})-[s:SUPPORTS]->(c:Claim {id: $claim_id})
+                MATCH (e:Event {id: $event_id})-[s:INTAKES]->(c:Claim {id: $claim_id})
                 SET s.plausibility = $plausibility,
                     s.updated_at = datetime()
             """, params)

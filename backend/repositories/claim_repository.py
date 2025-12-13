@@ -108,7 +108,7 @@ class ClaimRepository:
         await self.neo4j._execute_write("""
             MATCH (p:Page {id: $page_id})
             MATCH (c:Claim {id: $claim_id})
-            MERGE (p)-[r:CONTAINS]->(c)
+            MERGE (p)-[r:EMITS]->(c)
             ON CREATE SET r.created_at = datetime()
         """, {
             'page_id': page_id,
@@ -131,7 +131,7 @@ class ClaimRepository:
         """
         results = await self.neo4j._execute_read("""
             MATCH (c:Claim {id: $claim_id})
-            OPTIONAL MATCH (p:Page)-[:CONTAINS]->(c)
+            OPTIONAL MATCH (p:Page)-[:EMITS]->(c)
             RETURN c.id as id, c.text as text, c.event_time as event_time,
                    c.confidence as confidence, c.modality as modality,
                    c.created_at as created_at, p.id as page_id
@@ -163,7 +163,7 @@ class ClaimRepository:
             List of Claim models
         """
         results = await self.neo4j._execute_read("""
-            MATCH (p:Page {id: $page_id})-[:CONTAINS]->(c:Claim)
+            MATCH (p:Page {id: $page_id})-[:EMITS]->(c:Claim)
             RETURN c.id as id, c.text as text, c.event_time as event_time,
                    c.confidence as confidence, c.modality as modality,
                    c.created_at as created_at
@@ -196,7 +196,7 @@ class ClaimRepository:
             List of Claim models with entity_ids populated
         """
         results = await self.neo4j._execute_read("""
-            MATCH (e:Event {id: $event_id})-[:SUPPORTS]->(c:Claim)
+            MATCH (e:Event {id: $event_id})-[:INTAKES]->(c:Claim)
             OPTIONAL MATCH (c)-[:MENTIONS]->(ent:Entity)
             WITH c, collect(DISTINCT ent.id) as entity_ids
             RETURN c.id as id, c.text as text, c.event_time as event_time,
@@ -383,7 +383,7 @@ class ClaimRepository:
         """
         results = await self.neo4j._execute_read("""
             MATCH (c:Claim)-[:MENTIONS]->(e:Entity {id: $entity_id})
-            OPTIONAL MATCH (p:Page)-[:CONTAINS]->(c)
+            OPTIONAL MATCH (p:Page)-[:EMITS]->(c)
             RETURN c.id as id, c.text as text, c.event_time as event_time,
                    c.confidence as confidence, c.modality as modality,
                    c.created_at as created_at, p.id as page_id
@@ -482,7 +482,7 @@ class ClaimRepository:
             return {}
 
         results = await self.neo4j._execute_read("""
-            MATCH (p:Page)-[:CONTAINS]->(c:Claim)
+            MATCH (p:Page)-[:EMITS]->(c:Claim)
             WHERE c.id IN $claim_ids
             RETURN c.id as claim_id, p.url as url
         """, {'claim_ids': claim_ids})
@@ -510,7 +510,7 @@ class ClaimRepository:
             return {}
 
         results = await self.neo4j._execute_read("""
-            MATCH (p:Page)-[:CONTAINS]->(c:Claim)
+            MATCH (p:Page)-[:EMITS]->(c:Claim)
             WHERE c.id IN $claim_ids
             OPTIONAL MATCH (p)-[:PUBLISHED_BY]->(pub:Entity {is_publisher: true})
             RETURN c.id as claim_id,

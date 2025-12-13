@@ -42,7 +42,7 @@ def _get_story_claims(story_id: str) -> List[Dict[str, Any]]:
     try:
         with neo4j_client.driver.session(database=neo4j_client.database) as session:
             result = session.run('''
-                MATCH (s:Story {id: $story_id})<-[:PART_OF]-(a:Page)-[:HAS_CLAIM]->(c:Claim)
+                MATCH (s:Story {id: $story_id})<-[:PART_OF]-(a:Page)-[:EMITS]->(c:Claim)
                 WHERE c.verified = true OR c.confidence >= 0.7
                 RETURN c.text as text,
                        c.confidence as confidence,
