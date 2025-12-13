@@ -239,20 +239,26 @@ Pair {i+1}:
 
 RELATIONSHIP TYPES:
 - corroborates: Same fact, confirms each other
-- contradicts: Conflicting facts that cannot both be true
+- contradicts: Conflicting facts about THE SAME subject that cannot both be true
 - updates: Later claim updates/revises earlier (common for casualty counts in disasters)
-- complements: Related but different aspects
+- complements: Related but different aspects, OR claims about DIFFERENT subjects/events
+
+IMPORTANT: Claims about DIFFERENT subjects are NOT contradictions. For example:
+- "Mission X launched in August" and "Mission Y launches in December" → complements (different missions)
+- "5 people died" and "3 people died" at the same time → contradicts (same event, conflicting numbers)
 
 For "updates": Also specify which claim is newer (A or B).
 - If numbers INCREASE over time (e.g., "5 dead" → "36 dead"), this is an UPDATE where the higher number is newer.
 - In disasters, casualty counts typically increase as more victims are found.
 
-For "contradicts": Include a brief "note" (max 100 chars) explaining WHY they conflict.
+For "contradicts": Include a brief "note" (max 100 chars) explaining the specific conflict.
+- BAD note: "A says X, B says Y" (too vague)
+- GOOD note: "Death toll differs: 5 vs 3 reported at same time"
 
 {chr(10).join(pairs_text)}
 
 Return JSON: {{"results": [{{"pair": 1, "relation": "updates", "newer": "B"}}]}}
-For contradicts: {{"pair": 2, "relation": "contradicts", "note": "A says 5 dead, B says 3 dead at same time"}}
+For contradicts: {{"pair": 2, "relation": "contradicts", "note": "Death toll differs: 5 vs 3 reported simultaneously"}}
 For non-update/non-contradicts relations, omit "newer" and "note"."""
 
         try:
