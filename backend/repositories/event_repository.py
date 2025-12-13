@@ -885,6 +885,8 @@ class EventRepository:
                    e.confidence as confidence,
                    e.coherence as coherence,
                    e.event_scale as event_scale,
+                   e.version_major as version_major,
+                   e.version_minor as version_minor,
                    coalesce(e.event_start, e.earliest_time) as event_start,
                    coalesce(e.event_end, e.latest_time) as event_end,
                    e.created_at as created_at,

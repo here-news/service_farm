@@ -134,6 +134,11 @@ async def list_events(
         claim_count = await event_repo.get_event_claim_count(event_id)
         page_count = await event_repo.get_event_page_count(event_id)
 
+        # Build version string from major.minor
+        version_major = row.get('version_major', 0) or 0
+        version_minor = row.get('version_minor', 1) or 1
+        version = f"{version_major}.{version_minor}"
+
         event_dict = {
             'id': event_id,
             'title': row['canonical_name'],  # Frontend expects 'title'
@@ -142,12 +147,13 @@ async def list_events(
             'event_scale': row.get('event_scale'),
             'status': row['status'],
             'confidence': row['confidence'],
+            'coherence': coherence,
+            'version': version,  # Semantic version (major.minor)
             'event_start': event_start.isoformat() if event_start and hasattr(event_start, 'isoformat') else event_start,
             'event_end': event_end.isoformat() if event_end and hasattr(event_end, 'isoformat') else event_end,
             'created_at': created_at.isoformat() if created_at and hasattr(created_at, 'isoformat') else created_at,
             'updated_at': updated_at.isoformat() if updated_at and hasattr(updated_at, 'isoformat') else updated_at,
             'last_updated': updated_at.isoformat() if updated_at and hasattr(updated_at, 'isoformat') else updated_at,  # Frontend expects 'last_updated'
-            'coherence': coherence,
             'child_count': row['child_count'],
             'summary': summary,
             'claim_count': claim_count,
@@ -236,6 +242,7 @@ async def get_event_tree(event_id: str):
             'status': e.status,
             'confidence': e.confidence,
             'coherence': e.coherence,
+            'version': e.version,  # Semantic version (major.minor)
             'event_start': e.event_start.isoformat() if e.event_start else None,
             'event_end': e.event_end.isoformat() if e.event_end else None,
             'summary': e.summary,  # Keep flat text for backwards compat
