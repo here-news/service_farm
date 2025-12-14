@@ -15,9 +15,37 @@ interface ArchivedPage {
   submitter_id?: string
   submitter_name?: string
   is_mine?: boolean
-  // Archive reservation concept
+  // Archive lifecycle - community-backed persistence
   days_remaining: number
-  total_funded: number
+  total_credits: number
+  backer_count: number
+}
+
+// Format days as "X yr Y days" or "X days"
+function formatLifespan(totalDays: number): string {
+  if (totalDays >= 365) {
+    const years = Math.floor(totalDays / 365)
+    const days = totalDays % 365
+    if (days === 0) return `${years} yr`
+    return `${years} yr ${days} d`
+  }
+  return `${totalDays} d`
+}
+
+// Get color based on lifespan health
+function getLifespanColor(days: number): string {
+  if (days <= 7) return 'text-red-600'
+  if (days <= 30) return 'text-amber-600'
+  if (days <= 90) return 'text-yellow-600'
+  return 'text-green-600'
+}
+
+// Get bg color for lifespan indicator
+function getLifespanBgColor(days: number): string {
+  if (days <= 7) return 'bg-red-50 border-red-200'
+  if (days <= 30) return 'bg-amber-50 border-amber-200'
+  if (days <= 90) return 'bg-yellow-50 border-yellow-200'
+  return 'bg-green-50 border-green-200'
 }
 
 function ArchivePage() {
@@ -44,13 +72,31 @@ function ArchivePage() {
       if (response.ok) {
         const data = await response.json()
         // Transform API response to include archive-specific fields
-        const pagesWithArchiveInfo = (data.pages || data || []).map((page: any) => ({
-          ...page,
-          // Mock archive fields - will be real data later
-          days_remaining: Math.floor(Math.random() * 30) + 1,
-          total_funded: Math.floor(Math.random() * 50),
-          is_mine: page.submitter_id === 'current_user' // Will use real auth
-        }))
+        // Demo: Generate realistic lifecycle data based on page age
+        const pagesWithArchiveInfo = (data.pages || data || []).map((page: any, index: number) => {
+          // Simulate varying lifespans - some well-funded, some expiring
+          // Use page index to create deterministic but varied values
+          const hash = page.id.charCodeAt(3) + page.id.charCodeAt(4)
+          const lifespanVariants = [
+            { days: 1461 + (hash % 100), credits: 4200 + hash * 10, backers: 45 + (hash % 20) },  // ~4 yr
+            { days: 730 + (hash % 50), credits: 2100 + hash * 5, backers: 28 + (hash % 15) },    // ~2 yr
+            { days: 365 + (hash % 30), credits: 1100 + hash * 3, backers: 15 + (hash % 10) },    // ~1 yr
+            { days: 180 + (hash % 20), credits: 550 + hash * 2, backers: 8 + (hash % 8) },       // ~6 mo
+            { days: 90 + (hash % 15), credits: 280 + hash, backers: 5 + (hash % 5) },            // ~3 mo
+            { days: 30 + (hash % 10), credits: 95 + (hash % 50), backers: 3 + (hash % 3) },      // ~1 mo
+            { days: 7 + (hash % 7), credits: 25 + (hash % 20), backers: 1 + (hash % 2) },        // expiring soon
+            { days: 3 + (hash % 3), credits: 8 + (hash % 10), backers: 1 },                      // critical
+          ]
+          const variant = lifespanVariants[index % lifespanVariants.length]
+
+          return {
+            ...page,
+            days_remaining: variant.days,
+            total_credits: variant.credits,
+            backer_count: variant.backers,
+            is_mine: page.submitter_id === 'current_user' // Will use real auth
+          }
+        })
         setPages(pagesWithArchiveInfo)
       }
       setLoading(false)
@@ -79,7 +125,7 @@ function ArchivePage() {
         case 'expiring':
           return a.days_remaining - b.days_remaining
         case 'funded':
-          return b.total_funded - a.total_funded
+          return b.total_credits - a.total_credits
         case 'recent':
         default:
           return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
@@ -113,12 +159,6 @@ function ArchivePage() {
     )
   }
 
-  const getDaysRemainingColor = (days: number) => {
-    if (days <= 3) return 'text-red-600'
-    if (days <= 7) return 'text-amber-600'
-    return 'text-green-600'
-  }
-
   const handlePageClick = (page: ArchivedPage) => {
     if (page.event_id) {
       navigate(`/event/${page.event_id}`)
@@ -127,9 +167,18 @@ function ArchivePage() {
     }
   }
 
-  const handleDonate = (e: React.MouseEvent, _pageId: string) => {
+  const handleDonate = (e: React.MouseEvent, pageId: string) => {
     e.stopPropagation()
-    alert(`Donate credits to extend archive (coming soon)\n\n1 credit = 1 extra day of preservation`)
+    const page = pages.find(p => p.id === pageId)
+    const title = page?.title || 'this page'
+    alert(
+      `Extend Archive Life (coming soon)\n\n` +
+      `Page: ${title.substring(0, 50)}${title.length > 50 ? '...' : ''}\n` +
+      `Current: ${formatLifespan(page?.days_remaining || 0)} remaining\n` +
+      `Backers: ${page?.backer_count || 0}\n\n` +
+      `1 credit = 1 extra day of preservation\n` +
+      `Your contribution helps preserve this content for everyone.`
+    )
   }
 
   return (
@@ -163,15 +212,29 @@ function ArchivePage() {
               </svg>
             </div>
             <div className="flex-1">
-              <h3 className="font-semibold text-slate-800 mb-1">Decentralized Preservation</h3>
+              <h3 className="font-semibold text-slate-800 mb-1">Community-Backed Preservation</h3>
               <p className="text-sm text-slate-600">
-                Pages are preserved in our archive network. Each page has a retention period based on community funding.
+                Pages are preserved based on community funding. Each page has a remaining lifespan that you can extend.
                 <span className="font-medium text-indigo-600 ml-1">1 credit = 1 extra day of preservation.</span>
               </p>
             </div>
-            <div className="text-right flex-shrink-0">
-              <div className="text-2xl font-bold text-indigo-600">{pages.length}</div>
-              <div className="text-xs text-slate-500">Total Pages</div>
+            <div className="flex gap-6 flex-shrink-0">
+              <div className="text-right">
+                <div className="text-2xl font-bold text-indigo-600">{pages.length}</div>
+                <div className="text-xs text-slate-500">Archived</div>
+              </div>
+              <div className="text-right">
+                <div className="text-2xl font-bold text-amber-600">
+                  {pages.reduce((sum, p) => sum + p.total_credits, 0).toLocaleString()}
+                </div>
+                <div className="text-xs text-slate-500">Total Credits</div>
+              </div>
+              <div className="text-right">
+                <div className={`text-2xl font-bold ${pages.filter(p => p.days_remaining <= 30).length > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                  {pages.filter(p => p.days_remaining <= 30).length}
+                </div>
+                <div className="text-xs text-slate-500">Need Help</div>
+              </div>
             </div>
           </div>
         </div>
@@ -314,10 +377,10 @@ function ArchivePage() {
                   </div>
                 )}
 
-                {/* Days remaining indicator */}
-                <div className="absolute bottom-2 right-2 bg-white/90 backdrop-blur-sm rounded-lg px-2 py-1 shadow-sm">
-                  <div className={`text-xs font-bold ${getDaysRemainingColor(page.days_remaining)}`}>
-                    {page.days_remaining}d left
+                {/* Lifespan indicator - prominent corner badge */}
+                <div className={`absolute bottom-2 right-2 rounded-lg px-2.5 py-1.5 shadow-sm border ${getLifespanBgColor(page.days_remaining)}`}>
+                  <div className={`text-sm font-bold ${getLifespanColor(page.days_remaining)}`}>
+                    {formatLifespan(page.days_remaining)}
                   </div>
                 </div>
               </div>
@@ -339,25 +402,31 @@ function ArchivePage() {
                   </div>
                 )}
 
-                {/* Footer */}
+                {/* Lifecycle footer */}
                 <div className="flex items-center justify-between pt-3 border-t border-slate-100">
-                  <div className="text-xs text-slate-400">
-                    {new Date(page.created_at).toLocaleDateString()}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-amber-600 font-medium">
-                      {page.total_funded} funded
-                    </span>
-                    <button
-                      onClick={(e) => handleDonate(e, page.id)}
-                      className="p-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-600 transition-colors"
-                      title="Donate to extend archive"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  <div className="flex items-center gap-3">
+                    {/* Backer count */}
+                    <div className="flex items-center gap-1 text-xs text-slate-500">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
                       </svg>
-                    </button>
+                      <span>{page.backer_count}</span>
+                    </div>
+                    {/* Total credits */}
+                    <div className="flex items-center gap-1 text-xs text-amber-600 font-medium">
+                      <span>{page.total_credits.toLocaleString()}</span>
+                      <span className="text-amber-500">cr</span>
+                    </div>
                   </div>
+                  {/* + days button */}
+                  <button
+                    onClick={(e) => handleDonate(e, page.id)}
+                    className="px-2.5 py-1 rounded-lg bg-gradient-to-r from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 border border-amber-200 text-amber-700 text-xs font-semibold transition-colors flex items-center gap-1"
+                    title="1 credit = 1 extra day of preservation"
+                  >
+                    <span>+</span>
+                    <span>days</span>
+                  </button>
                 </div>
               </div>
             </div>
