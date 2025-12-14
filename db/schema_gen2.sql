@@ -135,7 +135,7 @@ CREATE TABLE core.entities (
     canonical_name TEXT NOT NULL,
     entity_type core.entity_type NOT NULL,
 
-    -- Multi-language support (docs/architecture.principles.md lines 169-198)
+    -- Multi-language support (docs/09.architecture.principles.md lines 169-198)
     names_by_language JSONB DEFAULT '{}'::jsonb,
     -- Example: {"en": ["Hong Kong", "HK"], "zh": ["香港"], "fr": ["Hong Kong"]}
 
@@ -143,7 +143,7 @@ CREATE TABLE core.entities (
     wikidata_qid VARCHAR(20),  -- Q8646 for Hong Kong
     wikidata_properties JSONB, -- {"P31": "Q515", "P17": "Q148"}
 
-    -- Confidence (docs/architecture.principles.md lines 271-330)
+    -- Confidence (docs/09.architecture.principles.md lines 271-330)
     semantic_confidence FLOAT DEFAULT 0.5,   -- NER + Wikidata match
     structural_confidence FLOAT DEFAULT 0.5, -- Graph topology signals
     temporal_freshness FLOAT DEFAULT 1.0,    -- Decay over time
@@ -254,7 +254,7 @@ CREATE TABLE core.edges (
     source VARCHAR(20) DEFAULT 'extracted',
     -- Possible: extracted, wikidata, user, inferred
 
-    -- Temporal decay (docs/architecture.principles.md lines 201-227)
+    -- Temporal decay (docs/09.architecture.principles.md lines 201-227)
     decay_rate FLOAT DEFAULT 0.01,  -- Per-day decay
     first_seen TIMESTAMPTZ DEFAULT NOW(),
     last_seen TIMESTAMPTZ DEFAULT NOW(),
@@ -351,7 +351,7 @@ CREATE INDEX idx_page_entities_page ON core.page_entities(page_id);
 CREATE INDEX idx_page_entities_entity ON core.page_entities(entity_id);
 
 -- -----------------------------------------------------------------------------
--- EVENTS: Factual happenings (docs/architecture.principles.md lines 138-142)
+-- EVENTS: Factual happenings (docs/09.architecture.principles.md lines 138-142)
 -- Replaces: Neo4j Event nodes (new in Gen2)
 -- -----------------------------------------------------------------------------
 
@@ -375,7 +375,7 @@ CREATE TABLE core.events (
     -- Multi-language support
     languages JSONB DEFAULT '[]'::jsonb,  -- ["en", "zh", "fr"]
 
-    -- Confidence (docs/architecture.principles.md event formation)
+    -- Confidence (docs/09.architecture.principles.md event formation)
     confidence FLOAT DEFAULT 0.5,
     coherence_score FLOAT DEFAULT 0.5,  -- How well claims cluster
 

@@ -400,7 +400,7 @@ RETURN
 
 #### ❌ Neo4j `Story` Nodes
 
-**Rationale:** Stories are community-curated narratives, not system facts (docs/architecture.principles.md lines 138-142). Gen2 stops at events; stories are webapp's responsibility.
+**Rationale:** Stories are community-curated narratives, not system facts (docs/09.architecture.principles.md lines 138-142). Gen2 stops at events; stories are webapp's responsibility.
 
 **Alternative:** Export Neo4j stories as JSON for webapp to import into `app.stories` table.
 
