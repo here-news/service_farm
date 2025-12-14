@@ -1,9 +1,17 @@
 # Documentation Index
 
+## Start Here
+- [Vision](vision.md)
+
 ## Architecture
 - [Principles](architecture.principles.md)
 - [Diagrams](architecture.diagrams.md)
 - [Scaling](architecture.scaling.md)
+
+## Business
+- [Business Plan](business.plan.md)
+- [Roadmap](business.roadmap.md)
+- [Operations](business.operations.md)
 
 ## Product
 - [Demo Overview](project.demo.md)

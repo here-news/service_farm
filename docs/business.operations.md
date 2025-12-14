@@ -1,0 +1,73 @@
+# Operations Plan
+
+This complements `docs/business.plan.md` with concrete operational mechanics.
+
+## Operating Model
+
+### Cadence
+- Weekly ship cycle for product increments (design-partner driven).
+- Weekly quality review: sampled event accuracy, merge/update correctness, and user feedback.
+- Monthly reliability review: incidents, SLOs, cost budgets, and backlog.
+
+### Roles (Lean Team)
+- Product + design partner lead (ICP focus)
+- Pipeline reliability (outbox/DLQ/replay/observability)
+- Event intelligence (formation, hierarchy, quality)
+- Frontend UX (provenance, contradictions, workflows)
+- Trust systems (credits, reputation, community ops)
+
+## Reliability & Incident Response
+
+### SLOs (Initial)
+- API submit latency (p95): < 200ms for best-shot response
+- Pipeline completion success: ≥ 80% for a defined URL corpus (rising target)
+- Time-to-first-event: define per vertical (e.g., < 60s)
+
+### Runbooks
+- Job loss prevention: transactional outbox for queue emission.
+- DLQ + replay: stage-specific dead-letter queues with idempotency keys.
+- Backfill tools: re-run enrichment for specific artifacts/events.
+
+## Data Quality Program
+
+### Evaluation
+- Human rubric: usefulness, correctness, provenance clarity, and update tracking.
+- Automated checks: duplicate detection, citation coverage, contradiction rates.
+
+### Known Quality Risks (Issue-Backed)
+- Cross-lingual entity duplicates → transliteration + Wikidata QID + context matching (issue #2).
+- Timezone ambiguity → timezone stored + confidence + uncertainty propagation (issue #4).
+- Relatedness misses → multi-signal scoring and reference detection (issue #3).
+
+## Trust, Community, and Abuse Prevention
+
+### Credits
+- Ledger-backed credits as the universal currency (issue #12).
+- Credit costs: anti-spam gate for reports/evidence, and staking for debates.
+
+### Reputation
+- Dynamic trust scores for publishers/authors/users; reputation events audit trail (issue #17).
+- Abuse controls: minimum account age/rep to participate in high-impact actions.
+
+### Disputes
+- Contradictions auto-surfaced; debates resolve into priors with an audit trail (issue #13).
+
+## Customer Success Operations
+
+### Onboarding
+- Template playbooks per ICP: set up watchlists, queries, and alert destinations.
+- “What changed?” review rituals (weekly) for monitored topics.
+
+### Support
+- Clear escalation path: ingestion failures, incorrect merges, missing provenance.
+- Feedback tagging: product gaps vs extractor gaps vs trust-system gaps.
+
+## Payments, Compliance, and Legal (Draft)
+
+### Payments
+- Phased payments: mock → Stripe deposits → withdrawals + thresholds (issue #12).
+
+### Archiving and Takedowns
+- For archive product: DMCA/takedown process, visibility controls, and audit logs (issue #14).
+- Storage health transparency and funding thresholds communicated in UI.
+
