@@ -1,6 +1,6 @@
-# Business Roadmap
+# 07 — Roadmap
 
-**Product**: Breathing Knowledge Base (resource-first, evidence-driven knowledge graph)
+**Product**: HERE.news Breathing Knowledge System (resource-first, evidence-driven knowledge graph)
 **Horizon**: 12–18 months
 **Owner**: (fill)
 **Last updated**: 2025-12-13
@@ -26,7 +26,7 @@ Additional roadmap drivers: #15 (event hierarchy), #3 (multi-signal formation), 
 
 ## Goals
 
-1. Ship a usable MVP that turns URLs into trustworthy, queryable events.
+1. Ship a usable MVP that turns artifacts (web, files, media, data) into trustworthy, queryable events.
 2. Prove retention via recurring value (alerts, dashboards, timelines) for a defined ICP.
 3. Establish defensibility via (a) data flywheel (sources → claims → events → graph), and (b) community curation + incentives.
 4. Reach a repeatable revenue motion (B2B first, optional B2C later).
@@ -177,3 +177,5 @@ Additional roadmap drivers: #15 (event hierarchy), #3 (multi-signal formation), 
 3. Confirm database stance: PostgreSQL-first; any graph indexing must remain rebuildable.
 4. Decide the initial **monetization wedge** (API/export vs dashboards vs alerts).
 5. Set credit policy: stake loss (burn vs redistribute), minimums, and curator selection.
+
+Next: `docs/business.operations.md`

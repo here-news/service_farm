@@ -1,4 +1,4 @@
-# Epistemic Analysis: Why HERE.news, Why Now
+# 02 — Epistemic Analysis: Why HERE.news, Why Now
 
 Related:
 - `docs/vision.md`
@@ -98,3 +98,5 @@ HERE.news is an attempt to build epistemic infrastructure: a system that helps c
 - Contradictions are visible and resolvable, not hidden.
 - Trust signals (publisher/author/user reputation) become measurable and correctable.
 - Archived evidence survives link rot and preserves a readable timeline for future learners.
+
+Next: `docs/how-it-works.md`

@@ -1,6 +1,6 @@
-# Architecture: Breathing Knowledge Base
+# Architecture: Breathing Knowledge System (HERE.news)
 
-> **Mission**: Build a living, evidence-driven knowledge base that evolves with reality, combining machine curation with community consensus and economic incentives.
+> **Mission**: Build a living, evidence-driven knowledge system that evolves with reality, combining machine curation with community consensus and economic incentives.
 
 **Version**: 3.0 (Unified)
 **Date**: 2025-12-11

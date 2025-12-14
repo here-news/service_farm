@@ -1,4 +1,4 @@
-# EVENT Protocol (HERE.news)
+# 04 — EVENT Protocol (HERE.news)
 
 This document summarizes the EVENT protocol described in the Here.News whitepaper (v0.8, 2025) and maps it to the HERE.news “breathing knowledge system” implementation.
 
@@ -82,3 +82,4 @@ Key next steps to more fully realize EVENT in-product:
 - Add calibrated likelihood models (or scaling layers) for LLM-driven relation outputs.
 - Implement similarity penalties and source-independence signals to resist coherence bombs.
 
+Next: `docs/philosophy.theory-topology.md`

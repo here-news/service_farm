@@ -1,8 +1,8 @@
-# Vision
+# 01 — Vision (HERE.news)
 
 ## What We’re Building
 
-**HERE.news** is building a **Breathing Knowledge System**, powered by the **EVENT** protocol: a living, evidence-driven system that turns the world’s sources into structured knowledge that updates as reality changes.
+**HERE.news** is building a **Breathing Knowledge System**, powered by the **EVENT** protocol: a living, evidence-driven system that turns the world’s artifacts (web, files, media, data) into structured knowledge that updates as reality changes.
 
 The core product behavior:
 - **Instant**: Any artifact (URL, file, media, data) returns a best-shot resource immediately, then enriches progressively.
@@ -55,3 +55,5 @@ Evidence must survive. We treat archiving as a product surface:
 - **Trust** (provenance, uncertainty, auditability)
 - **Compounding advantage** (more sources → better graph → better workflows → more usage)
 - **Human-in-the-loop defensibility** (credit-weighted priors, disputes, and resolution mechanisms)
+
+Next: `docs/epistemics.analysis.md`

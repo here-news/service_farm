@@ -1,4 +1,4 @@
-# Business Plan
+# 06 — Business Plan
 
 Related:
 - `docs/vision.md`
@@ -117,3 +117,5 @@ Teams tracking real-world developments face:
 2. Confirm database stance: PostgreSQL-first; any “graph index” must remain rebuildable.
 3. Choose initial monetization wedge: dashboards/alerts vs API/exports vs premium chat.
 4. Set credit policies: pricing table, stake outcomes, and curator selection.
+
+Next: `docs/business.roadmap.md`

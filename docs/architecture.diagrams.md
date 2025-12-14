@@ -1,4 +1,4 @@
-# Architecture Diagrams: Breathing Knowledge Base
+# Architecture Diagrams: Breathing Knowledge System
 
 **Purpose**: Visual representation of the architecture described in [architecture.principles.md](architecture.principles.md)
 

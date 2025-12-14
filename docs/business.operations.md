@@ -1,4 +1,4 @@
-# Operations Plan
+# 08 — Operations Plan
 
 This complements `docs/business.plan.md` with concrete operational mechanics.
 
@@ -71,3 +71,4 @@ This complements `docs/business.plan.md` with concrete operational mechanics.
 - For archive product: DMCA/takedown process, visibility controls, and audit logs (issue #14).
 - Storage health transparency and funding thresholds communicated in UI.
 
+Next: `docs/architecture.principles.md`

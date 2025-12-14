@@ -1,4 +1,4 @@
-# How It Works
+# 03 — How It Works
 
 This explains the HERE.news system end-to-end without requiring you to read the code.
 
@@ -72,8 +72,4 @@ When evidence disappears, society forgets. A breathing knowledge system needs du
 
 ## Where To Go Next
 
-- `docs/vision.md`
-- `docs/protocol.event.md`
-- `docs/epistemics.analysis.md`
-- `docs/business.plan.md`
-- `docs/architecture.principles.md`
+Next: `docs/protocol.event.md`

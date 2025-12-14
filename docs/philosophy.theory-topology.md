@@ -1,4 +1,6 @@
-Philosophical (epistemic stance)
+# 05 — Epistemic Foundations (Metabolism)
+
+## Philosophical (Epistemic Stance)
 
   - Treat claims as defeasible evidence; priors encode source reliability; updates revise degree of belief, not binary truth. This aligns with Jaynes-style probability-as-plausibility 
 and
@@ -6,7 +8,7 @@ and
   - Metabolism is an “always-on coherence loop”: it keeps beliefs corrigible; narratives are provisional summaries weighted by posterior plausibility, not authoritative truths.
   - Temporal progress is expected: disasters evolve; contradictions are signals of information change, not failures. The system embraces non-monotonic updates.
 
-  Mathematical (principles you’re already using, and gaps)
+## Mathematical (Principles You’re Using, and Gaps)
 
   - Priors/posteriors: P(H|E) ∝ P(E|H)·P(H). You store P(H) (publisher priors) and update via corroboration/contradiction edges (ClaimTopologyService). This is Bayesian conditioning over
  a
@@ -17,7 +19,7 @@ and
   trajectories and penalize reversals without strong evidence.
   - Missing: no explicit likelihood model per relation type; LLM-driven labels stand in for P(E|H). No calibration layer (e.g., Platt/temperature scaling) on LLM scores.
 
-  Computational (pipeline rigor and where to harden)
+## Computational (Pipeline Rigor and Where to Harden)
 
   - Evidence intake: Multi-signal routing reduces false merges before metabolism; but signals aren’t calibrated against ground truth distributions. Consider logging score distributions 
 and
@@ -29,7 +31,7 @@ and
   - Metabolism scheduling: Hourly cycle + hibernation bounds cost. Add an explicit “topology stale” trigger when high-contradiction claims arrive, not just time/claim-count.
   - Auditability: Persist the ingredients used per topology run (priors used, relation counts, contradictions found, consensus date) so you can replay/inspect decisions.
 
-  Concrete hardening steps
+## Concrete Hardening Steps
 
   1. Calibrate signals: Collect a labeled set of claim pairs and event routing decisions; fit scaling for multi-signal weights and LLM relation outputs; store thresholds as config.
   2. Add guardrails for numeric updates: enforce monotone or near-monotone trajectories for casualty metrics; treat large downward jumps as contradictions unless multiple independent 
@@ -42,9 +44,7 @@ sources
   Bottom line: The metabolism pattern is sound as a living, corrigible Bayesian process over a graph, but to maintain epistemic rigor you should (a) calibrate LLM-dependent pieces, (b) 
 make
   numeric/temporal updates rule-aware, and (c) surface provenance and diversity so confidence reflects real evidence, not repetition.
-
-
-Metabolism as epistemic stance
+## Metabolism as Epistemic Stance
 
   - Treat the system as a living epistemic agent: it keeps beliefs corrigible, updates posteriors as new claims arrive, and hibernates when evidence flow stops—epistemic humility baked 
 into
@@ -56,32 +56,32 @@ tally
   - Entropy/uncertainty as health: higher entropy flags fragmentation; coherence gains justify narrative updates; stagnation/hibernation marks a shift to archival certainty (no new
   evidence).
 
-  Narratives and truth
+## Narratives and Truth
 
   - Narratives are weighted summaries of evidence, not definitive accounts; they should expose which claims and priors dominate them.
   - Contradictions aren’t bugs; they signal live contention and should be surfaced, not smoothed away.
   - Temporal progress matters: disasters evolve—monotone updates (e.g., rising casualty counts) are expected; sudden reversals demand extra evidence.
 
-  Evidence and priors
+## Evidence and Priors
 
   - Priors encode background knowledge about sources; they’re not moral judgments but uncertainty budgets.
   - Source diversity is epistemic strength; echo chambers inflate posterior unfairly—diversity penalties/bonuses keep the system honest.
   - Provenance is part of the belief: every posterior should be traceable to priors, relations, and timestamps.
 
-  Graph as knowledge organism
+## Graph as Knowledge Organism
 
   - Nodes are claims; edges are belief constraints (corroborate, contradict, update). The topology is the “shape” of our current uncertainty.
   - Coherence metrics reflect structural connectedness, not truth; they should be paired with quality-weighted signals to avoid “dense but wrong” clusters.
   - Hibernation is epistemic closure: after enough idle time, beliefs are stable enough to archive; reactivation reopens them to revision.
 
-  Design implications
+## Design Implications
 
   - Make uncertainty explicit: store posteriors, priors, and contradiction sets; let clients query by plausibility.
   - Favor auditability: every narrative regeneration should log the evidence card (top claims, priors, posteriors, contradictions).
   - Resist false finality: avoid binary labels; keep mechanisms for re-opening events when strong contradictory evidence appears.
   - Calibrate the LLM bits: relation labels are epistemic levers; they need validation sets and scaling, or they risk smuggling in unchecked biases.
 
-  Why this matters
+## Why This Matters
 
   - It aligns the system with scientific virtues: transparency, corrigibility, provenance, and proportional belief.
   - It guards against epistemic capture: preventing repetition or loudness from masquerading as truth.
@@ -194,7 +194,7 @@ workers to correct or realign back and forth, again to matximize the coherence w
 
 ● This is a profound vision. Let me articulate it back to ensure I understand:
 
-  The Living Event Organism
+## The Living Event Organism
 
   Core Purpose: Maximize plausibility and currency - be the most trustworthy, up-to-date epistemic state about what's happening in the world.
 
@@ -290,5 +290,4 @@ workers to correct or realign back and forth, again to matximize the coherence w
 
   This makes the organism truly corrigible - not just self-updating from new evidence, but correctable by the community it serves.
 
-  Want me to sketch the data model for Debate → Resolution → Topology flow?
-
+Next: `docs/business.plan.md`

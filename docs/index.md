@@ -1,11 +1,14 @@
-# Documentation Index
+# Documentation (Read Order)
 
 ## Start Here
-- [Vision](vision.md)
-- [How It Works](how-it-works.md)
-- [EVENT Protocol](protocol.event.md)
-- [Epistemic Analysis](epistemics.analysis.md)
-- [Epistemic Foundations (Metabolism)](philosophy.theory-topology.md)
+- [01 — Vision](vision.md)
+- [02 — Epistemic Analysis](epistemics.analysis.md)
+- [03 — How It Works](how-it-works.md)
+- [04 — EVENT Protocol](protocol.event.md)
+- [05 — Epistemic Foundations (Metabolism)](philosophy.theory-topology.md)
+- [06 — Business Plan](business.plan.md)
+- [07 — Roadmap](business.roadmap.md)
+- [08 — Operations](business.operations.md)
 
 ## Architecture
 - [Principles](architecture.principles.md)
@@ -13,9 +16,7 @@
 - [Scaling](architecture.scaling.md)
 
 ## Business
-- [Business Plan](business.plan.md)
-- [Roadmap](business.roadmap.md)
-- [Operations](business.operations.md)
+- (See “Start Here” for the canonical reading order.)
 
 ## Product
 - [Demo Overview](project.demo.md)
@@ -36,7 +37,6 @@
 
 ## Content & Philosophy
 - [Narrative Notes](content.narrative-structure-notes.md)
-- [Theory & Topology](philosophy.theory-topology.md)
 
 ## Reference
 - [Cheatsheet](reference.cheatsheet.md)
