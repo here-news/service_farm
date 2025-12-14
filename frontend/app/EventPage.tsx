@@ -60,6 +60,7 @@ interface Event {
     event_end?: string | null;
     summary: string;
     narrative?: StructuredNarrative;
+    version?: string;
 }
 
 interface Thought {
@@ -167,7 +168,7 @@ const EventPage: React.FC = () => {
 
     const renderTopology = () => {
         if (!eventData) return null;
-        return <TopologyView eventId={event.id} eventName={event.canonical_name} />;
+        return <TopologyView eventId={event.id} eventName={event.canonical_name} eventVersion={event.version} />;
     };
 
     if (loading) {

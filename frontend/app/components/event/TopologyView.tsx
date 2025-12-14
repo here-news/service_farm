@@ -50,6 +50,7 @@ interface TopologyData {
 interface TopologyViewProps {
   eventId: string;
   eventName?: string;
+  eventVersion?: string;
 }
 
 interface EventNodeData {
@@ -57,7 +58,7 @@ interface EventNodeData {
   temperature: number;
   claimCount: number;
   pattern: string;
-  version: number; // Mock version based on claim count
+  version: string; // Real version from event data
 }
 
 interface GraphNode {
@@ -90,7 +91,7 @@ interface GraphData {
   links: GraphLink[];
 }
 
-const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
+const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName, eventVersion }) => {
   const navigate = useNavigate();
   const [topology, setTopology] = useState<TopologyData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -219,7 +220,7 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
         temperature: topology.organism_state.temperature,
         claimCount: topology.claims.length,
         pattern: topology.pattern,
-        version: Math.floor(topology.claims.length / 3) + 1 // Mock version
+        version: eventVersion || '0.1' // Real version from event data
       }
     };
 
@@ -458,7 +459,7 @@ const TopologyView: React.FC<TopologyViewProps> = ({ eventId, eventName }) => {
         ctx.textAlign = 'left';
         ctx.fillText(`⚡${Math.round(eventData.coherence * 100)}%`, x - baseWidth / 2 + padding, statsY);
 
-        // Version (mock)
+        // Version
         ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
         ctx.textAlign = 'center';
         ctx.fillText(`v${eventData.version}`, x, statsY);
