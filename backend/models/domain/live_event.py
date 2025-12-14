@@ -1620,7 +1620,20 @@ Your question:"""
         return 1.0 / components
 
     def needs_narrative_update(self) -> bool:
-        """Check if narrative needs regeneration."""
+        """
+        Check if narrative needs regeneration.
+
+        Only returns True if:
+        1. New claims have been added since last narrative update
+        2. Event is still active (claim within 6 hours)
+        3. Narrative is stale (older than 1 hour)
+
+        This prevents unnecessary regeneration when no new claims exist.
+        """
+        # Must have new claims since last narrative update
+        if self._metabolism_state.claims_since_narrative == 0:
+            return False
+
         if not self.last_claim_added:
             return False
 
@@ -1644,10 +1657,24 @@ Your question:"""
         return is_active and is_stale
 
     def needs_topology_update(self) -> bool:
-        """Check if topology analysis should be re-run."""
-        if not self.last_topology_update:
-            return True
+        """
+        Check if topology analysis should be re-run.
 
+        Only returns True if:
+        1. No topology exists yet, OR
+        2. New claims have been added since last topology update
+
+        Does NOT re-run just because time passed - that would waste tokens.
+        """
+        # No topology yet - need initial analysis
+        if not self.last_topology_update:
+            return len(self.claims) >= 3  # Need minimum claims
+
+        # Must have new claims since last topology
+        if self._metabolism_state.claims_since_topology == 0:
+            return False
+
+        # Have new claims - check if claim arrived after last topology
         last_claim = self.last_claim_added
         last_topo = self.last_topology_update
 
@@ -1657,15 +1684,9 @@ Your question:"""
             if hasattr(last_topo, 'tzinfo') and last_topo.tzinfo is not None:
                 last_topo = last_topo.replace(tzinfo=None)
 
-            if last_claim > last_topo:
-                return True
+            return last_claim > last_topo
 
-        topo_for_compare = self.last_topology_update
-        if hasattr(topo_for_compare, 'tzinfo') and topo_for_compare.tzinfo is not None:
-            topo_for_compare = topo_for_compare.replace(tzinfo=None)
-
-        hours_since = (datetime.utcnow() - topo_for_compare).total_seconds() / 3600
-        return hours_since > 6
+        return False
 
     def idle_time_seconds(self) -> float:
         """Seconds since last claim was added"""
