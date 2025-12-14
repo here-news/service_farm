@@ -7,6 +7,8 @@ GET /api/event/{event_id}/topology - Get epistemic topology for visualization
 GET /api/entity/{entity_id} - Get single entity
 GET /api/claim/{claim_id} - Get single claim
 GET /api/page/{page_id} - Get page with claims and entities
+GET /api/pages - List recent pages (for Archive page)
+GET /api/pages/mine - Get user's submitted pages (placeholder)
 """
 import os
 import uuid
@@ -179,6 +181,63 @@ async def get_my_events():
     """
     return {
         'events': [],
+        'total': 0
+    }
+
+
+@router.get("/pages")
+async def list_pages(
+    limit: int = 50,
+    offset: int = 0,
+    status: Optional[str] = None
+):
+    """
+    List recent pages in the system.
+
+    Returns pages ordered by creation date (newest first).
+    Used by Archive page to display all pages.
+    """
+    _, _, _, page_repo, _ = await init_services()
+
+    # Get pages using repository
+    pages = await page_repo.list_recent(
+        limit=limit,
+        offset=offset,
+        status_filter=status
+    )
+
+    # Get total count
+    total = await page_repo.count(status_filter=status)
+
+    # Convert to API response
+    return {
+        'pages': [
+            {
+                'id': page.id,
+                'url': page.url,
+                'title': page.title or 'Untitled',
+                'domain': page.domain or (page.url.split('/')[2] if page.url else None),
+                'thumbnail_url': page.thumbnail_url,
+                'status': page.status,
+                'created_at': page.created_at.isoformat() if page.created_at else None,
+                'updated_at': page.updated_at.isoformat() if page.updated_at else None,
+                'word_count': page.word_count,
+            }
+            for page in pages
+        ],
+        'total': total
+    }
+
+
+@router.get("/pages/mine")
+async def get_my_pages():
+    """
+    Get user's submitted pages (placeholder)
+
+    For now returns empty list - auth system not yet implemented
+    """
+    return {
+        'pages': [],
         'total': 0
     }
 

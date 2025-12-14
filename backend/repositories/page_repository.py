@@ -492,6 +492,97 @@ class PageRepository:
         return [dict(r) for r in results]
 
     # =========================================================================
+    # LIST OPERATIONS
+    # =========================================================================
+
+    async def list_recent(
+        self,
+        limit: int = 50,
+        offset: int = 0,
+        status_filter: Optional[str] = None
+    ) -> List[Page]:
+        """
+        List recent pages ordered by creation date.
+
+        Args:
+            limit: Max pages to return
+            offset: Pagination offset
+            status_filter: Optional status filter
+
+        Returns:
+            List of Page domain models
+        """
+        async with self.db_pool.acquire() as conn:
+            if status_filter:
+                rows = await conn.fetch("""
+                    SELECT id, url, canonical_url, content_text, status,
+                           title, description, byline as author, thumbnail_url,
+                           language, word_count, pub_time, metadata_confidence,
+                           domain, site_name,
+                           created_at, updated_at
+                    FROM core.pages
+                    WHERE status = $3
+                    ORDER BY created_at DESC
+                    LIMIT $1 OFFSET $2
+                """, limit, offset, status_filter)
+            else:
+                rows = await conn.fetch("""
+                    SELECT id, url, canonical_url, content_text, status,
+                           title, description, byline as author, thumbnail_url,
+                           language, word_count, pub_time, metadata_confidence,
+                           domain, site_name,
+                           created_at, updated_at
+                    FROM core.pages
+                    ORDER BY created_at DESC
+                    LIMIT $1 OFFSET $2
+                """, limit, offset)
+
+        pages = []
+        for row in rows:
+            page = Page(
+                id=row['id'],
+                url=row['url'],
+                canonical_url=row['canonical_url'],
+                content_text=None,  # Don't include full content in list
+                status=row['status'],
+                title=row.get('title'),
+                description=row.get('description'),
+                author=row.get('author'),
+                thumbnail_url=row.get('thumbnail_url'),
+                language=row.get('language'),
+                word_count=row.get('word_count', 0) or 0,
+                pub_time=row.get('pub_time'),
+                metadata_confidence=row.get('metadata_confidence', 0.0) or 0.0,
+                domain=row.get('domain'),
+                site_name=row.get('site_name'),
+                created_at=row['created_at'],
+                updated_at=row['updated_at']
+            )
+            pages.append(page)
+
+        return pages
+
+    async def count(self, status_filter: Optional[str] = None) -> int:
+        """
+        Count total pages.
+
+        Args:
+            status_filter: Optional status filter
+
+        Returns:
+            Total count
+        """
+        async with self.db_pool.acquire() as conn:
+            if status_filter:
+                return await conn.fetchval("""
+                    SELECT COUNT(*) FROM core.pages WHERE status = $1
+                """, status_filter)
+            else:
+                return await conn.fetchval("""
+                    SELECT COUNT(*) FROM core.pages
+                """)
+
+    # =========================================================================
     # UTILITY
     # =========================================================================
 
