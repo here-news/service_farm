@@ -879,13 +879,33 @@ class EventService:
 
         sorted_claims = sorted(enriched_claims, key=sort_key)[:50]  # Top 50
 
-        # Format claims with timestamps for LLM
-        def format_time(t):
+        # Format claims with timestamps for LLM (respects precision)
+        def format_time(c):
+            """Format time based on precision and temporal_context."""
+            t = c.get('event_time')
+            precision = c.get('time_precision', 'approximate')
+            temporal_ctx = c.get('temporal_context')
+
+            # Prefer natural temporal context if available
+            if temporal_ctx:
+                return temporal_ctx
+
             if not t:
                 return 'undated'
+
             if hasattr(t, 'strftime'):
-                return t.strftime('%Y-%m-%d %H:%M')
-            return str(t)[:16] if len(str(t)) > 16 else str(t)
+                if precision == 'hour':
+                    return t.strftime('%Y-%m-%d %H:%M')
+                elif precision == 'day':
+                    return t.strftime('%Y-%m-%d')  # Date only, no fake time
+                elif precision == 'month':
+                    return t.strftime('%B %Y')
+                elif precision == 'year':
+                    return t.strftime('%Y')
+                else:
+                    return t.strftime('%Y-%m-%d')  # Default to date
+
+            return str(t)[:10] if len(str(t)) > 10 else str(t)
 
         # Build entity lookup from all claims
         entity_lookup = {}  # name -> id
@@ -896,7 +916,7 @@ class EventService:
 
         # Format claims with IDs for reference embedding
         claims_str = "\n".join([
-            f"[{c['id']}] {c['text']} (sources: {c['corroboration_count'] + 1}, time: {format_time(c['event_time'])})"
+            f"[{c['id']}] {c['text']} (sources: {c['corroboration_count'] + 1}, time: {format_time(c)})"
             for c in sorted_claims
         ])
 
@@ -921,8 +941,10 @@ Write a factual narrative that:
 - Organizes information based on what the claims are actually about
 - Uses dates, figures, names, and locations from the claims
 - Shows ranges when sources conflict (e.g., "1,800-1,900 days")
+- Uses natural temporal language from claims (e.g., "Saturday afternoon", "shortly after 4 p.m.") rather than ISO timestamps
 
 Example: "Jimmy Lai [en_abc123] has been imprisoned in Hong Kong [en_def456] for 1,800 days [cl_xyz789]."
+Example with temporal context: "On Saturday afternoon [cl_abc], police responded to reports of a shooting." (NOT "At 2024-12-07 12:00...")
 
 Do NOT use generic template sections unless claims are actually about those topics. Let content determine structure.
 
@@ -980,13 +1002,33 @@ Use markdown headers (**Section**) only where natural topic breaks exist."""
 
         sorted_claims = sorted(enriched_claims, key=sort_key)[:50]
 
-        # Format claims with timestamps and plausibility
-        def format_time(t):
+        # Format claims with timestamps and plausibility (respects precision)
+        def format_time(c):
+            """Format time based on precision and temporal_context."""
+            t = c.get('event_time')
+            precision = c.get('time_precision', 'approximate')
+            temporal_ctx = c.get('temporal_context')
+
+            # Prefer natural temporal context if available
+            if temporal_ctx:
+                return temporal_ctx
+
             if not t:
                 return 'undated'
+
             if hasattr(t, 'strftime'):
-                return t.strftime('%Y-%m-%d %H:%M')
-            return str(t)[:16] if len(str(t)) > 16 else str(t)
+                if precision == 'hour':
+                    return t.strftime('%Y-%m-%d %H:%M')
+                elif precision == 'day':
+                    return t.strftime('%Y-%m-%d')  # Date only, no fake time
+                elif precision == 'month':
+                    return t.strftime('%B %Y')
+                elif precision == 'year':
+                    return t.strftime('%Y')
+                else:
+                    return t.strftime('%Y-%m-%d')  # Default to date
+
+            return str(t)[:10] if len(str(t)) > 10 else str(t)
 
         # Build entity lookup
         entity_lookup = {}
@@ -997,7 +1039,7 @@ Use markdown headers (**Section**) only where natural topic breaks exist."""
 
         # Format claims with IDs, plausibility, and sources
         claims_str = "\n".join([
-            f"[{c['id']}] {c['text']} (plausibility: {c.get('plausibility', 0.5):.2f}, sources: {c['corroboration_count'] + 1}, time: {format_time(c['event_time'])})"
+            f"[{c['id']}] {c['text']} (plausibility: {c.get('plausibility', 0.5):.2f}, sources: {c['corroboration_count'] + 1}, time: {format_time(c)})"
             for c in sorted_claims
         ])
 
@@ -1046,8 +1088,11 @@ RULES:
 4. Claims with plausibility <0.50 or in SUPERSEDED list should be mentioned as "earlier reports" or "initial estimates"
 5. For evolving numbers (casualties, etc.): use the highest-plausibility figure as current, reference lower figures as earlier reports
 6. Combine corroborating claims: [id1][id2]
+7. Use natural temporal language from claims (e.g., "Saturday afternoon", "shortly after 4 p.m.") - never use ISO timestamps like "2024-12-07T12:00"
 
-EXAMPLE: "The fire killed 160 people [cl_i60f189d], up from initial reports of 83 deaths [cl_ypmqmfjb]."
+EXAMPLES:
+- "The fire killed 160 people [cl_i60f189d], up from initial reports of 83 deaths [cl_ypmqmfjb]."
+- "On Saturday afternoon [cl_abc123], a fire broke out..." (uses natural time)
 
 Use markdown headers (**Section**) only where natural topic breaks exist."""
 
@@ -1122,13 +1167,33 @@ Use markdown headers (**Section**) only where natural topic breaks exist."""
 
         logger.info(f"📝 Narrative generation: {len(sorted_claims)} claims (from {len(enriched_claims)} total, threshold 0.4)")
 
-        # Format claims with timestamps and plausibility
-        def format_time(t):
+        # Format claims with timestamps and plausibility (respects precision)
+        def format_time(c):
+            """Format time based on precision and temporal_context."""
+            t = c.get('event_time')
+            precision = c.get('time_precision', 'approximate')
+            temporal_ctx = c.get('temporal_context')
+
+            # Prefer natural temporal context if available
+            if temporal_ctx:
+                return temporal_ctx
+
             if not t:
                 return 'undated'
+
             if hasattr(t, 'strftime'):
-                return t.strftime('%Y-%m-%d %H:%M')
-            return str(t)[:16] if len(str(t)) > 16 else str(t)
+                if precision == 'hour':
+                    return t.strftime('%Y-%m-%d %H:%M')
+                elif precision == 'day':
+                    return t.strftime('%Y-%m-%d')  # Date only, no fake time
+                elif precision == 'month':
+                    return t.strftime('%B %Y')
+                elif precision == 'year':
+                    return t.strftime('%Y')
+                else:
+                    return t.strftime('%Y-%m-%d')  # Default to date
+
+            return str(t)[:10] if len(str(t)) > 10 else str(t)
 
         # Build entity lookup
         entity_lookup = {}
@@ -1139,7 +1204,7 @@ Use markdown headers (**Section**) only where natural topic breaks exist."""
 
         # Format claims for prompt
         claims_str = "\n".join([
-            f"[{c['id']}] {c['text']} (plausibility: {c.get('plausibility', 0.5):.2f}, sources: {c['corroboration_count'] + 1}, time: {format_time(c['event_time'])})"
+            f"[{c['id']}] {c['text']} (plausibility: {c.get('plausibility', 0.5):.2f}, sources: {c['corroboration_count'] + 1}, time: {format_time(c)})"
             for c in sorted_claims
         ])
 
@@ -1218,8 +1283,11 @@ RULES:
 6. key_figures: Extract key numeric values relevant to THIS event
 7. For progressive patterns: show how numbers evolved over time
 8. NO summary/conclusion section, NO headline
+9. Use natural temporal language from claims (e.g., "Saturday afternoon", "shortly after 4 p.m.") - never write ISO timestamps like "2024-12-07T12:00"
 
 CONTENT DEPTH: For each claim, include the full context - who, what, when, where, why. Don't compress multiple claims into single sentences. Let each significant claim have its own sentence or paragraph.
+
+TEMPORAL LANGUAGE: When claims have temporal context like "Saturday afternoon" or "shortly after 4 p.m.", use that natural phrasing. Never convert dates to timestamps.
 
 Return ONLY valid JSON, no markdown code blocks."""
 
@@ -1316,6 +1384,10 @@ Return ONLY valid JSON, no markdown code blocks."""
                     name = entity_names[i] if i < len(entity_names) else None
                     entities.append({'id': eid, 'name': name})
 
+            # Extract time precision metadata (from knowledge_worker)
+            time_precision = claim.metadata.get('time_precision', 'approximate')
+            temporal_context = claim.metadata.get('temporal_context')
+
             enriched.append({
                 'id': claim.id,
                 'text': claim.text,
@@ -1323,6 +1395,8 @@ Return ONLY valid JSON, no markdown code blocks."""
                 'corroboration_count': corr_count,
                 'has_time': claim.event_time is not None,
                 'event_time': claim.event_time,
+                'time_precision': time_precision,  # hour, day, month, year, approximate
+                'temporal_context': temporal_context,  # "Saturday afternoon", "shortly after 4 p.m."
                 'entities': entities,
                 'claim': claim  # Keep original for reference
             })
