@@ -99,7 +99,7 @@ async function updateRecentTasks() {
     // Build task list HTML
     const html = tasks.map(task => {
       const urlHost = new URL(task.url).hostname.replace('www.', '');
-      const apiUrl = `${SERVICE_FARM_URL}/api/artifacts/${task.page_id}`;
+      const apiUrl = `${SERVICE_FARM_URL}/api/page/${task.page_id}`;
 
       return `
         <div class="task-item">
