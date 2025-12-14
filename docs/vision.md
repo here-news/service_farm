@@ -2,10 +2,10 @@
 
 ## What We’re Building
 
-We are building a **Breathing Knowledge Base**: a living, evidence-driven system that turns the world’s sources into structured knowledge that updates as reality changes.
+**HERE.news** is building a **Breathing Knowledge System**, powered by the **EVENT** protocol: a living, evidence-driven system that turns the world’s sources into structured knowledge that updates as reality changes.
 
 The core product behavior:
-- **Instant**: URLs return a best-shot artifact immediately, then enrich progressively.
+- **Instant**: Any artifact (URL, file, media, data) returns a best-shot resource immediately, then enriches progressively.
 - **Evidence-first**: claims are anchored to sources; provenance is the default UI.
 - **Graph-native**: events, entities, and relationships evolve over time with explicit uncertainty.
 
@@ -55,4 +55,3 @@ Evidence must survive. We treat archiving as a product surface:
 - **Trust** (provenance, uncertainty, auditability)
 - **Compounding advantage** (more sources → better graph → better workflows → more usage)
 - **Human-in-the-loop defensibility** (credit-weighted priors, disputes, and resolution mechanisms)
-

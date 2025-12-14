@@ -7,7 +7,7 @@ Related:
 
 ## Executive Summary
 
-We are building a **Breathing Knowledge Base** that turns sources (URLs, documents, media) into **claim-grounded events** that update as reality changes. The system is fast (instant best-shot), evidence-first (citations per claim), and designed for evolving truth (confidence + contradictions + resolution).
+**HERE.news** is building a **Breathing Knowledge System** (powered by the EVENT protocol) that turns sources (URLs, documents, media) into **claim-grounded events** that update as reality changes. The system is fast (instant best-shot), evidence-first (citations per claim), and designed for evolving truth (confidence + contradictions + resolution).
 
 **Initial wedge (B2B)**: analysts and research desks who need reliable event timelines, provenance, and alerts.
 
@@ -24,7 +24,7 @@ Teams tracking real-world developments face:
 ## Product
 
 ### Core Loop (MVP)
-1. User submits a URL.
+1. User submits an artifact (URL, file, media, or data payload).
 2. System returns an instant best-shot artifact and starts background enrichment.
 3. Workers extract content → entities → claims → events.
 4. UI shows event timeline, claims, sources, and confidence.
@@ -117,4 +117,3 @@ Teams tracking real-world developments face:
 2. Confirm database stance: PostgreSQL-first; any “graph index” must remain rebuildable.
 3. Choose initial monetization wedge: dashboards/alerts vs API/exports vs premium chat.
 4. Set credit policies: pricing table, stake outcomes, and curator selection.
-

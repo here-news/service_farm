@@ -1,0 +1,79 @@
+# How It Works
+
+This explains the HERE.news system end-to-end without requiring you to read the code.
+
+## 1) Ingest: Any Artifact, Instant Best-Shot
+
+HERE.news can ingest many artifact types (not just URLs): web pages, PDFs, uploads, images, audio/video, datasets, and structured feeds.
+
+1. A user submits an **artifact** (URL, file upload, media, or data payload).
+2. HERE.news immediately creates (or finds) the corresponding resource and returns a **best-shot** response fast.
+3. The system then commissions background work to enrich the resource asynchronously.
+
+Why: the user gets a usable result immediately, and the pipeline can be resilient (partial progress is allowed).
+
+## 2) Enrich: Workers Build Structured Knowledge
+
+Background workers progressively enrich the resource (type-specific steps may apply):
+
+1. **Extraction**: acquire and normalize content (fetch, parse, decode, OCR/ASR as needed).
+2. **Semantic**: extract candidate entities and atomic claims from the content.
+3. **Event formation**: attach claims to events, merge events when appropriate, and track event evolution.
+
+The output is not “a summary”; it is a set of structured objects:
+- pages/artifacts (sources)
+- entities (actors/places/orgs)
+- claims (atomic assertions anchored to sources)
+- events (clusters of claims over time)
+
+## 3) Ground: Every Claim Has Provenance
+
+The system treats provenance as a first-class requirement:
+- claims are linked back to the source artifact(s),
+- UI surfaces citations by default,
+- “unknown” is acceptable when evidence is missing.
+
+This is the difference between narrative generation and epistemic infrastructure: users can inspect why the system believes something.
+
+## 4) Evolve: Confidence, Contradictions, and Updates
+
+HERE.news models knowledge as a belief state that changes over time:
+- **confidence updates** as corroboration increases (or contradictions appear),
+- **contradictions** are surfaced, not hidden,
+- **updates vs duplicates** are tracked (e.g., “death toll 5 → 8 → 11” is a timeline of updates).
+
+In practice this means events can be “alive”: they metabolize new claims and revise their state without erasing history.
+
+## 5) LiveWorld: Living Containers for Knowledge
+
+At the system level, HERE.news operates as a LiveWorld:
+- **LiveEvent**: active—keeps reconciling new claims, organizing phases/aspects, and updating summaries.
+- **LiveEntity**: mostly passive—awakens when triggered (mentions, reports, evidence submissions).
+- **LiveRelationship**: evolving connections with explicit uncertainty.
+
+This supports “breathing” knowledge: structures adapt as the world changes.
+
+## 6) Community: Human Judgment as Accountable Signal
+
+Community input matters when it is structured and accountable:
+- **credits** gate costly actions (reducing spam),
+- **reputation** affects the weight of actions over time,
+- debates/evidence/reports become **signals** that update priors with an audit trail.
+
+The goal is not “a comment section”; it is a resolution pipeline that can improve truth over time.
+
+## 7) Persistence: Durable Evidence (Optional but Foundational)
+
+When evidence disappears, society forgets. A breathing knowledge system needs durable sources:
+- integrity via hashing,
+- availability/health signals,
+- credit-backed persistence tiers and top-ups,
+- a future path toward decentralized storage/provider incentives.
+
+## Where To Go Next
+
+- `docs/vision.md`
+- `docs/protocol.event.md`
+- `docs/epistemics.analysis.md`
+- `docs/business.plan.md`
+- `docs/architecture.principles.md`

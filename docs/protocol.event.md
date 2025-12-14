@@ -1,0 +1,84 @@
+# EVENT Protocol (HERE.news)
+
+This document summarizes the EVENT protocol described in the Here.News whitepaper (v0.8, 2025) and maps it to the HERE.news “breathing knowledge system” implementation.
+
+Related:
+- `docs/vision.md`
+- `docs/how-it-works.md`
+- `docs/epistemics.analysis.md`
+- `docs/philosophy.theory-topology.md`
+
+## What EVENT Is
+
+**EVENT** is the contradiction-aware inference protocol underlying HERE.news. It is designed to:
+- ingest claims without prematurely forcing a single narrative,
+- measure uncertainty explicitly,
+- converge when the evidence supports convergence,
+- remain open where resolution is irreducibly plural or normative.
+
+## Ontology: From Claims to Resolved States
+
+EVENT describes a layered structure:
+
+- **Claims**: atomic assertions (numbers, timestamps, quotes, media-derived facts).
+- **Events**: time/place-anchored containers that evaluate interactions among claims.
+- **Stories**: clusters of events that describe one evolving situation.
+- **Narratives**: higher-order explanatory structures that organize stories.
+- **Resolved States (φ)**: settlement states that act as durable epistemic anchors.
+
+### Resolved States (Avoiding False Finality)
+
+EVENT distinguishes three “settlement” types:
+- **φ⁰** (fully resolved): contradictions collapse near-zero for a specific factual question.
+- **φ±** (partially resolved): multiple interpretations remain plausible; tracked as stable plurality.
+- **φΩ** (irreducible plurality): normative/ambiguous/evolving questions where single-point convergence would be misleading.
+
+This is an explicit commitment to epistemic humility: the protocol can settle facts without pretending everything is settleable.
+
+## Inference: Belief Revision, Not Binary Truth
+
+EVENT’s stance aligns with “probability as plausibility”:
+- claims are **defeasible evidence**,
+- priors encode source reliability and background uncertainty,
+- updates revise degrees of belief, not binary “true/false”.
+
+In practice, this is implemented as a “breathing” loop (metabolism): as new evidence arrives, posteriors shift; when evidence flow stops, the system stabilizes and can hibernate.
+
+## Entropy, Coherence, and the Health of an Event
+
+EVENT treats uncertainty as measurable:
+- **entropy** as uncertainty in the claim distribution,
+- **health/coherence** as a proxy for internal consistency and connectedness.
+
+Operationally, coherence/entropy are not “truth”; they are indicators of whether the evidence is converging, fragmenting, or being manipulated.
+
+## Incentives and Adversarial Resistance
+
+EVENT proposes aligning incentives with epistemic work:
+- contributions that **reduce uncertainty** (entropy drop) earn rewards,
+- contributions that introduce productive contradictions can also be valuable (when they improve long-term coherence).
+
+It also anticipates adversarial failure modes:
+- **Coherence bombs / sybil networks**: coordinated “evidence” meant to force premature convergence.
+- **Oracle / priors capture**: centralized priors becoming political terrain.
+
+Protocol mechanisms discussed in the whitepaper include:
+- **SSP** (structural similarity penalty): discount corroboration from highly similar sources.
+- **EIR** (entropy-increasing reward): protect whistleblowing/legitimate dissent that initially raises entropy but leads to better resolution.
+- **DPGL** (decentralized priors governance layer): make priors updateable, transparent, and forkable.
+- **Dual-drive cognition**: balance coherence-seeking (λ₁) with model diversity (λ₂) to avoid epistemic monoculture.
+
+## Mapping to HERE.news Implementation
+
+Today’s HERE.news system already reflects much of EVENT’s shape:
+- **claims** extracted from artifacts with provenance,
+- **events** that metabolize new claims and surface contradictions,
+- **topology/coherence** signals to decide when to regenerate narratives,
+- a path toward community signals (credits/reputation) as priors.
+
+Key next steps to more fully realize EVENT in-product:
+- Make φ-states first-class in the UI and data model (what is settled vs open).
+- Persist “topology run” ingredients so resolution is replayable (priors used, relations found, diversity stats, timestamps).
+- Add calibrated likelihood models (or scaling layers) for LLM-driven relation outputs.
+- Implement similarity penalties and source-independence signals to resist coherence bombs.
+

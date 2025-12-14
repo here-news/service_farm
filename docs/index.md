@@ -2,6 +2,10 @@
 
 ## Start Here
 - [Vision](vision.md)
+- [How It Works](how-it-works.md)
+- [EVENT Protocol](protocol.event.md)
+- [Epistemic Analysis](epistemics.analysis.md)
+- [Epistemic Foundations (Metabolism)](philosophy.theory-topology.md)
 
 ## Architecture
 - [Principles](architecture.principles.md)
