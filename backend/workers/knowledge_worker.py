@@ -688,15 +688,32 @@ class KnowledgeWorker:
                 if entity_id:
                     entity_ids.append(entity_id)
 
-            # Parse event time
-            event_time = None
+            # Parse event time with precision awareness
+            # LLM returns precision field: hour, day, month, year, approximate
+            # We preserve this for UI display and timeline ordering
             when = claim_data.get('when') or {}
+            event_time = None
+            time_precision = when.get('precision', 'approximate')  # Use LLM's precision directly
+            temporal_context = when.get('temporal_context')
+
             if when.get('date'):
                 try:
                     date_str = when['date']
-                    time_str = when.get('time', '00:00:00')
+                    time_str = when.get('time')  # None if no specific time
                     tz = when.get('timezone', '+00:00')
-                    event_time = datetime.fromisoformat(f"{date_str}T{time_str}{tz}")
+
+                    if time_str:
+                        # Specific time extracted (e.g., "2:51 p.m." → "14:51:00")
+                        event_time = datetime.fromisoformat(f"{date_str}T{time_str}{tz}")
+                        # Upgrade precision to 'hour' if LLM gave us exact time but said 'approximate'
+                        if time_precision in ('approximate', 'day'):
+                            time_precision = 'hour'
+                    else:
+                        # No specific time - use noon as neutral placeholder
+                        event_time = datetime.fromisoformat(f"{date_str}T12:00:00{tz}")
+                        # Keep LLM's precision, but ensure at least 'day' if we have a date
+                        if time_precision == 'approximate':
+                            time_precision = 'day'
                 except (ValueError, TypeError):
                     pass
 
@@ -713,6 +730,8 @@ class KnowledgeWorker:
                     'who_mentions': claim_data.get('who', []),
                     'where_mentions': claim_data.get('where', []),
                     'when': when,
+                    'time_precision': time_precision,  # hour, day, month, year, approximate
+                    'temporal_context': temporal_context,  # "Saturday afternoon", "shortly after 4 p.m."
                     'evidence_references': claim_data.get('evidence_references', [])
                 }
             )
