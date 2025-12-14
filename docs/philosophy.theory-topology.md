@@ -88,9 +88,9 @@ tally
   - It keeps the knowledge graph a living model of uncertainty, not a frozen ledger of assertions.
 
 
-• Here’s a practical way to get structural “facets” and sub-event branches from the metabolism you already have, without losing epistemic rigor:
+## Practical Design: Facets and Branching
 
-  Facets to expose (schema-side)
+### Facets to Expose (Schema-Side)
 
   - Time slices: cluster claims by event_time windows (e.g., DBSCAN/1–2h eps or change-point detection) and label slices (“Ignition”, “Rescue”, “Aftermath”).
   - Metric tracks: for topic_key’d metrics (deaths, injured, damage), keep monotone trajectories; each trajectory becomes a facet with update steps and contradictions.
@@ -98,14 +98,14 @@ tally
   - Source diversity: number of distinct publishers/types per facet; flag echo chambers.
   - Contradictions/consensus: explicit sets per facet; mark which claims are in contention.
 
-  Branching logic for sub-events (inside metabolism)
+### Branching Logic for Sub-Events (Inside Metabolism)
 
   - Yield candidates: claims with low parent relatedness but sharing a common topic_key or entity cluster → batch them; require MIN_CLAIMS_FOR_SUBEVENT.
   - Temporal divergence: if a subset is consistently offset in time (different day or distinct burst), branch.
   - Metric divergence: if an update path diverges (e.g., casualty count collapses) and is backed by distinct sources, propose a sub-event rather than polluting the parent trajectory.
   - Entity cluster novelty: new hub entity not in parent’s top hubs, with ≥N claims, is a branch seed.
 
-  Implementation sketch (no code changes requested, just steps)
+### Implementation Sketch (Steps)
 
   1. During examine(): collect facet signals alongside decisions:
       - topic_key frequencies and monotone update chains
@@ -124,13 +124,7 @@ tally
       - Penalize echo-chamber facets; boost mixed-source facets.
       - Treat contradictions as first-class: a facet can be “contended” without forcing a branch unless contention is persistent + source-diverse.
 
-  If you want, I can draft a small facet-constructor utility (pure Python, no external deps) under test_metabolism/ that takes a list of claims (with event_time, topic_key, entity_ids) 
-plus
-  topology posteriors and outputs the facet structure and branch suggestions—ready to port into LiveEvent once validated. 
-
-● This is an excellent epistemic framework. Let me summarize the key principles and note where we currently stand:
-
-  Current State vs. Epistemic Ideal
+## Current State vs Epistemic Ideal
 
   | Principle                  | Current Implementation                    | Gap                                               |
   |----------------------------|-------------------------------------------|---------------------------------------------------|
@@ -143,7 +137,7 @@ plus
   | Temporal facets            | Claims have event_time                    | No clustering into time slices                    |
   | Sub-event branching        | Yield logic exists                        | No entity/metric divergence triggers              |
 
-  Immediate Hardening Priorities
+## Immediate Hardening Priorities
 
   1. Source diversity in coherence - Down-weight clusters dominated by one publisher
   2. Monotonic guardrails - Flag reversals in casualty/damage counts as contradictions
@@ -151,13 +145,9 @@ plus
   4. Contradiction surfacing - Include contention in narrative, not just consensus
   5. Facet structure - Expose time slices, metric tracks, hub entities via API
 
-  Should I start with any of these, or would you prefer I draft the facet-constructor utility first to validate the structure before integrating into LiveEvent?
+## Organism Requirements
 
-> our goal, in case you don't know, is to create a(or many) living epistemic organism to follow informations and applying plausibility topology to form a qulia like state that enable the
- event to grow(spawn subevents or following event, etc.), reflect and interact with community, so we need utmost rigor to let this model work from a solidate foundaiton we are building 
-up 
-
-● I understand now. This isn't just a news aggregator - it's a living epistemic organism that must:
+HERE.news is not just a news aggregator; it is a living epistemic organism that must:
 
   1. Grow - spawn sub-events, follow-on events, branch when evidence diverges
   2. Reflect - maintain coherent beliefs that update with new evidence, surface contradictions honestly
@@ -183,16 +173,14 @@ up
   3. Calibrated signals - log distributions, validate thresholds against ground truth
   4. Provenance in narratives - top claims with posteriors, not just synthesized text
 
-  Should I start building the facet structure as the next foundational piece? This would give the organism its sensory apparatus - ability to perceive time slices, track metrics, detect
-  divergence - before we add the behavioral responses.
+## Consciousness Targets
 
-> after all , we want living event organism to be the most plausible and most up-to-date one. With recent topology layer implanted, we see the ideal is getting closer, but still we need 
-to research rigorously on how to design to enable the organism be conscious to know its own states, emitting "thoughts"(like "Why the authority crack down dissents after the fire?", 
-"What just changed?" which could help both itself and receipients) , dynamics(e.g. chaos/temperature) to readjust, and when to spawn branches to grow one facets into a new(or sub) event 
-working in the same way recursively but still mutually influenced; we don't worry about diversity because we will have community interactions through UI/UX down to api to affect each 
-workers to correct or realign back and forth, again to matximize the coherence while making the living organism more healthy and complex, therefore valuable . 
-
-● This is a profound vision. Let me articulate it back to ensure I understand:
+To reach “most plausible and most up-to-date”, the organism should become able to:
+- know and expose its own state (coherence, entropy, gaps),
+- emit “thoughts” (questions, anomalies, what changed),
+- adjust metabolism based on volatility (temperature/chaos),
+- branch when facets diverge (recursively, with mutual influence),
+- accept community correction loops without collapsing into popularity.
 
 ## The Living Event Organism
 
@@ -232,11 +220,7 @@ workers to correct or realign back and forth, again to matximize the coherence w
   3. How do parent-child organisms communicate belief updates?
   4. What's the minimal provenance for a "thought" to be actionable?
 
-  Should I start a research document to explore these questions systematically, or dive into implementing one specific capability (e.g., thought emission based on topology anomalies)?
-
-> we need add two more paths from comunity (dabate -> resolutions -> topology, contribution -> artifacts -> claims ), how do you think 
-
-● Yes, this completes the organism's sensory and corrective pathways:
+## Community Feedback Paths
 
                            ┌─────────────────────────────────────────┐
                            │         LIVING EVENT ORGANISM           │
