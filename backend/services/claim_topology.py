@@ -84,7 +84,7 @@ class ClaimTopologyService:
         from urllib.parse import urlparse
         try:
             domain = urlparse(url).netloc
-        except:
+        except (ValueError, AttributeError):
             domain = url
 
         return classify_source_by_domain(domain)
@@ -418,7 +418,7 @@ For non-update/non-contradicts relations, omit "newer" and "note"."""
                         claim_times[claim.id] = datetime.fromisoformat(
                             claim.event_time.replace('Z', '+00:00')
                         )
-                    except:
+                    except (ValueError, TypeError, AttributeError):
                         pass
                 else:
                     claim_times[claim.id] = claim.event_time

@@ -9,7 +9,6 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from endpoints import router as artifacts_router
 from endpoints_rogue import router as rogue_router
-from endpoints_legacy import router as legacy_router
 from endpoints_events import router as events_router
 
 # Add backend to path for API imports
@@ -90,8 +89,6 @@ if coherence_router:
 if auth_router:
     app.include_router(auth_router)
 
-# Legacy demo endpoints (archived)
-app.include_router(legacy_router, prefix="/api/demo", tags=["Legacy Demo"])
 
 # Feature routers (if available)
 for router, prefix, tags in feature_routers:

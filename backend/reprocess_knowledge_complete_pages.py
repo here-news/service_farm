@@ -5,19 +5,20 @@ Reprocess knowledge_complete pages to rebuild Neo4j graph
 import asyncio
 import asyncpg
 import redis.asyncio as redis
+import os
 
 async def main():
     # Connect to Postgres
     pool = await asyncpg.create_pool(
-        host='postgres',
-        port=5432,
-        user='herenews_user',
-        password='herenews_pass',
-        database='herenews'
+        host=os.getenv('POSTGRES_HOST', 'postgres'),
+        port=int(os.getenv('POSTGRES_PORT', 5432)),
+        user=os.getenv('POSTGRES_USER', 'herenews_user'),
+        password=os.getenv('POSTGRES_PASSWORD', 'herenews_pass'),
+        database=os.getenv('POSTGRES_DB', 'herenews')
     )
 
     # Connect to Redis
-    r = await redis.from_url('redis://redis:6379')
+    r = await redis.from_url(os.getenv('REDIS_URL', 'redis://redis:6379'))
 
     # Get knowledge_complete pages
     async with pool.acquire() as conn:

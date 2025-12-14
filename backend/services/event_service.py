@@ -251,14 +251,14 @@ class EventService:
             if isinstance(claim_time, str):
                 try:
                     claim_time = datetime.fromisoformat(claim_time.replace('Z', '+00:00'))
-                except:
+                except (ValueError, TypeError, AttributeError):
                     claim_time = None
 
             event_time = event.event_start
             if isinstance(event_time, str):
                 try:
                     event_time = datetime.fromisoformat(event_time.replace('Z', '+00:00'))
-                except:
+                except (ValueError, TypeError, AttributeError):
                     event_time = None
 
             if claim_time and event_time:

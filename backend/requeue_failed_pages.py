@@ -13,8 +13,8 @@ import json
 import os
 from datetime import datetime
 
-DATABASE_URL = "postgresql://herenews_user:herenews_pass@postgres:5432/herenews"
-REDIS_URL = "redis://redis:6379"
+DATABASE_URL = os.getenv('DATABASE_URL', "postgresql://herenews_user:herenews_pass@postgres:5432/herenews")
+REDIS_URL = os.getenv('REDIS_URL', "redis://redis:6379")
 
 
 async def requeue_failed_pages():

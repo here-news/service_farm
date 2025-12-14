@@ -8,13 +8,14 @@ Refactored: Uses PageRepository for all data access
 import os
 import httpx
 from datetime import datetime
-from urllib.parse import urlparse, urlunparse
+from urllib.parse import urlparse
 from fastapi import APIRouter, HTTPException
 import asyncpg
 from services.job_queue import JobQueue
 from repositories import PageRepository
 from models.domain.page import Page
 from utils.id_generator import generate_page_id
+from utils.url_utils import normalize_url
 
 router = APIRouter()
 
@@ -51,67 +52,6 @@ async def init_services():
         page_repo = PageRepository(db_pool)
 
     return page_repo, job_queue
-
-
-def normalize_url(url: str) -> str:
-    """
-    Normalize URL to canonical form
-
-    Removes:
-    - www. prefix
-    - Trailing slashes (EXCEPT when query string present, to preserve query-driven routes)
-    - URL fragments (#)
-    - Common tracking parameters (utm_*, fbclid, etc.)
-
-    This deduplication happens at instant tier to:
-    1. Prevent duplicate iframely calls (saves API quota)
-    2. Prevent duplicate worker jobs (saves compute)
-    3. Enable instant cache hits on same content
-    """
-    parsed = urlparse(url)
-
-    # Remove www prefix
-    netloc = parsed.netloc.lower()
-    if netloc.startswith('www.'):
-        netloc = netloc[4:]
-
-    # Remove trailing slash ONLY if no query string present
-    # (preserves path for query-driven routes like /case-detail/?id=123)
-    if parsed.query:
-        path = parsed.path  # Keep trailing slash with query strings
-    else:
-        path = parsed.path.rstrip('/') if parsed.path != '/' else '/'
-
-    # Remove tracking parameters (marketing noise)
-    # Common tracking params: utm_source, utm_medium, utm_campaign, fbclid, gclid, etc.
-    if parsed.query:
-        from urllib.parse import parse_qs
-        params = parse_qs(parsed.query)
-
-        # Blacklist of tracking parameters to remove
-        tracking_params = {
-            'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
-            'fbclid', 'gclid', 'msclkid', 'mc_cid', 'mc_eid',
-            '_ga', '_gl', 'ref', 'source', 'campaign'
-        }
-
-        # Keep only non-tracking params
-        clean_params = {k: v for k, v in params.items() if k.lower() not in tracking_params}
-
-        # Rebuild query string (sorted for consistency)
-        query = '&'.join(f"{k}={v[0]}" for k, v in sorted(clean_params.items()))
-    else:
-        query = ''
-
-    canonical = urlunparse((
-        parsed.scheme or 'https',
-        netloc,
-        path,
-        '',  # params
-        query,
-        ''   # fragment removed
-    ))
-    return canonical
 
 
 async def get_iframely_metadata(url: str) -> dict:
@@ -278,7 +218,7 @@ async def submit_artifact(url: str, preview: bool = False):
         try:
             parsed = urlparse(url)
             domain = parsed.netloc
-        except:
+        except (ValueError, AttributeError):
             domain = None
 
         # Create page with iframely metadata using repository

@@ -3,6 +3,7 @@
 Queue pages with claims to event worker for metabolism testing
 """
 import asyncio
+import os
 import redis.asyncio as redis
 from services.neo4j_service import Neo4jService
 import json
@@ -13,7 +14,7 @@ async def main():
     await neo4j.connect()
 
     # Connect to Redis
-    r = await redis.from_url('redis://redis:6379')
+    r = await redis.from_url(os.getenv('REDIS_URL', 'redis://redis:6379'))
 
     # Get pages that have claims
     pages = await neo4j._execute_read("""

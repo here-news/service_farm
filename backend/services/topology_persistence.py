@@ -397,7 +397,7 @@ class TopologyPersistence:
         if row['source_diversity_json']:
             try:
                 source_diversity = json.loads(row['source_diversity_json'])
-            except:
+            except (json.JSONDecodeError, TypeError):
                 pass
 
         update_chains = []
@@ -410,7 +410,7 @@ class TopologyPersistence:
                         chain=chain.get('chain', []),
                         current_claim_id=chain.get('current', '')
                     ))
-            except:
+            except (json.JSONDecodeError, TypeError, KeyError):
                 pass
 
         # Extract contradictions from relationships (with notes)

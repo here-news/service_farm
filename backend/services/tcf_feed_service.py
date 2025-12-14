@@ -128,7 +128,7 @@ class TCFFeedService:
             if timestamp:
                 try:
                     story_time = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
-                except:
+                except (ValueError, TypeError, AttributeError):
                     pass
 
             # Use stored coherence if available, otherwise calculate once
@@ -294,7 +294,7 @@ class TCFFeedService:
             if record['created_at']:
                 try:
                     created_at = datetime.fromisoformat(record['created_at'].replace('Z', '+00:00'))
-                except:
+                except (ValueError, TypeError, AttributeError):
                     pass
 
             # Calculate TCF

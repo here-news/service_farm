@@ -173,7 +173,7 @@ async def complete_rogue_task(task_id: str, metadata: RogueTaskMetadata):
         try:
             from dateutil import parser as date_parser
             pub_time = date_parser.parse(metadata.published_date)
-        except:
+        except (ValueError, TypeError, OverflowError):
             pass  # Skip if date parsing fails
 
     # Determine new status based on content quality
