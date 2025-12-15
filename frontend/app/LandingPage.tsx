@@ -305,69 +305,19 @@ const LandingPage: React.FC = () => {
         return () => clearInterval(refreshInterval);
     }, [dimensions.width, dimensions.height]);
 
-    // Configure forces - recent entities pulled to center
+    // Configure forces - spread out with more distance
     useEffect(() => {
         if (graphRef.current && data.nodes.length > 0) {
             const fg = graphRef.current;
-            const centerX = dimensions.width / 2;
-            const centerY = dimensions.height / 2;
 
-            // Weak repulsion
-            fg.d3Force('charge').strength(-50);
-            fg.d3Force('link').distance(150).strength(0.05);
-
-            // Custom radial force based on recency
-            // Recent entities (recency=0) get pulled to center
-            // Old entities (recency=1) get pushed to edges
-            const d3 = (window as any).d3;
-            if (d3 && d3.forceRadial) {
-                fg.d3Force('recency', d3.forceRadial(
-                    (node: GraphNode) => {
-                        // Target radius based on recency
-                        const maxRadius = Math.min(dimensions.width, dimensions.height) * 0.35;
-                        return node.recency * maxRadius;
-                    },
-                    centerX,
-                    centerY
-                ).strength((node: GraphNode) => {
-                    // Stronger pull for recent entities
-                    return 0.1 - node.recency * 0.05;
-                }));
-            } else {
-                // Fallback: adjust center force
-                fg.d3Force('center').strength(0.02);
-            }
+            // Strong repulsion to spread nodes far apart
+            fg.d3Force('charge').strength(-500);
+            // Longer link distance
+            fg.d3Force('link').distance(200).strength(0.2);
+            // Weak center pull
+            fg.d3Force('center').strength(0.02);
         }
-    }, [data.nodes.length, dimensions]);
-
-    // Add Brownian motion - independent random nudges per node
-    useEffect(() => {
-        if (data.nodes.length === 0 || !graphRef.current) return;
-
-        const interval = setInterval(() => {
-            if (!graphRef.current) return;
-
-            // Nudge ALL nodes with small independent random forces
-            data.nodes.forEach((node: any) => {
-                if (typeof node.vx === 'number') {
-                    // Independent random direction for each node
-                    const angle = Math.random() * Math.PI * 2;
-                    const magnitude = Math.random() * 0.8;
-                    node.vx += Math.cos(angle) * magnitude;
-                    node.vy += Math.sin(angle) * magnitude;
-
-                    // Dampen to prevent runaway velocities
-                    node.vx *= 0.95;
-                    node.vy *= 0.95;
-                }
-            });
-
-            // Reheat simulation slightly to process the velocity changes
-            graphRef.current.d3ReheatSimulation();
-        }, 100); // More frequent, smaller nudges
-
-        return () => clearInterval(interval);
-    }, [data.nodes]);
+    }, [data.nodes.length]);
 
     // Trigger zaps
     useEffect(() => {
@@ -550,10 +500,9 @@ const LandingPage: React.FC = () => {
                         backgroundColor="transparent"
                         linkColor={linkColor}
                         linkWidth={linkWidth}
-                        d3AlphaDecay={0.01}
-                        d3VelocityDecay={0.2}
-                        cooldownTicks={Infinity}
-                        cooldownTime={Infinity}
+                        d3AlphaDecay={0.02}
+                        d3VelocityDecay={0.3}
+                        cooldownTicks={200}
                         nodeRelSize={1}
                         enableZoomInteraction={true}
                         enablePanInteraction={true}

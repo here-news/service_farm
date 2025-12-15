@@ -491,6 +491,70 @@ class PageRepository:
 
         return [dict(r) for r in results]
 
+    async def get_publisher_prior(self, page_id: str) -> dict:
+        """
+        Get publisher base prior for a page (for plausibility scoring).
+
+        Traverses: Page -> Publisher Entity
+        Returns the stored base_prior from the publisher entity.
+
+        Args:
+            page_id: Page ID (pg_xxxxxxxx format)
+
+        Returns:
+            Dict with 'base_prior', 'source_type', 'publisher_name'
+        """
+        if not self.neo4j:
+            return {'base_prior': 0.50, 'source_type': 'unknown', 'publisher_name': None}
+
+        results = await self.neo4j._execute_read("""
+            MATCH (p:Page {id: $page_id})
+            OPTIONAL MATCH (p)-[:PUBLISHED_BY]->(pub:Entity {is_publisher: true})
+            RETURN pub.base_prior as base_prior,
+                   pub.source_type as source_type,
+                   pub.canonical_name as publisher_name
+        """, {'page_id': page_id})
+
+        if results:
+            r = results[0]
+            return {
+                'base_prior': r['base_prior'] or 0.50,
+                'source_type': r['source_type'] or 'unknown',
+                'publisher_name': r['publisher_name']
+            }
+
+        return {'base_prior': 0.50, 'source_type': 'unknown', 'publisher_name': None}
+
+    async def get_metadata(self, page_id: str) -> dict:
+        """
+        Get page metadata for plausibility scoring.
+
+        Args:
+            page_id: Page ID (pg_xxxxxxxx format)
+
+        Returns:
+            Dict with url, word_count, title, domain
+        """
+        if not self.neo4j:
+            return {'url': '', 'word_count': 0, 'title': None, 'domain': None}
+
+        results = await self.neo4j._execute_read("""
+            MATCH (p:Page {id: $page_id})
+            RETURN p.url as url, p.word_count as word_count,
+                   p.title as title, p.domain as domain
+        """, {'page_id': page_id})
+
+        if results:
+            r = results[0]
+            return {
+                'url': r['url'] or '',
+                'word_count': r['word_count'] or 0,
+                'title': r['title'],
+                'domain': r['domain']
+            }
+
+        return {'url': '', 'word_count': 0, 'title': None, 'domain': None}
+
     # =========================================================================
     # LIST OPERATIONS
     # =========================================================================

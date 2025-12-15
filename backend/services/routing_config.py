@@ -20,3 +20,7 @@ WEIGHT_SEMANTIC = 0.60  # Semantic similarity (page vs event embedding)
 
 # Minimum score to attach page to existing event
 ROUTING_THRESHOLD = 0.20
+
+# Minimum semantic similarity for fallback matching (when no entity overlap)
+# Higher threshold since we're relying solely on embeddings
+SEMANTIC_FALLBACK_THRESHOLD = 0.50

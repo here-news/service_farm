@@ -22,7 +22,7 @@ from models.domain.event import Event
 from models.domain.claim import Claim
 from services.event_service import EventService
 from services.claim_topology import ClaimTopologyService
-from services.routing_config import WEIGHT_ENTITY, WEIGHT_SEMANTIC, ROUTING_THRESHOLD
+from services.routing_config import WEIGHT_ENTITY, WEIGHT_SEMANTIC, ROUTING_THRESHOLD, SEMANTIC_FALLBACK_THRESHOLD
 from repositories.event_repository import EventRepository
 from repositories.claim_repository import ClaimRepository
 from repositories.entity_repository import EntityRepository
@@ -112,7 +112,36 @@ class LiveEventPool:
         )
 
         if not candidates_data:
-            logger.info(f"📝 No candidates found, creating new root event ({len(claims)} claims)")
+            # No entity overlap - try semantic fallback
+            if page_embedding:
+                logger.info(f"🔍 No entity overlap, trying semantic fallback...")
+                semantic_candidates = await self.event_repo.get_candidate_events_by_embedding(
+                    page_embedding=page_embedding,
+                    threshold=SEMANTIC_FALLBACK_THRESHOLD,
+                    limit=5
+                )
+
+                if semantic_candidates:
+                    best_event, best_similarity = semantic_candidates[0]
+                    logger.info(
+                        f"📊 Semantic fallback found: {best_event.canonical_name} "
+                        f"(similarity: {best_similarity:.2f})"
+                    )
+
+                    # Activate event and process claims
+                    if best_event.id not in self.active:
+                        await self._load_event(best_event.id)
+
+                    live_event = self.active[best_event.id]
+                    result = await live_event.examine(claims)
+
+                    for sub_event in result.sub_events_created:
+                        await self._bootstrap_event(sub_event)
+                    return
+
+                logger.info(f"📝 Semantic fallback found no matches (threshold={SEMANTIC_FALLBACK_THRESHOLD})")
+
+            logger.info(f"📝 Creating new root event ({len(claims)} claims)")
             event = await self.service.create_root_event(claims)
             await self._bootstrap_event(event)
             return

@@ -375,6 +375,56 @@ class EventRepository:
 
         return candidates
 
+    async def get_candidate_events_by_embedding(
+        self,
+        page_embedding: List[float],
+        threshold: float = 0.50,
+        limit: int = 10
+    ) -> List[Tuple[Event, float]]:
+        """
+        Get candidate events by semantic similarity (embedding search).
+
+        This is a FALLBACK when entity-based search returns no candidates.
+        Uses pgvector cosine similarity to find semantically similar events.
+
+        Args:
+            page_embedding: Page embedding vector (1536 dims)
+            threshold: Minimum cosine similarity (0.0-1.0)
+            limit: Maximum candidates to return
+
+        Returns:
+            List of (event, similarity_score) tuples, sorted by similarity desc
+        """
+        if not page_embedding:
+            return []
+
+        async with self.db_pool.acquire() as conn:
+            # Use pgvector cosine distance (1 - cosine_similarity)
+            # So we filter by (1 - threshold) and sort ascending
+            rows = await conn.fetch("""
+                SELECT event_id, 1 - (embedding <=> $1::vector) as similarity
+                FROM core.event_embeddings
+                WHERE 1 - (embedding <=> $1::vector) >= $2
+                ORDER BY embedding <=> $1::vector ASC
+                LIMIT $3
+            """, page_embedding, threshold, limit)
+
+        if not rows:
+            logger.debug(f"No semantic candidates found (threshold={threshold})")
+            return []
+
+        candidates = []
+        for row in rows:
+            event_id = row['event_id']
+            similarity = float(row['similarity'])
+
+            event = await self.get_by_id(event_id)
+            if event:
+                candidates.append((event, similarity))
+                logger.debug(f"  Semantic candidate: {event.canonical_name} (sim={similarity:.3f})")
+
+        return candidates
+
     async def _get_event_entity_ids(self, event_id: str) -> Set[str]:
         """Get all entity IDs for an event from Neo4j"""
         result = await self.neo4j._execute_read("""
