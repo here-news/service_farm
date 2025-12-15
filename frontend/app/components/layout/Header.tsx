@@ -38,7 +38,7 @@ function Header() {
   }
 
   const handleCreate = () => {
-    navigate('/?share=true')
+    navigate('/app?share=true')
   }
 
   return (
@@ -47,7 +47,7 @@ function Header() {
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center gap-6 flex-1">
             <Link
-              to="/"
+              to="/app"
               className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent whitespace-nowrap"
             >
               φ HERE
