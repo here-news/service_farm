@@ -206,10 +206,14 @@ const LandingPage: React.FC = () => {
                     .sort((a, b) => b.score - a.score)
                     .slice(0, MAX_ENTITIES);
 
-                // Build nodes with recency-based initial positioning
+                // Build nodes with recency-based positioning
+                // Preserve existing positions for smooth updates
                 const centerX = dimensions.width / 2;
                 const centerY = dimensions.height / 2;
                 const maxRadius = Math.min(dimensions.width, dimensions.height) * 0.4;
+
+                // Get existing nodes for position preservation
+                const existingNodes = new Map(data.nodes.map(n => [n.id, n]));
 
                 const nodes: GraphNode[] = sortedEntities.map(({ id, entity, eventIds, firstEventIndex }) => {
                     const mentionRatio = eventIds.length / maxMentions;
@@ -220,24 +224,40 @@ const LandingPage: React.FC = () => {
                     // Recency: 0 = most recent, 1 = oldest
                     const recency = totalEvents > 1 ? firstEventIndex / (totalEvents - 1) : 0;
 
-                    // Position based on recency - recent entities start closer to center
-                    const angle = Math.random() * Math.PI * 2;
-                    const radius = (0.1 + recency * 0.9) * maxRadius; // 10%-100% of maxRadius based on recency
-                    const initialX = centerX + Math.cos(angle) * radius;
-                    const initialY = centerY + Math.sin(angle) * radius;
+                    const existing = existingNodes.get(id);
 
-                    return {
-                        id,
-                        name: entity.canonical_name,
-                        type: 'entity' as const,
-                        val: nodeSize,
-                        color,
-                        imgUrl: entity.image_url,
-                        eventIds,
-                        recency,
-                        x: initialX,
-                        y: initialY
-                    };
+                    if (existing) {
+                        // Entity exists - update recency (force will pull it toward new position)
+                        // Keep position but update recency so forces pull it appropriately
+                        return {
+                            ...existing,
+                            name: entity.canonical_name,
+                            val: nodeSize,
+                            color,
+                            imgUrl: entity.image_url,
+                            eventIds,
+                            recency // Updated recency - d3 force will pull to new target radius
+                        };
+                    } else {
+                        // New entity - position based on recency
+                        const angle = Math.random() * Math.PI * 2;
+                        const radius = (0.1 + recency * 0.9) * maxRadius;
+                        const initialX = centerX + Math.cos(angle) * radius;
+                        const initialY = centerY + Math.sin(angle) * radius;
+
+                        return {
+                            id,
+                            name: entity.canonical_name,
+                            type: 'entity' as const,
+                            val: nodeSize,
+                            color,
+                            imgUrl: entity.image_url,
+                            eventIds,
+                            recency,
+                            x: initialX,
+                            y: initialY
+                        };
+                    }
                 });
 
                 // Build links between co-occurring entities
@@ -279,6 +299,10 @@ const LandingPage: React.FC = () => {
         };
 
         fetchData();
+
+        // Periodic refresh - newly mentioned entities will get recency=0 and move to center
+        const refreshInterval = setInterval(fetchData, 60000); // Refresh every 60s
+        return () => clearInterval(refreshInterval);
     }, [dimensions.width, dimensions.height]);
 
     // Configure forces - recent entities pulled to center
