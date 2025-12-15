@@ -1,6 +1,7 @@
 import React from 'react'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import Layout from './components/layout/Layout'
+import LandingPage from './LandingPage'
 import HomePage from './HomePage'
 import StoryPage from './StoryPage'
 import EventPage from './EventPage'
@@ -12,20 +13,32 @@ import MapPage from './MapPage'
 
 function App() {
   return (
-    <Router basename="/app">
-      <Layout>
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/archive" element={<ArchivePage />} />
-          <Route path="/graph" element={<GraphPage />} />
-          <Route path="/map" element={<MapPage />} />
-          <Route path="/story/:storyId" element={<StoryPage />} />
-          <Route path="/story/:storyId/:slug" element={<StoryPage />} />
-          <Route path="/event/:eventSlug" element={<EventPage />} />
-          <Route path="/entity/:entityId" element={<EntityPage />} />
-          <Route path="/page/:pageId" element={<PagePage />} />
-        </Routes>
-      </Layout>
+    <Router>
+      <Routes>
+        {/* Landing page - no layout, full screen */}
+        <Route path="/" element={<LandingPage />} />
+
+        {/* Direct routes (without /app prefix) */}
+        <Route path="/graph" element={<Layout><GraphPage /></Layout>} />
+        <Route path="/map" element={<Layout><MapPage /></Layout>} />
+        <Route path="/archive" element={<Layout><ArchivePage /></Layout>} />
+        <Route path="/story/:storyId" element={<Layout><StoryPage /></Layout>} />
+        <Route path="/story/:storyId/:slug" element={<Layout><StoryPage /></Layout>} />
+        <Route path="/event/:eventSlug" element={<Layout><EventPage /></Layout>} />
+        <Route path="/entity/:entityId" element={<Layout><EntityPage /></Layout>} />
+        <Route path="/page/:pageId" element={<Layout><PagePage /></Layout>} />
+
+        {/* App routes - with /app prefix (legacy support) */}
+        <Route path="/app" element={<Layout><HomePage /></Layout>} />
+        <Route path="/app/archive" element={<Layout><ArchivePage /></Layout>} />
+        <Route path="/app/graph" element={<Layout><GraphPage /></Layout>} />
+        <Route path="/app/map" element={<Layout><MapPage /></Layout>} />
+        <Route path="/app/story/:storyId" element={<Layout><StoryPage /></Layout>} />
+        <Route path="/app/story/:storyId/:slug" element={<Layout><StoryPage /></Layout>} />
+        <Route path="/app/event/:eventSlug" element={<Layout><EventPage /></Layout>} />
+        <Route path="/app/entity/:entityId" element={<Layout><EntityPage /></Layout>} />
+        <Route path="/app/page/:pageId" element={<Layout><PagePage /></Layout>} />
+      </Routes>
     </Router>
   )
 }

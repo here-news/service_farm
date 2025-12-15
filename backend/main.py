@@ -98,11 +98,21 @@ for router, prefix, tags in feature_routers:
 # Check /static first (Docker image), then /app/static (local dev)
 static_path = Path("/static") if Path("/static").exists() else Path("/app/static")
 if static_path.exists() and (static_path / "assets").exists():
-    app.mount("/app/assets", StaticFiles(directory=str(static_path / "assets")), name="assets")
+    # Mount at both /assets (for root landing) and /app/assets (for app routes)
+    app.mount("/assets", StaticFiles(directory=str(static_path / "assets")), name="root-assets")
+    app.mount("/app/assets", StaticFiles(directory=str(static_path / "assets")), name="app-assets")
 
-@app.get("/")
+@app.get("/", response_class=HTMLResponse)
 async def root():
-    return {"message": "HereNews Platform", "app_url": "/app"}
+    """Serve React frontend at root (landing page)"""
+    index_path = Path("/static/index.html") if Path("/static/index.html").exists() else Path("/app/static/index.html")
+    if not index_path.exists():
+        return HTMLResponse(
+            content="<h1>Frontend Not Built</h1><p>Rebuild the app container: docker-compose build app</p>",
+            status_code=503
+        )
+    with open(index_path, "r", encoding="utf-8") as f:
+        return HTMLResponse(content=f.read())
 
 @app.get("/health")
 async def health():
@@ -123,13 +133,10 @@ if not auth_router:
             "message": "Auth system not enabled"
         }
 
-# Frontend SPA routes (must be last) - /app/* serves the React app
-@app.get("/app", response_class=HTMLResponse)
-@app.get("/app/", response_class=HTMLResponse)
-@app.get("/app/{full_path:path}", response_class=HTMLResponse)
-async def serve_spa(full_path: str = ""):
-    """Serve React frontend for all /app/* routes (SPA routing)"""
-    # Check /static first (Docker image), then /app/static (local dev)
+# Frontend SPA routes (must be last)
+# Helper to serve the SPA
+async def _serve_spa():
+    """Serve React frontend index.html"""
     index_path = Path("/static/index.html") if Path("/static/index.html").exists() else Path("/app/static/index.html")
     if not index_path.exists():
         return HTMLResponse(
@@ -138,6 +145,36 @@ async def serve_spa(full_path: str = ""):
         )
     with open(index_path, "r", encoding="utf-8") as f:
         return HTMLResponse(content=f.read())
+
+# SPA routes - /app/* (legacy)
+@app.get("/app", response_class=HTMLResponse)
+@app.get("/app/", response_class=HTMLResponse)
+@app.get("/app/{full_path:path}", response_class=HTMLResponse)
+async def serve_spa_app(full_path: str = ""):
+    return await _serve_spa()
+
+# SPA routes - direct paths (new)
+@app.get("/graph", response_class=HTMLResponse)
+@app.get("/map", response_class=HTMLResponse)
+@app.get("/archive", response_class=HTMLResponse)
+async def serve_spa_direct():
+    return await _serve_spa()
+
+@app.get("/event/{event_slug:path}", response_class=HTMLResponse)
+async def serve_spa_event(event_slug: str):
+    return await _serve_spa()
+
+@app.get("/entity/{entity_id:path}", response_class=HTMLResponse)
+async def serve_spa_entity(entity_id: str):
+    return await _serve_spa()
+
+@app.get("/story/{story_path:path}", response_class=HTMLResponse)
+async def serve_spa_story(story_path: str):
+    return await _serve_spa()
+
+@app.get("/page/{page_id:path}", response_class=HTMLResponse)
+async def serve_spa_page(page_id: str):
+    return await _serve_spa()
 
 if __name__ == "__main__":
     import uvicorn
