@@ -6,6 +6,7 @@ interface Entity {
     canonical_name: string;
     entity_type?: string;
     image_url?: string;
+    mention_count?: number; // Total mentions from API
 }
 
 interface Event {
@@ -24,6 +25,8 @@ interface GraphNode {
     img?: HTMLImageElement;
     eventIds?: string[];
     recency: number; // 0 = most recent, 1 = oldest
+    mentionCount: number; // Total mentions across all events
+    mentionRatio: number; // 0-1 ratio vs max mentions
     x?: number;
     y?: number;
     vx?: number;
@@ -147,9 +150,12 @@ const LandingPage: React.FC = () => {
         return () => window.removeEventListener('resize', updateDimensions);
     }, []);
 
+    // Track loaded images separately to preserve them across updates
+    const imageCache = useRef<Map<string, HTMLImageElement>>(new Map());
+
     // Fetch data
     useEffect(() => {
-        const fetchData = async () => {
+        const fetchData = async (isInitial: boolean = false) => {
             try {
                 const feedResponse = await fetch('/api/coherence/feed?limit=50');
                 const feedResult = await feedResponse.json();
@@ -169,7 +175,7 @@ const LandingPage: React.FC = () => {
                 const eventDetailsResults = await Promise.all(eventDetailsPromises);
                 const validEventDetails = eventDetailsResults.filter(r => r && r.event);
 
-                const entityMap = new Map<string, { entity: Entity; eventIds: string[]; firstEventIndex: number }>();
+                const entityMap = new Map<string, { entity: Entity; eventIds: string[]; firstEventIndex: number; totalMentions: number }>();
                 const totalEvents = validEventDetails.length;
 
                 validEventDetails.forEach((result, eventIndex) => {
@@ -179,69 +185,98 @@ const LandingPage: React.FC = () => {
                     const entities = result.entities || [];
                     entities.forEach((entity: Entity) => {
                         if (entity.id && entity.canonical_name) {
+                            const mentionCount = entity.mention_count || 1;
                             if (!entityMap.has(entity.id)) {
                                 // First appearance - eventIndex 0 is most recent
-                                entityMap.set(entity.id, { entity, eventIds: [], firstEventIndex: eventIndex });
+                                entityMap.set(entity.id, { entity, eventIds: [], firstEventIndex: eventIndex, totalMentions: 0 });
                             }
-                            entityMap.get(entity.id)!.eventIds.push(eventId);
+                            const entry = entityMap.get(entity.id)!;
+                            entry.eventIds.push(eventId);
+                            entry.totalMentions += mentionCount; // Accumulate mentions across events
                         }
                     });
                 });
 
-                // Sort by importance
+                // Sort by importance - now using totalMentions
                 let maxMentions = 1;
-                entityMap.forEach(({ eventIds }) => {
-                    maxMentions = Math.max(maxMentions, eventIds.length);
+                entityMap.forEach(({ totalMentions }) => {
+                    maxMentions = Math.max(maxMentions, totalMentions);
                 });
 
                 const sortedEntities = Array.from(entityMap.entries())
-                    .map(([id, { entity, eventIds, firstEventIndex }]) => ({
+                    .map(([id, { entity, eventIds, firstEventIndex, totalMentions }]) => ({
                         id,
                         entity,
                         eventIds,
                         firstEventIndex,
-                        // Score includes recency bonus (lower index = more recent = higher score)
-                        score: eventIds.length * 2 + (entity.image_url ? 5 : 0) + (entity.entity_type === 'PERSON' ? 3 : 0) + (totalEvents - firstEventIndex)
+                        totalMentions,
+                        // Score includes mentions and recency bonus
+                        score: totalMentions * 3 + eventIds.length * 2 + (entity.image_url ? 5 : 0) + (entity.entity_type === 'PERSON' ? 3 : 0) + (totalEvents - firstEventIndex)
                     }))
                     .sort((a, b) => b.score - a.score)
                     .slice(0, MAX_ENTITIES);
 
                 // Build nodes with recency-based positioning
-                // Preserve existing positions for smooth updates
                 const centerX = dimensions.width / 2;
                 const centerY = dimensions.height / 2;
                 const maxRadius = Math.min(dimensions.width, dimensions.height) * 0.4;
 
-                // Get existing nodes for position preservation
-                const existingNodes = new Map(data.nodes.map(n => [n.id, n]));
+                // Get existing node positions from the actual graph (not React state)
+                const existingPositions = new Map<string, { x: number; y: number; vx?: number; vy?: number }>();
+                if (graphRef.current && !isInitial) {
+                    try {
+                        const fg = graphRef.current;
+                        const currentData = typeof fg.graphData === 'function' ? fg.graphData() : null;
+                        if (currentData && currentData.nodes) {
+                            currentData.nodes.forEach((n: any) => {
+                                if (typeof n.x === 'number' && typeof n.y === 'number') {
+                                    existingPositions.set(n.id, { x: n.x, y: n.y, vx: n.vx, vy: n.vy });
+                                }
+                            });
+                        }
+                    } catch (e) {
+                        console.log('Could not get existing positions');
+                    }
+                }
 
-                const nodes: GraphNode[] = sortedEntities.map(({ id, entity, eventIds, firstEventIndex }) => {
-                    const mentionRatio = eventIds.length / maxMentions;
+                const nodes: GraphNode[] = sortedEntities.map(({ id, entity, eventIds, firstEventIndex, totalMentions }) => {
+                    const mentionRatio = totalMentions / maxMentions;
                     const hasImage = !!entity.image_url;
-                    const nodeSize = hasImage ? (18 + mentionRatio * 22) : (6 + mentionRatio * 8);
+                    // Size based on mentions - more mentions = bigger
+                    const nodeSize = hasImage ? (16 + mentionRatio * 28) : (5 + mentionRatio * 10);
                     const color = COLORS[entity.entity_type || 'DEFAULT'] || COLORS.DEFAULT;
 
                     // Recency: 0 = most recent, 1 = oldest
                     const recency = totalEvents > 1 ? firstEventIndex / (totalEvents - 1) : 0;
 
-                    const existing = existingNodes.get(id);
+                    const existingPos = existingPositions.get(id);
+                    const cachedImg = imageCache.current.get(id);
 
-                    if (existing) {
-                        // Entity exists - update recency (force will pull it toward new position)
-                        // Keep position but update recency so forces pull it appropriately
+                    if (existingPos) {
+                        // Entity exists - preserve exact position from graph
                         return {
-                            ...existing,
+                            id,
                             name: entity.canonical_name,
+                            type: 'entity' as const,
                             val: nodeSize,
                             color,
                             imgUrl: entity.image_url,
+                            img: cachedImg,
                             eventIds,
-                            recency // Updated recency - d3 force will pull to new target radius
+                            recency,
+                            mentionCount: totalMentions,
+                            mentionRatio,
+                            x: existingPos.x,
+                            y: existingPos.y,
+                            vx: existingPos.vx,
+                            vy: existingPos.vy
                         };
                     } else {
-                        // New entity - position based on recency
+                        // New entity - position based on recency (recent = closer to center)
                         const angle = Math.random() * Math.PI * 2;
-                        const radius = (0.1 + recency * 0.9) * maxRadius;
+                        // High mentions + recent = close to center
+                        const radiusFactor = 0.1 + (1 - mentionRatio) * 0.4 + recency * 0.5;
+                        const radius = radiusFactor * maxRadius;
                         const initialX = centerX + Math.cos(angle) * radius;
                         const initialY = centerY + Math.sin(angle) * radius;
 
@@ -252,8 +287,11 @@ const LandingPage: React.FC = () => {
                             val: nodeSize,
                             color,
                             imgUrl: entity.image_url,
+                            img: cachedImg,
                             eventIds,
                             recency,
+                            mentionCount: totalMentions,
+                            mentionRatio,
                             x: initialX,
                             y: initialY
                         };
@@ -276,20 +314,59 @@ const LandingPage: React.FC = () => {
                     }
                 }
 
-                // Pre-load images
+                // Pre-load images (use cache)
                 nodes.forEach(node => {
-                    if (node.imgUrl) {
+                    if (node.imgUrl && !imageCache.current.has(node.id)) {
                         const img = new Image();
                         img.crossOrigin = 'anonymous';
                         img.src = node.imgUrl;
                         img.onload = () => {
+                            imageCache.current.set(node.id, img);
                             node.img = img;
                         };
+                    } else if (imageCache.current.has(node.id)) {
+                        node.img = imageCache.current.get(node.id);
                     }
                 });
 
-                setData({ nodes, links });
-                console.log(`Loaded ${nodes.length} entities, ${links.length} links`);
+                if (isInitial) {
+                    // Initial load - set React state to trigger render
+                    setData({ nodes, links });
+                    console.log(`Initial load: ${nodes.length} entities, ${links.length} links`);
+                } else {
+                    // Refresh - update graph data in place, don't touch React state
+                    const fg = graphRef.current;
+                    if (fg && typeof fg.graphData === 'function') {
+                        const currentData = fg.graphData();
+
+                        // Update existing nodes in place, add new ones
+                        const currentNodeMap = new Map(currentData.nodes.map((n: GraphNode) => [n.id, n]));
+
+                        nodes.forEach(newNode => {
+                            const existing = currentNodeMap.get(newNode.id) as GraphNode | undefined;
+                            if (existing) {
+                                // Update properties but keep position/velocity
+                                existing.val = newNode.val;
+                                existing.color = newNode.color;
+                                existing.mentionCount = newNode.mentionCount;
+                                existing.mentionRatio = newNode.mentionRatio;
+                                existing.eventIds = newNode.eventIds;
+                                existing.recency = newNode.recency;
+                                if (newNode.img) existing.img = newNode.img;
+                            } else {
+                                // New node - add with initial position
+                                currentData.nodes.push(newNode);
+                            }
+                        });
+
+                        // Remove nodes that no longer exist
+                        const newNodeIds = new Set(nodes.map(n => n.id));
+                        currentData.nodes = currentData.nodes.filter((n: GraphNode) => newNodeIds.has(n.id));
+
+                        // Don't update links to avoid disruption - they're visual only
+                        console.log(`Refreshed: ${currentData.nodes.length} entities (in-place update)`);
+                    }
+                }
 
             } catch (error) {
                 console.error('Error fetching graph data:', error);
@@ -298,10 +375,10 @@ const LandingPage: React.FC = () => {
             }
         };
 
-        fetchData();
+        fetchData(true); // Initial load
 
-        // Periodic refresh - newly mentioned entities will get recency=0 and move to center
-        const refreshInterval = setInterval(fetchData, 60000); // Refresh every 60s
+        // Periodic refresh - preserve positions
+        const refreshInterval = setInterval(() => fetchData(false), 60000);
         return () => clearInterval(refreshInterval);
     }, [dimensions.width, dimensions.height]);
 
@@ -314,34 +391,240 @@ const LandingPage: React.FC = () => {
             fg.d3Force('charge').strength(-500);
             // Longer link distance
             fg.d3Force('link').distance(200).strength(0.2);
-            // Weak center pull
+            // Weak center pull for all nodes
             fg.d3Force('center').strength(0.02);
         }
     }, [data.nodes.length]);
+
+    // Store data in a ref so ghost dragger can access latest without re-running effect
+    const dataRef = useRef(data);
+    dataRef.current = data;
+
+    // Simulate random entity dragging - like a ghost user moving nodes around
+    useEffect(() => {
+        let isRunning = true;
+        let animationFrame: number;
+        let dragTimeout: NodeJS.Timeout | null = null;
+
+        // Current drag state
+        let currentDrag: {
+            node: any;
+            startX: number;
+            startY: number;
+            targetX: number;
+            targetY: number;
+            progress: number;
+        } | null = null;
+
+        const startDrag = () => {
+            if (!isRunning) return;
+
+            const fg = graphRef.current;
+            if (!fg) {
+                console.log('Ghost drag: graph not ready, retrying...');
+                dragTimeout = setTimeout(startDrag, 1000);
+                return;
+            }
+
+            // Use nodes from React state via ref (they have x,y positions after initial render)
+            const currentData = dataRef.current;
+            if (!currentData || currentData.nodes.length < 2) {
+                console.log('Ghost drag: no data yet, retrying...');
+                dragTimeout = setTimeout(startDrag, 1000);
+                return;
+            }
+
+            // The nodes in React state should have positions after ForceGraph processes them
+            // But we need the actual graph nodes which have live positions
+            let nodes = currentData.nodes;
+
+            // Try to get live positions from graph
+            try {
+                const gd = fg.graphData();
+                if (gd && gd.nodes && gd.nodes.length > 0) {
+                    nodes = gd.nodes;
+                    console.log('Ghost drag: got live nodes from graph');
+                }
+            } catch (e) {
+                // Use state nodes
+            }
+
+            // Pick random node (weighted by mentions)
+            const weights = nodes.map((n: any) => 0.3 + (n.mentionRatio || 0) * 0.7);
+            const totalWeight = weights.reduce((a: number, b: number) => a + b, 0);
+            let r = Math.random() * totalWeight;
+            let picked = nodes[0];
+            for (let i = 0; i < nodes.length; i++) {
+                r -= weights[i];
+                if (r <= 0) {
+                    picked = nodes[i];
+                    break;
+                }
+            }
+
+            // Get current position (might be undefined initially)
+            const startX = typeof picked.x === 'number' ? picked.x : dimensions.width / 2;
+            const startY = typeof picked.y === 'number' ? picked.y : dimensions.height / 2;
+
+            // Random movement direction and distance
+            const angle = Math.random() * Math.PI * 2;
+            const dist = 50 + Math.random() * 100;
+
+            // Bias toward center for high-mention nodes
+            const cx = dimensions.width / 2;
+            const cy = dimensions.height / 2;
+            const biasX = (cx - startX) * 0.2 * (picked.mentionRatio || 0);
+            const biasY = (cy - startY) * 0.2 * (picked.mentionRatio || 0);
+
+            const targetX = startX + Math.cos(angle) * dist + biasX;
+            const targetY = startY + Math.sin(angle) * dist + biasY;
+
+            currentDrag = {
+                node: picked,
+                startX,
+                startY,
+                targetX,
+                targetY,
+                progress: 0
+            };
+
+            console.log(`👻 Dragging: ${picked.name || picked.id}`);
+        };
+
+        const animate = () => {
+            if (!isRunning) return;
+
+            if (currentDrag) {
+                const prevX = currentDrag.node.x ?? currentDrag.startX;
+                const prevY = currentDrag.node.y ?? currentDrag.startY;
+
+                currentDrag.progress += 0.008;
+
+                if (currentDrag.progress >= 1) {
+                    // Release node
+                    currentDrag.node.fx = undefined;
+                    currentDrag.node.fy = undefined;
+                    currentDrag = null;
+
+                    // Schedule next drag
+                    const delay = 2000 + Math.random() * 2000;
+                    dragTimeout = setTimeout(startDrag, delay);
+                } else {
+                    // Smooth easing
+                    const t = currentDrag.progress;
+                    const ease = t < 0.5
+                        ? 4 * t * t * t
+                        : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+                    const x = currentDrag.startX + (currentDrag.targetX - currentDrag.startX) * ease;
+                    const y = currentDrag.startY + (currentDrag.targetY - currentDrag.startY) * ease;
+
+                    // Calculate movement delta
+                    const dx = x - prevX;
+                    const dy = y - prevY;
+
+                    // Update dragged node position
+                    currentDrag.node.fx = x;
+                    currentDrag.node.fy = y;
+                    currentDrag.node.x = x;
+                    currentDrag.node.y = y;
+
+                    // Push nearby nodes (simulate force)
+                    const currentData = dataRef.current;
+                    if (currentData && currentData.nodes && (Math.abs(dx) > 0.1 || Math.abs(dy) > 0.1)) {
+                        const draggedId = currentDrag.node.id;
+                        currentData.nodes.forEach((node: any) => {
+                            if (node.id === draggedId || node.fx !== undefined) return;
+
+                            const nodeX = node.x ?? 0;
+                            const nodeY = node.y ?? 0;
+                            const distX = nodeX - x;
+                            const distY = nodeY - y;
+                            const dist = Math.sqrt(distX * distX + distY * distY);
+
+                            // Push nodes within 150px radius
+                            if (dist > 10 && dist < 150) {
+                                const force = (150 - dist) / 150 * 0.3; // Stronger when closer
+                                const pushX = (distX / dist) * force * Math.abs(dx) * 2;
+                                const pushY = (distY / dist) * force * Math.abs(dy) * 2;
+
+                                node.x = nodeX + pushX;
+                                node.y = nodeY + pushY;
+                            }
+                        });
+                    }
+                }
+            }
+
+            animationFrame = requestAnimationFrame(animate);
+        };
+
+        // Start animation loop immediately
+        animationFrame = requestAnimationFrame(animate);
+
+        // Start first drag after 4 seconds
+        dragTimeout = setTimeout(startDrag, 4000);
+        console.log('👻 Ghost dragger initialized, first drag in 4s');
+
+        return () => {
+            isRunning = false;
+            if (dragTimeout) clearTimeout(dragTimeout);
+            cancelAnimationFrame(animationFrame);
+        };
+    }, [dimensions.width, dimensions.height]);
+
+    // Weighted random selection - higher mention entities get picked more often
+    const weightedRandomPick = useCallback((nodes: GraphNode[]): GraphNode => {
+        // Weight by mentionRatio - entities with more mentions are more likely to be picked
+        const weights = nodes.map(n => 0.2 + (n.mentionRatio || 0) * 0.8);
+        const totalWeight = weights.reduce((a, b) => a + b, 0);
+        let random = Math.random() * totalWeight;
+        for (let i = 0; i < nodes.length; i++) {
+            random -= weights[i];
+            if (random <= 0) return nodes[i];
+        }
+        return nodes[nodes.length - 1];
+    }, []);
 
     // Trigger zaps
     useEffect(() => {
         if (data.nodes.length < 2) return;
 
         const triggerZap = () => {
-            // Pick from linked pairs preferentially
+            // Pick from linked pairs preferentially (70% of the time)
             if (data.links.length > 0 && Math.random() < 0.7) {
-                const link = data.links[Math.floor(Math.random() * data.links.length)];
-                const sourceId = typeof link.source === 'string' ? link.source : link.source.id;
-                const targetId = typeof link.target === 'string' ? link.target : link.target.id;
+                // Weight links by the combined mention count of their nodes
+                const linksWithWeight = data.links.map(link => {
+                    const sourceId = typeof link.source === 'string' ? link.source : link.source.id;
+                    const targetId = typeof link.target === 'string' ? link.target : link.target.id;
+                    const sourceNode = data.nodes.find(n => n.id === sourceId);
+                    const targetNode = data.nodes.find(n => n.id === targetId);
+                    const weight = ((sourceNode?.mentionRatio || 0) + (targetNode?.mentionRatio || 0)) / 2 + 0.3;
+                    return { link, sourceId, targetId, weight };
+                });
 
-                zapRef.current = { sourceId, targetId, progress: 0 };
+                const totalWeight = linksWithWeight.reduce((a, b) => a + b.weight, 0);
+                let random = Math.random() * totalWeight;
+                let selected = linksWithWeight[0];
+                for (const lw of linksWithWeight) {
+                    random -= lw.weight;
+                    if (random <= 0) {
+                        selected = lw;
+                        break;
+                    }
+                }
+
+                zapRef.current = { sourceId: selected.sourceId, targetId: selected.targetId, progress: 0 };
             } else {
-                // Random pair
+                // Random pair - weighted by mentions
                 const withImages = data.nodes.filter(n => n.img);
                 const candidates = withImages.length >= 2 ? withImages : data.nodes;
-                const idx1 = Math.floor(Math.random() * candidates.length);
-                let idx2 = Math.floor(Math.random() * candidates.length);
-                while (idx2 === idx1) idx2 = Math.floor(Math.random() * candidates.length);
+                const node1 = weightedRandomPick(candidates);
+                let node2 = weightedRandomPick(candidates.filter(n => n.id !== node1.id));
 
                 zapRef.current = {
-                    sourceId: candidates[idx1].id,
-                    targetId: candidates[idx2].id,
+                    sourceId: node1.id,
+                    targetId: node2.id,
                     progress: 0
                 };
             }
@@ -359,7 +642,9 @@ const LandingPage: React.FC = () => {
         };
 
         const scheduleZap = () => {
-            const delay = 2000 + Math.random() * 3000;
+            // Zap more frequently when there are high-mention entities
+            const hasHighMention = data.nodes.some(n => n.mentionRatio > 0.5);
+            const delay = hasHighMention ? (1500 + Math.random() * 2000) : (2000 + Math.random() * 3000);
             return setTimeout(() => {
                 triggerZap();
                 zapTimeout = scheduleZap();
@@ -370,7 +655,19 @@ const LandingPage: React.FC = () => {
         setTimeout(triggerZap, 2500); // Initial zap
 
         return () => clearTimeout(zapTimeout);
-    }, [data.nodes, data.links]);
+    }, [data.nodes, data.links, weightedRandomPick]);
+
+    // Animation time for pulse effects
+    const animTimeRef = useRef(0);
+    useEffect(() => {
+        const animate = () => {
+            animTimeRef.current = Date.now() / 1000;
+            animFrameRef.current = requestAnimationFrame(animate);
+        };
+        const animFrameRef = { current: 0 };
+        animFrameRef.current = requestAnimationFrame(animate);
+        return () => cancelAnimationFrame(animFrameRef.current);
+    }, []);
 
     // Node rendering (same quality as GraphPage)
     const nodeCanvasObject = useCallback((node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
@@ -379,11 +676,28 @@ const LandingPage: React.FC = () => {
         const label = node.name;
         const fontSize = 11 / globalScale;
         const size = node.val;
+        const mentionRatio = node.mentionRatio || 0;
 
         // Check if this node is part of active zap
         const zap = zapRef.current;
         const isZapSource = zap && zap.sourceId === node.id;
         const isZapTarget = zap && zap.targetId === node.id && zap.progress > 0.8;
+
+        // Subtle pulse glow for high-mention entities
+        const isHighMention = mentionRatio > 0.4;
+        const pulseIntensity = isHighMention ? 0.3 + Math.sin(animTimeRef.current * 2 + node.id.charCodeAt(0)) * 0.2 : 0;
+
+        // Draw outer glow for high-mention entities
+        if (isHighMention && !isZapTarget) {
+            const glowSize = size + 4 / globalScale;
+            const gradient = ctx.createRadialGradient(node.x, node.y, size * 0.8, node.x, node.y, glowSize);
+            gradient.addColorStop(0, `rgba(251, 191, 36, ${pulseIntensity * mentionRatio})`);
+            gradient.addColorStop(1, 'rgba(251, 191, 36, 0)');
+            ctx.beginPath();
+            ctx.arc(node.x, node.y, glowSize, 0, 2 * Math.PI, false);
+            ctx.fillStyle = gradient;
+            ctx.fill();
+        }
 
         if (node.img) {
             ctx.save();
@@ -423,11 +737,12 @@ const LandingPage: React.FC = () => {
             ctx.fill();
         }
 
-        // Border (glow if zap target)
+        // Border (glow if zap target, golden for high mention)
         ctx.beginPath();
         ctx.arc(node.x, node.y, size, 0, 2 * Math.PI, false);
-        ctx.lineWidth = (isZapTarget ? 3 : 1.5) / globalScale;
-        ctx.strokeStyle = isZapTarget ? '#fbbf24' : (node.color || '#8b5cf6');
+        const borderWidth = isZapTarget ? 3 : (isHighMention ? 2 : 1.5);
+        ctx.lineWidth = borderWidth / globalScale;
+        ctx.strokeStyle = isZapTarget ? '#fbbf24' : (isHighMention ? `rgba(251, 191, 36, ${0.5 + pulseIntensity})` : (node.color || '#8b5cf6'));
         ctx.stroke();
 
         // Label
@@ -454,17 +769,12 @@ const LandingPage: React.FC = () => {
             {/* Background "HERE" text - ABOVE the graph with pointer-events-none */}
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none z-20">
                 <div className="text-center">
-                    <div className="inline-flex items-center px-5 py-2 mb-6 rounded-full text-sm uppercase tracking-widest text-indigo-300/60 border border-white/10 bg-black/30 backdrop-blur-sm">
-                        <span className="w-2 h-2 bg-indigo-400 rounded-full mr-3 animate-pulse"></span>
-                        System Breathing
-                    </div>
-
                     <h1 className="text-[10rem] md:text-[16rem] font-black tracking-tighter leading-none text-white/10">
                         HERE
                     </h1>
 
                     <p className="text-xl md:text-2xl text-slate-400/50 font-light -mt-6 md:-mt-10">
-                        a breathing knowledge system
+                        The first breathing knowledge system
                     </p>
 
                     <p className="text-base text-slate-500/40 mt-3 italic">
@@ -497,12 +807,24 @@ const LandingPage: React.FC = () => {
                             ctx.fill();
                         }}
                         onNodeClick={() => {}}
+                        onNodeDragEnd={(node: any) => {
+                            // Fix the node position after drag so it doesn't bounce back
+                            node.fx = node.x;
+                            node.fy = node.y;
+                            // Unfix after a short delay to allow organic movement later
+                            setTimeout(() => {
+                                node.fx = undefined;
+                                node.fy = undefined;
+                            }, 3000);
+                        }}
                         backgroundColor="transparent"
                         linkColor={linkColor}
                         linkWidth={linkWidth}
-                        d3AlphaDecay={0.02}
+                        d3AlphaDecay={0.01}
                         d3VelocityDecay={0.3}
-                        cooldownTicks={200}
+                        cooldownTicks={Infinity}
+                        cooldownTime={Infinity}
+                        warmupTicks={0}
                         nodeRelSize={1}
                         enableZoomInteraction={true}
                         enablePanInteraction={true}
