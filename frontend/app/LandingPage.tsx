@@ -340,26 +340,31 @@ const LandingPage: React.FC = () => {
         }
     }, [data.nodes.length, dimensions]);
 
-    // Add Brownian motion - nudge nodes randomly
+    // Add Brownian motion - independent random nudges per node
     useEffect(() => {
         if (data.nodes.length === 0 || !graphRef.current) return;
 
         const interval = setInterval(() => {
             if (!graphRef.current) return;
 
-            // Pick a few random nodes to nudge
-            const numToNudge = Math.max(3, Math.floor(data.nodes.length * 0.1));
-            for (let i = 0; i < numToNudge; i++) {
-                const node = data.nodes[Math.floor(Math.random() * data.nodes.length)] as any;
+            // Nudge ALL nodes with small independent random forces
+            data.nodes.forEach((node: any) => {
                 if (typeof node.vx === 'number') {
-                    node.vx += (Math.random() - 0.5) * 2;
-                    node.vy += (Math.random() - 0.5) * 2;
+                    // Independent random direction for each node
+                    const angle = Math.random() * Math.PI * 2;
+                    const magnitude = Math.random() * 0.8;
+                    node.vx += Math.cos(angle) * magnitude;
+                    node.vy += Math.sin(angle) * magnitude;
+
+                    // Dampen to prevent runaway velocities
+                    node.vx *= 0.95;
+                    node.vy *= 0.95;
                 }
-            }
+            });
 
             // Reheat simulation slightly to process the velocity changes
             graphRef.current.d3ReheatSimulation();
-        }, 500);
+        }, 100); // More frequent, smaller nudges
 
         return () => clearInterval(interval);
     }, [data.nodes]);
