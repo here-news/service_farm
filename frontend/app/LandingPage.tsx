@@ -334,14 +334,19 @@ const LandingPage: React.FC = () => {
                     setData({ nodes, links });
                     console.log(`Initial load: ${nodes.length} entities, ${links.length} links`);
                 } else {
-                    // Refresh - update graph data in place, don't touch React state
+                    // Refresh - check for new/changed data
                     const fg = graphRef.current;
                     if (fg && typeof fg.graphData === 'function') {
                         const currentData = fg.graphData();
-
-                        // Update existing nodes in place, add new ones
                         const currentNodeMap = new Map(currentData.nodes.map((n: GraphNode) => [n.id, n]));
+                        const newNodeIds = new Set(nodes.map(n => n.id));
 
+                        let addedCount = 0;
+                        let removedCount = 0;
+                        let updatedCount = 0;
+
+                        // Update existing nodes, track new ones
+                        const nodesToAdd: GraphNode[] = [];
                         nodes.forEach(newNode => {
                             const existing = currentNodeMap.get(newNode.id) as GraphNode | undefined;
                             if (existing) {
@@ -353,18 +358,33 @@ const LandingPage: React.FC = () => {
                                 existing.eventIds = newNode.eventIds;
                                 existing.recency = newNode.recency;
                                 if (newNode.img) existing.img = newNode.img;
+                                updatedCount++;
                             } else {
-                                // New node - add with initial position
-                                currentData.nodes.push(newNode);
+                                // New node
+                                nodesToAdd.push(newNode);
+                                addedCount++;
                             }
                         });
 
-                        // Remove nodes that no longer exist
-                        const newNodeIds = new Set(nodes.map(n => n.id));
-                        currentData.nodes = currentData.nodes.filter((n: GraphNode) => newNodeIds.has(n.id));
+                        // Count removed nodes
+                        currentData.nodes.forEach((n: GraphNode) => {
+                            if (!newNodeIds.has(n.id)) removedCount++;
+                        });
 
-                        // Don't update links to avoid disruption - they're visual only
-                        console.log(`Refreshed: ${currentData.nodes.length} entities (in-place update)`);
+                        // If there are new or removed nodes, update via graphData() method
+                        if (addedCount > 0 || removedCount > 0) {
+                            // Filter out removed nodes
+                            const updatedNodes = currentData.nodes.filter((n: GraphNode) => newNodeIds.has(n.id));
+                            // Add new nodes
+                            nodesToAdd.forEach(n => updatedNodes.push(n));
+
+                            // Use graphData setter to update - this properly informs the graph
+                            fg.graphData({ nodes: updatedNodes, links: links });
+
+                            console.log(`Refreshed: +${addedCount} new, -${removedCount} removed, ${updatedCount} updated`);
+                        } else {
+                            console.log(`Refreshed: ${updatedCount} entities updated (no structural changes)`);
+                        }
                     }
                 }
 
