@@ -23,10 +23,13 @@ interface GraphNode {
     imgUrl?: string;
     img?: HTMLImageElement;
     eventIds?: string[];
+    recency: number; // 0 = most recent, 1 = oldest
     x?: number;
     y?: number;
     vx?: number;
     vy?: number;
+    fx?: number; // Fixed x position (for center attraction)
+    fy?: number; // Fixed y position
 }
 
 interface GraphLink {
@@ -166,9 +169,10 @@ const LandingPage: React.FC = () => {
                 const eventDetailsResults = await Promise.all(eventDetailsPromises);
                 const validEventDetails = eventDetailsResults.filter(r => r && r.event);
 
-                const entityMap = new Map<string, { entity: Entity; eventIds: string[] }>();
+                const entityMap = new Map<string, { entity: Entity; eventIds: string[]; firstEventIndex: number }>();
+                const totalEvents = validEventDetails.length;
 
-                validEventDetails.forEach((result) => {
+                validEventDetails.forEach((result, eventIndex) => {
                     const event = result.event;
                     const eventId = event.event_id || event.id;
 
@@ -176,7 +180,8 @@ const LandingPage: React.FC = () => {
                     entities.forEach((entity: Entity) => {
                         if (entity.id && entity.canonical_name) {
                             if (!entityMap.has(entity.id)) {
-                                entityMap.set(entity.id, { entity, eventIds: [] });
+                                // First appearance - eventIndex 0 is most recent
+                                entityMap.set(entity.id, { entity, eventIds: [], firstEventIndex: eventIndex });
                             }
                             entityMap.get(entity.id)!.eventIds.push(eventId);
                         }
@@ -190,21 +195,36 @@ const LandingPage: React.FC = () => {
                 });
 
                 const sortedEntities = Array.from(entityMap.entries())
-                    .map(([id, { entity, eventIds }]) => ({
+                    .map(([id, { entity, eventIds, firstEventIndex }]) => ({
                         id,
                         entity,
                         eventIds,
-                        score: eventIds.length * 2 + (entity.image_url ? 5 : 0) + (entity.entity_type === 'PERSON' ? 3 : 0)
+                        firstEventIndex,
+                        // Score includes recency bonus (lower index = more recent = higher score)
+                        score: eventIds.length * 2 + (entity.image_url ? 5 : 0) + (entity.entity_type === 'PERSON' ? 3 : 0) + (totalEvents - firstEventIndex)
                     }))
                     .sort((a, b) => b.score - a.score)
                     .slice(0, MAX_ENTITIES);
 
-                // Build nodes
-                const nodes: GraphNode[] = sortedEntities.map(({ id, entity, eventIds }) => {
+                // Build nodes with recency-based initial positioning
+                const centerX = dimensions.width / 2;
+                const centerY = dimensions.height / 2;
+                const maxRadius = Math.min(dimensions.width, dimensions.height) * 0.4;
+
+                const nodes: GraphNode[] = sortedEntities.map(({ id, entity, eventIds, firstEventIndex }) => {
                     const mentionRatio = eventIds.length / maxMentions;
                     const hasImage = !!entity.image_url;
                     const nodeSize = hasImage ? (18 + mentionRatio * 22) : (6 + mentionRatio * 8);
                     const color = COLORS[entity.entity_type || 'DEFAULT'] || COLORS.DEFAULT;
+
+                    // Recency: 0 = most recent, 1 = oldest
+                    const recency = totalEvents > 1 ? firstEventIndex / (totalEvents - 1) : 0;
+
+                    // Position based on recency - recent entities start closer to center
+                    const angle = Math.random() * Math.PI * 2;
+                    const radius = (0.1 + recency * 0.9) * maxRadius; // 10%-100% of maxRadius based on recency
+                    const initialX = centerX + Math.cos(angle) * radius;
+                    const initialY = centerY + Math.sin(angle) * radius;
 
                     return {
                         id,
@@ -213,7 +233,10 @@ const LandingPage: React.FC = () => {
                         val: nodeSize,
                         color,
                         imgUrl: entity.image_url,
-                        eventIds
+                        eventIds,
+                        recency,
+                        x: initialX,
+                        y: initialY
                     };
                 });
 
@@ -256,19 +279,42 @@ const LandingPage: React.FC = () => {
         };
 
         fetchData();
-    }, []);
+    }, [dimensions.width, dimensions.height]);
 
-    // Configure forces - weak so nodes drift independently
+    // Configure forces - recent entities pulled to center
     useEffect(() => {
         if (graphRef.current && data.nodes.length > 0) {
             const fg = graphRef.current;
+            const centerX = dimensions.width / 2;
+            const centerY = dimensions.height / 2;
 
-            // Very weak forces for gentle independent drift
+            // Weak repulsion
             fg.d3Force('charge').strength(-50);
             fg.d3Force('link').distance(150).strength(0.05);
-            fg.d3Force('center').strength(0.02);
+
+            // Custom radial force based on recency
+            // Recent entities (recency=0) get pulled to center
+            // Old entities (recency=1) get pushed to edges
+            const d3 = (window as any).d3;
+            if (d3 && d3.forceRadial) {
+                fg.d3Force('recency', d3.forceRadial(
+                    (node: GraphNode) => {
+                        // Target radius based on recency
+                        const maxRadius = Math.min(dimensions.width, dimensions.height) * 0.35;
+                        return node.recency * maxRadius;
+                    },
+                    centerX,
+                    centerY
+                ).strength((node: GraphNode) => {
+                    // Stronger pull for recent entities
+                    return 0.1 - node.recency * 0.05;
+                }));
+            } else {
+                // Fallback: adjust center force
+                fg.d3Force('center').strength(0.02);
+            }
         }
-    }, [data.nodes.length]);
+    }, [data.nodes.length, dimensions]);
 
     // Add Brownian motion - nudge nodes randomly
     useEffect(() => {
