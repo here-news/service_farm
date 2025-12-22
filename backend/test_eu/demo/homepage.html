@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HERE.news - Living News Ecosystem</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0a0a0f;
+            color: #e0e0e0;
+            min-height: 100vh;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 24px;
+            border-bottom: 1px solid #222;
+            background: #111118;
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        .logo span {
+            color: #4CAF50;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .credits {
+            background: #1a1a24;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+        }
+
+        .credits-amount {
+            color: #FFD700;
+            font-weight: bold;
+        }
+
+        /* Main Layout */
+        .main {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 24px;
+            padding: 24px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        /* Ecosystem Section */
+        .ecosystem-section {
+            background: #111118;
+            border-radius: 12px;
+            padding: 24px;
+        }
+
+        .section-title {
+            font-size: 18px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .live-dot {
+            width: 8px;
+            height: 8px;
+            background: #f44336;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.2); }
+        }
+
+        /* Event Organisms Visualization */
+        .ecosystem-viz {
+            position: relative;
+            height: 400px;
+            background: radial-gradient(circle at center, #1a1a24 0%, #0a0a0f 100%);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .event-organism {
+            position: absolute;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+            padding: 10px;
+        }
+
+        .event-organism:hover {
+            transform: scale(1.1);
+            z-index: 10;
+        }
+
+        .event-organism.active {
+            animation: breathe 2s infinite;
+        }
+
+        @keyframes breathe {
+            0%, 100% { box-shadow: 0 0 20px rgba(244, 67, 54, 0.3); }
+            50% { box-shadow: 0 0 40px rgba(244, 67, 54, 0.6); }
+        }
+
+        .event-organism .name {
+            font-size: 11px;
+            font-weight: 500;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .event-organism .stats {
+            font-size: 9px;
+            opacity: 0.7;
+        }
+
+        .event-organism .state-indicator {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            margin-top: 4px;
+        }
+
+        /* Activity Stream */
+        .activity-section {
+            background: #111118;
+            border-radius: 12px;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .activity-list {
+            flex: 1;
+            overflow-y: auto;
+            max-height: 300px;
+        }
+
+        .activity-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 12px 0;
+            border-bottom: 1px solid #222;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-10px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        .activity-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            flex-shrink: 0;
+        }
+
+        .activity-icon.claim { background: #2196F3; }
+        .activity-icon.tension { background: #FF9800; }
+        .activity-icon.stable { background: #4CAF50; }
+        .activity-icon.merge { background: #9C27B0; }
+        .activity-icon.contribution { background: #FFD700; }
+
+        .activity-content {
+            flex: 1;
+        }
+
+        .activity-text {
+            font-size: 13px;
+            line-height: 1.4;
+        }
+
+        .activity-time {
+            font-size: 11px;
+            color: #666;
+            margin-top: 2px;
+        }
+
+        /* Needs Section */
+        .needs-section {
+            grid-column: 1 / -1;
+            background: #111118;
+            border-radius: 12px;
+            padding: 24px;
+        }
+
+        .needs-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 16px;
+        }
+
+        .need-card {
+            background: #1a1a24;
+            border-radius: 8px;
+            padding: 16px;
+            border-left: 3px solid #FF9800;
+            transition: all 0.2s;
+        }
+
+        .need-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        .need-card.high-priority {
+            border-left-color: #f44336;
+        }
+
+        .need-card .event-name {
+            font-weight: 600;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .need-card .state-badge {
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 10px;
+            background: rgba(244, 67, 54, 0.2);
+            color: #f44336;
+        }
+
+        .need-card .need-description {
+            font-size: 13px;
+            color: #aaa;
+            margin-bottom: 12px;
+        }
+
+        .need-card .reward {
+            font-size: 12px;
+            color: #FFD700;
+            margin-bottom: 12px;
+        }
+
+        .need-card .contribute-btn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: background 0.2s;
+        }
+
+        .need-card .contribute-btn:hover {
+            background: #45a049;
+        }
+
+        /* Stability Gradient */
+        .gradient-section {
+            grid-column: 1 / -1;
+            background: #111118;
+            border-radius: 12px;
+            padding: 24px;
+        }
+
+        .stability-gradient {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            font-family: monospace;
+        }
+
+        .gradient-level {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .level-label {
+            width: 120px;
+            font-size: 12px;
+            color: #888;
+        }
+
+        .level-viz {
+            flex: 1;
+            display: flex;
+            gap: 4px;
+        }
+
+        .level-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #333;
+        }
+
+        .level-dot.active {
+            background: #4CAF50;
+        }
+
+        .level-dot.l1 {
+            animation: l1pulse 0.5s infinite;
+        }
+
+        .level-dot.l2 {
+            animation: l2pulse 1s infinite;
+        }
+
+        .level-dot.l3 {
+            animation: l3pulse 2s infinite;
+        }
+
+        @keyframes l1pulse {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+        }
+
+        @keyframes l2pulse {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 1; }
+        }
+
+        @keyframes l3pulse {
+            0%, 100% { opacity: 0.7; }
+            50% { opacity: 1; }
+        }
+
+        .level-description {
+            font-size: 11px;
+            color: #666;
+            width: 180px;
+        }
+
+        /* Stats Bar */
+        .stats-bar {
+            display: flex;
+            gap: 24px;
+            padding: 16px 24px;
+            background: #111118;
+            border-bottom: 1px solid #222;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #4CAF50;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #888;
+        }
+
+        /* Leaderboard */
+        .leaderboard {
+            margin-top: 24px;
+            padding-top: 16px;
+            border-top: 1px solid #222;
+        }
+
+        .leaderboard-title {
+            font-size: 14px;
+            margin-bottom: 12px;
+            color: #888;
+        }
+
+        .leader-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            font-size: 13px;
+        }
+
+        .leader-name {
+            color: #2196F3;
+        }
+
+        .leader-credits {
+            color: #FFD700;
+        }
+
+        /* Connection Status */
+        .connection-status {
+            position: fixed;
+            bottom: 16px;
+            right: 16px;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .connection-status.connected {
+            background: rgba(76, 175, 80, 0.2);
+            color: #4CAF50;
+        }
+
+        .connection-status.disconnected {
+            background: rgba(244, 67, 54, 0.2);
+            color: #f44336;
+        }
+
+        .connection-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="logo">HERE<span>.news</span></div>
+        <div class="header-right">
+            <input type="text" placeholder="Search events..." style="background: #1a1a24; border: none; padding: 8px 16px; border-radius: 20px; color: #fff; width: 200px;">
+            <div class="credits">
+                Balance: <span class="credits-amount">150c</span>
+            </div>
+        </div>
+    </header>
+
+    <div class="stats-bar">
+        <div class="stat-item">
+            <div class="stat-value" id="total-events">0</div>
+            <div class="stat-label">Live Events</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value" id="total-claims">0</div>
+            <div class="stat-label">Claims</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value" id="active-count">0</div>
+            <div class="stat-label">Active Now</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value" id="avg-coherence">0%</div>
+            <div class="stat-label">Avg Coherence</div>
+        </div>
+    </div>
+
+    <main class="main">
+        <section class="ecosystem-section">
+            <h2 class="section-title">
+                <span class="live-dot"></span>
+                LIVE ECOSYSTEM
+            </h2>
+            <div class="ecosystem-viz" id="ecosystem">
+                <!-- Events will be rendered here -->
+            </div>
+        </section>
+
+        <section class="activity-section">
+            <h2 class="section-title">ACTIVITY STREAM</h2>
+            <div class="activity-list" id="activity-list">
+                <!-- Activity items will be added here -->
+            </div>
+            <div class="leaderboard">
+                <div class="leaderboard-title">TOP CONTRIBUTORS TODAY</div>
+                <div class="leader-item">
+                    <span class="leader-name">@alice</span>
+                    <span class="leader-credits">+340c</span>
+                </div>
+                <div class="leader-item">
+                    <span class="leader-name">@bob</span>
+                    <span class="leader-credits">+120c</span>
+                </div>
+                <div class="leader-item">
+                    <span class="leader-name">@chen</span>
+                    <span class="leader-credits">+80c</span>
+                </div>
+            </div>
+        </section>
+
+        <section class="needs-section">
+            <h2 class="section-title">EVENTS THAT NEED YOU</h2>
+            <div class="needs-grid" id="needs-grid">
+                <!-- Need cards will be rendered here -->
+            </div>
+        </section>
+
+        <section class="gradient-section">
+            <h2 class="section-title">STABILITY GRADIENT</h2>
+            <div class="stability-gradient">
+                <div class="gradient-level">
+                    <span class="level-label">L3 Parents</span>
+                    <div class="level-viz" id="l3-viz"></div>
+                    <span class="level-description">(crystallized themes)</span>
+                </div>
+                <div class="gradient-level">
+                    <span class="level-label">L2 Events</span>
+                    <div class="level-viz" id="l2-viz"></div>
+                    <span class="level-description">(stories you follow)</span>
+                </div>
+                <div class="gradient-level">
+                    <span class="level-label">L1 Sub-events</span>
+                    <div class="level-viz" id="l1-viz"></div>
+                    <span class="level-description">(details absorbed)</span>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <div class="connection-status disconnected" id="connection-status">
+        <span class="connection-dot"></span>
+        <span>Disconnected</span>
+    </div>
+
+    <script>
+        // State
+        let events = {};
+        let activities = [];
+        let eventSource = null;
+
+        // Color mapping based on tension
+        function tensionToColor(tension) {
+            if (tension < 0.1) return '#4CAF50';  // Green - stable
+            if (tension < 0.2) return '#8BC34A';  // Light green
+            if (tension < 0.3) return '#FFC107';  // Yellow
+            if (tension < 0.4) return '#FF9800';  // Orange
+            return '#F44336';                      // Red - high tension
+        }
+
+        // State to color
+        function stateToColor(state) {
+            return {
+                'ACTIVE': '#f44336',
+                'WARM': '#FF9800',
+                'STABLE': '#4CAF50',
+                'DORMANT': '#666'
+            }[state] || '#666';
+        }
+
+        // Render events in the ecosystem visualization
+        function renderEcosystem() {
+            const container = document.getElementById('ecosystem');
+            const eventList = Object.values(events);
+            if (eventList.length === 0) return;
+
+            container.innerHTML = '';
+
+            // Calculate positions based on mass (larger = more central)
+            const centerX = container.offsetWidth / 2;
+            const centerY = container.offsetHeight / 2;
+
+            // Sort by mass descending
+            eventList.sort((a, b) => b.mass - a.mass);
+
+            eventList.forEach((event, index) => {
+                const size = Math.max(50, Math.min(150, Math.sqrt(event.mass) * 25));
+
+                // Position: spiral outward from center based on index
+                const angle = index * 0.8;
+                const radius = 50 + index * 35;
+                const x = centerX + Math.cos(angle) * radius - size/2;
+                const y = centerY + Math.sin(angle) * radius - size/2;
+
+                const div = document.createElement('div');
+                div.className = `event-organism ${event.state === 'ACTIVE' ? 'active' : ''}`;
+                div.style.width = `${size}px`;
+                div.style.height = `${size}px`;
+                div.style.left = `${Math.max(10, Math.min(container.offsetWidth - size - 10, x))}px`;
+                div.style.top = `${Math.max(10, Math.min(container.offsetHeight - size - 10, y))}px`;
+                div.style.background = `radial-gradient(circle at 30% 30%, ${tensionToColor(event.tension)}44, ${tensionToColor(event.tension)}22)`;
+                div.style.border = `2px solid ${tensionToColor(event.tension)}`;
+
+                div.innerHTML = `
+                    <span class="name">${(event.canonical_name || event.headline)?.substring(0, 20) || 'Event'}...</span>
+                    <span class="stats">${event.claim_count} claims</span>
+                    <span class="state-indicator" style="background: ${stateToColor(event.state)}"></span>
+                `;
+
+                div.onclick = () => {
+                    window.location.href = `/event?id=${event.id}`;
+                };
+
+                container.appendChild(div);
+            });
+        }
+
+        // Render needs cards
+        function renderNeeds() {
+            const container = document.getElementById('needs-grid');
+            const eventList = Object.values(events)
+                .filter(e => e.state === 'ACTIVE' && e.tension > 0.1)
+                .slice(0, 6);
+
+            container.innerHTML = eventList.map(event => `
+                <div class="need-card ${event.tension > 0.3 ? 'high-priority' : ''}">
+                    <div class="event-name">
+                        ${(event.canonical_name || event.headline)?.substring(0, 40) || 'Event'}
+                        <span class="state-badge">${event.state}</span>
+                    </div>
+                    ${event.byline ? `<div class="event-byline" style="font-size: 11px; color: #888; margin-bottom: 6px; font-style: italic;">${event.byline}</div>` : ''}
+                    <div class="need-description">
+                        ${event.tension > 0.2 ? 'Contradictions need resolution' : 'Needs independent verification'}
+                    </div>
+                    <div class="reward">Potential reward: up to ${Math.round(event.mass * 10)}c</div>
+                    <button class="contribute-btn" onclick="window.location.href='/event?id=${event.id}'">
+                        Contribute
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        // Render stability gradient
+        function renderGradient(l1Count, l2Count, l3Count) {
+            const l1Viz = document.getElementById('l1-viz');
+            const l2Viz = document.getElementById('l2-viz');
+            const l3Viz = document.getElementById('l3-viz');
+
+            l1Viz.innerHTML = Array(Math.min(30, l1Count)).fill(0)
+                .map(() => '<span class="level-dot active l1"></span>').join('');
+            l2Viz.innerHTML = Array(Math.min(20, l2Count)).fill(0)
+                .map(() => '<span class="level-dot active l2"></span>').join('');
+            l3Viz.innerHTML = Array(Math.min(10, l3Count)).fill(0)
+                .map(() => '<span class="level-dot active l3"></span>').join('');
+        }
+
+        // Add activity to stream
+        function addActivity(text, type, eventName) {
+            const list = document.getElementById('activity-list');
+            const icons = {
+                claim: { icon: '●', class: 'claim' },
+                tension: { icon: '◐', class: 'tension' },
+                stable: { icon: '○', class: 'stable' },
+                merge: { icon: '◎', class: 'merge' },
+                contribution: { icon: '★', class: 'contribution' }
+            };
+
+            const { icon, class: iconClass } = icons[type] || icons.claim;
+
+            const item = document.createElement('div');
+            item.className = 'activity-item';
+            item.innerHTML = `
+                <span class="activity-icon ${iconClass}">${icon}</span>
+                <div class="activity-content">
+                    <div class="activity-text">${text}</div>
+                    <div class="activity-time">just now</div>
+                </div>
+            `;
+
+            list.insertBefore(item, list.firstChild);
+
+            // Keep only last 20 activities
+            while (list.children.length > 20) {
+                list.removeChild(list.lastChild);
+            }
+        }
+
+        // Update stats
+        function updateStats() {
+            const eventList = Object.values(events);
+            document.getElementById('total-events').textContent = eventList.length;
+            document.getElementById('total-claims').textContent = eventList.reduce((sum, e) => sum + (e.claim_count || 0), 0);
+            document.getElementById('active-count').textContent = eventList.filter(e => e.state === 'ACTIVE').length;
+
+            const avgCoherence = eventList.length > 0
+                ? eventList.reduce((sum, e) => sum + (e.coherence || 0), 0) / eventList.length
+                : 0;
+            document.getElementById('avg-coherence').textContent = `${Math.round(avgCoherence * 100)}%`;
+        }
+
+        // Connect to SSE
+        function connectSSE() {
+            eventSource = new EventSource('/api/stream');
+
+            eventSource.onopen = () => {
+                const status = document.getElementById('connection-status');
+                status.className = 'connection-status connected';
+                status.innerHTML = '<span class="connection-dot"></span><span>Live</span>';
+            };
+
+            eventSource.onerror = () => {
+                const status = document.getElementById('connection-status');
+                status.className = 'connection-status disconnected';
+                status.innerHTML = '<span class="connection-dot"></span><span>Reconnecting...</span>';
+            };
+
+            eventSource.onmessage = (e) => {
+                const event = JSON.parse(e.data);
+
+                if (event.type === 'eu_created' && event.data.level === 2) {
+                    events[event.data.eu_id] = {
+                        id: event.data.eu_id,
+                        canonical_name: event.data.eu?.canonical_name || event.data.canonical_name,
+                        byline: event.data.eu?.byline || event.data.byline,
+                        headline: event.data.eu?.headline || event.data.headline,  // Legacy
+                        mass: event.data.eu?.mass || event.data.mass || 1,
+                        state: 'ACTIVE',
+                        tension: 0.2,
+                        coherence: event.data.eu?.coherence || event.data.coherence || 0.5,
+                        claim_count: event.data.eu?.claim_count || event.data.claim_count || 1
+                    };
+                    const eventName = event.data.eu?.canonical_name || event.data.canonical_name || event.data.headline;
+                    addActivity(`New event: "${eventName?.substring(0, 30)}..."`, 'claim');
+                    renderEcosystem();
+                    renderNeeds();
+                }
+
+                if (event.type === 'eu_updated') {
+                    if (events[event.data.eu_id]) {
+                        const eu = event.data.eu || event.data;
+                        Object.assign(events[event.data.eu_id], {
+                            mass: eu.mass,
+                            coherence: eu.coherence,
+                            claim_count: eu.claim_count,
+                            byline: eu.byline || events[event.data.eu_id].byline,  // Update byline
+                            state: eu.state || events[event.data.eu_id].state
+                        });
+                        renderEcosystem();
+                        renderNeeds();  // Re-render needs to update bylines
+                    }
+                }
+
+                if (event.type === 'claim_absorbed') {
+                    addActivity(`Claim absorbed into "${event.data.eu_headline?.substring(0, 25) || 'event'}..."`, 'claim');
+                }
+
+                if (event.type === 'contradiction') {
+                    addActivity(`Contradiction in "${event.data.eu_headline?.substring(0, 25) || 'event'}..."`, 'tension');
+                }
+
+                if (event.type === 'eu_merged' || event.type === 'sibling_added') {
+                    addActivity(`Events grouped under "${event.data.parent_headline?.substring(0, 25) || 'parent'}..."`, 'merge');
+                }
+
+                if (event.type === 'stabilized') {
+                    addActivity(`"${event.data.eu_headline?.substring(0, 25)}..." reached consensus`, 'stable');
+                }
+
+                updateStats();
+            };
+        }
+
+        // Load initial data
+        async function loadInitialData() {
+            try {
+                const response = await fetch('/api/eus');
+                const data = await response.json();
+
+                // Process L2 events
+                const l2Events = data.eus?.level_2 || [];
+                l2Events.forEach(eu => {
+                    events[eu.id] = {
+                        id: eu.id,
+                        canonical_name: eu.canonical_name,
+                        byline: eu.byline,
+                        headline: eu.headline,  // Legacy
+                        mass: eu.mass || 1,
+                        state: eu.state || 'ACTIVE',
+                        tension: eu.tension || 0.1,
+                        coherence: eu.coherence || 0.5,
+                        claim_count: eu.claim_count || 0
+                    };
+                });
+
+                // Get counts for gradient
+                const l1Count = data.eus?.level_1?.length || 0;
+                const l2Count = l2Events.length;
+                const l3Count = data.eus?.level_3?.length || 0;
+
+                renderEcosystem();
+                renderNeeds();
+                renderGradient(l1Count, l2Count, l3Count);
+                updateStats();
+
+                // Add initial activities
+                addActivity('Homepage loaded', 'stable');
+                if (l2Events.length > 0) {
+                    addActivity(`${l2Events.length} live events in ecosystem`, 'claim');
+                }
+
+            } catch (err) {
+                console.error('Failed to load data:', err);
+                addActivity('Connecting to ecosystem...', 'stable');
+            }
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            loadInitialData();
+            connectSSE();
+
+            // Periodically refresh
+            setInterval(loadInitialData, 30000);
+        });
+    </script>
+</body>
+</html>

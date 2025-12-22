@@ -1,0 +1,1397 @@
+{
+  "stats": {
+    "layers": [
+      {
+        "depth": 0,
+        "eu_count": 1215,
+        "merges": 0
+      },
+      {
+        "depth": 1,
+        "eu_count": 1154,
+        "real_clusters": 61,
+        "merges": 61,
+        "avg_coherence": 0.5327868852459017,
+        "avg_stability": 0.06557377049180328,
+        "total_corr": 4,
+        "total_contra": 0,
+        "candidates": 137,
+        "total_cross_corr": 56,
+        "total_cross_contra": 4
+      },
+      {
+        "depth": 2,
+        "eu_count": 1120,
+        "real_clusters": 34,
+        "merges": 34,
+        "avg_coherence": 0.8529411764705882,
+        "avg_stability": 0.2990196078431372,
+        "total_corr": 36,
+        "total_contra": 1,
+        "candidates": 75,
+        "total_cross_corr": 35,
+        "total_cross_contra": 4
+      },
+      {
+        "depth": 3,
+        "eu_count": 987,
+        "real_clusters": 133,
+        "merges": 133,
+        "avg_coherence": 0.5595238095238094,
+        "avg_stability": 0.0380594343000358,
+        "total_corr": 44,
+        "total_contra": 4,
+        "candidates": 921,
+        "total_cross_corr": 22,
+        "total_cross_contra": 3
+      },
+      {
+        "depth": 4,
+        "eu_count": 931,
+        "real_clusters": 56,
+        "merges": 56,
+        "avg_coherence": 0.6240646258503401,
+        "avg_stability": 0.05192743764172335,
+        "total_corr": 61,
+        "total_contra": 9,
+        "candidates": 316,
+        "total_cross_corr": 11,
+        "total_cross_contra": 7
+      },
+      {
+        "depth": 5,
+        "eu_count": 902,
+        "real_clusters": 29,
+        "merges": 29,
+        "avg_coherence": 0.6982758620689655,
+        "avg_stability": 0.04922069141136078,
+        "total_corr": 68,
+        "total_contra": 12,
+        "candidates": 112,
+        "total_cross_corr": 5,
+        "total_cross_contra": 1
+      },
+      {
+        "depth": 6,
+        "eu_count": 551,
+        "real_clusters": 351,
+        "merges": 351,
+        "avg_coherence": 0.5322996092226862,
+        "avg_stability": 0.018742042573333974,
+        "total_corr": 98,
+        "total_contra": 13,
+        "candidates": 10236,
+        "total_cross_corr": 0,
+        "total_cross_contra": 1
+      },
+      {
+        "depth": 7,
+        "eu_count": 376,
+        "real_clusters": 175,
+        "merges": 175,
+        "avg_coherence": 0.5582327672327673,
+        "avg_stability": 0.00969898726714083,
+        "total_corr": 101,
+        "total_contra": 14,
+        "candidates": 3125,
+        "total_cross_corr": 1,
+        "total_cross_contra": 0
+      },
+      {
+        "depth": 8,
+        "eu_count": 295,
+        "real_clusters": 81,
+        "merges": 81,
+        "avg_coherence": 0.5754718189903375,
+        "avg_stability": 0.005124278951786862,
+        "total_corr": 102,
+        "total_contra": 14,
+        "candidates": 1063,
+        "total_cross_corr": 0,
+        "total_cross_contra": 0
+      },
+      {
+        "depth": 9,
+        "eu_count": 254,
+        "real_clusters": 41,
+        "merges": 41,
+        "avg_coherence": 0.6269387116948093,
+        "avg_stability": 0.0046455082110735645,
+        "total_corr": 105,
+        "total_contra": 15,
+        "candidates": 424,
+        "total_cross_corr": 0,
+        "total_cross_contra": 0
+      },
+      {
+        "depth": 10,
+        "eu_count": 231,
+        "real_clusters": 23,
+        "merges": 23,
+        "avg_coherence": 0.6904761904761905,
+        "avg_stability": 0.002597044354014624,
+        "total_corr": 110,
+        "total_contra": 15,
+        "candidates": 208,
+        "total_cross_corr": 1,
+        "total_cross_contra": 0
+      }
+    ]
+  },
+  "analysis": {
+    "by_depth": {
+      "0": {
+        "count": 1215,
+        "top": [
+          {
+            "label": "At least 36 people were killed and 279 w...",
+            "claims": 1,
+            "mass": 0.1,
+            "coherence": 1.0,
+            "stability": 1.0,
+            "corr": 0,
+            "contra": 0,
+            "tension": 0.0
+          },
+          {
+            "label": "29 people were still hospitalised, with ...",
+            "claims": 1,
+            "mass": 0.1,
+            "coherence": 1.0,
+            "stability": 1.0,
+            "corr": 0,
+            "contra": 0,
+            "tension": 0.0
+          },
+          {
+            "label": "Firefighters have been trying for hours ...",
+            "claims": 1,
+            "mass": 0.1,
+            "coherence": 1.0,
+            "stability": 1.0,
+            "corr": 0,
+            "contra": 0,
+            "tension": 0.0
+          },
+          {
+            "label": "The fire was still burning in the early ...",
+            "claims": 1,
+            "mass": 0.1,
+            "coherence": 1.0,
+            "stability": 1.0,
+            "corr": 0,
+            "contra": 0,
+            "tension": 0.0
+          },
+          {
+            "label": "The fire department received reports of ...",
+            "claims": 1,
+            "mass": 0.1,
+            "coherence": 1.0,
+            "stability": 1.0,
+            "corr": 0,
+            "contra": 0,
+            "tension": 0.0
+          },
+          {
+            "label": "The fire was upgraded to a Number 4 alar...",
+            "claims": 1,
+            "mass": 0.1,
+            "coherence": 1.0,
+            "stability": 1.0,
+            "corr": 0,
+            "contra": 0,
+            "tension": 0.0
+          },
+          {
+            "label": "Firefighters deployed 128 fire trucks an...",
+            "claims": 1,
+            "mass": 0.1,
+            "coherence": 1.0,
+            "stability": 1.0,
+            "corr": 0,
+            "contra": 0,
+            "tension": 0.0
+          }
+        ]
+      },
+      "1": {
+        "count": 61,
+        "top": [
+          {
+            "label": "Time",
+            "claims": 2,
+            "mass": 0.30000000000000004,
+            "coherence": 1.0,
+            "stability": 1.0,
+            "corr": 1,
+            "contra": 0,
+            "tension": 0.0
+          },
+          {
+            "label": "Time",
+            "claims": 2,
+            "mass": 0.30000000000000004,
+            "coherence": 1.0,
+            "stability": 1.0,
+            "corr": 1,
+            "contra": 0,
+            "tension": 0.0
+          },
+          {
+            "label": "Sam Altman",
+            "claims": 2,
+            "mass": 0.30000000000000004,
+            "coherence": 1.0,
+            "stability": 1.0,
+            "corr": 1,
+            "contra": 0,
+            "tension": 0.0
+          },
+          {
+            "label": "Zohran Mamdani",
+            "claims": 2,
+            "mass": 0.30000000000000004,
+            "coherence": 1.0,
+            "stability": 1.0,
+            "corr": 1,
+            "contra": 0,
+            "tension": 0.0
+          },
+          {
+            "label": "Donald Trump",
+            "claims": 2,
+            "mass": 0.1,
+            "coherence": 0.5,
+            "stability": 0.0,
+            "corr": 0,
+            "contra": 0,
+            "tension": 0.0
+          },
+          {
+            "label": "Los Angeles",
+            "claims": 2,
+            "mass": 0.1,
+            "coherence": 0.5,
+            "stability": 0.0,
+            "corr": 0,
+            "contra": 0,
+            "tension": 0.0
+          },
+          {
+            "label": "Hong Kong",
+            "claims": 2,
+            "mass": 0.1,
+            "coherence": 0.5,
+            "stability": 0.0,
+            "corr": 0,
+            "contra": 0,
+            "tension": 0.0
+          }
+        ]
+      },
+      "2": {
+        "count": 34,
+        "top": [
+          {
+            "label": "Time",
+            "claims": 3,
+            "mass": 0.45000000000000007,
+            "coherence": 1.0,
+            "stability": 1.0,
+            "corr": 3,
+            "contra": 0,
+            "tension": 0.0
+          },
+          {
+            "label": "Xi Jinping",
+            "claims": 4,
+            "mass": 0.4,
+            "coherence": 1.0,
+            "stability": 0.5,
+            "corr": 3,
+            "contra": 0,
+            "tension": 0.0
+          },
+          {
+            "label": "Charlie Kirk",
+            "claims": 4,
+            "mass": 0.4,
+            "coherence": 1.0,
+            "stability": 0.5,
+            "corr": 3,
+            "contra": 0,
+            "tension": 0.0
+          },
+          {
+            "label": "Michele Singer",
+            "claims": 4,
+            "mass": 0.3333333333333333,
+            "coherence": 1.0,
+            "stability": 0.3333333333333333,
+            "corr": 2,
+            "contra": 0,
+            "tension": 0.0
+          },
+          {
+            "label": "Jimmy Lai",
+            "claims": 4,
+            "mass": 0.3333333333333333,
+            "coherence": 1.0,
+            "stability": 0.3333333333333333,
+            "corr": 2,
+            "contra": 0,
+            "tension": 0.0
+          },
+          {
+            "label": "Wang Fuk Court",
+            "claims": 4,
+            "mass": 0.3333333333333333,
+            "coherence": 1.0,
+            "stability": 0.3333333333333333,
+            "corr": 2,
+            "contra": 0,
+            "tension": 0.0
+          },
+          {
+            "label": "Brown University Library",
+            "claims": 4,
+            "mass": 0.3333333333333333,
+            "coherence": 1.0,
+            "stability": 0.3333333333333333,
+            "corr": 2,
+            "contra": 0,
+            "tension": 0.0
+          }
+        ]
+      },
+      "3": {
+        "count": 133,
+        "top": [
+          {
+            "label": "Jimmy Lai",
+            "claims": 7,
+            "mass": 0.5166666666666667,
+            "coherence": 1.0,
+            "stability": 0.23809523809523808,
+            "corr": 5,
+            "contra": 0,
+            "tension": 0.0
+          },
+          {
+            "label": "Wang Fuk Court",
+            "claims": 7,
+            "mass": 0.4833333333333334,
+            "coherence": 0.6666666666666666,
+            "stability": 0.19047619047619047,
+            "corr": 4,
+            "contra": 2,
+            "tension": 0.3333333333333333
+          },
+          {
+            "label": "Time",
+            "claims": 4,
+            "mass": 0.4666666666666666,
+            "coherence": 1.0,
+            "stability": 0.6666666666666666,
+            "corr": 4,
+            "contra": 0,
+            "tension": 0.0
+          },
+          {
+            "label": "Jimmy Lai",
+            "claims": 5,
+            "mass": 0.45,
+            "coherence": 1.0,
+            "stability": 0.4,
+            "corr": 4,
+            "contra": 0,
+            "tension": 0.0
+          },
+          {
+            "label": "Jimmy Lai",
+            "claims": 5,
+            "mass": 0.4,
+            "coherence": 1.0,
+            "stability": 0.3,
+            "corr": 3,
+            "contra": 0,
+            "tension": 0.0
+          },
+          {
+            "label": "Michele Singer",
+            "claims": 5,
+            "mass": 0.4,
+            "coherence": 1.0,
+            "stability": 0.3,
+            "corr": 3,
+            "contra": 0,
+            "tension": 0.0
+          },
+          {
+            "label": "Amanda Seyfried",
+            "claims": 5,
+            "mass": 0.4,
+            "coherence": 1.0,
+            "stability": 0.3,
+            "corr": 3,
+            "contra": 0,
+            "tension": 0.0
+          }
+        ]
+      },
+      "4": {
+        "count": 56,
+        "top": [
+          {
+            "label": "Wang Fuk Court",
+            "claims": 11,
+            "mass": 0.67,
+            "coherence": 0.6,
+            "stability": 0.10909090909090909,
+            "corr": 6,
+            "contra": 4,
+            "tension": 0.4
+          },
+          {
+            "label": "Jimmy Lai",
+            "claims": 11,
+            "mass": 0.6500000000000001,
+            "coherence": 1.0,
+            "stability": 0.09090909090909091,
+            "corr": 5,
+            "contra": 0,
+            "tension": 0.0
+          },
+          {
+            "label": "Jimmy Lai",
+            "claims": 6,
+            "mass": 0.5800000000000001,
+            "coherence": 1.0,
+            "stability": 0.4666666666666667,
+            "corr": 7,
+            "contra": 0,
+            "tension": 0.0
+          },
+          {
+            "label": "Xu Bo",
+            "claims": 9,
+            "mass": 0.575,
+            "coherence": 0.7142857142857143,
+            "stability": 0.1388888888888889,
+            "corr": 5,
+            "contra": 2,
+            "tension": 0.2857142857142857
+          },
+          {
+            "label": "Brown University Library",
+            "claims": 8,
+            "mass": 0.5428571428571429,
+            "coherence": 0.8333333333333334,
+            "stability": 0.17857142857142858,
+            "corr": 5,
+            "contra": 1,
+            "tension": 0.16666666666666666
+          },
+          {
+            "label": "Michele Singer",
+            "claims": 8,
+            "mass": 0.5428571428571429,
+            "coherence": 1.0,
+            "stability": 0.17857142857142858,
+            "corr": 5,
+            "contra": 0,
+            "tension": 0.0
+          },
+          {
+            "label": "Jimmy Lai",
+            "claims": 7,
+            "mass": 0.5166666666666667,
+            "coherence": 1.0,
+            "stability": 0.23809523809523808,
+            "corr": 5,
+            "contra": 0,
+            "tension": 0.0
+          }
+        ]
+      },
+      "5": {
+        "count": 29,
+        "top": [
+          {
+            "label": "Jimmy Lai",
+            "claims": 17,
+            "mass": 1.0250000000000001,
+            "coherence": 1.0,
+            "stability": 0.10294117647058823,
+            "corr": 14,
+            "contra": 0,
+            "tension": 0.0
+          },
+          {
+            "label": "Wang Fuk Court",
+            "claims": 12,
+            "mass": 0.7090909090909092,
+            "coherence": 0.5,
+            "stability": 0.09090909090909091,
+            "corr": 6,
+            "contra": 6,
+            "tension": 0.5
+          },
+          {
+            "label": "Jimmy Lai",
+            "claims": 10,
+            "mass": 0.6777777777777778,
+            "coherence": 1.0,
+            "stability": 0.17777777777777778,
+            "corr": 8,
+            "contra": 0,
+            "tension": 0.0
+          },
+          {
+            "label": "Michele Singer",
+            "claims": 11,
+            "mass": 0.67,
+            "coherence": 1.0,
+            "stability": 0.10909090909090909,
+            "corr": 6,
+            "contra": 0,
+            "tension": 0.0
+          },
+          {
+            "label": "Amanda Seyfried",
+            "claims": 11,
+            "mass": 0.6500000000000001,
+            "coherence": 1.0,
+            "stability": 0.09090909090909091,
+            "corr": 5,
+            "contra": 0,
+            "tension": 0.0
+          },
+          {
+            "label": "United States",
+            "claims": 12,
+            "mass": 0.6363636363636365,
+            "coherence": 1.0,
+            "stability": 0.030303030303030304,
+            "corr": 2,
+            "contra": 0,
+            "tension": 0.0
+          },
+          {
+            "label": "Xu Bo",
+            "claims": 10,
+            "mass": 0.6333333333333333,
+            "coherence": 0.75,
+            "stability": 0.13333333333333333,
+            "corr": 6,
+            "contra": 2,
+            "tension": 0.25
+          }
+        ]
+      },
+      "6": {
+        "count": 351,
+        "top": [
+          {
+            "label": "Jimmy Lai",
+            "claims": 27,
+            "mass": 1.5192307692307692,
+            "coherence": 1.0,
+            "stability": 0.06267806267806268,
+            "corr": 22,
+            "contra": 0,
+            "tension": 0.0
+          },
+          {
+            "label": "Venezuela",
+            "claims": 20,
+            "mass": 1.0210526315789474,
+            "coherence": 1.0,
+            "stability": 0.010526315789473684,
+            "corr": 2,
+            "contra": 0,
+            "tension": 0.0
+          },
+          {
+            "label": "Jimmy Lai",
+            "claims": 19,
+            "mass": 0.9944444444444445,
+            "coherence": 1.0,
+            "stability": 0.023391812865497075,
+            "corr": 4,
+            "contra": 0,
+            "tension": 0.0
+          },
+          {
+            "label": "Donald Trump",
+            "claims": 19,
+            "mass": 0.9833333333333335,
+            "coherence": 1.0,
+            "stability": 0.017543859649122806,
+            "corr": 3,
+            "contra": 0,
+            "tension": 0.0
+          },
+          {
+            "label": "Rob Reiner",
+            "claims": 17,
+            "mass": 0.925,
+            "coherence": 1.0,
+            "stability": 0.04411764705882353,
+            "corr": 6,
+            "contra": 0,
+            "tension": 0.0
+          },
+          {
+            "label": "Wang Fuk Court",
+            "claims": 16,
+            "mass": 0.8933333333333334,
+            "coherence": 0.5384615384615384,
+            "stability": 0.058333333333333334,
+            "corr": 7,
+            "contra": 6,
+            "tension": 0.46153846153846156
+          },
+          {
+            "label": "Xu Bo",
+            "claims": 14,
+            "mass": 0.8230769230769232,
+            "coherence": 0.7272727272727273,
+            "stability": 0.08791208791208792,
+            "corr": 8,
+            "contra": 3,
+            "tension": 0.2727272727272727
+          }
+        ]
+      },
+      "7": {
+        "count": 175,
+        "top": [
+          {
+            "label": "Jimmy Lai",
+            "claims": 37,
+            "mass": 1.9722222222222225,
+            "coherence": 1.0,
+            "stability": 0.03303303303303303,
+            "corr": 22,
+            "contra": 0,
+            "tension": 0.0
+          },
+          {
+            "label": "Venezuela",
+            "claims": 29,
+            "mass": 1.4642857142857144,
+            "coherence": 1.0,
+            "stability": 0.0049261083743842365,
+            "corr": 2,
+            "contra": 0,
+            "tension": 0.0
+          },
+          {
+            "label": "Jimmy Lai",
+            "claims": 23,
+            "mass": 1.1954545454545455,
+            "coherence": 1.0,
+            "stability": 0.019762845849802372,
+            "corr": 5,
+            "contra": 0,
+            "tension": 0.0
+          },
+          {
+            "label": "Charlie Kirk",
+            "claims": 22,
+            "mass": 1.1761904761904765,
+            "coherence": 0.8,
+            "stability": 0.03463203463203463,
+            "corr": 8,
+            "contra": 2,
+            "tension": 0.2
+          },
+          {
+            "label": "Brown University Library",
+            "claims": 21,
+            "mass": 1.12,
+            "coherence": 0.875,
+            "stability": 0.03333333333333334,
+            "corr": 7,
+            "contra": 1,
+            "tension": 0.125
+          },
+          {
+            "label": "Rob Reiner",
+            "claims": 21,
+            "mass": 1.11,
+            "coherence": 1.0,
+            "stability": 0.02857142857142857,
+            "corr": 6,
+            "contra": 0,
+            "tension": 0.0
+          },
+          {
+            "label": "BBC",
+            "claims": 21,
+            "mass": 1.0799999999999998,
+            "coherence": 1.0,
+            "stability": 0.014285714285714285,
+            "corr": 3,
+            "contra": 0,
+            "tension": 0.0
+          }
+        ]
+      },
+      "8": {
+        "count": 81,
+        "top": [
+          {
+            "label": "Hong Kong",
+            "claims": 57,
+            "mass": 2.9535714285714287,
+            "coherence": 0.8285714285714286,
+            "stability": 0.018170426065162906,
+            "corr": 29,
+            "contra": 6,
+            "tension": 0.17142857142857143
+          },
+          {
+            "label": "Venezuela",
+            "claims": 47,
+            "mass": 2.3978260869565218,
+            "coherence": 0.7857142857142857,
+            "stability": 0.010175763182238668,
+            "corr": 11,
+            "contra": 3,
+            "tension": 0.21428571428571427
+          },
+          {
+            "label": "Donald Trump",
+            "claims": 33,
+            "mass": 1.7062500000000003,
+            "coherence": 1.0,
+            "stability": 0.017045454545454544,
+            "corr": 9,
+            "contra": 0,
+            "tension": 0.0
+          },
+          {
+            "label": "Charlie Kirk",
+            "claims": 31,
+            "mass": 1.6233333333333335,
+            "coherence": 0.8461538461538461,
+            "stability": 0.023655913978494623,
+            "corr": 11,
+            "contra": 2,
+            "tension": 0.15384615384615385
+          },
+          {
+            "label": "Jimmy Lai",
+            "claims": 27,
+            "mass": 1.3884615384615384,
+            "coherence": 1.0,
+            "stability": 0.014245014245014245,
+            "corr": 5,
+            "contra": 0,
+            "tension": 0.0
+          },
+          {
+            "label": "Brown University Library",
+            "claims": 25,
+            "mass": 1.3083333333333333,
+            "coherence": 0.875,
+            "stability": 0.023333333333333334,
+            "corr": 7,
+            "contra": 1,
+            "tension": 0.125
+          },
+          {
+            "label": "Jensen Huang",
+            "claims": 25,
+            "mass": 1.3083333333333333,
+            "coherence": 0.7777777777777778,
+            "stability": 0.023333333333333334,
+            "corr": 7,
+            "contra": 2,
+            "tension": 0.2222222222222222
+          }
+        ]
+      },
+      "9": {
+        "count": 41,
+        "top": [
+          {
+            "label": "Jimmy Lai",
+            "claims": 77,
+            "mass": 3.9289473684210527,
+            "coherence": 0.8333333333333334,
+            "stability": 0.010252904989747095,
+            "corr": 30,
+            "contra": 6,
+            "tension": 0.16666666666666666
+          },
+          {
+            "label": "Donald Trump",
+            "claims": 58,
+            "mass": 2.959649122807018,
+            "coherence": 0.85,
+            "stability": 0.0102843315184513,
+            "corr": 17,
+            "contra": 3,
+            "tension": 0.15
+          },
+          {
+            "label": "Venezuela",
+            "claims": 55,
+            "mass": 2.7944444444444447,
+            "coherence": 0.8,
+            "stability": 0.008080808080808083,
+            "corr": 12,
+            "contra": 3,
+            "tension": 0.2
+          },
+          {
+            "label": "Hong Kong",
+            "claims": 50,
+            "mass": 2.5285714285714285,
+            "coherence": 1.0,
+            "stability": 0.005714285714285714,
+            "corr": 7,
+            "contra": 0,
+            "tension": 0.0
+          },
+          {
+            "label": "Charlie Kirk",
+            "claims": 39,
+            "mass": 2.0078947368421054,
+            "coherence": 0.8461538461538461,
+            "stability": 0.014844804318488529,
+            "corr": 11,
+            "contra": 2,
+            "tension": 0.15384615384615385
+          },
+          {
+            "label": "Brown University Library",
+            "claims": 35,
+            "mass": 1.7911764705882351,
+            "coherence": 0.875,
+            "stability": 0.011764705882352941,
+            "corr": 7,
+            "contra": 1,
+            "tension": 0.125
+          },
+          {
+            "label": "Rob Reiner",
+            "claims": 33,
+            "mass": 1.6875,
+            "coherence": 1.0,
+            "stability": 0.011363636363636364,
+            "corr": 6,
+            "contra": 0,
+            "tension": 0.0
+          }
+        ]
+      },
+      "10": {
+        "count": 23,
+        "top": [
+          {
+            "label": "Hong Kong",
+            "claims": 127,
+            "mass": 6.411904761904762,
+            "coherence": 0.8666666666666667,
+            "stability": 0.004874390701162355,
+            "corr": 39,
+            "contra": 6,
+            "tension": 0.13333333333333333
+          },
+          {
+            "label": "Donald Trump",
+            "claims": 93,
+            "mass": 4.702173913043478,
+            "coherence": 0.8571428571428571,
+            "stability": 0.005610098176718092,
+            "corr": 24,
+            "contra": 4,
+            "tension": 0.14285714285714285
+          },
+          {
+            "label": "Venezuela",
+            "claims": 88,
+            "mass": 4.427586206896552,
+            "coherence": 0.8,
+            "stability": 0.003134796238244514,
+            "corr": 12,
+            "contra": 3,
+            "tension": 0.2
+          },
+          {
+            "label": "Charlie Kirk",
+            "claims": 49,
+            "mass": 2.5000000000000004,
+            "coherence": 0.8571428571428571,
+            "stability": 0.01020408163265306,
+            "corr": 12,
+            "contra": 2,
+            "tension": 0.14285714285714285
+          },
+          {
+            "label": "Do Kwon",
+            "claims": 45,
+            "mass": 2.2772727272727273,
+            "coherence": 1.0,
+            "stability": 0.006060606060606061,
+            "corr": 6,
+            "contra": 0,
+            "tension": 0.0
+          },
+          {
+            "label": "Bondi Beach",
+            "claims": 43,
+            "mass": 2.178571428571429,
+            "coherence": 1.0,
+            "stability": 0.006644518272425249,
+            "corr": 6,
+            "contra": 0,
+            "tension": 0.0
+          },
+          {
+            "label": "Wang Fuk Court",
+            "claims": 40,
+            "mass": 2.0,
+            "coherence": 0.5,
+            "stability": 0.0,
+            "corr": 0,
+            "contra": 0,
+            "tension": 0.0
+          }
+        ]
+      }
+    },
+    "stable_clusters": [
+      {
+        "label": "Jimmy Lai",
+        "depth": 5,
+        "claims": 17,
+        "coherence": 1.0,
+        "stability": 0.10294117647058823,
+        "corr": 14,
+        "contra": 0
+      },
+      {
+        "label": "Amanda Seyfried",
+        "depth": 6,
+        "claims": 12,
+        "coherence": 1.0,
+        "stability": 0.10606060606060606,
+        "corr": 7,
+        "contra": 0
+      },
+      {
+        "label": "Michele Singer",
+        "depth": 5,
+        "claims": 11,
+        "coherence": 1.0,
+        "stability": 0.10909090909090909,
+        "corr": 6,
+        "contra": 0
+      },
+      {
+        "label": "Jimmy Lai",
+        "depth": 5,
+        "claims": 10,
+        "coherence": 1.0,
+        "stability": 0.17777777777777778,
+        "corr": 8,
+        "contra": 0
+      },
+      {
+        "label": "Xu Bo",
+        "depth": 5,
+        "claims": 10,
+        "coherence": 0.75,
+        "stability": 0.13333333333333333,
+        "corr": 6,
+        "contra": 2
+      },
+      {
+        "label": "Time",
+        "depth": 6,
+        "claims": 10,
+        "coherence": 1.0,
+        "stability": 0.13333333333333333,
+        "corr": 6,
+        "contra": 0
+      },
+      {
+        "label": "Time",
+        "depth": 6,
+        "claims": 10,
+        "coherence": 0.7142857142857143,
+        "stability": 0.11111111111111112,
+        "corr": 5,
+        "contra": 2
+      },
+      {
+        "label": "Time",
+        "depth": 8,
+        "claims": 10,
+        "coherence": 1.0,
+        "stability": 0.13333333333333333,
+        "corr": 6,
+        "contra": 0
+      },
+      {
+        "label": "Xu Bo",
+        "depth": 4,
+        "claims": 9,
+        "coherence": 0.7142857142857143,
+        "stability": 0.1388888888888889,
+        "corr": 5,
+        "contra": 2
+      },
+      {
+        "label": "Brown University Library",
+        "depth": 5,
+        "claims": 9,
+        "coherence": 0.8333333333333334,
+        "stability": 0.1388888888888889,
+        "corr": 5,
+        "contra": 1
+      },
+      {
+        "label": "Brown University Library",
+        "depth": 4,
+        "claims": 8,
+        "coherence": 0.8333333333333334,
+        "stability": 0.17857142857142858,
+        "corr": 5,
+        "contra": 1
+      },
+      {
+        "label": "Mark Zuckerberg",
+        "depth": 4,
+        "claims": 8,
+        "coherence": 0.8,
+        "stability": 0.14285714285714288,
+        "corr": 4,
+        "contra": 1
+      },
+      {
+        "label": "Michele Singer",
+        "depth": 4,
+        "claims": 8,
+        "coherence": 1.0,
+        "stability": 0.17857142857142858,
+        "corr": 5,
+        "contra": 0
+      },
+      {
+        "label": "Jimmy Lai",
+        "depth": 3,
+        "claims": 7,
+        "coherence": 1.0,
+        "stability": 0.23809523809523808,
+        "corr": 5,
+        "contra": 0
+      },
+      {
+        "label": "Jimmy Lai",
+        "depth": 4,
+        "claims": 7,
+        "coherence": 1.0,
+        "stability": 0.23809523809523808,
+        "corr": 5,
+        "contra": 0
+      },
+      {
+        "label": "Amanda Seyfried",
+        "depth": 4,
+        "claims": 7,
+        "coherence": 1.0,
+        "stability": 0.23809523809523808,
+        "corr": 5,
+        "contra": 0
+      },
+      {
+        "label": "Jimmy Lai",
+        "depth": 4,
+        "claims": 7,
+        "coherence": 1.0,
+        "stability": 0.14285714285714285,
+        "corr": 3,
+        "contra": 0
+      },
+      {
+        "label": "Time",
+        "depth": 5,
+        "claims": 7,
+        "coherence": 1.0,
+        "stability": 0.23809523809523808,
+        "corr": 5,
+        "contra": 0
+      },
+      {
+        "label": "Jimmy Lai",
+        "depth": 4,
+        "claims": 6,
+        "coherence": 1.0,
+        "stability": 0.4666666666666667,
+        "corr": 7,
+        "contra": 0
+      },
+      {
+        "label": "Time",
+        "depth": 4,
+        "claims": 6,
+        "coherence": 1.0,
+        "stability": 0.3333333333333333,
+        "corr": 5,
+        "contra": 0
+      },
+      {
+        "label": "Tyler Robinson",
+        "depth": 6,
+        "claims": 6,
+        "coherence": 1.0,
+        "stability": 0.2,
+        "corr": 3,
+        "contra": 0
+      },
+      {
+        "label": "Bondi Beach",
+        "depth": 6,
+        "claims": 6,
+        "coherence": 1.0,
+        "stability": 0.13333333333333333,
+        "corr": 2,
+        "contra": 0
+      },
+      {
+        "label": "Time",
+        "depth": 7,
+        "claims": 6,
+        "coherence": 1.0,
+        "stability": 0.26666666666666666,
+        "corr": 4,
+        "contra": 0
+      },
+      {
+        "label": "Jimmy Lai",
+        "depth": 3,
+        "claims": 5,
+        "coherence": 1.0,
+        "stability": 0.4,
+        "corr": 4,
+        "contra": 0
+      },
+      {
+        "label": "Jimmy Lai",
+        "depth": 3,
+        "claims": 5,
+        "coherence": 1.0,
+        "stability": 0.3,
+        "corr": 3,
+        "contra": 0
+      },
+      {
+        "label": "Michele Singer",
+        "depth": 3,
+        "claims": 5,
+        "coherence": 1.0,
+        "stability": 0.3,
+        "corr": 3,
+        "contra": 0
+      },
+      {
+        "label": "Amanda Seyfried",
+        "depth": 3,
+        "claims": 5,
+        "coherence": 1.0,
+        "stability": 0.3,
+        "corr": 3,
+        "contra": 0
+      },
+      {
+        "label": "Brown University Library",
+        "depth": 3,
+        "claims": 5,
+        "coherence": 1.0,
+        "stability": 0.3,
+        "corr": 3,
+        "contra": 0
+      },
+      {
+        "label": "Time",
+        "depth": 3,
+        "claims": 5,
+        "coherence": 0.75,
+        "stability": 0.30000000000000004,
+        "corr": 3,
+        "contra": 1
+      },
+      {
+        "label": "Xu Bo",
+        "depth": 3,
+        "claims": 5,
+        "coherence": 1.0,
+        "stability": 0.2,
+        "corr": 2,
+        "contra": 0
+      },
+      {
+        "label": "Xi Jinping",
+        "depth": 3,
+        "claims": 5,
+        "coherence": 1.0,
+        "stability": 0.3,
+        "corr": 3,
+        "contra": 0
+      },
+      {
+        "label": "Leo XIV",
+        "depth": 6,
+        "claims": 5,
+        "coherence": 1.0,
+        "stability": 0.2,
+        "corr": 2,
+        "contra": 0
+      },
+      {
+        "label": "Do Kwon",
+        "depth": 6,
+        "claims": 5,
+        "coherence": 1.0,
+        "stability": 0.2,
+        "corr": 2,
+        "contra": 0
+      }
+    ],
+    "active_clusters": [
+      {
+        "label": "Wang Fuk Court",
+        "depth": 5,
+        "claims": 12,
+        "coherence": 0.5,
+        "stability": 0.09090909090909091,
+        "corr": 6,
+        "contra": 6
+      },
+      {
+        "label": "Wang Fuk Court",
+        "depth": 6,
+        "claims": 16,
+        "coherence": 0.5384615384615384,
+        "stability": 0.058333333333333334,
+        "corr": 7,
+        "contra": 6
+      },
+      {
+        "label": "Wang Fuk Court",
+        "depth": 7,
+        "claims": 20,
+        "coherence": 0.5384615384615384,
+        "stability": 0.0368421052631579,
+        "corr": 7,
+        "contra": 6
+      },
+      {
+        "label": "Hong Kong",
+        "depth": 8,
+        "claims": 57,
+        "coherence": 0.8285714285714286,
+        "stability": 0.018170426065162906,
+        "corr": 29,
+        "contra": 6
+      },
+      {
+        "label": "Jimmy Lai",
+        "depth": 9,
+        "claims": 77,
+        "coherence": 0.8333333333333334,
+        "stability": 0.010252904989747095,
+        "corr": 30,
+        "contra": 6
+      },
+      {
+        "label": "Hong Kong",
+        "depth": 10,
+        "claims": 127,
+        "coherence": 0.8666666666666667,
+        "stability": 0.004874390701162355,
+        "corr": 39,
+        "contra": 6
+      },
+      {
+        "label": "Wang Fuk Court",
+        "depth": 4,
+        "claims": 11,
+        "coherence": 0.6,
+        "stability": 0.10909090909090909,
+        "corr": 6,
+        "contra": 4
+      },
+      {
+        "label": "Donald Trump",
+        "depth": 10,
+        "claims": 93,
+        "coherence": 0.8571428571428571,
+        "stability": 0.005610098176718092,
+        "corr": 24,
+        "contra": 4
+      },
+      {
+        "label": "Xu Bo",
+        "depth": 6,
+        "claims": 14,
+        "coherence": 0.7272727272727273,
+        "stability": 0.08791208791208792,
+        "corr": 8,
+        "contra": 3
+      },
+      {
+        "label": "Xu Bo",
+        "depth": 7,
+        "claims": 18,
+        "coherence": 0.7272727272727273,
+        "stability": 0.0522875816993464,
+        "corr": 8,
+        "contra": 3
+      },
+      {
+        "label": "Venezuela",
+        "depth": 8,
+        "claims": 47,
+        "coherence": 0.7857142857142857,
+        "stability": 0.010175763182238668,
+        "corr": 11,
+        "contra": 3
+      },
+      {
+        "label": "Venezuela",
+        "depth": 9,
+        "claims": 55,
+        "coherence": 0.8,
+        "stability": 0.008080808080808083,
+        "corr": 12,
+        "contra": 3
+      },
+      {
+        "label": "Donald Trump",
+        "depth": 9,
+        "claims": 58,
+        "coherence": 0.85,
+        "stability": 0.0102843315184513,
+        "corr": 17,
+        "contra": 3
+      },
+      {
+        "label": "Venezuela",
+        "depth": 10,
+        "claims": 88,
+        "coherence": 0.8,
+        "stability": 0.003134796238244514,
+        "corr": 12,
+        "contra": 3
+      }
+    ]
+  }
+}

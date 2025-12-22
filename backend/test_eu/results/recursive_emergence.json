@@ -1,0 +1,247 @@
+{
+  "budget_experiments": {
+    "50": {
+      "stats": {
+        "initial_claims": 1215,
+        "layers": [
+          {
+            "depth": 1,
+            "merges": 50,
+            "eus_after": 1165,
+            "budget_used": 50.0
+          }
+        ],
+        "total_budget": 50,
+        "remaining_budget": 0.0,
+        "final_depth": 1,
+        "final_eu_count": 1165
+      },
+      "found": 0,
+      "partial": 1,
+      "missed": 15
+    },
+    "100": {
+      "stats": {
+        "initial_claims": 1215,
+        "layers": [
+          {
+            "depth": 1,
+            "merges": 100,
+            "eus_after": 1115,
+            "budget_used": 100.0
+          }
+        ],
+        "total_budget": 100,
+        "remaining_budget": 0.0,
+        "final_depth": 1,
+        "final_eu_count": 1115
+      },
+      "found": 0,
+      "partial": 1,
+      "missed": 15
+    },
+    "200": {
+      "stats": {
+        "initial_claims": 1215,
+        "layers": [
+          {
+            "depth": 1,
+            "merges": 200,
+            "eus_after": 1015,
+            "budget_used": 200.0
+          }
+        ],
+        "total_budget": 200,
+        "remaining_budget": 0.0,
+        "final_depth": 1,
+        "final_eu_count": 1015
+      },
+      "found": 0,
+      "partial": 1,
+      "missed": 15
+    },
+    "500": {
+      "stats": {
+        "initial_claims": 1215,
+        "layers": [
+          {
+            "depth": 1,
+            "merges": 500,
+            "eus_after": 715,
+            "budget_used": 500.0
+          }
+        ],
+        "total_budget": 500,
+        "remaining_budget": 0.0,
+        "final_depth": 1,
+        "final_eu_count": 715
+      },
+      "found": 0,
+      "partial": 1,
+      "missed": 15
+    }
+  },
+  "detailed_200": {
+    "stats": {
+      "initial_claims": 1215,
+      "layers": [
+        {
+          "depth": 1,
+          "merges": 200,
+          "eus_after": 1015,
+          "budget_used": 200.0
+        }
+      ],
+      "total_budget": 200,
+      "remaining_budget": 0.0,
+      "final_depth": 1,
+      "final_eu_count": 1015
+    },
+    "comparisons": [
+      {
+        "event": "Wang Fuk Court Fire",
+        "event_claims": 130,
+        "matched_cluster": "Hong Kong",
+        "matched_claims": 201,
+        "matched_depth": 1,
+        "overlap": 0.1413793103448276,
+        "status": "MISSED"
+      },
+      {
+        "event": "Charlie Kirk Assassination",
+        "event_claims": 35,
+        "matched_cluster": null,
+        "matched_claims": 0,
+        "matched_depth": 0,
+        "overlap": 0.0,
+        "status": "MISSED"
+      },
+      {
+        "event": "Jimmy Lai Imprisonment",
+        "event_claims": 117,
+        "matched_cluster": "Hong Kong",
+        "matched_claims": 201,
+        "matched_depth": 1,
+        "overlap": 0.24705882352941178,
+        "status": "PARTIAL"
+      },
+      {
+        "event": "Do Kwon Sentencing",
+        "event_claims": 36,
+        "matched_cluster": null,
+        "matched_claims": 0,
+        "matched_depth": 0,
+        "overlap": 0.0,
+        "status": "MISSED"
+      },
+      {
+        "event": "TIME Person of the Year 2025",
+        "event_claims": 29,
+        "matched_cluster": "Hong Kong",
+        "matched_claims": 201,
+        "matched_depth": 1,
+        "overlap": 0.08490566037735849,
+        "status": "MISSED"
+      },
+      {
+        "event": "AI Innovators on TIME Covers",
+        "event_claims": 12,
+        "matched_cluster": "Hong Kong",
+        "matched_claims": 201,
+        "matched_depth": 1,
+        "overlap": 0.03902439024390244,
+        "status": "MISSED"
+      },
+      {
+        "event": "Venezuelan Oil Tanker Seizure",
+        "event_claims": 40,
+        "matched_cluster": null,
+        "matched_claims": 0,
+        "matched_depth": 0,
+        "overlap": 0.0,
+        "status": "MISSED"
+      },
+      {
+        "event": "King Charles III's Cancer Treatment Announcement",
+        "event_claims": 23,
+        "matched_cluster": "Hong Kong",
+        "matched_claims": 201,
+        "matched_depth": 1,
+        "overlap": 0.013574660633484163,
+        "status": "MISSED"
+      },
+      {
+        "event": "NS-37 Mission",
+        "event_claims": 14,
+        "matched_cluster": null,
+        "matched_claims": 0,
+        "matched_depth": 0,
+        "overlap": 0.0,
+        "status": "MISSED"
+      },
+      {
+        "event": "Brown University Shooting",
+        "event_claims": 49,
+        "matched_cluster": null,
+        "matched_claims": 0,
+        "matched_depth": 0,
+        "overlap": 0.0,
+        "status": "MISSED"
+      },
+      {
+        "event": "Bondi Beach Shooting",
+        "event_claims": 55,
+        "matched_cluster": null,
+        "matched_claims": 0,
+        "matched_depth": 0,
+        "overlap": 0.0,
+        "status": "MISSED"
+      },
+      {
+        "event": "December 2023 Satellite Near-Collision Incident",
+        "event_claims": 23,
+        "matched_cluster": null,
+        "matched_claims": 0,
+        "matched_depth": 0,
+        "overlap": 0.0,
+        "status": "MISSED"
+      },
+      {
+        "event": "Reiner Family Tragedy",
+        "event_claims": 21,
+        "matched_cluster": null,
+        "matched_claims": 0,
+        "matched_depth": 0,
+        "overlap": 0.0,
+        "status": "MISSED"
+      },
+      {
+        "event": "Trump vs. BBC Defamation Lawsuit",
+        "event_claims": 18,
+        "matched_cluster": "Hong Kong",
+        "matched_claims": 201,
+        "matched_depth": 1,
+        "overlap": 0.04784688995215311,
+        "status": "MISSED"
+      },
+      {
+        "event": "Trump's Defamation Lawsuit Against BBC",
+        "event_claims": 5,
+        "matched_cluster": "Hong Kong",
+        "matched_claims": 201,
+        "matched_depth": 1,
+        "overlap": 0.019801980198019802,
+        "status": "MISSED"
+      },
+      {
+        "event": "Xu Bo Surrogacy Case",
+        "event_claims": 16,
+        "matched_cluster": null,
+        "matched_claims": 0,
+        "matched_depth": 0,
+        "overlap": 0.0,
+        "status": "MISSED"
+      }
+    ]
+  }
+}

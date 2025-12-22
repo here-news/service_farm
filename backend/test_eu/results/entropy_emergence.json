@@ -1,0 +1,607 @@
+{
+  "stats": {
+    "layers": [
+      {
+        "depth": 0,
+        "eu_count": 1215,
+        "merges": 0
+      },
+      {
+        "depth": 1,
+        "eu_count": 944,
+        "real_clusters": 271,
+        "merges": 271,
+        "avg_entropy": -0.40023872180516273
+      },
+      {
+        "depth": 2,
+        "eu_count": 832,
+        "real_clusters": 112,
+        "merges": 112,
+        "avg_entropy": -0.45419389779721414
+      },
+      {
+        "depth": 3,
+        "eu_count": 774,
+        "real_clusters": 58,
+        "merges": 58,
+        "avg_entropy": -0.47435955704120697
+      },
+      {
+        "depth": 4,
+        "eu_count": 737,
+        "real_clusters": 37,
+        "merges": 37,
+        "avg_entropy": -0.41887636637636644
+      },
+      {
+        "depth": 5,
+        "eu_count": 710,
+        "real_clusters": 27,
+        "merges": 27,
+        "avg_entropy": -0.3100772832048406
+      },
+      {
+        "depth": 6,
+        "eu_count": 686,
+        "real_clusters": 24,
+        "merges": 24,
+        "avg_entropy": -0.23453487854256838
+      },
+      {
+        "depth": 7,
+        "eu_count": 663,
+        "real_clusters": 23,
+        "merges": 23,
+        "avg_entropy": -0.20551292930412685
+      },
+      {
+        "depth": 8,
+        "eu_count": 641,
+        "real_clusters": 22,
+        "merges": 22,
+        "avg_entropy": -0.1943571650288634
+      }
+    ]
+  },
+  "analysis": {
+    "by_depth": {
+      "0": {
+        "count": 1215,
+        "avg_entropy": 0.0,
+        "top": [
+          {
+            "label": "At least 36 people were killed and 279 w...",
+            "mass": 0.1,
+            "entropy": 0.0,
+            "claims": 1,
+            "corr": 0
+          },
+          {
+            "label": "29 people were still hospitalised, with ...",
+            "mass": 0.1,
+            "entropy": 0.0,
+            "claims": 1,
+            "corr": 0
+          },
+          {
+            "label": "Firefighters have been trying for hours ...",
+            "mass": 0.1,
+            "entropy": 0.0,
+            "claims": 1,
+            "corr": 0
+          },
+          {
+            "label": "The fire was still burning in the early ...",
+            "mass": 0.1,
+            "entropy": 0.0,
+            "claims": 1,
+            "corr": 0
+          },
+          {
+            "label": "The fire department received reports of ...",
+            "mass": 0.1,
+            "entropy": 0.0,
+            "claims": 1,
+            "corr": 0
+          }
+        ]
+      },
+      "1": {
+        "count": 271,
+        "avg_entropy": -0.40023872180516273,
+        "top": [
+          {
+            "label": "Time",
+            "mass": 0.4,
+            "entropy": -2.2,
+            "claims": 2,
+            "corr": 1
+          },
+          {
+            "label": "Time",
+            "mass": 0.4,
+            "entropy": -2.2,
+            "claims": 2,
+            "corr": 1
+          },
+          {
+            "label": "Time",
+            "mass": 0.4,
+            "entropy": -2.2,
+            "claims": 2,
+            "corr": 1
+          },
+          {
+            "label": "Sam Altman",
+            "mass": 0.4,
+            "entropy": -2.1,
+            "claims": 2,
+            "corr": 1
+          },
+          {
+            "label": "Charlie Kirk",
+            "mass": 0.4,
+            "entropy": -2.1,
+            "claims": 2,
+            "corr": 1
+          }
+        ]
+      },
+      "2": {
+        "count": 112,
+        "avg_entropy": -0.45419389779721414,
+        "top": [
+          {
+            "label": "Leo XIV",
+            "mass": 0.6000000000000001,
+            "entropy": -1.4469387755102041,
+            "claims": 3,
+            "corr": 3
+          },
+          {
+            "label": "Wang Fuk Court",
+            "mass": 0.5733333333333334,
+            "entropy": -1.1666666666666667,
+            "claims": 4,
+            "corr": 2
+          },
+          {
+            "label": "Time",
+            "mass": 0.53,
+            "entropy": -0.9533333333333331,
+            "claims": 3,
+            "corr": 2
+          },
+          {
+            "label": "Jimmy Lai",
+            "mass": 0.5066666666666667,
+            "entropy": -0.9333333333333333,
+            "claims": 4,
+            "corr": 1
+          },
+          {
+            "label": "Brown University Library",
+            "mass": 0.5066666666666667,
+            "entropy": -0.9333333333333333,
+            "claims": 4,
+            "corr": 1
+          }
+        ]
+      },
+      "3": {
+        "count": 58,
+        "avg_entropy": -0.47435955704120697,
+        "top": [
+          {
+            "label": "Jimmy Lai",
+            "mass": 0.9085714285714286,
+            "entropy": -0.7714285714285715,
+            "claims": 8,
+            "corr": 1
+          },
+          {
+            "label": "Wang Fuk Court",
+            "mass": 0.8800000000000001,
+            "entropy": -0.7,
+            "claims": 8,
+            "corr": 0
+          },
+          {
+            "label": "Hong Kong",
+            "mass": 0.8800000000000001,
+            "entropy": -0.7,
+            "claims": 8,
+            "corr": 0
+          },
+          {
+            "label": "Bondi Beach",
+            "mass": 0.8800000000000001,
+            "entropy": -0.7,
+            "claims": 8,
+            "corr": 0
+          },
+          {
+            "label": "Bondi Beach",
+            "mass": 0.8800000000000001,
+            "entropy": -0.7,
+            "claims": 8,
+            "corr": 0
+          }
+        ]
+      },
+      "4": {
+        "count": 37,
+        "avg_entropy": -0.41887636637636644,
+        "top": [
+          {
+            "label": "Jimmy Lai",
+            "mass": 1.7733333333333334,
+            "entropy": -0.7166666666666667,
+            "claims": 16,
+            "corr": 1
+          },
+          {
+            "label": "Hong Kong",
+            "mass": 1.7733333333333334,
+            "entropy": -0.7166666666666667,
+            "claims": 16,
+            "corr": 1
+          },
+          {
+            "label": "Wang Fuk Court",
+            "mass": 1.7600000000000002,
+            "entropy": -0.7,
+            "claims": 16,
+            "corr": 0
+          },
+          {
+            "label": "Wang Fuk Court",
+            "mass": 1.7600000000000002,
+            "entropy": -0.7,
+            "claims": 16,
+            "corr": 0
+          },
+          {
+            "label": "Jimmy Lai",
+            "mass": 1.7600000000000002,
+            "entropy": -0.7,
+            "claims": 16,
+            "corr": 0
+          }
+        ]
+      },
+      "5": {
+        "count": 27,
+        "avg_entropy": -0.3100772832048406,
+        "top": [
+          {
+            "label": "Jimmy Lai",
+            "mass": 3.526451612903226,
+            "entropy": -0.7040322580645162,
+            "claims": 32,
+            "corr": 1
+          },
+          {
+            "label": "Hong Kong",
+            "mass": 2.6486956521739136,
+            "entropy": -0.7072463768115942,
+            "claims": 24,
+            "corr": 1
+          },
+          {
+            "label": "Wang Fuk Court",
+            "mass": 2.6400000000000006,
+            "entropy": -0.7,
+            "claims": 24,
+            "corr": 0
+          },
+          {
+            "label": "Do Kwon",
+            "mass": 2.566363636363637,
+            "entropy": -0.6517594422485729,
+            "claims": 23,
+            "corr": 4
+          },
+          {
+            "label": "Bondi Beach",
+            "mass": 2.2421052631578946,
+            "entropy": -0.7421052631578947,
+            "claims": 20,
+            "corr": 4
+          }
+        ]
+      },
+      "6": {
+        "count": 24,
+        "avg_entropy": -0.23453487854256838,
+        "top": [
+          {
+            "label": "Jimmy Lai",
+            "mass": 4.420512820512821,
+            "entropy": -0.7102564102564103,
+            "claims": 40,
+            "corr": 4
+          },
+          {
+            "label": "Wang Fuk Court",
+            "mass": 4.4,
+            "entropy": -0.7,
+            "claims": 40,
+            "corr": 0
+          },
+          {
+            "label": "Hong Kong",
+            "mass": 2.7583333333333333,
+            "entropy": -0.6327021696252465,
+            "claims": 25,
+            "corr": 1
+          },
+          {
+            "label": "Do Kwon",
+            "mass": 2.6747826086956525,
+            "entropy": -0.5840150930451934,
+            "claims": 24,
+            "corr": 4
+          },
+          {
+            "label": "Charles III",
+            "mass": 1.3200000000000003,
+            "entropy": -0.2224913494809691,
+            "claims": 12,
+            "corr": 0
+          }
+        ]
+      },
+      "7": {
+        "count": 23,
+        "avg_entropy": -0.20551292930412685,
+        "top": [
+          {
+            "label": "Jimmy Lai",
+            "mass": 4.535000000000001,
+            "entropy": -0.6657098611802443,
+            "claims": 41,
+            "corr": 5
+          },
+          {
+            "label": "Wang Fuk Court",
+            "mass": 4.510000000000001,
+            "entropy": -0.6535147392290248,
+            "claims": 41,
+            "corr": 0
+          },
+          {
+            "label": "Hong Kong",
+            "mass": 2.868,
+            "entropy": -0.5735007849293563,
+            "claims": 26,
+            "corr": 1
+          },
+          {
+            "label": "Do Kwon",
+            "mass": 2.783333333333333,
+            "entropy": -0.5276870748299322,
+            "claims": 25,
+            "corr": 4
+          },
+          {
+            "label": "Charles III",
+            "mass": 1.4300000000000002,
+            "entropy": -0.20138504155124654,
+            "claims": 13,
+            "corr": 0
+          }
+        ]
+      },
+      "8": {
+        "count": 22,
+        "avg_entropy": -0.1943571650288634,
+        "top": [
+          {
+            "label": "Jimmy Lai",
+            "mass": 4.649268292682927,
+            "entropy": -0.6271604227258332,
+            "claims": 42,
+            "corr": 6
+          },
+          {
+            "label": "Wang Fuk Court",
+            "mass": 4.620000000000001,
+            "entropy": -0.6121900826446283,
+            "claims": 42,
+            "corr": 0
+          },
+          {
+            "label": "Hong Kong",
+            "mass": 2.977692307692308,
+            "entropy": -0.5256980056980057,
+            "claims": 27,
+            "corr": 1
+          },
+          {
+            "label": "Do Kwon",
+            "mass": 2.892,
+            "entropy": -0.4801709401709401,
+            "claims": 26,
+            "corr": 4
+          },
+          {
+            "label": "Charles III",
+            "mass": 1.5400000000000003,
+            "entropy": -0.17845804988662134,
+            "claims": 14,
+            "corr": 0
+          }
+        ]
+      }
+    }
+  },
+  "comparisons": [
+    {
+      "event": "Wang Fuk Court Fire",
+      "event_claims": 130,
+      "match_label": "Wang Fuk Court",
+      "match_depth": 7,
+      "match_claims": 41,
+      "match_entropy": -0.6535147392290248,
+      "overlap": 0.20422535211267606,
+      "status": "PARTIAL"
+    },
+    {
+      "event": "Charlie Kirk Assassination",
+      "event_claims": 35,
+      "match_label": "Tyler Robinson",
+      "match_depth": 4,
+      "match_claims": 5,
+      "match_entropy": -0.7061728395061729,
+      "overlap": 0.1111111111111111,
+      "status": "MISSED"
+    },
+    {
+      "event": "Jimmy Lai Imprisonment",
+      "event_claims": 117,
+      "match_label": "Jimmy Lai",
+      "match_depth": 8,
+      "match_claims": 42,
+      "match_entropy": -0.6271604227258332,
+      "overlap": 0.33613445378151263,
+      "status": "PARTIAL"
+    },
+    {
+      "event": "Do Kwon Sentencing",
+      "event_claims": 36,
+      "match_label": "Do Kwon",
+      "match_depth": 7,
+      "match_claims": 25,
+      "match_entropy": -0.5276870748299322,
+      "overlap": 0.4523809523809524,
+      "status": "PARTIAL"
+    },
+    {
+      "event": "TIME Person of the Year 2025",
+      "event_claims": 29,
+      "match_label": "Leo XIV",
+      "match_depth": 2,
+      "match_claims": 3,
+      "match_entropy": -1.4469387755102041,
+      "overlap": 0.10344827586206896,
+      "status": "MISSED"
+    },
+    {
+      "event": "AI Innovators on TIME Covers",
+      "event_claims": 12,
+      "match_label": "Time",
+      "match_depth": 2,
+      "match_claims": 3,
+      "match_entropy": -0.9533333333333331,
+      "overlap": 0.25,
+      "status": "PARTIAL"
+    },
+    {
+      "event": "Venezuelan Oil Tanker Seizure",
+      "event_claims": 40,
+      "match_label": "Venezuela",
+      "match_depth": 8,
+      "match_claims": 9,
+      "match_entropy": -0.22287581699346415,
+      "overlap": 0.1951219512195122,
+      "status": "MISSED"
+    },
+    {
+      "event": "King Charles III's Cancer Treatment Announcement",
+      "event_claims": 23,
+      "match_label": "Charles III",
+      "match_depth": 6,
+      "match_claims": 12,
+      "match_entropy": -0.2224913494809691,
+      "overlap": 0.34615384615384615,
+      "status": "PARTIAL"
+    },
+    {
+      "event": "NS-37 Mission",
+      "event_claims": 14,
+      "match_label": "Blue Origin",
+      "match_depth": 7,
+      "match_claims": 8,
+      "match_entropy": 0.10222222222222233,
+      "overlap": 0.29411764705882354,
+      "status": "PARTIAL"
+    },
+    {
+      "event": "Brown University Shooting",
+      "event_claims": 49,
+      "match_label": "Brown University Library",
+      "match_depth": 5,
+      "match_claims": 18,
+      "match_entropy": -0.7718954248366013,
+      "overlap": 0.3137254901960784,
+      "status": "PARTIAL"
+    },
+    {
+      "event": "Bondi Beach Shooting",
+      "event_claims": 55,
+      "match_label": "Bondi Beach",
+      "match_depth": 5,
+      "match_claims": 20,
+      "match_entropy": -0.7421052631578947,
+      "overlap": 0.36363636363636365,
+      "status": "PARTIAL"
+    },
+    {
+      "event": "December 2023 Satellite Near-Collision Incident",
+      "event_claims": 23,
+      "match_label": "CAS Space",
+      "match_depth": 3,
+      "match_claims": 8,
+      "match_entropy": -0.5,
+      "overlap": 0.19230769230769232,
+      "status": "MISSED"
+    },
+    {
+      "event": "Reiner Family Tragedy",
+      "event_claims": 21,
+      "match_label": "Nick Reiner",
+      "match_depth": 8,
+      "match_claims": 9,
+      "match_entropy": 0.0534626038781163,
+      "overlap": 0.15384615384615385,
+      "status": "MISSED"
+    },
+    {
+      "event": "Trump vs. BBC Defamation Lawsuit",
+      "event_claims": 18,
+      "match_label": "BBC",
+      "match_depth": 4,
+      "match_claims": 12,
+      "match_entropy": -0.7,
+      "overlap": 0.07142857142857142,
+      "status": "MISSED"
+    },
+    {
+      "event": "Trump's Defamation Lawsuit Against BBC",
+      "event_claims": 5,
+      "match_label": "BBC",
+      "match_depth": 1,
+      "match_claims": 2,
+      "match_entropy": -0.30000000000000004,
+      "overlap": 0.16666666666666666,
+      "status": "MISSED"
+    },
+    {
+      "event": "Xu Bo Surrogacy Case",
+      "event_claims": 16,
+      "match_label": "Xu Bo",
+      "match_depth": 8,
+      "match_claims": 9,
+      "match_entropy": -0.1756944444444445,
+      "overlap": 0.3888888888888889,
+      "status": "PARTIAL"
+    }
+  ],
+  "weights": {
+    "alpha": 1.0,
+    "beta": 2.0,
+    "gamma": 0.5
+  }
+}

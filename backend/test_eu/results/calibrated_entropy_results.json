@@ -1,0 +1,32 @@
+{
+  "timestamp": "2025-12-20T18:19:53.610006",
+  "optimized_params": {
+    "base": 1.0,
+    "corr_weight": 0.4903716149511937,
+    "contra_weight": 0.27100877336835566,
+    "corr_exponent": 0.3,
+    "contra_exponent": 0.3128167022731936
+  },
+  "independence": {
+    "average": 0.14786314863390723,
+    "sample_size": 30
+  },
+  "evaluation": {
+    "v1_original": {
+      "correlation": 0.6525983298281677,
+      "mae": 0.3936357929657392,
+      "max_error": 0.7960279229160082
+    },
+    "v2_fixed": {
+      "correlation": 0.6558770747383091,
+      "mae": 0.3515878445109185,
+      "max_error": 0.7613705638880109
+    },
+    "v3_calibrated": {
+      "correlation": 0.7099178390205856,
+      "mae": 0.1719876666061245,
+      "max_error": 0.6818073828584628
+    }
+  },
+  "training_data_size": 41
+}

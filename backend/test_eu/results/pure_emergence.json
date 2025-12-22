@@ -1,0 +1,611 @@
+{
+  "emergence_stats": {
+    "corr_clusters": 27,
+    "entity_clusters": 24,
+    "page_clusters": 109,
+    "merged_clusters": 45
+  },
+  "clusters": [
+    {
+      "id": "merged_3",
+      "claim_count": 116,
+      "mass": 0.8026986506746627,
+      "seed_type": "entity+corroboration+page",
+      "seed_value": "Wang Fuk Court",
+      "internal_corr": 9,
+      "internal_contra": 6,
+      "page_count": 21
+    },
+    {
+      "id": "merged_8",
+      "claim_count": 61,
+      "mass": 0.6634019708401968,
+      "seed_type": "entity+corroboration+page",
+      "seed_value": "Brown University Library",
+      "internal_corr": 9,
+      "internal_contra": 2,
+      "page_count": 9
+    },
+    {
+      "id": "merged_10",
+      "claim_count": 48,
+      "mass": 0.6356416911975762,
+      "seed_type": "entity+corroboration+page",
+      "seed_value": "Charlie Kirk",
+      "internal_corr": 14,
+      "internal_contra": 2,
+      "page_count": 9
+    },
+    {
+      "id": "merged_9",
+      "claim_count": 76,
+      "mass": 0.6291625738244748,
+      "seed_type": "entity+corroboration+page",
+      "seed_value": "Venezuela",
+      "internal_corr": 5,
+      "internal_contra": 1,
+      "page_count": 11
+    },
+    {
+      "id": "merged_2",
+      "claim_count": 132,
+      "mass": 0.6233541522091142,
+      "seed_type": "entity+corroboration+page",
+      "seed_value": "Donald Trump",
+      "internal_corr": 14,
+      "internal_contra": 0,
+      "page_count": 38
+    },
+    {
+      "id": "merged_1",
+      "claim_count": 150,
+      "mass": 0.6213422818791947,
+      "seed_type": "entity+page",
+      "seed_value": "Hong Kong",
+      "internal_corr": 7,
+      "internal_contra": 0,
+      "page_count": 36
+    },
+    {
+      "id": "merged_0",
+      "claim_count": 152,
+      "mass": 0.6057511327988847,
+      "seed_type": "entity+corroboration+page",
+      "seed_value": "Jimmy Lai",
+      "internal_corr": 33,
+      "internal_contra": 0,
+      "page_count": 13
+    },
+    {
+      "id": "merged_4",
+      "claim_count": 74,
+      "mass": 0.5875796547290347,
+      "seed_type": "entity+corroboration+page",
+      "seed_value": "Bondi Beach",
+      "internal_corr": 5,
+      "internal_contra": 0,
+      "page_count": 9
+    },
+    {
+      "id": "merged_6",
+      "claim_count": 67,
+      "mass": 0.5843499363927027,
+      "seed_type": "entity+corroboration+page",
+      "seed_value": "as Gaza peacemaker Trump & murdered Charlie Kirk a",
+      "internal_corr": 28,
+      "internal_contra": 2,
+      "page_count": 4
+    },
+    {
+      "id": "merged_5",
+      "claim_count": 72,
+      "mass": 0.5674992573794907,
+      "seed_type": "entity+corroboration+page",
+      "seed_value": "Rob Reiner",
+      "internal_corr": 6,
+      "internal_contra": 0,
+      "page_count": 9
+    },
+    {
+      "id": "merged_16",
+      "claim_count": 29,
+      "mass": 0.5511509344151273,
+      "seed_type": "entity+corroboration+page",
+      "seed_value": "Xu Bo",
+      "internal_corr": 8,
+      "internal_contra": 3,
+      "page_count": 4
+    },
+    {
+      "id": "merged_7",
+      "claim_count": 61,
+      "mass": 0.5001232823156065,
+      "seed_type": "entity+corroboration+page",
+      "seed_value": "Do Kwon",
+      "internal_corr": 6,
+      "internal_contra": 0,
+      "page_count": 6
+    },
+    {
+      "id": "merged_11",
+      "claim_count": 38,
+      "mass": 0.4977217036406753,
+      "seed_type": "entity+corroboration+page",
+      "seed_value": "Charles III",
+      "internal_corr": 1,
+      "internal_contra": 1,
+      "page_count": 6
+    },
+    {
+      "id": "merged_12",
+      "claim_count": 27,
+      "mass": 0.3962027453909073,
+      "seed_type": "entity+page",
+      "seed_value": "Nick Reiner",
+      "internal_corr": 1,
+      "internal_contra": 0,
+      "page_count": 6
+    },
+    {
+      "id": "merged_15",
+      "claim_count": 20,
+      "mass": 0.3774210690497414,
+      "seed_type": "entity+page",
+      "seed_value": "Tai Po District",
+      "internal_corr": 0,
+      "internal_contra": 0,
+      "page_count": 7
+    },
+    {
+      "id": "merged_13",
+      "claim_count": 27,
+      "mass": 0.36759875678691867,
+      "seed_type": "entity+page",
+      "seed_value": "Tyler Robinson",
+      "internal_corr": 3,
+      "internal_contra": 0,
+      "page_count": 4
+    },
+    {
+      "id": "merged_22",
+      "claim_count": 17,
+      "mass": 0.3415707627432896,
+      "seed_type": "corroboration+page",
+      "seed_value": "Next Blue Origin tourist launch will fly wheelchai",
+      "internal_corr": 0,
+      "internal_contra": 0,
+      "page_count": 3
+    },
+    {
+      "id": "merged_14",
+      "claim_count": 35,
+      "mass": 0.3300217448937494,
+      "seed_type": "entity+corroboration+page",
+      "seed_value": "CAS Space",
+      "internal_corr": 2,
+      "internal_contra": 0,
+      "page_count": 3
+    },
+    {
+      "id": "merged_25",
+      "claim_count": 13,
+      "mass": 0.2754571188869796,
+      "seed_type": "page",
+      "seed_value": "What does AI \u2018think\u2019 about Time\u2019s 2025 person of t",
+      "internal_corr": 0,
+      "internal_contra": 0,
+      "page_count": 1
+    },
+    {
+      "id": "merged_30",
+      "claim_count": 11,
+      "mass": 0.2746068125805278,
+      "seed_type": "page",
+      "seed_value": "Rob Reiner\u2019s five best films",
+      "internal_corr": 0,
+      "internal_contra": 0,
+      "page_count": 1
+    },
+    {
+      "id": "merged_26",
+      "claim_count": 13,
+      "mass": 0.25827763170749246,
+      "seed_type": "page",
+      "seed_value": "At least 2 killed and several more hurt in shootin",
+      "internal_corr": 0,
+      "internal_contra": 0,
+      "page_count": 1
+    },
+    {
+      "id": "merged_24",
+      "claim_count": 15,
+      "mass": 0.252690483223688,
+      "seed_type": "page",
+      "seed_value": "Who Is Xu Bo? Chinese Billionaire Allegedly Has Ov",
+      "internal_corr": 0,
+      "internal_contra": 0,
+      "page_count": 1
+    },
+    {
+      "id": "merged_28",
+      "claim_count": 12,
+      "mass": 0.24894270735193458,
+      "seed_type": "page",
+      "seed_value": "King 'appalled and saddened' by Bondi attack on Je",
+      "internal_corr": 0,
+      "internal_contra": 0,
+      "page_count": 1
+    },
+    {
+      "id": "merged_17",
+      "claim_count": 15,
+      "mass": 0.24519048322368797,
+      "seed_type": "page",
+      "seed_value": "Hong Kong High-Rise Fire Kills 44, Hundreds Missin",
+      "internal_corr": 0,
+      "internal_contra": 0,
+      "page_count": 1
+    },
+    {
+      "id": "merged_23",
+      "claim_count": 15,
+      "mass": 0.23769048322368796,
+      "seed_type": "page",
+      "seed_value": "New Shepard\u2019s Crewed NS-37 Mission Targets Liftoff",
+      "internal_corr": 0,
+      "internal_contra": 0,
+      "page_count": 1
+    },
+    {
+      "id": "merged_20",
+      "claim_count": 15,
+      "mass": 0.23423810227130698,
+      "seed_type": "page",
+      "seed_value": "Hong Kong Church Rallies After 60 Congregants Lose",
+      "internal_corr": 1,
+      "internal_contra": 0,
+      "page_count": 1
+    },
+    {
+      "id": "merged_29",
+      "claim_count": 11,
+      "mass": 0.22960681258052784,
+      "seed_type": "page",
+      "seed_value": "The Real Reason for the Hong Kong Fire",
+      "internal_corr": 0,
+      "internal_contra": 0,
+      "page_count": 1
+    },
+    {
+      "id": "merged_31",
+      "claim_count": 11,
+      "mass": 0.225288630762346,
+      "seed_type": "page",
+      "seed_value": "Chinese Billionaires Exploit U.S. Surrogacy, Turni",
+      "internal_corr": 0,
+      "internal_contra": 0,
+      "page_count": 1
+    },
+    {
+      "id": "merged_18",
+      "claim_count": 15,
+      "mass": 0.22269048322368795,
+      "seed_type": "page",
+      "seed_value": "pg_mkgtrhac",
+      "internal_corr": 0,
+      "internal_contra": 0,
+      "page_count": 1
+    },
+    {
+      "id": "merged_40",
+      "claim_count": 9,
+      "mass": 0.21973049645136955,
+      "seed_type": "page",
+      "seed_value": "Jeff Bezos and Elon Musk Are Competing in New Race",
+      "internal_corr": 0,
+      "internal_contra": 0,
+      "page_count": 1
+    },
+    {
+      "id": "merged_33",
+      "claim_count": 10,
+      "mass": 0.20989342662061017,
+      "seed_type": "page",
+      "seed_value": "Political commentator remanded after charge over n",
+      "internal_corr": 0,
+      "internal_contra": 0,
+      "page_count": 1
+    },
+    {
+      "id": "merged_27",
+      "claim_count": 13,
+      "mass": 0.2079571188869796,
+      "seed_type": "page",
+      "seed_value": "The Worst Ways RFK Jr. Has Harmed Public Health Th",
+      "internal_corr": 0,
+      "internal_contra": 0,
+      "page_count": 1
+    },
+    {
+      "id": "merged_21",
+      "claim_count": 15,
+      "mass": 0.20769048322368794,
+      "seed_type": "page",
+      "seed_value": "Death Count In Deadly Hong Kong Fire Rises To 160",
+      "internal_corr": 0,
+      "internal_contra": 0,
+      "page_count": 1
+    },
+    {
+      "id": "merged_39",
+      "claim_count": 9,
+      "mass": 0.20473049645136954,
+      "seed_type": "page",
+      "seed_value": "Jeffrey Epstein Photos: Full List of Celebrities S",
+      "internal_corr": 0,
+      "internal_contra": 0,
+      "page_count": 1
+    },
+    {
+      "id": "merged_32",
+      "claim_count": 10,
+      "mass": 0.20239342662061016,
+      "seed_type": "page",
+      "seed_value": "HK solicitor taken in by nat. sec police, as civic",
+      "internal_corr": 0,
+      "internal_contra": 0,
+      "page_count": 1
+    },
+    {
+      "id": "merged_36",
+      "claim_count": 10,
+      "mass": 0.20239342662061016,
+      "seed_type": "page",
+      "seed_value": "Starlink satellite narrowly avoids close encounter",
+      "internal_corr": 0,
+      "internal_contra": 0,
+      "page_count": 1
+    },
+    {
+      "id": "merged_19",
+      "claim_count": 15,
+      "mass": 0.20019048322368793,
+      "seed_type": "page",
+      "seed_value": "Hong Kong: UN rights chief voices concern over \u2018dr",
+      "internal_corr": 0,
+      "internal_contra": 0,
+      "page_count": 1
+    },
+    {
+      "id": "merged_42",
+      "claim_count": 8,
+      "mass": 0.1990231419373677,
+      "seed_type": "page",
+      "seed_value": "Foreign smears over Jimmy Lai trial dismissed as b",
+      "internal_corr": 0,
+      "internal_contra": 0,
+      "page_count": 1
+    },
+    {
+      "id": "merged_34",
+      "claim_count": 10,
+      "mass": 0.1948934266206102,
+      "seed_type": "page",
+      "seed_value": "Trump expands Venezuela sanctions as Maduro decrie",
+      "internal_corr": 0,
+      "internal_contra": 0,
+      "page_count": 1
+    },
+    {
+      "id": "merged_35",
+      "claim_count": 10,
+      "mass": 0.1873934266206102,
+      "seed_type": "page",
+      "seed_value": "Blue Origin\u2019s Next Mission Is Helping Redefine Who",
+      "internal_corr": 0,
+      "internal_contra": 0,
+      "page_count": 1
+    },
+    {
+      "id": "merged_43",
+      "claim_count": 8,
+      "mass": 0.18402314193736768,
+      "seed_type": "page",
+      "seed_value": "NBA champion calls on officials to 'publicly hang'",
+      "internal_corr": 0,
+      "internal_contra": 0,
+      "page_count": 1
+    },
+    {
+      "id": "merged_37",
+      "claim_count": 9,
+      "mass": 0.18223049645136952,
+      "seed_type": "page",
+      "seed_value": "One fire, two systems: Hong Kong's grief meets Bei",
+      "internal_corr": 0,
+      "internal_contra": 0,
+      "page_count": 1
+    },
+    {
+      "id": "merged_41",
+      "claim_count": 9,
+      "mass": 0.18223049645136952,
+      "seed_type": "page",
+      "seed_value": "Brown University shooting condemned by Trump, Patr",
+      "internal_corr": 0,
+      "internal_contra": 0,
+      "page_count": 1
+    },
+    {
+      "id": "merged_44",
+      "claim_count": 7,
+      "mass": 0.17014286241776594,
+      "seed_type": "page",
+      "seed_value": "The Architects of AI Are TIME\u2019s 2025 Person of the",
+      "internal_corr": 0,
+      "internal_contra": 0,
+      "page_count": 1
+    },
+    {
+      "id": "merged_38",
+      "claim_count": 9,
+      "mass": 0.15973049645136955,
+      "seed_type": "page",
+      "seed_value": "President Lee extends his condolences following th",
+      "internal_corr": 0,
+      "internal_contra": 0,
+      "page_count": 1
+    }
+  ],
+  "validation": [
+    {
+      "event_name": "Wang Fuk Court Fire",
+      "event_claims": 130,
+      "best_cluster_id": "merged_3",
+      "best_cluster_size": 116,
+      "best_cluster_seed": "Wang Fuk Court",
+      "overlap": 0.41379310344827586,
+      "status": "PARTIAL"
+    },
+    {
+      "event_name": "Charlie Kirk Assassination",
+      "event_claims": 35,
+      "best_cluster_id": "merged_10",
+      "best_cluster_size": 48,
+      "best_cluster_seed": "Charlie Kirk",
+      "overlap": 0.66,
+      "status": "FOUND"
+    },
+    {
+      "event_name": "Jimmy Lai Imprisonment",
+      "event_claims": 117,
+      "best_cluster_id": "merged_0",
+      "best_cluster_size": 152,
+      "best_cluster_seed": "Jimmy Lai",
+      "overlap": 0.7467532467532467,
+      "status": "FOUND"
+    },
+    {
+      "event_name": "Do Kwon Sentencing",
+      "event_claims": 36,
+      "best_cluster_id": "merged_7",
+      "best_cluster_size": 61,
+      "best_cluster_seed": "Do Kwon",
+      "overlap": 0.5901639344262295,
+      "status": "FOUND"
+    },
+    {
+      "event_name": "TIME Person of the Year 2025",
+      "event_claims": 29,
+      "best_cluster_id": "merged_6",
+      "best_cluster_size": 67,
+      "best_cluster_seed": "as Gaza peacemaker Trump & murdered Charlie Kirk a",
+      "overlap": 0.43283582089552236,
+      "status": "PARTIAL"
+    },
+    {
+      "event_name": "AI Innovators on TIME Covers",
+      "event_claims": 12,
+      "best_cluster_id": "merged_6",
+      "best_cluster_size": 67,
+      "best_cluster_seed": "as Gaza peacemaker Trump & murdered Charlie Kirk a",
+      "overlap": 0.1791044776119403,
+      "status": "MISSED"
+    },
+    {
+      "event_name": "Venezuelan Oil Tanker Seizure",
+      "event_claims": 40,
+      "best_cluster_id": "merged_9",
+      "best_cluster_size": 76,
+      "best_cluster_seed": "Venezuela",
+      "overlap": 0.43209876543209874,
+      "status": "PARTIAL"
+    },
+    {
+      "event_name": "King Charles III's Cancer Treatment Announcement",
+      "event_claims": 23,
+      "best_cluster_id": "merged_11",
+      "best_cluster_size": 38,
+      "best_cluster_seed": "Charles III",
+      "overlap": 0.6052631578947368,
+      "status": "FOUND"
+    },
+    {
+      "event_name": "NS-37 Mission",
+      "event_claims": 14,
+      "best_cluster_id": "merged_35",
+      "best_cluster_size": 10,
+      "best_cluster_seed": "Blue Origin\u2019s Next Mission Is Helping Redefine Who",
+      "overlap": 0.7142857142857143,
+      "status": "FOUND"
+    },
+    {
+      "event_name": "Brown University Shooting",
+      "event_claims": 49,
+      "best_cluster_id": "merged_8",
+      "best_cluster_size": 61,
+      "best_cluster_seed": "Brown University Library",
+      "overlap": 0.5068493150684932,
+      "status": "FOUND"
+    },
+    {
+      "event_name": "Bondi Beach Shooting",
+      "event_claims": 55,
+      "best_cluster_id": "merged_4",
+      "best_cluster_size": 74,
+      "best_cluster_seed": "Bondi Beach",
+      "overlap": 0.7432432432432432,
+      "status": "FOUND"
+    },
+    {
+      "event_name": "December 2023 Satellite Near-Collision Incident",
+      "event_claims": 23,
+      "best_cluster_id": "merged_14",
+      "best_cluster_size": 35,
+      "best_cluster_seed": "CAS Space",
+      "overlap": 0.6571428571428571,
+      "status": "FOUND"
+    },
+    {
+      "event_name": "Reiner Family Tragedy",
+      "event_claims": 21,
+      "best_cluster_id": "merged_5",
+      "best_cluster_size": 72,
+      "best_cluster_seed": "Rob Reiner",
+      "overlap": 0.2916666666666667,
+      "status": "PARTIAL"
+    },
+    {
+      "event_name": "Trump vs. BBC Defamation Lawsuit",
+      "event_claims": 18,
+      "best_cluster_id": "merged_2",
+      "best_cluster_size": 132,
+      "best_cluster_seed": "Donald Trump",
+      "overlap": 0.13636363636363635,
+      "status": "MISSED"
+    },
+    {
+      "event_name": "Trump's Defamation Lawsuit Against BBC",
+      "event_claims": 5,
+      "best_cluster_id": "merged_2",
+      "best_cluster_size": 132,
+      "best_cluster_seed": "Donald Trump",
+      "overlap": 0.03787878787878788,
+      "status": "MISSED"
+    },
+    {
+      "event_name": "Xu Bo Surrogacy Case",
+      "event_claims": 16,
+      "best_cluster_id": "merged_16",
+      "best_cluster_size": 29,
+      "best_cluster_seed": "Xu Bo",
+      "overlap": 0.5517241379310345,
+      "status": "FOUND"
+    }
+  ],
+  "coverage": {
+    "total_claims": 1215,
+    "clustered": 1213,
+    "unclustered": 2
+  }
+}

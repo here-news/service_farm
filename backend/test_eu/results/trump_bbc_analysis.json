@@ -1,0 +1,77 @@
+{
+  "current_system": {
+    "parent": {
+      "id": "ev_bca3lue9",
+      "name": "Trump vs. BBC Defamation Lawsuit",
+      "claim_ids": [
+        "cl_78ep5tay",
+        "cl_3tsb94af",
+        "cl_w6dogw6n",
+        "cl_5fghjm64",
+        "cl_wxv69lw2",
+        "cl_kly7eyhd",
+        "cl_b1ys82vh",
+        "cl_pnxras00",
+        "cl_ufi00isj",
+        "cl_jmk1uzl9",
+        "cl_lzguxucp",
+        "cl_1q30dns3",
+        "cl_af5fqmhz",
+        "cl_mbzu0ewk",
+        "cl_mttlt178",
+        "cl_5dlscgnw",
+        "cl_lxgxjnlp",
+        "cl_a4vbwvtb"
+      ]
+    },
+    "child": {
+      "id": "ev_zi427c8u",
+      "name": "Trump's Defamation Lawsuit Against BBC",
+      "claim_ids": [
+        "cl_77gzjfhq",
+        "cl_3zjy4j69",
+        "cl_s0mjr6a5",
+        "cl_n2xlfexc",
+        "cl_swc9ym0r"
+      ]
+    },
+    "overlap": {
+      "parent_claims": 18,
+      "child_claims": 5,
+      "shared_claims": 0,
+      "parent_only": 18,
+      "child_only": 5,
+      "claim_overlap": 0.0,
+      "entity_jaccard": 0.25,
+      "shared_entities": [
+        "Donald Trump",
+        "BBC"
+      ]
+    }
+  },
+  "eu_model": {
+    "total_claims": 23,
+    "total_mass": 3.442409428672384,
+    "mean_mass": 0.14966997515966887,
+    "unique_entities": 8,
+    "top_entities": [
+      "Donald Trump",
+      "BBC",
+      "Southern District of Florida",
+      "Gregory Germain",
+      "Samir Shah",
+      "Miami",
+      "Florida",
+      "White House"
+    ],
+    "internal_corroborations": 6,
+    "internal_contradictions": 1,
+    "would_form_single_bundle": true,
+    "reasoning": "All claims share core entities (Trump, BBC), high internal corroboration, no semantic split justifies separate bundle"
+  },
+  "conclusion": {
+    "entity_jaccard": 0.25,
+    "is_duplicate": false,
+    "eu_prevents_duplicate": true
+  }
+}

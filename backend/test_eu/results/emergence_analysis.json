@@ -1,0 +1,286 @@
+{
+  "accuracy": {
+    "total_clusters": 17,
+    "high_overlap": 3,
+    "medium_overlap": 9,
+    "low_overlap": 5,
+    "matches": [
+      {
+        "cluster_size": 114,
+        "matched_event": "Jimmy Lai Imprisonment",
+        "overlap": 0.7368421052631579,
+        "core_entities": [
+          "Jimmy Lai"
+        ]
+      },
+      {
+        "cluster_size": 60,
+        "matched_event": "Bondi Beach Shooting",
+        "overlap": 0.8253968253968254,
+        "core_entities": [
+          "Bondi Beach"
+        ]
+      },
+      {
+        "cluster_size": 32,
+        "matched_event": "Charlie Kirk Assassination",
+        "overlap": 0.717948717948718,
+        "core_entities": [
+          "Charlie Kirk"
+        ]
+      }
+    ],
+    "potential_new_events": [
+      {
+        "cluster_size": 105,
+        "total_mass": 22.004533253623507,
+        "core_entities": [
+          "Hong Kong"
+        ],
+        "sample_claims": [
+          "Hong Kong apartment fire death toll hits 128 as city rushes to quell anger",
+          "Apple Daily provided extensive coverage and support for protests in Hong Kong.",
+          "29 people were still hospitalised, with seven of them in critical condition"
+        ]
+      },
+      {
+        "cluster_size": 84,
+        "total_mass": 13.664294764884309,
+        "core_entities": [
+          "Donald Trump"
+        ],
+        "sample_claims": [
+          "Mike Lawler criticized Donald Trump's statement about Rob Reiner's death.",
+          "Donald Trump is suing the BBC for $10 billion for defamation.",
+          "Sebastien Lai urged U.S. President Donald Trump and U.K. Prime Minister Keir Sta"
+        ]
+      },
+      {
+        "cluster_size": 56,
+        "total_mass": 6.333585356220371,
+        "core_entities": [
+          "Rob Reiner"
+        ],
+        "sample_claims": [
+          "Rob Reiner made a sequel to 'This Is Spinal Tap' this year.",
+          "Rob Reiner and his wife Michele were found stabbed to death in their home.",
+          "Mike Lawler criticized Donald Trump's statement about Rob Reiner's death."
+        ]
+      },
+      {
+        "cluster_size": 26,
+        "total_mass": 3.2906920184826607,
+        "core_entities": [
+          "United States"
+        ],
+        "sample_claims": [
+          "Washington sanctioned six supertankers that recently loaded Venezuelan oil.",
+          "The United States and United Kingdom say the trial is politically motivated.",
+          "The United States imposed fresh sanctions on shipping companies and vessels doin"
+        ]
+      },
+      {
+        "cluster_size": 16,
+        "total_mass": 2.5259788636139184,
+        "core_entities": [
+          "Xi Jinping"
+        ],
+        "sample_claims": [
+          "Xi Jinping urged authorities in Hong Kong to extinguish the blaze.",
+          "Xi Jinping is the President of China",
+          "Other foreign competitors included Israeli Prime Minister Benjamin Netanyahu and"
+        ]
+      }
+    ],
+    "match_rate": 0.17647058823529413
+  },
+  "clusters": [
+    {
+      "size": 114,
+      "total_mass": 28.75506905638076,
+      "mean_mass": 0.25223744786298913,
+      "coherence": 0.03761061946902655,
+      "core_entities": [
+        "Jimmy Lai"
+      ],
+      "matched_event": "Jimmy Lai Imprisonment",
+      "overlap": 0.7368421052631579
+    },
+    {
+      "size": 105,
+      "total_mass": 22.004533253623507,
+      "mean_mass": 0.2095669833678429,
+      "coherence": 0.018496038844876054,
+      "core_entities": [
+        "Hong Kong"
+      ],
+      "matched_event": "Wang Fuk Court Fire",
+      "overlap": 0.18686868686868688
+    },
+    {
+      "size": 84,
+      "total_mass": 13.664294764884309,
+      "mean_mass": 0.16267017577243226,
+      "coherence": 0.03055077452667814,
+      "core_entities": [
+        "Donald Trump"
+      ],
+      "matched_event": "Trump vs. BBC Defamation Lawsuit",
+      "overlap": 0.1724137931034483
+    },
+    {
+      "size": 78,
+      "total_mass": 12.74889050547739,
+      "mean_mass": 0.16344731417278704,
+      "coherence": 0.02601102601102601,
+      "core_entities": [
+        "Wang Fuk Court"
+      ],
+      "matched_event": "Wang Fuk Court Fire",
+      "overlap": 0.3333333333333333
+    },
+    {
+      "size": 60,
+      "total_mass": 6.818961319754274,
+      "mean_mass": 0.11364935532923791,
+      "coherence": 0.03361581920903955,
+      "core_entities": [
+        "Bondi Beach"
+      ],
+      "matched_event": "Bondi Beach Shooting",
+      "overlap": 0.8253968253968254
+    },
+    {
+      "size": 33,
+      "total_mass": 6.602852998058387,
+      "mean_mass": 0.2000864544866178,
+      "coherence": 0.21685606060606058,
+      "core_entities": [
+        "Time"
+      ],
+      "matched_event": "AI Innovators on TIME Covers",
+      "overlap": 0.3235294117647059
+    },
+    {
+      "size": 56,
+      "total_mass": 6.333585356220371,
+      "mean_mass": 0.11309973850393519,
+      "coherence": 0.037337662337662336,
+      "core_entities": [
+        "Rob Reiner"
+      ],
+      "matched_event": "Reiner Family Tragedy",
+      "overlap": 0.2222222222222222
+    },
+    {
+      "size": 41,
+      "total_mass": 5.675234007043692,
+      "mean_mass": 0.138420341635212,
+      "coherence": 0.09180216802168022,
+      "core_entities": [
+        "Brown University Library"
+      ],
+      "matched_event": "Brown University Shooting",
+      "overlap": 0.6666666666666666
+    },
+    {
+      "size": 32,
+      "total_mass": 4.64577218968833,
+      "mean_mass": 0.1451803809277603,
+      "coherence": 0.18608870967741936,
+      "core_entities": [
+        "Charlie Kirk"
+      ],
+      "matched_event": "Charlie Kirk Assassination",
+      "overlap": 0.717948717948718
+    },
+    {
+      "size": 43,
+      "total_mass": 4.626464543030381,
+      "mean_mass": 0.10759219867512514,
+      "coherence": 0.07170542635658914,
+      "core_entities": [
+        "Do Kwon"
+      ],
+      "matched_event": "Do Kwon Sentencing",
+      "overlap": 0.58
+    },
+    {
+      "size": 32,
+      "total_mass": 3.7621874697760496,
+      "mean_mass": 0.11756835843050155,
+      "coherence": 0.09663018433179724,
+      "core_entities": [
+        "BBC"
+      ],
+      "matched_event": "Trump vs. BBC Defamation Lawsuit",
+      "overlap": 0.42857142857142855
+    },
+    {
+      "size": 36,
+      "total_mass": 3.5818999162454976,
+      "mean_mass": 0.09949721989570827,
+      "coherence": 0.07323232323232323,
+      "core_entities": [
+        "Venezuela"
+      ],
+      "matched_event": "Venezuelan Oil Tanker Seizure",
+      "overlap": 0.46153846153846156
+    },
+    {
+      "size": 26,
+      "total_mass": 3.2906920184826607,
+      "mean_mass": 0.12656507763394848,
+      "coherence": 0.07740384615384616,
+      "core_entities": [
+        "United States"
+      ],
+      "matched_event": "Venezuelan Oil Tanker Seizure",
+      "overlap": 0.2222222222222222
+    },
+    {
+      "size": 22,
+      "total_mass": 2.770322013485914,
+      "mean_mass": 0.12592372788572337,
+      "coherence": 0.3722943722943723,
+      "core_entities": [
+        "Amanda Seyfried"
+      ],
+      "matched_event": "Charlie Kirk Assassination",
+      "overlap": 0.32558139534883723
+    },
+    {
+      "size": 18,
+      "total_mass": 2.744787206588279,
+      "mean_mass": 0.15248817814379328,
+      "coherence": 0.3729575163398693,
+      "core_entities": [
+        "Xu Bo"
+      ],
+      "matched_event": "Xu Bo Surrogacy Case",
+      "overlap": 0.6190476190476191
+    },
+    {
+      "size": 16,
+      "total_mass": 2.5259788636139184,
+      "mean_mass": 0.1578736789758699,
+      "coherence": 0.2708333333333333,
+      "core_entities": [
+        "Xi Jinping"
+      ],
+      "matched_event": "TIME Person of the Year 2025",
+      "overlap": 0.046511627906976744
+    },
+    {
+      "size": 28,
+      "total_mass": 2.4808454781890217,
+      "mean_mass": 0.08860162422103648,
+      "coherence": 0.07539682539682539,
+      "core_entities": [
+        "Charles III"
+      ],
+      "matched_event": "King Charles III's Cancer Treatment Announcement",
+      "overlap": 0.59375
+    }
+  ]
+}

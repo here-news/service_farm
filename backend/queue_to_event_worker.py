@@ -2,8 +2,15 @@
 """
 Queue pages with claims to event worker for metabolism testing
 """
-import asyncio
 import os
+from pathlib import Path
+
+# Load .env from project root (one level up from backend/)
+from dotenv import load_dotenv
+env_path = Path(__file__).parent.parent / '.env'
+load_dotenv(env_path)
+
+import asyncio
 import redis.asyncio as redis
 from services.neo4j_service import Neo4jService
 import json

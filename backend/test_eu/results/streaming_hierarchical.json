@@ -1,0 +1,532 @@
+{
+  "stats": {
+    "claims": 1215,
+    "sub_events": 550,
+    "events": 16,
+    "multi_claim": 185,
+    "large": 46,
+    "largest": 100,
+    "merges": 665,
+    "llm_calls": 406
+  },
+  "hierarchy": [
+    {
+      "id": "event_1",
+      "level": 1,
+      "size": 100,
+      "pages": 13,
+      "mass": 34.5,
+      "coherence": 1.0,
+      "tension": 0.0,
+      "children": [
+        "sub_16",
+        "sub_13",
+        "sub_166",
+        "sub_185",
+        "sub_287"
+      ],
+      "sample": [
+        "Human rights organizations see Jimmy Lai as a prisoner of conscience.",
+        "Hong Kong authorities and political figures have rejected foreign allegations of unfair treatment in Jimmy Lai Chee-ying's trial.",
+        "Erica Lepp said that Jimmy Lai's health is failing."
+      ]
+    },
+    {
+      "id": "event_2",
+      "level": 1,
+      "size": 66,
+      "pages": 21,
+      "mass": 23.869999999999997,
+      "coherence": 0.6666666666666666,
+      "tension": 0.3333333333333333,
+      "children": [
+        "sub_81",
+        "sub_29",
+        "sub_7",
+        "sub_134",
+        "sub_87",
+        "sub_194",
+        "sub_367"
+      ],
+      "sample": [
+        "The fire at Wang Fuk Court started on November 26, 2025.",
+        "A fire broke out at the Wang Fuk Court apartment complex in Tai Po.",
+        "The fire in Tai Po District killed at least 36 people and injured 29"
+      ]
+    },
+    {
+      "id": "event_3",
+      "level": 1,
+      "size": 43,
+      "pages": 10,
+      "mass": 12.183333333333332,
+      "coherence": 0.9166666666666666,
+      "tension": 0.08333333333333333,
+      "children": [
+        "sub_34",
+        "sub_1",
+        "sub_32",
+        "sub_95"
+      ],
+      "sample": [
+        "The shooting at Brown University happened inside a classroom in the Barus and Holley engineering building around 4 p.m. Saturday.",
+        "No one else is being sought in the Brown University shooting",
+        "Two Brown University students were killed, and 9 students were wounded."
+      ]
+    },
+    {
+      "id": "event_4",
+      "level": 1,
+      "size": 42,
+      "pages": 9,
+      "mass": 11.97,
+      "coherence": 1.0,
+      "tension": 0.0,
+      "children": [
+        "sub_67",
+        "sub_96",
+        "sub_113"
+      ],
+      "sample": [
+        "29 others were wounded in the Bondi Beach shooting.",
+        "At least 11 victims were killed in the Bondi Beach shooting.",
+        "The Bondi Beach shooting was declared an act of terrorism targeting Jewish people."
+      ]
+    },
+    {
+      "id": "event_10",
+      "level": 1,
+      "size": 31,
+      "pages": 6,
+      "mass": 7.440000000000001,
+      "coherence": 1.0,
+      "tension": 0.0,
+      "children": [
+        "sub_43",
+        "sub_79",
+        "sub_103",
+        "sub_145",
+        "sub_233"
+      ],
+      "sample": [
+        "Do Kwon was sentenced to 15 years in prison.",
+        "Do Kwon was sentenced to 15 years in prison for stablecoin fraud.",
+        "Do Kwon's actions contributed to the collapse of investments for hundreds of thousands of investors"
+      ]
+    },
+    {
+      "id": "event_11",
+      "level": 1,
+      "size": 29,
+      "pages": 5,
+      "mass": 6.525,
+      "coherence": 1.0,
+      "tension": 0.0,
+      "children": [
+        "sub_73",
+        "sub_274",
+        "sub_344",
+        "sub_372",
+        "sub_246",
+        "sub_327",
+        "sub_393"
+      ],
+      "sample": [
+        "Venezuela\u2019s oil exports have fallen sharply since the United States seized a tanker.",
+        "The US has seized a sanctioned oil tanker close to the coast of Venezuela.",
+        "The vessel had just left a port in Venezuela at the time of the seizure."
+      ]
+    },
+    {
+      "id": "event_7",
+      "level": 1,
+      "size": 24,
+      "pages": 8,
+      "mass": 6.480000000000001,
+      "coherence": 1.0,
+      "tension": 0.0,
+      "children": [
+        "sub_71",
+        "sub_15"
+      ],
+      "sample": [
+        "Nick Reiner could face the death penalty",
+        "Nick Reiner was arrested after his parents were discovered dead at their Los Angeles residence.",
+        "Rob Reiner and his wife Michele were found stabbed to death in their home."
+      ]
+    },
+    {
+      "id": "event_5",
+      "level": 1,
+      "size": 23,
+      "pages": 6,
+      "mass": 5.5200000000000005,
+      "coherence": 1.0,
+      "tension": 0.0,
+      "children": [
+        "sub_174",
+        "sub_78"
+      ],
+      "sample": [
+        "The BBC rejected claims it had defamed Donald Trump",
+        "The BBC apologised to Donald Trump and retracted the Panorama report.",
+        "The documentary spliced together three quotes from two sections of Donald Trump\u2019s 2021 speech"
+      ]
+    },
+    {
+      "id": "event_6",
+      "level": 1,
+      "size": 19,
+      "pages": 4,
+      "mass": 3.7853846153846153,
+      "coherence": 0.9230769230769231,
+      "tension": 0.07692307692307693,
+      "children": [
+        "sub_178",
+        "sub_175"
+      ],
+      "sample": [
+        "Amanda Seyfried refused to apologize for her comment about Charlie Kirk.",
+        "Amanda Seyfried has doubled down on her stance on Charlie Kirk's legacy.",
+        "Amanda Seyfried addressed the backlash in a subsequent statement."
+      ]
+    },
+    {
+      "id": "event_9",
+      "level": 1,
+      "size": 16,
+      "pages": 4,
+      "mass": 2.72,
+      "coherence": 0.7142857142857143,
+      "tension": 0.2857142857142857,
+      "children": [
+        "sub_28",
+        "sub_334"
+      ],
+      "sample": [
+        "Time magazine said AI changed our world in 2025 in both new and exciting and sometimes frightening ways.",
+        "2025 was the year when artificial intelligence\u2019s full potential roared into view.",
+        "Mark Zuckerberg was featured on a Time Magazine cover symbolizing modern artificial intelligence"
+      ]
+    },
+    {
+      "id": "event_8",
+      "level": 1,
+      "size": 14,
+      "pages": 4,
+      "mass": 2.156,
+      "coherence": 0.6,
+      "tension": 0.4,
+      "children": [
+        "sub_17",
+        "sub_172"
+      ],
+      "sample": [
+        "Xu Bo's long-term goal was to have around 20 children born in the US.",
+        "Xu Bo has just over 100 children born to American women.",
+        "Judge Amy Pellman denied Xu Bo\u2019s request for parentage."
+      ]
+    },
+    {
+      "id": "sub_108",
+      "level": 0,
+      "size": 14,
+      "pages": 2,
+      "mass": 1.96,
+      "coherence": 0.6666666666666666,
+      "tension": 0.3333333333333333,
+      "children": [],
+      "sample": [
+        "King Charles III emphasized the importance of early cancer detection.",
+        "King Charles III disclosed his cancer diagnosis in February 2024",
+        "King Charles III spent a short period in the hospital in March due to side effects from cancer treatment"
+      ]
+    },
+    {
+      "id": "event_14",
+      "level": 1,
+      "size": 12,
+      "pages": 3,
+      "mass": 2.3400000000000003,
+      "coherence": 1.0,
+      "tension": 0.0,
+      "children": [
+        "sub_205",
+        "sub_169",
+        "sub_196"
+      ],
+      "sample": [
+        "One of the satellites veered relatively close to a Starlink satellite.",
+        "A Starlink satellite operated by SpaceX narrowly avoided a close approach with a satellite launched from China.",
+        "SpaceX uses US Space Force tracking data to help steer clear of any collision with other satellites."
+      ]
+    },
+    {
+      "id": "sub_109",
+      "level": 0,
+      "size": 12,
+      "pages": 7,
+      "mass": 2.0400000000000005,
+      "coherence": 0.5,
+      "tension": 0.5,
+      "children": [],
+      "sample": [
+        "Charlie Kirk was assassinated while speaking at a Turning Point event.",
+        "Charlie Kirk was killed by a sniper at a speaking event in Utah in September.",
+        "Charlie Kirk was assassinated in September."
+      ]
+    },
+    {
+      "id": "event_12",
+      "level": 1,
+      "size": 11,
+      "pages": 7,
+      "mass": 2.8050000000000006,
+      "coherence": 1.0,
+      "tension": 0.0,
+      "children": [
+        "sub_270",
+        "sub_214"
+      ],
+      "sample": [
+        "The fire initially ignited the green mesh nets covering Block 6 before spreading to polystyrene boards around the windows.",
+        "The fire's rapid spread was due to non-fire-resistant nets and flammable foam used in construction.",
+        "Derek Armstrong Chan said falling debris and collapsing scaffolding posed significant hazards."
+      ]
+    },
+    {
+      "id": "event_13",
+      "level": 1,
+      "size": 10,
+      "pages": 2,
+      "mass": 1.7999999999999998,
+      "coherence": 1.0,
+      "tension": 0.0,
+      "children": [
+        "sub_54",
+        "sub_26"
+      ],
+      "sample": [
+        "Maria Corina Machado spent more than a year in hiding.",
+        "Maria Corina Machado plans to return to Venezuela despite being in hiding for almost a year.",
+        "Maria Corina Machado went to Norway in defiance of a decade-long travel ban."
+      ]
+    },
+    {
+      "id": "sub_12",
+      "level": 0,
+      "size": 10,
+      "pages": 3,
+      "mass": 0.65,
+      "coherence": 0.0,
+      "tension": 1.0,
+      "children": [],
+      "sample": [
+        "Blue Origin is launching the NS-37 mission.",
+        "Blue Origin released the NS-37 mission patch.",
+        "Blue Origin will begin livestreaming the NS-37 mission 40 minutes before liftoff."
+      ]
+    },
+    {
+      "id": "sub_22",
+      "level": 0,
+      "size": 10,
+      "pages": 4,
+      "mass": 2.0999999999999996,
+      "coherence": 1.0,
+      "tension": 0.0,
+      "children": [],
+      "sample": [
+        "Prosecutors plan to seek the death penalty in Tyler Robinson's case.",
+        "Tyler Robinson was charged with aggravated murder in the death of Charlie Kirk.",
+        "Tyler Robinson is charged with aggravated murder."
+      ]
+    },
+    {
+      "id": "sub_51",
+      "level": 0,
+      "size": 9,
+      "pages": 8,
+      "mass": 2.43,
+      "coherence": 1.0,
+      "tension": 0.0,
+      "children": [],
+      "sample": [
+        "The investigation is expected to provide clarity on the circumstances of the fire and measures to prevent future incidents.",
+        "John Lee said police and the Fire Services Department had formed a special investigation team to determine the cause of the fire.",
+        "John Lee announced that the independent committee will examine the causes of the fire and related issues."
+      ]
+    },
+    {
+      "id": "sub_19",
+      "level": 0,
+      "size": 8,
+      "pages": 3,
+      "mass": 1.5600000000000003,
+      "coherence": 1.0,
+      "tension": 0.0,
+      "children": [],
+      "sample": [
+        "Jensen Huang is the CEO of Nvidia.",
+        "Jensen Huang is known among colleagues for his quick temper and visionary leadership.",
+        "Jensen Huang founded Nvidia."
+      ]
+    },
+    {
+      "id": "sub_57",
+      "level": 0,
+      "size": 8,
+      "pages": 2,
+      "mass": 1.4400000000000002,
+      "coherence": 1.0,
+      "tension": 0.0,
+      "children": [],
+      "sample": [
+        "TIME\u2019s Person of the Year award has previously included Donald Trump.",
+        "The outlet\u2019s iconic award has previously included recipients such as Donald Trump, Barack Obama, and Greta Thunberg.",
+        "TIME\u2019s Person of the Year award has previously included Barack Obama."
+      ]
+    },
+    {
+      "id": "event_15",
+      "level": 1,
+      "size": 7,
+      "pages": 2,
+      "mass": 1.26,
+      "coherence": 1.0,
+      "tension": 0.0,
+      "children": [
+        "sub_39",
+        "sub_75"
+      ],
+      "sample": [
+        "The deadline for the Department of Justice to release the Epstein-related files is this Friday.",
+        "The Department of Justice is compelled to release files under the Epstein Files Transparency Act.",
+        "The Epstein files are made of over 300 gigabytes of data, paper, video, photographs and audio."
+      ]
+    },
+    {
+      "id": "event_16",
+      "level": 1,
+      "size": 7,
+      "pages": 3,
+      "mass": 1.3650000000000002,
+      "coherence": 1.0,
+      "tension": 0.0,
+      "children": [
+        "sub_220",
+        "sub_102"
+      ],
+      "sample": [
+        "CAS Space is in contact with Michael Nicolls to learn more about the alleged incident.",
+        "CAS Space is looking into the incident.",
+        "CAS Space said it had followed standard procedures as the launch services provider."
+      ]
+    },
+    {
+      "id": "sub_48",
+      "level": 0,
+      "size": 6,
+      "pages": 3,
+      "mass": 1.1700000000000002,
+      "coherence": 1.0,
+      "tension": 0.0,
+      "children": [],
+      "sample": [
+        "A different Kinetica 1 launch from Jiuquan Satellite Launch Center on Dec. 9 deployed nine satellites.",
+        "CAS Space's Kinetica 1 rocket launched two satellites from Jiuquan Satellite Launch Center on Nov. 9, 2025.",
+        "Kinetica 1 is a 100-foot-tall solid-fuel rocket operated by CAS Space."
+      ]
+    },
+    {
+      "id": "sub_136",
+      "level": 0,
+      "size": 6,
+      "pages": 1,
+      "mass": 0.9900000000000002,
+      "coherence": 1.0,
+      "tension": 0.0,
+      "children": [],
+      "sample": [
+        "Robert F. Kennedy Jr. signed off on terminating billions in federal grants to health departments and research scientists.",
+        "Robert F. Kennedy Jr. justified revoking almost $500 million in funding earmarked for mRNA vaccine research by falsely claiming that mRNA vaccines are not safe and effective.",
+        "Robert F. Kennedy Jr. and the Trump administration have implemented sweeping job and funding cuts across the government\u2019s science-related branches."
+      ]
+    },
+    {
+      "id": "sub_162",
+      "level": 0,
+      "size": 6,
+      "pages": 4,
+      "mass": 1.26,
+      "coherence": 1.0,
+      "tension": 0.0,
+      "children": [],
+      "sample": [
+        "Do Kwon created two virtual currencies, TerraUSD and Luna, that collapsed.",
+        "The collapse of coins issued by Terraform Labs wiped out $40 billion.",
+        "The collapse of TerraUSD and Luna caused a market crisis in 2022."
+      ]
+    },
+    {
+      "id": "sub_190",
+      "level": 0,
+      "size": 6,
+      "pages": 3,
+      "mass": 1.1700000000000002,
+      "coherence": 1.0,
+      "tension": 0.0,
+      "children": [],
+      "sample": [
+        "Rob Reiner gave an interview to Ali Velshi criticizing the political climate under Trump's administration",
+        "Rob Reiner was an outspoken critic of Donald Trump.",
+        "Rob Reiner called Donald Trump 'a criminal' in an interview with The Guardian."
+      ]
+    },
+    {
+      "id": "sub_253",
+      "level": 0,
+      "size": 6,
+      "pages": 4,
+      "mass": 1.26,
+      "coherence": 1.0,
+      "tension": 0.0,
+      "children": [],
+      "sample": [
+        "Donald Trump claimed Rob Reiner died due to 'Trump Derangement Syndrome'",
+        "Donald Trump posted a reaction to the deaths of Rob Reiner and Michele Singer Reiner",
+        "Donald Trump blamed Rob Reiner for his own death in a Truth Social post."
+      ]
+    },
+    {
+      "id": "sub_259",
+      "level": 0,
+      "size": 6,
+      "pages": 1,
+      "mass": 0.9900000000000002,
+      "coherence": 1.0,
+      "tension": 0.0,
+      "children": [],
+      "sample": [
+        "Lee Jae Myung offered his sincere condolences to the bereaved families.",
+        "Lee Jae Myung conveyed his sympathy to all and hoped for swift recovery and restoration.",
+        "Lee Jae Myung expressed profound respect for and paid tribute to the hundreds of rescue workers and volunteers working tirelessly on the scene."
+      ]
+    },
+    {
+      "id": "sub_305",
+      "level": 0,
+      "size": 6,
+      "pages": 6,
+      "mass": 1.4400000000000004,
+      "coherence": 1.0,
+      "tension": 0.0,
+      "children": [],
+      "sample": [
+        "Police arrested three men on suspicion of manslaughter in connection with the fire.",
+        "Three men from a construction firm have been arrested on suspicion of manslaughter.",
+        "Police have arrested 15 people from various construction companies for manslaughter."
+      ]
+    }
+  ]
+}

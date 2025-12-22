@@ -1,0 +1,1117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Event - HERE.news</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0a0a0f;
+            color: #e0e0e0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 24px;
+            border-bottom: 1px solid #222;
+            background: #111118;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .back-btn {
+            color: #888;
+            text-decoration: none;
+            font-size: 14px;
+        }
+
+        .back-btn:hover { color: #fff; }
+
+        .logo {
+            font-size: 18px;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        .logo span { color: #4CAF50; }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .credits {
+            background: #1a1a24;
+            padding: 6px 12px;
+            border-radius: 16px;
+            font-size: 13px;
+        }
+
+        .credits-amount {
+            color: #FFD700;
+            font-weight: bold;
+        }
+
+        /* Event Header */
+        .event-header {
+            padding: 20px 24px;
+            background: linear-gradient(135deg, #1a1a2e 0%, #111118 100%);
+            border-bottom: 1px solid #222;
+        }
+
+        .event-title {
+            font-size: 26px;
+            font-weight: 600;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .live-badge {
+            background: #f44336;
+            color: white;
+            font-size: 11px;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        .event-byline {
+            font-size: 15px;
+            color: #4CAF50;
+            margin-bottom: 12px;
+            font-weight: 500;
+        }
+
+        .event-meta {
+            display: flex;
+            gap: 20px;
+            font-size: 13px;
+            color: #888;
+        }
+
+        .meta-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* Main Split Pane */
+        .main {
+            display: grid;
+            grid-template-columns: 1fr 360px;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* Content Pane (Left) */
+        .content-pane {
+            padding: 24px;
+            overflow-y: auto;
+            border-right: 1px solid #222;
+        }
+
+        /* Cards */
+        .card {
+            background: #14141c;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid #222;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .card-title {
+            font-size: 13px;
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .card-title-icon {
+            font-size: 16px;
+        }
+
+        /* Narrative Card */
+        .narrative-text {
+            font-size: 15px;
+            line-height: 1.8;
+            color: #ccc;
+        }
+
+        /* Entities Card */
+        .entities-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+
+        .entity-group h4 {
+            font-size: 11px;
+            color: #666;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            letter-spacing: 0.5px;
+        }
+
+        .entity-tag {
+            display: inline-block;
+            background: #1a1a28;
+            border: 1px solid #333;
+            padding: 4px 10px;
+            border-radius: 16px;
+            font-size: 12px;
+            margin: 2px 4px 2px 0;
+            color: #ddd;
+        }
+
+        .entity-tag.person { border-color: #2196F3; color: #64B5F6; }
+        .entity-tag.place { border-color: #4CAF50; color: #81C784; }
+        .entity-tag.org { border-color: #FF9800; color: #FFB74D; }
+        .entity-tag.metric { border-color: #E91E63; color: #F48FB1; }
+
+        /* Timeline Card */
+        .timeline {
+            position: relative;
+            padding-left: 24px;
+        }
+
+        .timeline::before {
+            content: '';
+            position: absolute;
+            left: 6px;
+            top: 4px;
+            bottom: 4px;
+            width: 2px;
+            background: linear-gradient(to bottom, #4CAF50, #2196F3, #9C27B0);
+            border-radius: 2px;
+        }
+
+        .timeline-item {
+            position: relative;
+            margin-bottom: 16px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #1a1a24;
+        }
+
+        .timeline-item:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+
+        .timeline-item::before {
+            content: '';
+            position: absolute;
+            left: -22px;
+            top: 6px;
+            width: 10px;
+            height: 10px;
+            background: #4CAF50;
+            border-radius: 50%;
+            border: 2px solid #0a0a0f;
+        }
+
+        .timeline-item.developing::before { background: #FF9800; }
+        .timeline-item.initial::before { background: #2196F3; }
+
+        .timeline-time {
+            font-size: 11px;
+            color: #666;
+            margin-bottom: 4px;
+        }
+
+        .timeline-content {
+            font-size: 14px;
+            color: #bbb;
+            line-height: 1.5;
+        }
+
+        /* Gaps Card */
+        .gap-item {
+            background: linear-gradient(135deg, #1a1424 0%, #14141c 100%);
+            border-left: 3px solid #9C27B0;
+            padding: 12px 16px;
+            border-radius: 0 8px 8px 0;
+            margin-bottom: 12px;
+        }
+
+        .gap-item:last-child { margin-bottom: 0; }
+
+        .gap-question {
+            font-size: 14px;
+            color: #ddd;
+            margin-bottom: 6px;
+        }
+
+        .gap-context {
+            font-size: 12px;
+            color: #888;
+        }
+
+        .gap-item.high-priority {
+            border-left-color: #f44336;
+            background: linear-gradient(135deg, #1a1418 0%, #14141c 100%);
+        }
+
+        .gap-item.high-priority .gap-question::before {
+            content: '!';
+            display: inline-block;
+            background: #f44336;
+            color: white;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 16px;
+            font-size: 10px;
+            font-weight: bold;
+            margin-right: 8px;
+        }
+
+        /* Metrics Card */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+        }
+
+        .metric-box {
+            text-align: center;
+            padding: 16px 8px;
+            background: #1a1a24;
+            border-radius: 8px;
+        }
+
+        .metric-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #fff;
+            margin-bottom: 4px;
+        }
+
+        .metric-value.green { color: #4CAF50; }
+        .metric-value.orange { color: #FF9800; }
+        .metric-value.blue { color: #2196F3; }
+        .metric-value.purple { color: #9C27B0; }
+
+        .metric-label {
+            font-size: 11px;
+            color: #666;
+            text-transform: uppercase;
+        }
+
+        /* Sub-events Card */
+        .subevent-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            background: #1a1a24;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .subevent-item:hover { background: #222230; }
+        .subevent-item:last-child { margin-bottom: 0; }
+
+        .subevent-name {
+            font-size: 14px;
+            color: #ccc;
+        }
+
+        .subevent-meta {
+            font-size: 12px;
+            color: #666;
+        }
+
+        /* Community Pane (Right) */
+        .community-pane {
+            display: flex;
+            flex-direction: column;
+            background: #0d0d12;
+        }
+
+        .community-header {
+            padding: 16px;
+            border-bottom: 1px solid #222;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .feed-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+        }
+
+        .feed-item {
+            background: #1a1a24;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 12px;
+        }
+
+        .feed-user {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 12px;
+        }
+
+        .feed-user-name { color: #2196F3; }
+        .feed-stake { color: #FFD700; }
+
+        .feed-content {
+            font-size: 13px;
+            margin-bottom: 8px;
+            word-break: break-word;
+        }
+
+        .feed-url {
+            color: #4CAF50;
+            font-size: 12px;
+            text-decoration: none;
+        }
+
+        .feed-response {
+            background: #111118;
+            border-radius: 4px;
+            padding: 8px;
+            margin-top: 8px;
+            font-size: 12px;
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+        }
+
+        .response-icon { font-size: 14px; }
+        .response-text { color: #aaa; line-height: 1.4; }
+        .response-reward { color: #FFD700; margin-top: 4px; }
+
+        /* Contribute Box */
+        .contribute-box {
+            padding: 16px;
+            border-top: 1px solid #222;
+            background: #111118;
+        }
+
+        .contribute-input {
+            width: 100%;
+            background: #1a1a24;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 12px;
+            color: #fff;
+            font-size: 13px;
+            resize: none;
+            height: 80px;
+            margin-bottom: 12px;
+        }
+
+        .contribute-input:focus {
+            outline: none;
+            border-color: #4CAF50;
+        }
+
+        .contribute-input::placeholder { color: #666; }
+
+        .contribute-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .stake-selector {
+            display: flex;
+            gap: 8px;
+        }
+
+        .stake-btn {
+            background: #1a1a24;
+            border: 1px solid #333;
+            color: #888;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .stake-btn.active {
+            background: #2a2a3e;
+            border-color: #4CAF50;
+            color: #4CAF50;
+        }
+
+        .submit-btn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .submit-btn:hover { background: #45a049; }
+        .submit-btn:disabled { background: #333; cursor: not-allowed; }
+
+        /* Connection Status */
+        .connection-status {
+            position: fixed;
+            bottom: 16px;
+            left: 16px;
+            padding: 6px 12px;
+            border-radius: 16px;
+            font-size: 11px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .connection-status.connected {
+            background: rgba(76, 175, 80, 0.2);
+            color: #4CAF50;
+        }
+
+        .connection-status.disconnected {
+            background: rgba(244, 67, 54, 0.2);
+            color: #f44336;
+        }
+
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #888;
+        }
+
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            color: #666;
+            padding: 20px;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-left">
+            <a href="/" class="back-btn">← Back</a>
+            <div class="logo">HERE<span>.news</span></div>
+        </div>
+        <div class="header-right">
+            <div class="credits">
+                Balance: <span class="credits-amount">150c</span>
+            </div>
+        </div>
+    </header>
+
+    <div class="event-header" id="event-header">
+        <div class="event-title">
+            <span id="event-headline">Loading event...</span>
+            <span class="live-badge" id="live-badge" style="display: none;">LIVE</span>
+        </div>
+        <div class="event-byline" id="event-byline"></div>
+        <div class="event-meta">
+            <span class="meta-item" id="stat-sources">-- sources</span>
+            <span class="meta-item" id="stat-updated">Updated --</span>
+        </div>
+    </div>
+
+    <main class="main">
+        <section class="content-pane" id="content-pane">
+            <div class="loading">Loading event data...</div>
+        </section>
+
+        <section class="community-pane">
+            <div class="community-header">Community Feed</div>
+            <div class="feed-list" id="feed-list"></div>
+            <div class="contribute-box">
+                <textarea
+                    class="contribute-input"
+                    id="contribute-input"
+                    placeholder="Contribute a URL, claim, or question..."
+                ></textarea>
+                <div class="contribute-footer">
+                    <div class="stake-selector">
+                        <button class="stake-btn active" data-stake="1">1c</button>
+                        <button class="stake-btn" data-stake="10">10c</button>
+                        <button class="stake-btn" data-stake="100">100c</button>
+                    </div>
+                    <button class="submit-btn" id="submit-btn" onclick="submitContribution()">
+                        Submit
+                    </button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <div class="connection-status disconnected" id="connection-status">
+        <span>Disconnected</span>
+    </div>
+
+    <script>
+        let currentEvent = null;
+        let currentStake = 1;
+        let eventSource = null;
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const eventId = urlParams.get('id');
+
+        // Stake selector
+        document.querySelectorAll('.stake-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.stake-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentStake = parseInt(btn.dataset.stake);
+            });
+        });
+
+        // Entity extraction patterns
+        const entityPatterns = {
+            people: [
+                /(?:President|PM|Minister|Chief|Dr\.?|Mr\.?|Ms\.?|Mrs\.?)?\s*([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)/g,
+                /(Jimmy Lai|Charlie Kirk|Lee Jae Myung|Amanda Seyfried|King Charles|Donald Trump|Xi Jinping)/gi
+            ],
+            places: [
+                /(Hong Kong|Tai Po|Wang Fuk Court|Utah|Utah State University|China|Venezuela|Ukraine|Seoul)/gi
+            ],
+            organizations: [
+                /(Fire Services Department|Police|Government|Apple Daily|WHO|UN|FBI)/gi
+            ],
+            metrics: [
+                /(\d+)\s*(?:people\s+)?(?:killed|dead|died|deaths)/gi,
+                /(\d+)\s*(?:people\s+)?(?:injured|hurt|wounded)/gi,
+                /(\d+)\s*(?:people\s+)?(?:missing|unaccounted)/gi,
+                /(\d+)\s*(?:arrested)/gi
+            ]
+        };
+
+        function extractEntities(claims) {
+            const entities = {
+                people: new Set(),
+                places: new Set(),
+                organizations: new Set(),
+                metrics: []
+            };
+
+            const text = claims.join(' ');
+
+            // Extract people
+            entityPatterns.people.forEach(pattern => {
+                let match;
+                while ((match = pattern.exec(text)) !== null) {
+                    const name = match[1] || match[0];
+                    if (name.length > 3 && !name.match(/^(The|This|That|Which|When|Where|What)$/i)) {
+                        entities.people.add(name.trim());
+                    }
+                }
+            });
+
+            // Extract places
+            entityPatterns.places.forEach(pattern => {
+                let match;
+                while ((match = pattern.exec(text)) !== null) {
+                    entities.places.add(match[1] || match[0]);
+                }
+            });
+
+            // Extract organizations
+            entityPatterns.organizations.forEach(pattern => {
+                let match;
+                while ((match = pattern.exec(text)) !== null) {
+                    entities.organizations.add(match[1] || match[0]);
+                }
+            });
+
+            // Extract metrics
+            const metricTypes = ['killed', 'injured', 'missing', 'arrested'];
+            metricTypes.forEach((type, i) => {
+                let match;
+                while ((match = entityPatterns.metrics[i].exec(text)) !== null) {
+                    const existing = entities.metrics.find(m => m.type === type);
+                    const num = parseInt(match[1]);
+                    if (!existing || num > existing.value) {
+                        if (existing) {
+                            existing.value = num;
+                        } else {
+                            entities.metrics.push({ type, value: num });
+                        }
+                    }
+                }
+            });
+
+            return {
+                people: [...entities.people].slice(0, 6),
+                places: [...entities.places].slice(0, 5),
+                organizations: [...entities.organizations].slice(0, 4),
+                metrics: entities.metrics
+            };
+        }
+
+        function buildTimeline(claims) {
+            // Group claims into phases
+            const phases = [];
+            const claimCount = claims.length;
+
+            if (claimCount === 0) return phases;
+
+            // Initial reports (first 20%)
+            const initialEnd = Math.ceil(claimCount * 0.2);
+            const initial = claims.slice(0, initialEnd);
+            if (initial.length > 0) {
+                phases.push({
+                    phase: 'Initial Reports',
+                    type: 'initial',
+                    summary: summarizeClaims(initial, 'Initial reports emerged')
+                });
+            }
+
+            // Development (20-60%)
+            const devEnd = Math.ceil(claimCount * 0.6);
+            const development = claims.slice(initialEnd, devEnd);
+            if (development.length > 0) {
+                phases.push({
+                    phase: 'Developing',
+                    type: 'developing',
+                    summary: summarizeClaims(development, 'The situation evolved')
+                });
+            }
+
+            // Current (60-100%)
+            const current = claims.slice(devEnd);
+            if (current.length > 0) {
+                phases.push({
+                    phase: 'Current',
+                    type: 'current',
+                    summary: summarizeClaims(current, 'Latest updates')
+                });
+            }
+
+            return phases;
+        }
+
+        function summarizeClaims(claims, prefix) {
+            // Get the most representative claim (longest one typically has more info)
+            const best = claims.reduce((a, b) => a.length > b.length ? a : b, claims[0]);
+            return best.length > 120 ? best.substring(0, 120) + '...' : best;
+        }
+
+        function identifyGaps(event) {
+            const gaps = [];
+            const claims = event.all_claims || event.sample_claims || [];
+
+            // Find actual metric contradictions by extracting all numbers
+            const metricPatterns = {
+                killed: /(\d+)\s*(?:people\s+)?(?:killed|dead|died|deaths)/gi,
+                injured: /(\d+)\s*(?:people\s+)?(?:injured|hurt|wounded)/gi,
+                missing: /(\d+)\s*(?:people\s+)?(?:missing|unaccounted)/gi
+            };
+
+            // Extract all values for each metric type
+            Object.entries(metricPatterns).forEach(([type, pattern]) => {
+                const values = new Set();
+                claims.forEach(claim => {
+                    let match;
+                    const regex = new RegExp(pattern.source, pattern.flags);
+                    while ((match = regex.exec(claim)) !== null) {
+                        values.add(parseInt(match[1]));
+                    }
+                });
+
+                // If multiple different values found, that's a real gap
+                if (values.size > 1) {
+                    const sorted = [...values].sort((a, b) => a - b);
+                    gaps.push({
+                        question: `Conflicting ${type} counts reported`,
+                        context: `Sources report: ${sorted.join(', ')} - needs verification`,
+                        priority: 'high'
+                    });
+                }
+            });
+
+            // Low source coverage is a real gap
+            if (event.source_count < 3) {
+                gaps.push({
+                    question: 'Limited source coverage',
+                    context: `Only ${event.source_count} source${event.source_count === 1 ? '' : 's'} - more verification needed`,
+                    priority: 'high'
+                });
+            } else if (event.source_count < 5) {
+                gaps.push({
+                    question: 'Moderate source coverage',
+                    context: `${event.source_count} sources reporting`,
+                    priority: 'normal'
+                });
+            }
+
+            // High tension without identified metric conflicts suggests other contradictions
+            if (event.tension > 0.2 && gaps.filter(g => g.priority === 'high').length === 0) {
+                gaps.push({
+                    question: 'Sources contain conflicting information',
+                    context: `${Math.round(event.tension * 100)}% tension detected`,
+                    priority: 'high'
+                });
+            }
+
+            return gaps.slice(0, 4);
+        }
+
+        async function loadEvent() {
+            if (!eventId) {
+                document.getElementById('event-headline').textContent = 'No event selected';
+                document.getElementById('content-pane').innerHTML = `
+                    <div class="loading">
+                        <a href="/" style="color: #4CAF50;">← Return to homepage to select an event</a>
+                    </div>
+                `;
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/eus/${eventId}`);
+                if (!response.ok) throw new Error('Event not found');
+
+                const data = await response.json();
+                currentEvent = {
+                    ...data.eu,
+                    narrative: data.narrative,
+                    children_tree: data.children_tree,
+                    all_claims: data.all_claims
+                };
+                renderEvent();
+            } catch (err) {
+                console.error('Failed to load event:', err);
+                document.getElementById('event-headline').textContent = 'Event not found';
+                document.getElementById('content-pane').innerHTML = `
+                    <div class="loading">
+                        <p>This event could not be loaded.</p>
+                        <a href="/" style="color: #4CAF50;">← Return to homepage</a>
+                    </div>
+                `;
+            }
+        }
+
+        function renderEvent() {
+            if (!currentEvent) return;
+
+            // Header
+            document.getElementById('event-headline').textContent =
+                currentEvent.canonical_name || currentEvent.headline || 'Untitled Event';
+
+            const bylineEl = document.getElementById('event-byline');
+            if (currentEvent.byline) {
+                bylineEl.textContent = currentEvent.byline;
+                bylineEl.style.display = 'block';
+            } else {
+                bylineEl.style.display = 'none';
+            }
+
+            document.getElementById('stat-sources').textContent = `${currentEvent.source_count || 0} sources`;
+
+            if (currentEvent.state === 'ACTIVE' || currentEvent.state === 'LIVE') {
+                document.getElementById('live-badge').style.display = 'inline';
+            }
+
+            // Extract structured data
+            const claims = currentEvent.all_claims || currentEvent.sample_claims || [];
+            const entities = extractEntities(claims);
+            const timeline = buildTimeline(claims);
+            const gaps = identifyGaps(currentEvent);
+
+            // Build content
+            const contentPane = document.getElementById('content-pane');
+            let html = '';
+
+            // Narrative Card
+            html += `
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <span class="card-title-icon">📰</span> What Happened
+                        </div>
+                    </div>
+                    <div class="narrative-text">
+                        ${currentEvent.narrative || 'Event narrative is being generated...'}
+                    </div>
+                </div>
+            `;
+
+            // Entities Card
+            html += `
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <span class="card-title-icon">🏷️</span> Key Entities
+                        </div>
+                    </div>
+                    <div class="entities-grid">
+                        <div class="entity-group">
+                            <h4>People</h4>
+                            ${entities.people.length > 0
+                                ? entities.people.map(p => `<span class="entity-tag person">${p}</span>`).join('')
+                                : '<span class="empty-state">No named individuals</span>'}
+                        </div>
+                        <div class="entity-group">
+                            <h4>Places</h4>
+                            ${entities.places.length > 0
+                                ? entities.places.map(p => `<span class="entity-tag place">${p}</span>`).join('')
+                                : '<span class="empty-state">No locations</span>'}
+                        </div>
+                        <div class="entity-group">
+                            <h4>Key Numbers</h4>
+                            ${entities.metrics.length > 0
+                                ? entities.metrics.map(m => `<span class="entity-tag metric">${m.value} ${m.type}</span>`).join('')
+                                : '<span class="empty-state">No metrics</span>'}
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Timeline Card
+            if (timeline.length > 0) {
+                html += `
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">
+                                <span class="card-title-icon">⏱️</span> Timeline
+                            </div>
+                        </div>
+                        <div class="timeline">
+                            ${timeline.map(t => `
+                                <div class="timeline-item ${t.type}">
+                                    <div class="timeline-time">${t.phase}</div>
+                                    <div class="timeline-content">${t.summary}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Gaps Card
+            if (gaps.length > 0) {
+                html += `
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">
+                                <span class="card-title-icon">❓</span> Knowledge Gaps
+                            </div>
+                        </div>
+                        ${gaps.map(g => `
+                            <div class="gap-item ${g.priority === 'high' ? 'high-priority' : ''}">
+                                <div class="gap-question">${g.question}</div>
+                                <div class="gap-context">${g.context}</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+
+            // Metrics Card
+            html += `
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <span class="card-title-icon">📊</span> Event Metrics
+                        </div>
+                    </div>
+                    <div class="metrics-grid">
+                        <div class="metric-box">
+                            <div class="metric-value blue">${(currentEvent.mass || 0).toFixed(1)}</div>
+                            <div class="metric-label">Mass</div>
+                        </div>
+                        <div class="metric-box">
+                            <div class="metric-value green">${Math.round((currentEvent.coherence || 0) * 100)}%</div>
+                            <div class="metric-label">Coherence</div>
+                        </div>
+                        <div class="metric-box">
+                            <div class="metric-value ${currentEvent.tension > 0.2 ? 'orange' : 'green'}">${Math.round((currentEvent.tension || 0) * 100)}%</div>
+                            <div class="metric-label">Tension</div>
+                        </div>
+                        <div class="metric-box">
+                            <div class="metric-value purple">${currentEvent.source_count || 0}</div>
+                            <div class="metric-label">Sources</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Sub-events Card
+            if (currentEvent.children_tree && currentEvent.children_tree.length > 0) {
+                html += `
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">
+                                <span class="card-title-icon">📁</span> Sub-Events
+                            </div>
+                        </div>
+                        ${currentEvent.children_tree.map(child => `
+                            <div class="subevent-item" onclick="window.location.href='/event?id=${child.id}'">
+                                <div class="subevent-name">${child.canonical_name || child.headline || 'Sub-event'}</div>
+                                <div class="subevent-meta">${child.claim_count} claims</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+
+            contentPane.innerHTML = html;
+        }
+
+        function connectSSE() {
+            eventSource = new EventSource('/api/stream');
+
+            eventSource.onopen = () => {
+                const status = document.getElementById('connection-status');
+                status.className = 'connection-status connected';
+                status.innerHTML = '<span>Live</span>';
+            };
+
+            eventSource.onerror = () => {
+                const status = document.getElementById('connection-status');
+                status.className = 'connection-status disconnected';
+                status.innerHTML = '<span>Reconnecting...</span>';
+            };
+
+            eventSource.onmessage = (e) => {
+                const event = JSON.parse(e.data);
+
+                if (event.data && event.data.eu_id === eventId) {
+                    if (event.type === 'eu_updated' || event.type === 'claim_absorbed') {
+                        loadEvent();
+                    }
+                }
+
+                if (event.type === 'claim_absorbed' && event.data.eu_id === eventId) {
+                    addFeedItem({
+                        type: 'system',
+                        content: 'New information absorbed',
+                        response: { status: 'accepted', text: 'Event updated' }
+                    });
+                }
+            };
+        }
+
+        function addFeedItem(item) {
+            const feedList = document.getElementById('feed-list');
+            const div = document.createElement('div');
+            div.className = 'feed-item';
+
+            if (item.type === 'system') {
+                div.innerHTML = `
+                    <div class="feed-content">${item.content}</div>
+                    <div class="feed-response">
+                        <span class="response-icon">✅</span>
+                        <span class="response-text">${item.response.text}</span>
+                    </div>
+                `;
+            } else {
+                const isUrl = item.content.match(/^https?:\/\//);
+                div.innerHTML = `
+                    <div class="feed-user">
+                        <span class="feed-user-name">@${item.user || 'you'}</span>
+                        <span class="feed-stake">${item.stake}c</span>
+                    </div>
+                    <div class="feed-content">
+                        ${isUrl ? `<a href="${item.content}" class="feed-url" target="_blank">${item.content}</a>` : item.content}
+                    </div>
+                    ${item.response ? `
+                        <div class="feed-response">
+                            <span class="response-icon">${getResponseIcon(item.response.status)}</span>
+                            <div>
+                                <div class="response-text">${item.response.text}</div>
+                                ${item.response.reward ? `<div class="response-reward">+${item.response.reward}c</div>` : ''}
+                            </div>
+                        </div>
+                    ` : '<div class="feed-response"><span class="response-icon">🧠</span><span class="response-text">Analyzing...</span></div>'}
+                `;
+            }
+
+            feedList.insertBefore(div, feedList.firstChild);
+        }
+
+        function getResponseIcon(status) {
+            return { 'accepted': '✅', 'high_value': '💎', 'duplicate': '🔄', 'rejected': '❌', 'skeptical': '🤔', 'processing': '🧠' }[status] || '📝';
+        }
+
+        async function submitContribution() {
+            const input = document.getElementById('contribute-input');
+            const content = input.value.trim();
+            if (!content) return;
+
+            addFeedItem({ type: 'user', user: 'you', content, stake: currentStake, response: null });
+            input.value = '';
+
+            setTimeout(() => {
+                const feedItems = document.querySelectorAll('.feed-item');
+                if (feedItems.length > 0) {
+                    const latestItem = feedItems[0];
+                    const responseDiv = latestItem.querySelector('.feed-response');
+                    const isUrl = content.match(/^https?:\/\//);
+
+                    if (isUrl) {
+                        responseDiv.innerHTML = `<span class="response-icon">✅</span><div><div class="response-text">Source analyzed and added.</div></div>`;
+                    } else if (content.endsWith('?')) {
+                        responseDiv.innerHTML = `<span class="response-icon">❓</span><div><div class="response-text">Question logged. Community will investigate.</div></div>`;
+                    } else {
+                        responseDiv.innerHTML = `<span class="response-icon">📝</span><div><div class="response-text">Claim recorded for verification.</div></div>`;
+                    }
+                }
+            }, 1500);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadEvent();
+            connectSSE();
+
+            document.getElementById('contribute-input').addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    submitContribution();
+                }
+            });
+        });
+    </script>
+</body>
+</html>

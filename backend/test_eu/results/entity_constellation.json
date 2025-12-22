@@ -1,0 +1,394 @@
+{
+  "constellation_eus": [
+    {
+      "entities": [
+        "Hong Kong",
+        "Jimmy Lai"
+      ],
+      "claims": 30,
+      "pages": 9,
+      "corr": 5,
+      "contra": 0,
+      "coherence": 1.0
+    },
+    {
+      "entities": [
+        "Donald Trump",
+        "BBC"
+      ],
+      "claims": 17,
+      "pages": 6,
+      "corr": 2,
+      "contra": 0,
+      "coherence": 1.0
+    },
+    {
+      "entities": [
+        "Rob Reiner",
+        "Michele Singer"
+      ],
+      "claims": 13,
+      "pages": 7,
+      "corr": 5,
+      "contra": 0,
+      "coherence": 1.0
+    },
+    {
+      "entities": [
+        "Charlie Kirk",
+        "Amanda Seyfried"
+      ],
+      "claims": 11,
+      "pages": 4,
+      "corr": 6,
+      "contra": 0,
+      "coherence": 1.0
+    },
+    {
+      "entities": [
+        "Venezuela",
+        "United States"
+      ],
+      "claims": 11,
+      "pages": 4,
+      "corr": 2,
+      "contra": 0,
+      "coherence": 1.0
+    },
+    {
+      "entities": [
+        "Rob Reiner",
+        "Donald Trump"
+      ],
+      "claims": 10,
+      "pages": 4,
+      "corr": 0,
+      "contra": 0,
+      "coherence": 1.0
+    },
+    {
+      "entities": [
+        "Mar\u00eda Corina Machado",
+        "Venezuela"
+      ],
+      "claims": 9,
+      "pages": 2,
+      "corr": 0,
+      "contra": 0,
+      "coherence": 1.0
+    },
+    {
+      "entities": [
+        "Hong Kong",
+        "John Lee"
+      ],
+      "claims": 7,
+      "pages": 5,
+      "corr": 0,
+      "contra": 0,
+      "coherence": 1.0
+    },
+    {
+      "entities": [
+        "Xi Jinping",
+        "Donald Trump"
+      ],
+      "claims": 7,
+      "pages": 6,
+      "corr": 3,
+      "contra": 0,
+      "coherence": 1.0
+    },
+    {
+      "entities": [
+        "Donald Trump",
+        "Brown University Library"
+      ],
+      "claims": 6,
+      "pages": 3,
+      "corr": 0,
+      "contra": 0,
+      "coherence": 1.0
+    },
+    {
+      "entities": [
+        "Starlink",
+        "SpaceX"
+      ],
+      "claims": 6,
+      "pages": 3,
+      "corr": 0,
+      "contra": 0,
+      "coherence": 1.0
+    },
+    {
+      "entities": [
+        "Queen Camilla",
+        "Charles III"
+      ],
+      "claims": 6,
+      "pages": 2,
+      "corr": 0,
+      "contra": 0,
+      "coherence": 1.0
+    },
+    {
+      "entities": [
+        "Charlie Kirk",
+        "Turning Point USA"
+      ],
+      "claims": 5,
+      "pages": 4,
+      "corr": 0,
+      "contra": 0,
+      "coherence": 1.0
+    },
+    {
+      "entities": [
+        "Paul A. Engelmayer",
+        "Do Kwon"
+      ],
+      "claims": 5,
+      "pages": 3,
+      "corr": 0,
+      "contra": 0,
+      "coherence": 1.0
+    },
+    {
+      "entities": [
+        "New South Wales Police Force",
+        "Bondi Beach"
+      ],
+      "claims": 5,
+      "pages": 3,
+      "corr": 0,
+      "contra": 0,
+      "coherence": 1.0
+    },
+    {
+      "entities": [
+        "Time",
+        "Donald Trump"
+      ],
+      "claims": 5,
+      "pages": 2,
+      "corr": 4,
+      "contra": 0,
+      "coherence": 1.0
+    },
+    {
+      "entities": [
+        "Mar\u00eda Corina Machado",
+        "Oslo"
+      ],
+      "claims": 5,
+      "pages": 2,
+      "corr": 0,
+      "contra": 0,
+      "coherence": 1.0
+    },
+    {
+      "entities": [
+        "Hong Kong",
+        "China"
+      ],
+      "claims": 4,
+      "pages": 4,
+      "corr": 0,
+      "contra": 0,
+      "coherence": 1.0
+    },
+    {
+      "entities": [
+        "Charlie Kirk",
+        "Tyler Robinson"
+      ],
+      "claims": 4,
+      "pages": 4,
+      "corr": 3,
+      "contra": 0,
+      "coherence": 1.0
+    },
+    {
+      "entities": [
+        "Hong Kong",
+        "Beijing"
+      ],
+      "claims": 4,
+      "pages": 3,
+      "corr": 0,
+      "contra": 0,
+      "coherence": 1.0
+    },
+    {
+      "entities": [
+        "Xu Bo",
+        "Amy Pellman"
+      ],
+      "claims": 4,
+      "pages": 3,
+      "corr": 1,
+      "contra": 0,
+      "coherence": 1.0
+    },
+    {
+      "entities": [
+        "Nvidia",
+        "Jensen Huang"
+      ],
+      "claims": 4,
+      "pages": 2,
+      "corr": 1,
+      "contra": 0,
+      "coherence": 1.0
+    },
+    {
+      "entities": [
+        "Xu Bo",
+        "United States"
+      ],
+      "claims": 4,
+      "pages": 2,
+      "corr": 0,
+      "contra": 1,
+      "coherence": 0.0
+    },
+    {
+      "entities": [
+        "Charlie Kirk",
+        "Utah Valley University"
+      ],
+      "claims": 3,
+      "pages": 2,
+      "corr": 0,
+      "contra": 0,
+      "coherence": 1.0
+    },
+    {
+      "entities": [
+        "Wang Fuk Court",
+        "Hong Kong Fire Services Department"
+      ],
+      "claims": 3,
+      "pages": 3,
+      "corr": 0,
+      "contra": 0,
+      "coherence": 1.0
+    },
+    {
+      "entities": [
+        "Do Kwon",
+        "Montenegro"
+      ],
+      "claims": 3,
+      "pages": 3,
+      "corr": 0,
+      "contra": 0,
+      "coherence": 1.0
+    },
+    {
+      "entities": [
+        "Anthony Albanese",
+        "Bondi Beach"
+      ],
+      "claims": 3,
+      "pages": 3,
+      "corr": 0,
+      "contra": 0,
+      "coherence": 1.0
+    },
+    {
+      "entities": [
+        "Rabbi Eli Schlanger",
+        "Bondi Beach"
+      ],
+      "claims": 3,
+      "pages": 3,
+      "corr": 0,
+      "contra": 0,
+      "coherence": 1.0
+    },
+    {
+      "entities": [
+        "Hong Kong",
+        "Wang Fuk Court"
+      ],
+      "claims": 3,
+      "pages": 2,
+      "corr": 0,
+      "contra": 0,
+      "coherence": 1.0
+    },
+    {
+      "entities": [
+        "Do Kwon",
+        "Terraform Labs"
+      ],
+      "claims": 3,
+      "pages": 2,
+      "corr": 0,
+      "contra": 0,
+      "coherence": 1.0
+    },
+    {
+      "entities": [
+        "Elon Musk",
+        "Mark Zuckerberg"
+      ],
+      "claims": 3,
+      "pages": 2,
+      "corr": 1,
+      "contra": 0,
+      "coherence": 1.0
+    },
+    {
+      "entities": [
+        "Leo XIV",
+        "Vatican City"
+      ],
+      "claims": 3,
+      "pages": 2,
+      "corr": 1,
+      "contra": 0,
+      "coherence": 1.0
+    },
+    {
+      "entities": [
+        "Donald Trump",
+        "Bill Clinton"
+      ],
+      "claims": 3,
+      "pages": 2,
+      "corr": 0,
+      "contra": 0,
+      "coherence": 1.0
+    },
+    {
+      "entities": [
+        "CAS Space",
+        "Michael Nicolls"
+      ],
+      "claims": 3,
+      "pages": 2,
+      "corr": 1,
+      "contra": 0,
+      "coherence": 1.0
+    },
+    {
+      "entities": [
+        "CAS Space",
+        "Jiuquan Satellite Launch Center"
+      ],
+      "claims": 3,
+      "pages": 2,
+      "corr": 0,
+      "contra": 0,
+      "coherence": 1.0
+    }
+  ],
+  "results": {
+    "found": 2,
+    "partial": 4,
+    "missed": 10
+  }
+}

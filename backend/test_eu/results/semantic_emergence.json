@@ -1,0 +1,273 @@
+{
+  "clusters": [
+    {
+      "id": "merged_0",
+      "claim_count": 8,
+      "sample_texts": [
+        "The fire at Wang Fuk Court killed at least 156 people.",
+        "The fire at Wang Fuk Court killed at least 156 people.",
+        "The fire at Wang Fuk Court injured dozens of people.",
+        "The fire at Wang Fuk Court resulted in over a hundred deaths.",
+        "At least 160 people have died due to a series of events and decisions related to the Wang Fuk Court fire."
+      ]
+    },
+    {
+      "id": "merged_1",
+      "claim_count": 5,
+      "sample_texts": [
+        "A fire began in Wang Fuk Court, a residential complex in Hong Kong\u2019s Tai Po district.",
+        "The fire was first reported at Wang Fuk Court in Tai Po.",
+        "A fire broke out at the Wang Fuk Court apartment complex in Tai Po.",
+        "A fire broke out at the Wang Fuk Court apartment towers.",
+        "The fire started in Wang Fuk Court"
+      ]
+    },
+    {
+      "id": "sem_15",
+      "claim_count": 2,
+      "sample_texts": [
+        "People attend a vigil near the scene of the deadly fire at the Wang Fuk Court housing complex in Hong Kong on Nov. 28",
+        "People attend a vigil near the scene of the deadly fire at the Wang Fuk Court housing complex in Hong Kong on Nov. 28."
+      ]
+    },
+    {
+      "id": "merged_4",
+      "claim_count": 2,
+      "sample_texts": [
+        "A massive fire ripped through multiple high-rise residential blocks in Tai Po District, Hong Kong",
+        "The fire tore through seven high-rise apartment buildings in the Tai Po district."
+      ]
+    },
+    {
+      "id": "sem_0",
+      "claim_count": 1,
+      "sample_texts": [
+        "Firefighters have been trying for hours to douse fires at a residential building complex in the Tai Po district"
+      ]
+    },
+    {
+      "id": "sem_2",
+      "claim_count": 1,
+      "sample_texts": [
+        "The fire in Tai Po District killed at least 36 people and injured 29"
+      ]
+    },
+    {
+      "id": "sem_3",
+      "claim_count": 1,
+      "sample_texts": [
+        "279 people are missing after the fire in Tai Po District"
+      ]
+    },
+    {
+      "id": "sem_5",
+      "claim_count": 1,
+      "sample_texts": [
+        "The Transport Department closed an entire section of the Tai Po Road due to the fire"
+      ]
+    },
+    {
+      "id": "sem_7",
+      "claim_count": 1,
+      "sample_texts": [
+        "Police and the city\u2019s anti-corruption body have arrested 15 people in the investigation of the renovation project at Wang Fuk Court."
+      ]
+    },
+    {
+      "id": "sem_9",
+      "claim_count": 1,
+      "sample_texts": [
+        "The population of the Tai Po District in Hong Kong is approximately 316,470, according to 2021 data."
+      ]
+    },
+    {
+      "id": "sem_11",
+      "claim_count": 1,
+      "sample_texts": [
+        "The Hong Kong Government announced the establishment of a committee led by a judge to investigate the Wang Fuk Court fire."
+      ]
+    },
+    {
+      "id": "sem_13",
+      "claim_count": 1,
+      "sample_texts": [
+        "In Tai Po, the nets were reduced to ash while the bamboo frame remained almost unscathed."
+      ]
+    },
+    {
+      "id": "sem_16",
+      "claim_count": 1,
+      "sample_texts": [
+        "The death toll in the Wang Fuk Court blaze has risen to 160 after DNA tests found one additional fatality."
+      ]
+    },
+    {
+      "id": "sem_17",
+      "claim_count": 1,
+      "sample_texts": [
+        "John Lee said that the government would not tolerate those who exploit the fatal Tai Po fire."
+      ]
+    },
+    {
+      "id": "sem_18",
+      "claim_count": 1,
+      "sample_texts": [
+        "John Lee ordered an independent committee, chaired by a judge, to be set up to probe the Tai Po blaze."
+      ]
+    },
+    {
+      "id": "sem_19",
+      "claim_count": 1,
+      "sample_texts": [
+        "Chris Tang said that seven out of 20 safety netting samples from the Tai Po housing estate did not pass fire safety tests."
+      ]
+    },
+    {
+      "id": "sem_20",
+      "claim_count": 1,
+      "sample_texts": [
+        "Authorities have arrested 14 people linked to the renovation project at the Tai Po housing estate on suspicion of manslaughter and corruption."
+      ]
+    },
+    {
+      "id": "sem_21",
+      "claim_count": 1,
+      "sample_texts": [
+        "The fire at Wang Fuk Court was finally put out at around 10:18 local time."
+      ]
+    },
+    {
+      "id": "sem_22",
+      "claim_count": 1,
+      "sample_texts": [
+        "The fire alarms in all eight blocks of Wang Fuk Court were not working effectively."
+      ]
+    },
+    {
+      "id": "sem_23",
+      "claim_count": 1,
+      "sample_texts": [
+        "The fire at Wang Fuk Court displaced thousands of residents."
+      ]
+    },
+    {
+      "id": "sem_24",
+      "claim_count": 1,
+      "sample_texts": [
+        "More than 30 people remain missing after the fire at Wang Fuk Court."
+      ]
+    },
+    {
+      "id": "sem_25",
+      "claim_count": 1,
+      "sample_texts": [
+        "Tai Po Baptist Church provided shelter and aid after the fire."
+      ]
+    },
+    {
+      "id": "sem_26",
+      "claim_count": 1,
+      "sample_texts": [
+        "More than 60 members of Tai Po Baptist Church lost their homes in the fire."
+      ]
+    },
+    {
+      "id": "sem_27",
+      "claim_count": 1,
+      "sample_texts": [
+        "Hong Kong's Independent Commission Against Corruption is investigating possible graft connected to Wang Fuk Court's renovation project."
+      ]
+    },
+    {
+      "id": "sem_28",
+      "claim_count": 1,
+      "sample_texts": [
+        "HKCNP convened a Zoom meeting to connect its affiliated pastors with Tai Po pastors."
+      ]
+    },
+    {
+      "id": "sem_29",
+      "claim_count": 1,
+      "sample_texts": [
+        "Authorities found that some of the netting at Wang Fuk Court had failed to meet fire safety standards."
+      ]
+    },
+    {
+      "id": "sem_30",
+      "claim_count": 1,
+      "sample_texts": [
+        "Police were relatively sure that three of those people lived at Wang Fuk Court complex."
+      ]
+    },
+    {
+      "id": "sem_31",
+      "claim_count": 1,
+      "sample_texts": [
+        "Wong Kwok-ngon was among those slated to appear at a press conference about the Wang Fuk Court fire."
+      ]
+    },
+    {
+      "id": "sem_32",
+      "claim_count": 1,
+      "sample_texts": [
+        "Residents of Wang Fuk Court had been warning about safety issues since last year."
+      ]
+    },
+    {
+      "id": "sem_33",
+      "claim_count": 1,
+      "sample_texts": [
+        "The Labour Department received complaints about the quality of the scaffolding netting at Wang Fuk Court in September last year."
+      ]
+    },
+    {
+      "id": "sem_34",
+      "claim_count": 1,
+      "sample_texts": [
+        "The Housing Bureau's independent review team did not find any non-compliance with flame-retardant standards during their inspection at Wang Fuk Court."
+      ]
+    },
+    {
+      "id": "sem_35",
+      "claim_count": 1,
+      "sample_texts": [
+        "The Fire Services Department confirmed that the fire alarm systems at Wang Fuk Court were not functioning during the fire."
+      ]
+    },
+    {
+      "id": "sem_36",
+      "claim_count": 1,
+      "sample_texts": [
+        "The Urban Renewal Authority gave a perfect project management score to the contractor involved in Wang Fuk Court's renovation."
+      ]
+    },
+    {
+      "id": "sem_37",
+      "claim_count": 1,
+      "sample_texts": [
+        "Hong Yip Service Co. Ltd. was involved in the renovation project at Wang Fuk Court."
+      ]
+    },
+    {
+      "id": "sem_38",
+      "claim_count": 1,
+      "sample_texts": [
+        "Chinese media has decried the politicization of the Wang Fuk Court fire."
+      ]
+    },
+    {
+      "id": "sem_39",
+      "claim_count": 1,
+      "sample_texts": [
+        "China\u2019s national security office summoned foreign media to warn them about spreading false information regarding the Wang Fuk Court fire."
+      ]
+    },
+    {
+      "id": "sem_40",
+      "claim_count": 1,
+      "sample_texts": [
+        "Hong Kong security chief Chris Tang urged society to stand united in dealing with the aftermath of the Wang Fuk Court fire."
+      ]
+    }
+  ]
+}

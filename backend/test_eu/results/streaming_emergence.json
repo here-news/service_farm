@@ -1,0 +1,149 @@
+{
+  "stats": {
+    "total_claims": 60,
+    "total_eus": 58,
+    "multi_claim_eus": 2,
+    "largest_eu": 2,
+    "avg_eu_size": 1.0344827586206897,
+    "llm_calls": 4
+  },
+  "top_eus": [
+    {
+      "size": 2,
+      "pages": 2,
+      "mass": 0.36000000000000004,
+      "coherence": 1.0,
+      "sample": [
+        "Venezuela\u2019s oil exports have fallen sharply since the United States seized a tanker.",
+        "The US military seized an oil tanker off the coast of Venezuela."
+      ]
+    },
+    {
+      "size": 2,
+      "pages": 2,
+      "mass": 0.36000000000000004,
+      "coherence": 1.0,
+      "sample": [
+        "Jimmy Lai is subjected to harsh conditions of solitary confinement.",
+        "Jimmy Lai's prison cell window is blocked to prevent access to sunlight."
+      ]
+    },
+    {
+      "size": 1,
+      "pages": 1,
+      "mass": 0.16500000000000004,
+      "coherence": 1.0,
+      "sample": [
+        "Donald Trump issued threats to strike land targets in Venezuela."
+      ]
+    },
+    {
+      "size": 1,
+      "pages": 1,
+      "mass": 0.16500000000000004,
+      "coherence": 1.0,
+      "sample": [
+        "The investigation is expected to provide clarity on the circumstances of the fire and measures to prevent future incidents."
+      ]
+    },
+    {
+      "size": 1,
+      "pages": 1,
+      "mass": 0.16500000000000004,
+      "coherence": 1.0,
+      "sample": [
+        "Amanda Seyfried said she is not apologizing for her comment."
+      ]
+    },
+    {
+      "size": 1,
+      "pages": 1,
+      "mass": 0.16500000000000004,
+      "coherence": 1.0,
+      "sample": [
+        "The fire at Wang Fuk Court killed at least 156 people."
+      ]
+    },
+    {
+      "size": 1,
+      "pages": 1,
+      "mass": 0.16500000000000004,
+      "coherence": 1.0,
+      "sample": [
+        "Ella Cook was identified as one of the victims in the Brown University shooting."
+      ]
+    },
+    {
+      "size": 1,
+      "pages": 1,
+      "mass": 0.16500000000000004,
+      "coherence": 1.0,
+      "sample": [
+        "Jimmy Lai was the mastermind behind three conspiracies to instigate international sanctions and hostile activities against Hong Kong and mainland China."
+      ]
+    },
+    {
+      "size": 1,
+      "pages": 1,
+      "mass": 0.16500000000000004,
+      "coherence": 1.0,
+      "sample": [
+        "Rebel Wilson described the Bondi Beach shooting as an absolute tragedy."
+      ]
+    },
+    {
+      "size": 1,
+      "pages": 1,
+      "mass": 0.16500000000000004,
+      "coherence": 1.0,
+      "sample": [
+        "The Hong Kong government, led by John Lee, has denied accusations against Jimmy Lai."
+      ]
+    },
+    {
+      "size": 1,
+      "pages": 1,
+      "mass": 0.16500000000000004,
+      "coherence": 1.0,
+      "sample": [
+        "Jimmy Lai will learn his fate next Monday after more than 1,800 days in detention."
+      ]
+    },
+    {
+      "size": 1,
+      "pages": 1,
+      "mass": 0.16500000000000004,
+      "coherence": 1.0,
+      "sample": [
+        "Jimmy Lai has been denied Holy Communion for over two years."
+      ]
+    },
+    {
+      "size": 1,
+      "pages": 1,
+      "mass": 0.16500000000000004,
+      "coherence": 1.0,
+      "sample": [
+        "Rob Reiner and Michele Singer Reiner had been married since 1989"
+      ]
+    },
+    {
+      "size": 1,
+      "pages": 1,
+      "mass": 0.16500000000000004,
+      "coherence": 1.0,
+      "sample": [
+        "The US Coast Guard, FBI, Homeland Security Investigations, and the Pentagon carried out the seizure warrant for the tanker."
+      ]
+    },
+    {
+      "size": 1,
+      "pages": 1,
+      "mass": 0.16500000000000004,
+      "coherence": 1.0,
+      "sample": [
+        "Rob Reiner's film 'This Is Spinal Tap' was a mock rock doc poking fun at an absurd heavy metal band."
+      ]
+    }
+  ]
+}

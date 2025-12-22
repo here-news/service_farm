@@ -1,0 +1,340 @@
+{
+  "timestamp": "2025-12-21T00:54:49.014545",
+  "ground_claims": 1215,
+  "results": {
+    "levels": 2,
+    "narratives_by_level": {
+      "1": 10,
+      "2": 0
+    }
+  },
+  "narratives": [
+    {
+      "id": "L1_2ed5eabf",
+      "level": 1,
+      "title": "AI Leaders on TIME's Cover",
+      "summary": "A cluster of claims highlights the recognition of prominent tech leaders in the artificial intelligence sector, specifically Mark Zuckerberg, Elon Musk, Sam Altman, and Jensen Huang, who have been featured on TIME magazine's Person of the Year cover for their contributions to AI. This recognition underscores their roles as pivotal figures in the AI movement, with Altman as the CEO of OpenAI and Huang as the founder of Nvidia, both companies significantly influencing the AI landscape.",
+      "what_we_know": [
+        "Mark Zuckerberg, Elon Musk, and Sam Altman were featured on TIME's Person of the Year cover (5 sources)",
+        "Sam Altman is the CEO of OpenAI, which owns ChatGPT (2 sources)",
+        "Jensen Huang founded Nvidia, a major player in AI technology (2 sources)",
+        "TIME magazine selected AI leaders as Person of the Year for 2025 (1 source)"
+      ],
+      "what_is_contested": [],
+      "what_we_dont_know": [
+        "The specific criteria used by TIME magazine to select AI leaders as Person of the Year",
+        "The impact of this recognition on the public perception of AI and its leaders"
+      ],
+      "key_question": "What criteria does TIME magazine use to determine the significance of AI leaders for its Person of the Year selection?",
+      "entropy": 0.1,
+      "coherence": 0.9,
+      "n_ground_claims": 30
+    },
+    {
+      "id": "L1_merged_2f97a5c2",
+      "level": 1,
+      "title": "Tragedy and Turmoil: The Tai Po Fire and the Plight of Jimmy Lai",
+      "summary": "A catastrophic fire in Hong Kong's Tai Po District has claimed at least 40 lives and left many injured, with ongoing rescue efforts and conflicting reports about the total number of casualties and missing persons. This tragedy unfolds against a backdrop of significant human rights concerns, particularly surrounding the detention of pro-democracy activist Jimmy Lai. Lai's health has reportedly deteriorated severely during his imprisonment, raising alarms about his treatment and the fairness of his legal proceedings, which have been marred by systematic denials of his rights, including the ability to choose his legal counsel. Amidst this turmoil, former U.S. President Donald Trump has been linked to the situation, having reportedly discussed Lai's case with Chinese President Xi Jinping, while also receiving gratitude from Lai's family for his administration's support. The complexities of Trump's influence are further highlighted by his controversial actions, including a recent pardon for Changpeng Zhao and his inclusion among notable figures in TIME's Person of the Year award. As international organizations and British MPs call for Lai's release, the narratives surrounding the Tai Po fire and Lai's plight intertwine, reflecting broader issues of governance, human rights, and political influence.",
+      "what_we_know": [
+        "Democrats on the House Oversight Committee released photos from Epstein\u2019s estate showing powerful figures including Trump, Clinton, Bannon, Gates, and Branson (1 source)",
+        "International organizations and British MPs are calling for Jimmy Lai's release (3 sources)",
+        "TIME\u2019s Person of the Year award has included Donald Trump among other notable figures (3 sources)",
+        "Donald Trump pardoned Changpeng Zhao in October (1 source)",
+        "Jimmy Lai's health has dangerously deteriorated, with reports of significant weight loss and rotting teeth (6 sources)",
+        "Claire Lai expressed gratitude towards Donald Trump and his administration for their support (1 source)",
+        "A massive fire in Tai Po District resulted in at least 40 deaths and many injuries, with ongoing rescue efforts for the missing (5 sources)",
+        "Jimmy Lai has been systematically denied a fair trial, including the right to choose his legal counsel and a jury (4 sources)",
+        "Six former Apple Daily editors and senior executives have been imprisoned for over 1,600 days (1 source)",
+        "Donald Trump reportedly raised Jimmy Lai\u2019s case with Xi Jinping during their meeting (4 sources)"
+      ],
+      "what_is_contested": [
+        {
+          "claim": "At least 40 people, including a firefighter, had died in the Hong Kong fire.",
+          "alternatives": [
+            "At least 36 people were killed",
+            "Another 279 people were reported missing",
+            "The death toll rises as authorities say another 100 people remain unaccounted-for"
+          ],
+          "type": "NUMBER"
+        },
+        {
+          "claim": "The number of individuals associated with Epstein's estate",
+          "alternatives": [
+            "Different counts of individuals mentioned"
+          ],
+          "type": "NUMBER"
+        },
+        {
+          "claim": "The timeline of events related to TIME's Person of the Year award",
+          "alternatives": [
+            "Conflicting years mentioned"
+          ],
+          "type": "NUMBER"
+        }
+      ],
+      "what_we_dont_know": [
+        "The full extent of Jimmy Lai's health issues and their impact on his legal situation",
+        "The long-term impact of the fire on Hong Kong's political landscape and civic space",
+        "The implications of the Epstein estate photos on public perception of Trump and other figures",
+        "The specific details surrounding the charges of sedition and collusion with foreign powers",
+        "The full extent of Trump's influence on U.S.-China relations regarding Jimmy Lai"
+      ],
+      "key_question": "How will the international community respond to the human rights violations surrounding Jimmy Lai's detention amidst the ongoing crisis in Hong Kong?",
+      "entropy": 0.1,
+      "coherence": 0.9,
+      "n_ground_claims": 294
+    },
+    {
+      "id": "L1_merged_95da6d7e",
+      "level": 1,
+      "title": "U.S. Military Seizure of the Skipper: A Complex Intersection of Sanctions and Oil Smuggling",
+      "summary": "In a coordinated operation involving the U.S. military, Coast Guard, FBI, and Homeland Security, the U.S. seized the oil tanker Skipper off the coast of Venezuela. The Skipper, which was sanctioned by the U.S. Treasury Department for its alleged involvement in oil smuggling linked to Hezbollah and Iran's Quds Force, reportedly flew a false Guyana flag. The vessel had recently departed from Venezuela's main oil terminal at Jose, loaded with oil valued at over $95 million. This seizure is part of a broader strategy by the U.S. to enforce sanctions against entities involved in the Venezuelan oil trade, particularly targeting those that facilitate the export of sanctioned oil from Venezuela and Iran. The U.S. has also imposed sanctions on six supertankers that loaded Venezuelan oil, highlighting the complexities of international oil operations amid the ongoing Venezuelan oil crisis. While Chevron has received U.S. government authorization to operate through joint ventures with PDVSA in Venezuela, the seizure of the Skipper has sparked debate, with some claiming it constitutes an act of theft, while others argue it is a necessary enforcement of international sanctions.",
+      "what_we_know": [
+        "The Venezuelan government has called the U.S. seizure an act of 'international piracy' (1 source)",
+        "The US has imposed fresh sanctions on shipping companies and vessels doing business with Venezuela (2 sources)",
+        "The US Treasury Department sanctioned the Skipper for alleged involvement in oil smuggling that generated revenue for Hezbollah and the Islamic Revolutionary Guard Corps-Quds Force (1 source)",
+        "The US has sanctioned six supertankers that recently loaded Venezuelan oil (4 sources)",
+        "Venezuela exported approximately 952,000 barrels per day of crude and fuel in November (1 source)",
+        "The seizure involved a US team of 10 marines and 10 Coast Guard members (3 sources)",
+        "The Skipper was reported to be part of the dark fleet and was falsely flying the Guyana flag (2 sources)",
+        "Venezuela has the largest known reserves of crude oil in the world (1 source)",
+        "Chevron has U.S. government authorization to operate through joint ventures with PDVSA in Venezuela (1 source)",
+        "The oil aboard the Skipper could be worth more than $95 million (1 source)"
+      ],
+      "what_is_contested": [
+        {
+          "claim": "The U.S. seizure of tankers is an act of theft.",
+          "alternatives": [
+            "The U.S. seizure is justified under international law due to sanctions."
+          ],
+          "type": "ATTRIBUTION"
+        }
+      ],
+      "what_we_dont_know": [
+        "The specific details of the cargo on the Skipper at the time of seizure",
+        "The full extent of the Skipper's operational history and connections to other vessels in the dark fleet",
+        "The potential legal ramifications for the crew and owners of the Skipper",
+        "The full extent of the political ramifications for figures like Maria Corina Machado upon her return.",
+        "The exact nature of the Skipper's ownership and registration status"
+      ],
+      "key_question": "Is the U.S. seizure of the Skipper justified enforcement of sanctions or an act of theft?",
+      "entropy": 0.1372865614954908,
+      "coherence": 0.8627134385045092,
+      "n_ground_claims": 61
+    },
+    {
+      "id": "L1_abbea7d9",
+      "level": 1,
+      "title": "Tragic Deaths of Rob and Michele Reiner: A Familial Crisis",
+      "summary": "The recent deaths of filmmaker Rob Reiner and his wife Michele Singer Reiner have led to the arrest of their son, Nick Reiner, who is being held on suspicion of their murder. The couple was found in their Los Angeles home, reportedly with signs of violent attack. Nick, who has openly discussed his struggles with addiction, is currently in custody as the investigation unfolds, raising questions about familial dynamics and the circumstances surrounding this tragic event.",
+      "what_we_know": [
+        "Nick Reiner has been taken into custody following the deaths of his parents (5 sources)",
+        "Rob Reiner and Michele Singer Reiner were killed in their Los Angeles home (3 sources)",
+        "Rob Reiner was a renowned director known for iconic films and was the son of comedian Carl Reiner (4 sources)",
+        "Rob Reiner and Michele Singer Reiner had been married since 1989 (2 sources)",
+        "Nick Reiner is being held on $4 million bail (2 sources)"
+      ],
+      "what_is_contested": [],
+      "what_we_dont_know": [
+        "The exact circumstances leading to the deaths of Rob and Michele Reiner",
+        "The nature of the relationship between Nick Reiner and his parents prior to the incident"
+      ],
+      "key_question": "What were the underlying factors that led to the tragic deaths of Rob and Michele Reiner?",
+      "entropy": 0.1,
+      "coherence": 0.9,
+      "n_ground_claims": 67
+    },
+    {
+      "id": "L1_24907cfa",
+      "level": 1,
+      "title": "Shooting Incident at Brown University",
+      "summary": "A tragic shooting incident occurred at Brown University, resulting in at least two fatalities and multiple injuries. The situation prompted an active shooter alert, leading to a lockdown of the campus as law enforcement agencies coordinated to manage the crisis. Conflicting reports emerged regarding the status of the suspect and the number of casualties, creating confusion in the immediate aftermath of the event.",
+      "what_we_know": [
+        "A shooting in the engineering building at Brown University left at least two people dead and eight injured (5 sources).",
+        "Governor Dan McKee has directed the Rhode Island State Police to provide investigative support (2 sources)."
+      ],
+      "what_is_contested": [
+        {
+          "claim": "There is a suspect in custody.",
+          "alternatives": [
+            "There is no suspect in custody."
+          ],
+          "type": "ATTRIBUTION"
+        },
+        {
+          "claim": "The shooting left at least two people dead and eight injured.",
+          "alternatives": [
+            "Different numbers reported, including 30 and 4 injuries."
+          ],
+          "type": "NUMBER"
+        }
+      ],
+      "what_we_dont_know": [
+        "The exact number of casualties and injuries.",
+        "The current status of the suspect involved in the shooting."
+      ],
+      "key_question": "What is the current status of the suspect involved in the shooting at Brown University?",
+      "entropy": 0.21570379052663585,
+      "coherence": 0.7842962094733641,
+      "n_ground_claims": 45
+    },
+    {
+      "id": "L1_merged_c508b12f",
+      "level": 1,
+      "title": "The Assassination of Charlie Kirk and Its Aftermath",
+      "summary": "On September 10, 2023, Charlie Kirk, a prominent conservative figure, was shot and killed at the age of 31 during a Turning Point USA event. In the wake of his assassination, Tyler Robinson has been charged with aggravated murder and other serious offenses in connection with the incident. Robinson, who surrendered to authorities on September 11, is currently facing legal proceedings, with prosecutors indicating plans to seek the death penalty. He has made multiple court appearances but has not yet entered a plea. During pretrial hearings, he appeared in civilian clothing as per a judge's ruling and is currently booked into the 'Special Housing Unit'. The case has garnered significant media attention, particularly due to Amanda Seyfried's controversial comments referring to Kirk as 'hateful', which she has not retracted. This has sparked debates about the justification of her remarks and the broader implications for public discourse surrounding Kirk's legacy. Additionally, there are contested claims regarding the openness of Robinson's trial and the circulation of misinformation about him, with differing opinions on whether the trial should be public.",
+      "what_we_know": [
+        "Tyler Robinson has been charged with aggravated murder in connection with Charlie Kirk's assassination (3 sources)",
+        "Robinson has been charged with aggravated murder and other serious offenses (3 sources)",
+        "Amanda Seyfried referred to Charlie Kirk as 'hateful' and has not apologized for her comments (5 sources)",
+        "Robinson surrendered to authorities on the night of Sept. 11 (1 source)",
+        "Robinson wore civilian clothing during pretrial hearings as per a judge's ruling (1 source)",
+        "Charlie Kirk was shot and killed on September 10 at the age of 31 (6 sources)",
+        "Robinson has not entered a plea (1 source)",
+        "Tyler Robinson is booked into the 'Special Housing Unit' (1 source)",
+        "Prosecutors plan to seek the death penalty in Robinson's case (2 sources)"
+      ],
+      "what_is_contested": [
+        {
+          "claim": "Amanda Seyfried's comments about Charlie Kirk's legacy are justified",
+          "alternatives": [
+            "Many believe her comments are inappropriate given the context of his assassination"
+          ],
+          "type": "ATTRIBUTION"
+        },
+        {
+          "claim": "The trial should be open to the public",
+          "alternatives": [
+            "The defense argues that publicity could hinder Robinson's case"
+          ],
+          "type": "ATTRIBUTION"
+        },
+        {
+          "claim": "Misinformation about Robinson is circulating",
+          "alternatives": [
+            "Kathy Nester argues that digitally altered images have contributed to this misinformation"
+          ],
+          "type": "CAUSE"
+        }
+      ],
+      "what_we_dont_know": [
+        "The full implications of the alleged confession made by Robinson to his roommate",
+        "What specific evidence will be presented by the prosecution and defense during the trial",
+        "The full motive behind Tyler Robinson's actions leading to Charlie Kirk's murder",
+        "The potential impact of Amanda Seyfried's comments on public discourse regarding political figures"
+      ],
+      "key_question": "What are the implications of Amanda Seyfried's comments on public perception of Charlie Kirk, and how will Tyler Robinson's trial unfold amidst the controversy?",
+      "entropy": 0.2568174367275674,
+      "coherence": 0.7431825632724326,
+      "n_ground_claims": 50
+    },
+    {
+      "id": "L1_d0a8f217",
+      "level": 1,
+      "title": "Do Kwon's Fraud and Sentencing",
+      "summary": "Do Kwon, co-founder of Terraform Labs, was sentenced to 15 years in prison for orchestrating a massive fraud involving the misrepresentation of the stablecoin TerraUSD, which led to a staggering $40 billion loss for investors. His actions were deemed unusually serious by US District Judge Paul A. Engelmayer, and he pleaded guilty to multiple fraud charges, taking sole responsibility for the collapse of investments affecting hundreds of thousands. However, there is a discrepancy regarding the length of his sentence, with some sources suggesting it may be 25 years instead of 15.",
+      "what_we_know": [
+        "Do Kwon was sentenced to 15 years in prison for fraud (5 sources)",
+        "Do Kwon pleaded guilty to defrauding investors (3 sources)",
+        "Do Kwon's fraud caused a $40 billion loss (2 sources)",
+        "Do Kwon misrepresented TerraUSD as a stablecoin (2 sources)",
+        "Do Kwon was charged with nine criminal counts including securities fraud (1 source)"
+      ],
+      "what_is_contested": [
+        {
+          "claim": "Do Kwon was sentenced to 15 years in prison",
+          "alternatives": [
+            "Do Kwon was sentenced to 25 years in prison"
+          ],
+          "type": "NUMBER"
+        }
+      ],
+      "what_we_dont_know": [
+        "The exact terms of Do Kwon's potential transfer to Fort Dix",
+        "The details of how part of Do Kwon's sentence could be served in South Korea"
+      ],
+      "key_question": "What is the definitive length of Do Kwon's prison sentence?",
+      "entropy": 0.1,
+      "coherence": 0.9,
+      "n_ground_claims": 47
+    },
+    {
+      "id": "L1_1c6ac36e",
+      "level": 1,
+      "title": "Pope Leo XIV: The First American Pope",
+      "summary": "Recent claims assert that Pope Leo XIV has made history as the first American pope, a narrative supported by multiple sources. Additionally, it is reported that King Charles III prayed with Pope Leo XIV at the Vatican in October, further highlighting the pope's prominence on the global stage. The consistency of these claims across various narratives suggests a significant moment in the history of the papacy.",
+      "what_we_know": [
+        "Pope Leo XIV is reported to be the first American pope (3 sources)",
+        "King Charles III prayed with Pope Leo XIV at the Vatican in October (1 source)"
+      ],
+      "what_is_contested": [],
+      "what_we_dont_know": [
+        "The specific date of the prayer meeting between King Charles III and Pope Leo XIV",
+        "The broader implications of having an American pope on the Catholic Church's global influence"
+      ],
+      "key_question": "What are the implications of having an American pope for the Catholic Church and its followers worldwide?",
+      "entropy": 0.318584313134885,
+      "coherence": 0.681415686865115,
+      "n_ground_claims": 4
+    },
+    {
+      "id": "L1_d041eb2a",
+      "level": 1,
+      "title": "King Charles III's Cancer Journey and Public Engagement",
+      "summary": "King Charles III has publicly addressed his cancer diagnosis, emphasizing the importance of early detection and sharing updates on his treatment journey. His recent video message during Channel 4 and Cancer Research UK's 'Stand Up To Cancer' night highlights his commitment to raising awareness about cancer. While he has responded well to treatment and is moving into a precautionary phase, there remains uncertainty regarding the specifics of his condition, including whether his cancer is in remission and the timeline for his treatment adjustments.",
+      "what_we_know": [
+        "King Charles III disclosed his cancer diagnosis in February 2024 (1 source)",
+        "King Charles III emphasized the importance of early cancer detection (1 source)",
+        "King Charles III responded exceptionally well to treatment (1 source)",
+        "Queen Camilla visited King Charles III daily during his treatment at The London Clinic (1 source)",
+        "King Charles III resumed some public duties two months after his diagnosis was revealed (1 source)"
+      ],
+      "what_is_contested": [
+        {
+          "claim": "King Charles III will reduce his cancer treatment schedule in 2026",
+          "alternatives": [
+            "King Charles III's cancer treatment will be scaled back in 2024"
+          ],
+          "type": "NUMBER"
+        },
+        {
+          "claim": "Buckingham Palace did not say whether King Charles III's cancer is in remission",
+          "alternatives": [
+            "There may be indications of remission based on treatment response"
+          ],
+          "type": "ATTRIBUTION"
+        }
+      ],
+      "what_we_dont_know": [
+        "The exact status of King Charles III's cancer (remission or not)",
+        "The specific timeline for his treatment adjustments and future public engagements"
+      ],
+      "key_question": "Is King Charles III's cancer in remission, and what are the implications for his future treatment and public duties?",
+      "entropy": 0.29216862626977,
+      "coherence": 0.70783137373023,
+      "n_ground_claims": 24
+    },
+    {
+      "id": "L1_45a753f2",
+      "level": 1,
+      "title": "Upcoming NS-37 Mission by Blue Origin",
+      "summary": "Blue Origin has announced the NS-37 mission, scheduled for December 18, 2025, which will mark the 37th flight of its New Shepard rocket and the 16th crewed flight overall. This mission will carry six civilian astronauts and will be livestreamed starting 40 minutes before liftoff. The company, founded by Jeff Bezos, has been developing space data center technology alongside its ongoing space tourism efforts, having already flown 86 individuals above the K\u00e1rm\u00e1n line.",
+      "what_we_know": [
+        "Blue Origin's NS-37 mission is set to launch on December 18, 2025 (1 source)",
+        "The NS-37 mission will include six civilian astronauts (1 source)",
+        "Blue Origin has flown 86 people above the K\u00e1rm\u00e1n line (1 source)",
+        "The launch window opens at 8:30 AM CST / 14:30 UTC (1 source)",
+        "Blue Origin will livestream the mission 40 minutes prior to liftoff (1 source)"
+      ],
+      "what_is_contested": [],
+      "what_we_dont_know": [
+        "The cost of the space tourism experience offered by Blue Origin",
+        "Details on the specific advancements in space data center technology being developed"
+      ],
+      "key_question": "What is the pricing structure for Blue Origin's space tourism experience?",
+      "entropy": 0.12379246983466852,
+      "coherence": 0.8762075301653315,
+      "n_ground_claims": 14
+    }
+  ]
+}

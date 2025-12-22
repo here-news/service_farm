@@ -1,0 +1,450 @@
+{
+  "stats": {
+    "layers": [
+      {
+        "depth": 0,
+        "eu_count": 1215,
+        "merges": 0
+      },
+      {
+        "depth": 1,
+        "eu_count": 1028,
+        "merges": 187,
+        "min_energy": 1.0
+      },
+      {
+        "depth": 2,
+        "eu_count": 1000,
+        "merges": 28,
+        "min_energy": 1.5
+      },
+      {
+        "depth": 3,
+        "eu_count": 989,
+        "merges": 11,
+        "min_energy": 2.0
+      },
+      {
+        "depth": 4,
+        "eu_count": 984,
+        "merges": 5,
+        "min_energy": 2.5
+      },
+      {
+        "depth": 5,
+        "eu_count": 981,
+        "merges": 3,
+        "min_energy": 3.0
+      },
+      {
+        "depth": 6,
+        "eu_count": 981,
+        "merges": 0,
+        "min_energy": 3.5
+      }
+    ]
+  },
+  "analysis": {
+    "by_depth": {
+      "0": {
+        "total_eus": 1215,
+        "real_clusters": 1215,
+        "avg_mass": 0.09999999999999784,
+        "max_mass": 0.1
+      },
+      "1": {
+        "total_eus": 1028,
+        "real_clusters": 187,
+        "avg_mass": 0.11955252918287648,
+        "max_mass": 0.4
+      },
+      "2": {
+        "total_eus": 1000,
+        "real_clusters": 28,
+        "avg_mass": 0.12590666666666353,
+        "max_mass": 1.3333333333333333
+      },
+      "3": {
+        "total_eus": 989,
+        "real_clusters": 11,
+        "avg_mass": 0.12959922641115437,
+        "max_mass": 2.0444444444444443
+      },
+      "4": {
+        "total_eus": 984,
+        "real_clusters": 5,
+        "avg_mass": 0.132002808606125,
+        "max_mass": 2.655026455026455
+      },
+      "5": {
+        "total_eus": 981,
+        "real_clusters": 3,
+        "avg_mass": 0.1336557263016559,
+        "max_mass": 2.655026455026455
+      },
+      "6": {
+        "total_eus": 981,
+        "real_clusters": 0,
+        "avg_mass": 0.1336557263016559,
+        "max_mass": 2.655026455026455
+      }
+    }
+  },
+  "top_clusters_by_depth": {
+    "0": [
+      {
+        "label": "At least 36 people were killed and 279 w...",
+        "mass": 0.1,
+        "claim_count": 1,
+        "corr": 0,
+        "contra": 0
+      },
+      {
+        "label": "29 people were still hospitalised, with ...",
+        "mass": 0.1,
+        "claim_count": 1,
+        "corr": 0,
+        "contra": 0
+      },
+      {
+        "label": "Firefighters have been trying for hours ...",
+        "mass": 0.1,
+        "claim_count": 1,
+        "corr": 0,
+        "contra": 0
+      },
+      {
+        "label": "The fire was still burning in the early ...",
+        "mass": 0.1,
+        "claim_count": 1,
+        "corr": 0,
+        "contra": 0
+      },
+      {
+        "label": "The fire department received reports of ...",
+        "mass": 0.1,
+        "claim_count": 1,
+        "corr": 0,
+        "contra": 0
+      }
+    ],
+    "1": [
+      {
+        "label": "Donald Trump",
+        "mass": 0.4,
+        "claim_count": 2,
+        "corr": 1,
+        "contra": 0
+      },
+      {
+        "label": "Time",
+        "mass": 0.4,
+        "claim_count": 2,
+        "corr": 1,
+        "contra": 0
+      },
+      {
+        "label": "Sam Altman",
+        "mass": 0.4,
+        "claim_count": 2,
+        "corr": 1,
+        "contra": 0
+      },
+      {
+        "label": "Zohran Mamdani",
+        "mass": 0.4,
+        "claim_count": 2,
+        "corr": 1,
+        "contra": 0
+      },
+      {
+        "label": "Sam Altman",
+        "mass": 0.4,
+        "claim_count": 2,
+        "corr": 1,
+        "contra": 0
+      }
+    ],
+    "2": [
+      {
+        "label": "Time",
+        "mass": 1.3333333333333333,
+        "claim_count": 4,
+        "corr": 4,
+        "contra": 0
+      },
+      {
+        "label": "Elon Musk",
+        "mass": 0.7000000000000002,
+        "claim_count": 4,
+        "corr": 1,
+        "contra": 0
+      },
+      {
+        "label": "Xi Jinping",
+        "mass": 0.6000000000000001,
+        "claim_count": 4,
+        "corr": 3,
+        "contra": 0
+      },
+      {
+        "label": "Michele Singer",
+        "mass": 0.6000000000000001,
+        "claim_count": 4,
+        "corr": 3,
+        "contra": 0
+      },
+      {
+        "label": "Charlie Kirk",
+        "mass": 0.6000000000000001,
+        "claim_count": 4,
+        "corr": 3,
+        "contra": 0
+      }
+    ],
+    "3": [
+      {
+        "label": "Time",
+        "mass": 2.0444444444444443,
+        "claim_count": 6,
+        "corr": 5,
+        "contra": 0
+      },
+      {
+        "label": "Time",
+        "mass": 1.4748571428571433,
+        "claim_count": 8,
+        "corr": 4,
+        "contra": 2
+      },
+      {
+        "label": "Wang Fuk Court",
+        "mass": 1.2044444444444444,
+        "claim_count": 7,
+        "corr": 4,
+        "contra": 2
+      },
+      {
+        "label": "Michele Singer",
+        "mass": 1.0666666666666667,
+        "claim_count": 6,
+        "corr": 5,
+        "contra": 0
+      },
+      {
+        "label": "Amanda Seyfried",
+        "mass": 0.8444444444444446,
+        "claim_count": 6,
+        "corr": 4,
+        "contra": 0
+      }
+    ],
+    "4": [
+      {
+        "label": "Time",
+        "mass": 2.655026455026455,
+        "claim_count": 7,
+        "corr": 5,
+        "contra": 0
+      },
+      {
+        "label": "Xu Bo",
+        "mass": 1.5717530864197535,
+        "claim_count": 10,
+        "corr": 5,
+        "contra": 2
+      },
+      {
+        "label": "Brown University Library",
+        "mass": 1.502952380952381,
+        "claim_count": 8,
+        "corr": 5,
+        "contra": 1
+      },
+      {
+        "label": "Jimmy Lai",
+        "mass": 1.378666666666667,
+        "claim_count": 6,
+        "corr": 7,
+        "contra": 0
+      },
+      {
+        "label": "Jimmy Lai",
+        "mass": 1.1142857142857143,
+        "claim_count": 7,
+        "corr": 5,
+        "contra": 0
+      }
+    ],
+    "5": [
+      {
+        "label": "Jimmy Lai",
+        "mass": 2.3368888888888897,
+        "claim_count": 10,
+        "corr": 10,
+        "contra": 0
+      },
+      {
+        "label": "Xu Bo",
+        "mass": 2.2254292555181445,
+        "claim_count": 12,
+        "corr": 7,
+        "contra": 3
+      },
+      {
+        "label": "Jimmy Lai",
+        "mass": 1.5612244897959184,
+        "claim_count": 8,
+        "corr": 8,
+        "contra": 0
+      }
+    ],
+    "6": []
+  },
+  "event_comparisons": [
+    {
+      "event": "Wang Fuk Court Fire",
+      "event_claims": 130,
+      "matched_label": "Wang Fuk Court",
+      "matched_depth": 3,
+      "matched_claims": 7,
+      "overlap": 0.05384615384615385,
+      "status": "MISSED"
+    },
+    {
+      "event": "Charlie Kirk Assassination",
+      "event_claims": 35,
+      "matched_label": "Amanda Seyfried",
+      "matched_depth": 3,
+      "matched_claims": 6,
+      "overlap": 0.17142857142857143,
+      "status": "MISSED"
+    },
+    {
+      "event": "Jimmy Lai Imprisonment",
+      "event_claims": 117,
+      "matched_label": "Jimmy Lai",
+      "matched_depth": 5,
+      "matched_claims": 10,
+      "overlap": 0.08547008547008547,
+      "status": "MISSED"
+    },
+    {
+      "event": "Do Kwon Sentencing",
+      "event_claims": 36,
+      "matched_label": "Do Kwon",
+      "matched_depth": 2,
+      "matched_claims": 3,
+      "overlap": 0.08333333333333333,
+      "status": "MISSED"
+    },
+    {
+      "event": "TIME Person of the Year 2025",
+      "event_claims": 29,
+      "matched_label": "Time",
+      "matched_depth": 4,
+      "matched_claims": 7,
+      "overlap": 0.2,
+      "status": "PARTIAL"
+    },
+    {
+      "event": "AI Innovators on TIME Covers",
+      "event_claims": 12,
+      "matched_label": "Time",
+      "matched_depth": 3,
+      "matched_claims": 8,
+      "overlap": 0.5384615384615384,
+      "status": "FOUND"
+    },
+    {
+      "event": "Venezuelan Oil Tanker Seizure",
+      "event_claims": 40,
+      "matched_label": "United States",
+      "matched_depth": 1,
+      "matched_claims": 2,
+      "overlap": 0.05,
+      "status": "MISSED"
+    },
+    {
+      "event": "King Charles III's Cancer Treatment Announcement",
+      "event_claims": 23,
+      "matched_label": "Charles III",
+      "matched_depth": 1,
+      "matched_claims": 2,
+      "overlap": 0.08695652173913043,
+      "status": "MISSED"
+    },
+    {
+      "event": "NS-37 Mission",
+      "event_claims": 14,
+      "matched_label": "Corn Ranch",
+      "matched_depth": 1,
+      "matched_claims": 2,
+      "overlap": 0.14285714285714285,
+      "status": "MISSED"
+    },
+    {
+      "event": "Brown University Shooting",
+      "event_claims": 49,
+      "matched_label": "Brown University Library",
+      "matched_depth": 4,
+      "matched_claims": 8,
+      "overlap": 0.16326530612244897,
+      "status": "MISSED"
+    },
+    {
+      "event": "Bondi Beach Shooting",
+      "event_claims": 55,
+      "matched_label": "Bondi Beach",
+      "matched_depth": 2,
+      "matched_claims": 3,
+      "overlap": 0.05454545454545454,
+      "status": "MISSED"
+    },
+    {
+      "event": "December 2023 Satellite Near-Collision Incident",
+      "event_claims": 23,
+      "matched_label": "Starlink",
+      "matched_depth": 2,
+      "matched_claims": 4,
+      "overlap": 0.17391304347826086,
+      "status": "MISSED"
+    },
+    {
+      "event": "Reiner Family Tragedy",
+      "event_claims": 21,
+      "matched_label": "Michele Singer",
+      "matched_depth": 3,
+      "matched_claims": 6,
+      "overlap": 0.2857142857142857,
+      "status": "PARTIAL"
+    },
+    {
+      "event": "Trump vs. BBC Defamation Lawsuit",
+      "event_claims": 18,
+      "matched_label": "Donald Trump",
+      "matched_depth": 2,
+      "matched_claims": 4,
+      "overlap": 0.2222222222222222,
+      "status": "PARTIAL"
+    },
+    {
+      "event": "Trump's Defamation Lawsuit Against BBC",
+      "event_claims": 5,
+      "matched_label": "BBC",
+      "matched_depth": 1,
+      "matched_claims": 2,
+      "overlap": 0.4,
+      "status": "PARTIAL"
+    },
+    {
+      "event": "Xu Bo Surrogacy Case",
+      "event_claims": 16,
+      "matched_label": "Xu Bo",
+      "matched_depth": 5,
+      "matched_claims": 12,
+      "overlap": 0.6470588235294118,
+      "status": "FOUND"
+    }
+  ]
+}

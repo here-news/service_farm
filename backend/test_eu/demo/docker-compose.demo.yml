@@ -1,0 +1,32 @@
+version: '3.8'
+
+# Add this service to your existing docker-compose setup
+# Or run standalone with: docker-compose -f docker-compose.demo.yml up
+
+services:
+  fractal-demo:
+    image: herenews-app:latest
+    container_name: fractal-demo
+    command: python /app/test_eu/demo/server.py
+    ports:
+      - "8765:8765"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - POSTGRES_HOST=herenews-postgres
+      - POSTGRES_DB=herenews
+      - POSTGRES_USER=herenews_user
+      - POSTGRES_PASSWORD=herenews_pass
+      - NEO4J_URI=bolt://herenews-neo4j:7687
+      - NEO4J_USER=neo4j
+      - NEO4J_PASSWORD=herenews_pass
+    volumes:
+      - ../../../backend:/app
+    networks:
+      - herenews-network
+    depends_on:
+      - herenews-postgres
+      - herenews-neo4j
+
+networks:
+  herenews-network:
+    external: true

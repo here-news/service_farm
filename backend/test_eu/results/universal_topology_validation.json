@@ -1,0 +1,292 @@
+{
+  "data": {
+    "claims": 1215,
+    "events": 16,
+    "entities": 740
+  },
+  "experiments": {
+    "1_entropy": {
+      "hypothesis": "Entropy correctly measures uncertainty",
+      "test_cases": [
+        {
+          "test": "lowest_entropy",
+          "claim": "Jimmy Lai has been languishing in prison for five years.",
+          "entropy": 0.3,
+          "corroborations": 6
+        },
+        {
+          "test": "lowest_entropy",
+          "claim": "Jimmy Lai is currently imprisoned in Hong Kong on national security charges.",
+          "entropy": 0.3,
+          "corroborations": 5
+        },
+        {
+          "test": "lowest_entropy",
+          "claim": "Jimmy Lai has pleaded not guilty to two counts of conspiracy to collude with for",
+          "entropy": 0.3,
+          "corroborations": 5
+        },
+        {
+          "test": "lowest_entropy",
+          "claim": "A fatal shooting broke out on Brown University campus on Saturday night, leaving",
+          "entropy": 0.3,
+          "corroborations": 5
+        },
+        {
+          "test": "lowest_entropy",
+          "claim": "Jimmy Lai faces life in jail if convicted.",
+          "entropy": 0.3,
+          "corroborations": 4
+        },
+        {
+          "test": "contested",
+          "claim": "The fire at Wang Fuk Court resulted in over a hundred deaths.",
+          "entropy": 0.44999999999999996,
+          "contradictions": 1
+        },
+        {
+          "test": "contested",
+          "claim": "Amanda Seyfried refused to apologize for her comment about Charlie Kirk.",
+          "entropy": 0.5,
+          "contradictions": 1
+        },
+        {
+          "test": "contested",
+          "claim": "Sam Altman was featured on a TIME magazine cover symbolizing AI.",
+          "entropy": 0.5418430900086739,
+          "contradictions": 1
+        },
+        {
+          "test": "contested",
+          "claim": "Providence\u2019s mayor said the shooting left at least two people dead and eight inj",
+          "entropy": 0.5418430900086739,
+          "contradictions": 1
+        },
+        {
+          "test": "contested",
+          "claim": "Multiple people have been shot near Brown University",
+          "entropy": 0.5418430900086739,
+          "contradictions": 1
+        }
+      ],
+      "summary": {
+        "isolated_avg_entropy": 1.0,
+        "validation_passed": true,
+        "total_claims": 1215,
+        "low_entropy_count": 56,
+        "contested_count": 29
+      }
+    },
+    "2_abstraction": {
+      "hypothesis": "Abstraction levels emerge from support graph structure",
+      "level_distribution": {
+        "0": 1065,
+        "1": 87,
+        "4": 7,
+        "2": 37,
+        "3": 14,
+        "5": 4,
+        "6": 1
+      },
+      "test_cases": [
+        {
+          "test": "event_claims_vs_all",
+          "event_claim_avg_level": 0.42215088282504015,
+          "all_claims_avg_level": 0.21152263374485597,
+          "passed": true
+        }
+      ]
+    },
+    "3_independence": {
+      "hypothesis": "Independent evidence reduces entropy more than correlated",
+      "findings": [
+        {
+          "high_independence_avg_entropy": 0.397146811560953,
+          "low_independence_avg_entropy": 0.4572436704811469,
+          "hypothesis_supported": true
+        },
+        {
+          "support_count": 2,
+          "n": 40,
+          "correlation": -0.9999999999999997
+        },
+        {
+          "support_count": 3,
+          "n": 13,
+          "correlation": -1.0
+        },
+        {
+          "support_count": 4,
+          "n": 5,
+          "correlation": -1.0
+        },
+        {
+          "support_count": 5,
+          "n": 5,
+          "correlation": -0.7905694150420948
+        }
+      ]
+    },
+    "4_contradiction": {
+      "hypothesis": "Contradictions increase entropy but reveal contested claims",
+      "contradictions": [],
+      "analysis": {
+        "total_pairs": 39,
+        "numeric_contradictions": 10,
+        "factual_contradictions": 29
+      }
+    },
+    "5_frames": {
+      "hypothesis": "Independent events supporting same pattern create emergent frames",
+      "potential_frames": [
+        {
+          "anchor_entity": "Donald Trump",
+          "event_count": 8,
+          "events": [
+            "Jimmy Lai Imprisonment",
+            "TIME Person of the Year 2025",
+            "Venezuelan Oil Tanker Seizure",
+            "King Charles III's Cancer Treatment Announcement",
+            "Brown University Shooting",
+            "Bondi Beach Shooting",
+            "Trump vs. BBC Defamation Lawsuit",
+            "Trump's Defamation Lawsuit Against BBC"
+          ],
+          "independence": 1.0,
+          "potential_frame": "Stories involving Donald Trump"
+        },
+        {
+          "anchor_entity": "China",
+          "event_count": 3,
+          "events": [
+            "Wang Fuk Court Fire",
+            "Jimmy Lai Imprisonment",
+            "Venezuelan Oil Tanker Seizure"
+          ],
+          "independence": 0.975103734439834,
+          "potential_frame": "Stories involving China"
+        },
+        {
+          "anchor_entity": "Xi Jinping",
+          "event_count": 3,
+          "events": [
+            "Wang Fuk Court Fire",
+            "Jimmy Lai Imprisonment",
+            "TIME Person of the Year 2025"
+          ],
+          "independence": 0.975103734439834,
+          "potential_frame": "Stories involving Xi Jinping"
+        },
+        {
+          "anchor_entity": "Beijing",
+          "event_count": 3,
+          "events": [
+            "Wang Fuk Court Fire",
+            "Jimmy Lai Imprisonment",
+            "Xu Bo Surrogacy Case"
+          ],
+          "independence": 0.975103734439834,
+          "potential_frame": "Stories involving Beijing"
+        },
+        {
+          "anchor_entity": "United States",
+          "event_count": 3,
+          "events": [
+            "Jimmy Lai Imprisonment",
+            "Venezuelan Oil Tanker Seizure",
+            "Xu Bo Surrogacy Case"
+          ],
+          "independence": 1.0,
+          "potential_frame": "Stories involving United States"
+        },
+        {
+          "anchor_entity": "Leo XIV",
+          "event_count": 3,
+          "events": [
+            "Jimmy Lai Imprisonment",
+            "TIME Person of the Year 2025",
+            "King Charles III's Cancer Treatment Announcement"
+          ],
+          "independence": 1.0,
+          "potential_frame": "Stories involving Leo XIV"
+        },
+        {
+          "anchor_entity": "Hong Kong",
+          "event_count": 2,
+          "events": [
+            "Wang Fuk Court Fire",
+            "Jimmy Lai Imprisonment"
+          ],
+          "independence": 0.975103734439834,
+          "potential_frame": "Stories involving Hong Kong"
+        },
+        {
+          "anchor_entity": "Iain Duncan Smith",
+          "event_count": 2,
+          "events": [
+            "Wang Fuk Court Fire",
+            "Jimmy Lai Imprisonment"
+          ],
+          "independence": 0.975103734439834,
+          "potential_frame": "Stories involving Iain Duncan Smith"
+        },
+        {
+          "anchor_entity": "Agence France-Presse",
+          "event_count": 2,
+          "events": [
+            "Wang Fuk Court Fire",
+            "Jimmy Lai Imprisonment"
+          ],
+          "independence": 0.975103734439834,
+          "potential_frame": "Stories involving Agence France-Presse"
+        },
+        {
+          "anchor_entity": "Jimmy Lai",
+          "event_count": 2,
+          "events": [
+            "Wang Fuk Court Fire",
+            "Jimmy Lai Imprisonment"
+          ],
+          "independence": 0.975103734439834,
+          "potential_frame": "Stories involving Jimmy Lai"
+        },
+        {
+          "anchor_entity": "Hong Kong",
+          "event_count": 2,
+          "events": [
+            "Wang Fuk Court Fire",
+            "Jimmy Lai Imprisonment"
+          ],
+          "potential_frame": "Hong Kong 2025 - Multiple independent incidents",
+          "note": "Fire + Trial = independent evidence for systemic frame?"
+        }
+      ]
+    },
+    "6_query": {
+      "hypothesis": "Can query any claim for entropy, level, evidence chain",
+      "queries": [
+        {
+          "claim": "Jimmy Lai has been languishing in prison for five years.",
+          "entropy": 0.3,
+          "abstraction_level": 5,
+          "support_count": 6,
+          "contradiction_count": 0
+        },
+        {
+          "claim": "Jimmy Lai has been jailed for more than 1,800 days.",
+          "entropy": 0.44184309000867394,
+          "abstraction_level": 6,
+          "support_count": 2,
+          "contradiction_count": 0
+        },
+        {
+          "claim": "Charlie Kirk was shot and killed during a campus event at Utah State University.",
+          "entropy": 0.760935173682112,
+          "abstraction_level": 1,
+          "support_count": 1,
+          "contradiction_count": 1
+        }
+      ]
+    }
+  }
+}

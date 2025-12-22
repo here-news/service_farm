@@ -4,6 +4,13 @@ Run Extraction Worker
 Launches extraction worker that processes URLs from Redis queue
 """
 import os
+from pathlib import Path
+
+# Load .env from project root (one level up from backend/)
+from dotenv import load_dotenv
+env_path = Path(__file__).parent.parent / '.env'
+load_dotenv(env_path)
+
 import asyncio
 import logging
 import asyncpg

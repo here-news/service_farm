@@ -1,0 +1,341 @@
+{
+  "timestamp": "2025-12-20T17:58:34.689490",
+  "dataset": {
+    "claims": 1215,
+    "entities": 740
+  },
+  "results": {
+    "brute_force+full_recompute": {
+      "total_claims": 1215,
+      "total_time": 10.169862985610962,
+      "avg_time_per_claim": 0.008370257601325894,
+      "max_time_per_claim": 0.04014182090759277,
+      "total_comparisons": 737505,
+      "comparisons_per_claim": 607.0,
+      "total_entropy_computations": 738720,
+      "avg_connections_per_claim": 0.6493827160493827,
+      "avg_entropy": 0.977463797921151,
+      "avg_level": 0.23621399176954733,
+      "max_level": 6,
+      "accuracy": {
+        "precision": 0.3460207612456747,
+        "recall": 0.4,
+        "f1": 0.37105751391465674,
+        "true_positives": 200,
+        "false_positives": 378,
+        "false_negatives": 300
+      }
+    },
+    "brute_force+incremental": {
+      "total_claims": 1215,
+      "total_time": 7.0776238441467285,
+      "avg_time_per_claim": 0.005825204809997308,
+      "max_time_per_claim": 0.022743940353393555,
+      "total_comparisons": 737505,
+      "comparisons_per_claim": 607.0,
+      "total_entropy_computations": 2224,
+      "avg_connections_per_claim": 0.6493827160493827,
+      "avg_entropy": 0.9771605148707585,
+      "avg_level": 0.25679012345679014,
+      "max_level": 8,
+      "accuracy": {
+        "precision": 0.3460207612456747,
+        "recall": 0.4,
+        "f1": 0.37105751391465674,
+        "true_positives": 200,
+        "false_positives": 378,
+        "false_negatives": 300
+      }
+    },
+    "brute_force+lazy": {
+      "total_claims": 1215,
+      "total_time": 7.188731670379639,
+      "avg_time_per_claim": 0.005916651580559373,
+      "max_time_per_claim": 0.026693344116210938,
+      "total_comparisons": 737505,
+      "comparisons_per_claim": 607.0,
+      "total_entropy_computations": 0,
+      "avg_connections_per_claim": 0.6493827160493827,
+      "avg_entropy": 1.0,
+      "avg_level": 0.0,
+      "max_level": 0,
+      "accuracy": {
+        "precision": 0.3460207612456747,
+        "recall": 0.4,
+        "f1": 0.37105751391465674,
+        "true_positives": 200,
+        "false_positives": 378,
+        "false_negatives": 300
+      }
+    },
+    "entity_routing+full_recompute": {
+      "total_claims": 1215,
+      "total_time": 3.9439117908477783,
+      "avg_time_per_claim": 0.0032460179348541385,
+      "max_time_per_claim": 0.016715049743652344,
+      "total_comparisons": 28298,
+      "comparisons_per_claim": 23.290534979423867,
+      "total_entropy_computations": 738720,
+      "avg_connections_per_claim": 0.5004115226337449,
+      "avg_entropy": 0.9811755771418535,
+      "avg_level": 0.1991769547325103,
+      "max_level": 6,
+      "accuracy": {
+        "precision": 0.39662447257383965,
+        "recall": 0.376,
+        "f1": 0.38603696098562634,
+        "true_positives": 188,
+        "false_positives": 286,
+        "false_negatives": 312
+      }
+    },
+    "entity_routing+incremental": {
+      "total_claims": 1215,
+      "total_time": 0.40835118293762207,
+      "avg_time_per_claim": 0.00033609150859063543,
+      "max_time_per_claim": 0.008950948715209961,
+      "total_comparisons": 28298,
+      "comparisons_per_claim": 23.290534979423867,
+      "total_entropy_computations": 1960,
+      "avg_connections_per_claim": 0.5004115226337449,
+      "avg_entropy": 0.9811907931302498,
+      "avg_level": 0.20493827160493827,
+      "max_level": 6,
+      "accuracy": {
+        "precision": 0.39662447257383965,
+        "recall": 0.376,
+        "f1": 0.38603696098562634,
+        "true_positives": 188,
+        "false_positives": 286,
+        "false_negatives": 312
+      }
+    },
+    "entity_routing+lazy": {
+      "total_claims": 1215,
+      "total_time": 0.370464563369751,
+      "avg_time_per_claim": 0.000304909105654116,
+      "max_time_per_claim": 0.00608515739440918,
+      "total_comparisons": 28298,
+      "comparisons_per_claim": 23.290534979423867,
+      "total_entropy_computations": 0,
+      "avg_connections_per_claim": 0.5004115226337449,
+      "avg_entropy": 1.0,
+      "avg_level": 0.0,
+      "max_level": 0,
+      "accuracy": {
+        "precision": 0.39662447257383965,
+        "recall": 0.376,
+        "f1": 0.38603696098562634,
+        "true_positives": 188,
+        "false_positives": 286,
+        "false_negatives": 312
+      }
+    },
+    "keyword_routing+full_recompute": {
+      "total_claims": 1215,
+      "total_time": 4.2511537075042725,
+      "avg_time_per_claim": 0.0034988919403327345,
+      "max_time_per_claim": 0.01952505111694336,
+      "total_comparisons": 36740,
+      "comparisons_per_claim": 30.238683127572017,
+      "total_entropy_computations": 738720,
+      "avg_connections_per_claim": 0.642798353909465,
+      "avg_entropy": 0.977313291837803,
+      "avg_level": 0.23868312757201646,
+      "max_level": 8,
+      "accuracy": {
+        "precision": 0.3460207612456747,
+        "recall": 0.4,
+        "f1": 0.37105751391465674,
+        "true_positives": 200,
+        "false_positives": 378,
+        "false_negatives": 300
+      }
+    },
+    "keyword_routing+incremental": {
+      "total_claims": 1215,
+      "total_time": 0.5526721477508545,
+      "avg_time_per_claim": 0.0004548741956797156,
+      "max_time_per_claim": 0.00464630126953125,
+      "total_comparisons": 36740,
+      "comparisons_per_claim": 30.238683127572017,
+      "total_entropy_computations": 2211,
+      "avg_connections_per_claim": 0.642798353909465,
+      "avg_entropy": 0.9772588658362524,
+      "avg_level": 0.25349794238683127,
+      "max_level": 7,
+      "accuracy": {
+        "precision": 0.3460207612456747,
+        "recall": 0.4,
+        "f1": 0.37105751391465674,
+        "true_positives": 200,
+        "false_positives": 378,
+        "false_negatives": 300
+      }
+    },
+    "keyword_routing+lazy": {
+      "total_claims": 1215,
+      "total_time": 0.5455858707427979,
+      "avg_time_per_claim": 0.00044904186892411345,
+      "max_time_per_claim": 0.023688077926635742,
+      "total_comparisons": 36740,
+      "comparisons_per_claim": 30.238683127572017,
+      "total_entropy_computations": 0,
+      "avg_connections_per_claim": 0.642798353909465,
+      "avg_entropy": 1.0,
+      "avg_level": 0.0,
+      "max_level": 0,
+      "accuracy": {
+        "precision": 0.3460207612456747,
+        "recall": 0.4,
+        "f1": 0.37105751391465674,
+        "true_positives": 200,
+        "false_positives": 378,
+        "false_negatives": 300
+      }
+    },
+    "hybrid+full_recompute": {
+      "total_claims": 1215,
+      "total_time": 4.971200942993164,
+      "avg_time_per_claim": 0.004091523409870917,
+      "max_time_per_claim": 0.018253087997436523,
+      "total_comparisons": 36682,
+      "comparisons_per_claim": 30.190946502057614,
+      "total_entropy_computations": 738720,
+      "avg_connections_per_claim": 0.5967078189300411,
+      "avg_entropy": 0.9780200475579712,
+      "avg_level": 0.23703703703703705,
+      "max_level": 6,
+      "accuracy": {
+        "precision": 0.36231884057971014,
+        "recall": 0.4,
+        "f1": 0.3802281368821293,
+        "true_positives": 200,
+        "false_positives": 352,
+        "false_negatives": 300
+      }
+    },
+    "hybrid+incremental": {
+      "total_claims": 1215,
+      "total_time": 0.6483654975891113,
+      "avg_time_per_claim": 0.0005336341543943303,
+      "max_time_per_claim": 0.004051923751831055,
+      "total_comparisons": 36384,
+      "comparisons_per_claim": 29.94567901234568,
+      "total_entropy_computations": 2134,
+      "avg_connections_per_claim": 0.5967078189300411,
+      "avg_entropy": 0.9778934116066992,
+      "avg_level": 0.2345679012345679,
+      "max_level": 5,
+      "accuracy": {
+        "precision": 0.36231884057971014,
+        "recall": 0.4,
+        "f1": 0.3802281368821293,
+        "true_positives": 200,
+        "false_positives": 352,
+        "false_negatives": 300
+      }
+    },
+    "hybrid+lazy": {
+      "total_claims": 1215,
+      "total_time": 0.6285700798034668,
+      "avg_time_per_claim": 0.0005173416294678739,
+      "max_time_per_claim": 0.06326699256896973,
+      "total_comparisons": 36450,
+      "comparisons_per_claim": 30.0,
+      "total_entropy_computations": 0,
+      "avg_connections_per_claim": 0.5958847736625514,
+      "avg_entropy": 1.0,
+      "avg_level": 0.0,
+      "max_level": 0,
+      "accuracy": {
+        "precision": 0.36231884057971014,
+        "recall": 0.4,
+        "f1": 0.3802281368821293,
+        "true_positives": 200,
+        "false_positives": 352,
+        "false_negatives": 300
+      }
+    }
+  },
+  "analysis": {
+    "fastest": "entity_routing+lazy",
+    "most_accurate": "entity_routing+full_recompute",
+    "best_balance": "entity_routing+lazy",
+    "speedup_hybrid_vs_brute": 15.68538582547449
+  },
+  "projections": {
+    "brute_force+full_recompute": {
+      "current_time": 10.169862985610962,
+      "projected_time": 68891.00906441067,
+      "scale_factor": 6774.035123372116,
+      "scaling": "O(n\u00b2)"
+    },
+    "brute_force+incremental": {
+      "current_time": 7.0776238441467285,
+      "projected_time": 47944.07251026591,
+      "scale_factor": 6774.035123372116,
+      "scaling": "O(n\u00b2)"
+    },
+    "brute_force+lazy": {
+      "current_time": 7.188731670379639,
+      "projected_time": 48696.72082764917,
+      "scale_factor": 6774.035123372116,
+      "scaling": "O(n\u00b2)"
+    },
+    "entity_routing+full_recompute": {
+      "current_time": 3.9439117908477783,
+      "projected_time": 389.5221521824966,
+      "scale_factor": 82.3045267489712,
+      "scaling": "O(n*k)"
+    },
+    "entity_routing+incremental": {
+      "current_time": 0.40835118293762207,
+      "projected_time": 40.33098103087625,
+      "scale_factor": 82.3045267489712,
+      "scaling": "O(n*k)"
+    },
+    "entity_routing+lazy": {
+      "current_time": 0.370464563369751,
+      "projected_time": 36.58909267849392,
+      "scale_factor": 82.3045267489712,
+      "scaling": "O(n*k)"
+    },
+    "keyword_routing+full_recompute": {
+      "current_time": 4.2511537075042725,
+      "projected_time": 419.8670328399282,
+      "scale_factor": 82.3045267489712,
+      "scaling": "O(n*k)"
+    },
+    "keyword_routing+incremental": {
+      "current_time": 0.5526721477508545,
+      "projected_time": 54.584903481565874,
+      "scale_factor": 82.3045267489712,
+      "scaling": "O(n*k)"
+    },
+    "keyword_routing+lazy": {
+      "current_time": 0.5455858707427979,
+      "projected_time": 53.88502427089362,
+      "scale_factor": 82.3045267489712,
+      "scaling": "O(n*k)"
+    },
+    "hybrid+full_recompute": {
+      "current_time": 4.971200942993164,
+      "projected_time": 490.9828091845101,
+      "scale_factor": 82.3045267489712,
+      "scaling": "O(n*k)"
+    },
+    "hybrid+incremental": {
+      "current_time": 0.6483654975891113,
+      "projected_time": 64.03609852731964,
+      "scale_factor": 82.3045267489712,
+      "scaling": "O(n*k)"
+    },
+    "hybrid+lazy": {
+      "current_time": 0.6285700798034668,
+      "projected_time": 62.08099553614487,
+      "scale_factor": 82.3045267489712,
+      "scaling": "O(n*k)"
+    }
+  }
+}

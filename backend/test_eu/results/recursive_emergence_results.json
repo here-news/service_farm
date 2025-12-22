@@ -1,0 +1,72 @@
+{
+  "timestamp": "2025-12-20T22:45:27.871420",
+  "ground_claims": 1215,
+  "levels_emerged": 3,
+  "claims_by_level": {
+    "0": 1215,
+    "1": 20,
+    "2": 5
+  },
+  "sample_emerged": [
+    {
+      "level": 1,
+      "text": "Multiple sources report a significant loss of life and ongoing concerns regarding accountability following a massive fire in Hong Kong.",
+      "entropy": 0.23545941230624515,
+      "n_supporters": 23
+    },
+    {
+      "level": 1,
+      "text": "Multiple sources report ongoing hospitalizations and varying conditions among the injured individuals.",
+      "entropy": 0.5632081566997835,
+      "n_supporters": 2
+    },
+    {
+      "level": 1,
+      "text": "Multiple sources report a significant fire incident in the Tai Po district affecting residential buildings.",
+      "entropy": 0.5200558458320164,
+      "n_supporters": 3
+    },
+    {
+      "level": 1,
+      "text": "Multiple sources report significant emergency response resources deployed to the scene.",
+      "entropy": 0.5632081566997835,
+      "n_supporters": 2
+    },
+    {
+      "level": 1,
+      "text": "Multiple sources report significant hazards due to falling debris and collapsing scaffolding.",
+      "entropy": 0.5782081566997836,
+      "n_supporters": 2
+    },
+    {
+      "level": 2,
+      "text": "The evidence suggests a systemic failure in fire safety and emergency response in Hong Kong.",
+      "entropy": 0.36942056968264203,
+      "n_supporters": 4
+    },
+    {
+      "level": 2,
+      "text": "The evidence suggests a systemic failure in safety protocols for scaffolding during renovations.",
+      "entropy": 0.49584978803974034,
+      "n_supporters": 2
+    },
+    {
+      "level": 2,
+      "text": "The evidence suggests that the fire incident is becoming increasingly difficult to manage, leading to heightened alarm levels.",
+      "entropy": 0.4943497880397403,
+      "n_supporters": 2
+    },
+    {
+      "level": 2,
+      "text": "The evidence suggests a systemic issue of corruption in public and housing renovation projects in Hong Kong.",
+      "entropy": 0.4881874036832504,
+      "n_supporters": 2
+    },
+    {
+      "level": 2,
+      "text": "The evidence suggests a significant displacement of residents due to an emergency situation.",
+      "entropy": 0.4928497880397403,
+      "n_supporters": 2
+    }
+  ]
+}

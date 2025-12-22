@@ -1,0 +1,495 @@
+{
+  "stats": {
+    "claims": 1215,
+    "eus": 551,
+    "multi": 186,
+    "large": 46,
+    "largest": 73,
+    "merges": 664,
+    "merge_rate": 0.5465020576131687,
+    "llm_calls": 408,
+    "llm_yes_rate": 0.4117647058823529
+  },
+  "top_eus": [
+    {
+      "size": 73,
+      "pages": 13,
+      "mass": 25.185000000000002,
+      "coherence": 1.0,
+      "tension": 0.0,
+      "corr": 25,
+      "contra": 0,
+      "sample_texts": [
+        "Human rights organizations see Jimmy Lai as a prisoner of conscience.",
+        "Hong Kong authorities and political figures have rejected foreign allegations of unfair treatment in Jimmy Lai Chee-ying's trial.",
+        "Jimmy Lai faces life in jail if convicted.",
+        "Jimmy Lai faces the prospect of life in prison under national security charges.",
+        "Jimmy Lai is a leading free-speech voice and Catholic."
+      ]
+    },
+    {
+      "size": 23,
+      "pages": 13,
+      "mass": 5.583888888888889,
+      "coherence": 0.5555555555555556,
+      "tension": 0.4444444444444444,
+      "corr": 5,
+      "contra": 4,
+      "sample_texts": [
+        "The fire at Wang Fuk Court started on November 26, 2025.",
+        "A fire broke out at the Wang Fuk Court apartment complex in Tai Po.",
+        "The fire at Wang Fuk Court killed at least 156 people.",
+        "At least 160 people were killed in the blaze at the Wang Fung Court complex, Tai Po district.",
+        "The fire at Wang Fuk Court was one of the most serious fires in nearly seventy years."
+      ]
+    },
+    {
+      "size": 21,
+      "pages": 9,
+      "mass": 5.985,
+      "coherence": 1.0,
+      "tension": 0.0,
+      "corr": 1,
+      "contra": 0,
+      "sample_texts": [
+        "The shooting at Brown University happened inside a classroom in the Barus and Holley engineering building around 4 p.m. Saturday.",
+        "No one else is being sought in the Brown University shooting",
+        "Mukhammad Aziz Umurzokov was identified as the second victim in the Brown University shooting.",
+        "The shooter was spotted near the Barus and Holley building",
+        "Providence Police Chief Colonel Oscar Perez looks at a new video released of the possible shooter at Brown University."
+      ]
+    },
+    {
+      "size": 20,
+      "pages": 7,
+      "mass": 5.1000000000000005,
+      "coherence": 1.0,
+      "tension": 0.0,
+      "corr": 6,
+      "contra": 0,
+      "sample_texts": [
+        "29 others were wounded in the Bondi Beach shooting.",
+        "At least 11 victims were killed in the Bondi Beach shooting.",
+        "At least 11 people were killed in the shooting at Bondi Beach.",
+        "At least 15 people have been confirmed dead in Sunday's shooting attack at Bondi beach.",
+        "Two gunmen opened fire at Bondi Beach"
+      ]
+    },
+    {
+      "size": 19,
+      "pages": 6,
+      "mass": 4.5600000000000005,
+      "coherence": 1.0,
+      "tension": 0.0,
+      "corr": 3,
+      "contra": 0,
+      "sample_texts": [
+        "The BBC rejected claims it had defamed Donald Trump",
+        "The BBC apologised to Donald Trump and retracted the Panorama report.",
+        "The lawsuit accuses the BBC of broadcasting a false, defamatory, deceptive, disparaging, inflammatory, and malicious depiction of Donald Trump",
+        "Donald Trump is suing the BBC for $10 billion for defamation.",
+        "The BBC apologized to Donald Trump over the edit of the Jan. 6 speech"
+      ]
+    },
+    {
+      "size": 19,
+      "pages": 4,
+      "mass": 3.7853846153846153,
+      "coherence": 0.9230769230769231,
+      "tension": 0.07692307692307693,
+      "corr": 12,
+      "contra": 1,
+      "sample_texts": [
+        "Amanda Seyfried addressed the backlash in a subsequent statement.",
+        "Amanda Seyfried refused to apologize for her comment about Charlie Kirk.",
+        "Amanda Seyfried has doubled down on her stance on Charlie Kirk's legacy.",
+        "Amanda Seyfried is refusing to apologize for her comment about Charlie Kirk.",
+        "Amanda Seyfried wrote on Instagram that Charlie Kirk's murder was absolutely disturbing and deplorable."
+      ]
+    },
+    {
+      "size": 17,
+      "pages": 9,
+      "mass": 4.845000000000001,
+      "coherence": 1.0,
+      "tension": 0.0,
+      "corr": 1,
+      "contra": 0,
+      "sample_texts": [
+        "The fire in Tai Po District killed at least 36 people and injured 29",
+        "279 people are missing after the fire in Tai Po District",
+        "A massive fire ripped through multiple high-rise residential blocks in Tai Po District, Hong Kong",
+        "The fire engulfed several residential tower blocks in Hong Kong.",
+        "A deadly fire swept through seven high-rise buildings in Hong Kong"
+      ]
+    },
+    {
+      "size": 16,
+      "pages": 7,
+      "mass": 4.080000000000001,
+      "coherence": 1.0,
+      "tension": 0.0,
+      "corr": 1,
+      "contra": 0,
+      "sample_texts": [
+        "The Bondi Beach shooting was declared an act of terrorism targeting Jewish people.",
+        "The massacre at Bondi Beach followed a wave of antisemitic attacks in Australia.",
+        "Two gunmen attacked Chabad-Lubavitch of Bondi\u2019s Chanukah event on Bondi Beach",
+        "Alex Ryvchin stated that the Bondi Beach shooting was a horrific attack.",
+        "Gal Gadot condemned the antisemitic terror attack at Bondi Beach."
+      ]
+    },
+    {
+      "size": 14,
+      "pages": 6,
+      "mass": 3.3600000000000003,
+      "coherence": 1.0,
+      "tension": 0.0,
+      "corr": 1,
+      "contra": 0,
+      "sample_texts": [
+        "Nick Reiner could face the death penalty",
+        "Nick Reiner was arrested after his parents were discovered dead at their Los Angeles residence.",
+        "Los Angeles police determined Nick Reiner was responsible for the deaths of Rob and Michele Reiner.",
+        "Nick Reiner is being charged with two counts of first-degree murder",
+        "Los Angeles County District Attorney Nathan Hochman announced two counts of first degree murder against Nick Reiner."
+      ]
+    },
+    {
+      "size": 14,
+      "pages": 2,
+      "mass": 1.96,
+      "coherence": 0.6666666666666666,
+      "tension": 0.3333333333333333,
+      "corr": 2,
+      "contra": 1,
+      "sample_texts": [
+        "King Charles III emphasized the importance of early cancer detection.",
+        "King Charles III disclosed his cancer diagnosis in February 2024",
+        "King Charles III spent a short period in the hospital in March due to side effects from cancer treatment",
+        "King Charles III announced he will be reducing his cancer treatment schedule in 2026.",
+        "King Charles III's video message was part of Channel 4 and Cancer Research UK's 'Stand Up To Cancer' night."
+      ]
+    },
+    {
+      "size": 13,
+      "pages": 6,
+      "mass": 3.1200000000000006,
+      "coherence": 1.0,
+      "tension": 0.0,
+      "corr": 2,
+      "contra": 0,
+      "sample_texts": [
+        "Erica Lepp said that Jimmy Lai's health is failing.",
+        "Jimmy Lai has heart issues and diabetes.",
+        "Jimmy Lai's health has dangerously deteriorated.",
+        "Jimmy Lai is at risk of dying from complications from diabetes and extreme weight loss.",
+        "Jimmy Lai has lost a significant amount of weight in prison."
+      ]
+    },
+    {
+      "size": 12,
+      "pages": 7,
+      "mass": 2.0400000000000005,
+      "coherence": 0.5,
+      "tension": 0.5,
+      "corr": 3,
+      "contra": 3,
+      "sample_texts": [
+        "Charlie Kirk was assassinated while speaking at a Turning Point event.",
+        "Charlie Kirk was killed by a sniper at a speaking event in Utah in September.",
+        "Charlie Kirk was assassinated in September.",
+        "Charlie Kirk was killed during a campus debate with students.",
+        "Charlie Kirk was a conservative activist and founder of Turning Point USA."
+      ]
+    },
+    {
+      "size": 10,
+      "pages": 8,
+      "mass": 2.52,
+      "coherence": 0.9,
+      "tension": 0.1,
+      "corr": 9,
+      "contra": 1,
+      "sample_texts": [
+        "Two Brown University students were killed, and 9 students were wounded.",
+        "A fatal shooting broke out on Brown University campus on Saturday night, leaving two dead and eight injured.",
+        "Two people were killed and nine injured in the shooting at Brown University",
+        "The shooting at Brown University killed two people and left eight critically injured",
+        "Two people were killed and nine people were injured in the shooting at Brown University"
+      ]
+    },
+    {
+      "size": 10,
+      "pages": 3,
+      "mass": 0.65,
+      "coherence": 0.0,
+      "tension": 1.0,
+      "corr": 0,
+      "contra": 1,
+      "sample_texts": [
+        "Blue Origin is launching the NS-37 mission.",
+        "Blue Origin released the NS-37 mission patch.",
+        "Blue Origin will begin livestreaming the NS-37 mission 40 minutes before liftoff.",
+        "NS-37 will be the 16th crewed flight overall for the autonomous New Shepard.",
+        "Blue Origin announced its next New Shepard crewed flight, NS-37, will lift off from Launch Site One in West Texas on December 18, 2025."
+      ]
+    },
+    {
+      "size": 10,
+      "pages": 8,
+      "mass": 2.7,
+      "coherence": 1.0,
+      "tension": 0.0,
+      "corr": 10,
+      "contra": 0,
+      "sample_texts": [
+        "Rob Reiner and his wife Michele were found stabbed to death in their home.",
+        "Rob Reiner and Michele Singer Reiner were found by their daughter Romy",
+        "Rob Reiner and his wife were found murdered in their home.",
+        "Rob Reiner and Michele Singer Reiner had been married since 1989",
+        "Rob Reiner and Michele Singer Reiner were found dead in their Brentwood, Calif., home"
+      ]
+    },
+    {
+      "size": 10,
+      "pages": 4,
+      "mass": 1.4,
+      "coherence": 0.5,
+      "tension": 0.5,
+      "corr": 1,
+      "contra": 1,
+      "sample_texts": [
+        "Xu Bo's long-term goal was to have around 20 children born in the US.",
+        "Xu Bo has just over 100 children born to American women.",
+        "Xu Bo is reportedly seeking 50 high-quality sons.",
+        "Xu Bo had already fathered, or was in the process of fathering, at least eight more children through American surrogates.",
+        "Xu Bo had already fathered or was in the process of fathering at least eight more children through surrogates."
+      ]
+    },
+    {
+      "size": 10,
+      "pages": 4,
+      "mass": 2.0999999999999996,
+      "coherence": 1.0,
+      "tension": 0.0,
+      "corr": 2,
+      "contra": 0,
+      "sample_texts": [
+        "Prosecutors plan to seek the death penalty in Tyler Robinson's case.",
+        "Tyler Robinson was charged with aggravated murder in the death of Charlie Kirk.",
+        "Tyler Robinson is charged with aggravated murder.",
+        "Robinson has been charged with aggravated murder, felony discharge of a firearm causing serious bodily injury, obstruction of justice, two counts of witness tampering and commission of a violent offense in the presence of a child.",
+        "Tyler Robinson has been charged with Charlie Kirk's murder."
+      ]
+    },
+    {
+      "size": 10,
+      "pages": 4,
+      "mass": 2.0999999999999996,
+      "coherence": 1.0,
+      "tension": 0.0,
+      "corr": 7,
+      "contra": 0,
+      "sample_texts": [
+        "Time magazine said AI changed our world in 2025 in both new and exciting and sometimes frightening ways.",
+        "2025 was the year when artificial intelligence\u2019s full potential roared into view.",
+        "TIME magazine selected AI leaders as Person of the Year for 2025.",
+        "TIME magazine cited 2025 as the year when the potential of artificial intelligence 'roared into view'.",
+        "Time magazine has named the 'Architects of AI' as its 2025 Person of the Year."
+      ]
+    },
+    {
+      "size": 9,
+      "pages": 5,
+      "mass": 2.0250000000000004,
+      "coherence": 1.0,
+      "tension": 0.0,
+      "corr": 1,
+      "contra": 0,
+      "sample_texts": [
+        "President Donald Trump stated, 'What a terrible thing it is,' regarding the Brown University shooting.",
+        "Donald Trump said he has been briefed on the shooting.",
+        "President Donald Trump said he hopes authorities capture the 'animal' responsible for the Brown University shooting.",
+        "Donald Trump said all we can do right now is pray for the victims of the shooting at Brown University.",
+        "President Donald Trump stated that the FBI was already on the scene of the Brown University shooting"
+      ]
+    },
+    {
+      "size": 9,
+      "pages": 6,
+      "mass": 2.16,
+      "coherence": 1.0,
+      "tension": 0.0,
+      "corr": 1,
+      "contra": 0,
+      "sample_texts": [
+        "Do Kwon was sentenced to 15 years in prison.",
+        "Do Kwon was sentenced to 15 years in prison for stablecoin fraud.",
+        "Do Kwon was sentenced to 15 years in prison",
+        "Do Kwon faced a maximum sentence of 25 years in prison.",
+        "The government recommended a 12-year prison sentence for Do Kwon."
+      ]
+    },
+    {
+      "size": 9,
+      "pages": 8,
+      "mass": 2.43,
+      "coherence": 1.0,
+      "tension": 0.0,
+      "corr": 0,
+      "contra": 0,
+      "sample_texts": [
+        "The investigation is expected to provide clarity on the circumstances of the fire and measures to prevent future incidents.",
+        "John Lee said police and the Fire Services Department had formed a special investigation team to determine the cause of the fire.",
+        "John Lee announced that the independent committee will examine the causes of the fire and related issues.",
+        "The authorities appointed an independent review committee and initiated criminal and anti-corruption investigations into the fire.",
+        "John Lee ordered an independent committee, chaired by a judge, to be set up to probe the Tai Po blaze."
+      ]
+    },
+    {
+      "size": 8,
+      "pages": 6,
+      "mass": 1.9200000000000004,
+      "coherence": 1.0,
+      "tension": 0.0,
+      "corr": 0,
+      "contra": 0,
+      "sample_texts": [
+        "Hong Kong authorities allege that the construction company used unsafe materials in the renovation of Wang Fuk Court.",
+        "The Independent Commission Against Corruption is investigating the cause of the Wang Fuk Court fire.",
+        "Police and the city\u2019s anti-corruption body have arrested 15 people in the investigation of the renovation project at Wang Fuk Court.",
+        "The Hong Kong Government announced the establishment of a committee led by a judge to investigate the Wang Fuk Court fire.",
+        "Hong Kong has set up a judge-led independent committee to investigate the cause of the Wang Fuk Court fire."
+      ]
+    },
+    {
+      "size": 8,
+      "pages": 3,
+      "mass": 1.5600000000000003,
+      "coherence": 1.0,
+      "tension": 0.0,
+      "corr": 3,
+      "contra": 0,
+      "sample_texts": [
+        "Jensen Huang is the CEO of Nvidia.",
+        "Jensen Huang is known among colleagues for his quick temper and visionary leadership.",
+        "Jensen Huang founded Nvidia.",
+        "Jensen Huang is described as one of the foremost leaders of the AI boom.",
+        "Jensen Huang is a leader in the AI movement."
+      ]
+    },
+    {
+      "size": 8,
+      "pages": 2,
+      "mass": 1.4400000000000002,
+      "coherence": 1.0,
+      "tension": 0.0,
+      "corr": 5,
+      "contra": 0,
+      "sample_texts": [
+        "TIME\u2019s Person of the Year award has previously included Donald Trump.",
+        "The outlet\u2019s iconic award has previously included recipients such as Donald Trump, Barack Obama, and Greta Thunberg.",
+        "TIME\u2019s Person of the Year award has previously included Barack Obama.",
+        "Barack Obama was previously a recipient of Time Magazine's Person of the Year award",
+        "Donald Trump was previously a recipient of Time Magazine's Person of the Year award"
+      ]
+    },
+    {
+      "size": 8,
+      "pages": 5,
+      "mass": 1.8000000000000003,
+      "coherence": 1.0,
+      "tension": 0.0,
+      "corr": 3,
+      "contra": 0,
+      "sample_texts": [
+        "Venezuela\u2019s oil exports have fallen sharply since the United States seized a tanker.",
+        "The US has seized a sanctioned oil tanker close to the coast of Venezuela.",
+        "Venezuelan oil exports have fallen sharply since the United States seized a tanker.",
+        "The US military seized an oil tanker off the coast of Venezuela.",
+        "The US seized a tanker named the Skipper off the coast of Venezuela."
+      ]
+    },
+    {
+      "size": 8,
+      "pages": 4,
+      "mass": 1.6800000000000002,
+      "coherence": 1.0,
+      "tension": 0.0,
+      "corr": 2,
+      "contra": 0,
+      "sample_texts": [
+        "Hong Kong apartment fire death toll hits 128 as city rushes to quell anger",
+        "Hong Kong apartment fire death toll rises as police allege negligence",
+        "Lee Jae Myung extended his condolences following the deadly fire at an apartment complex in Hong Kong.",
+        "Hong Kong and Beijing rush to tamp down anger over deadly fire",
+        "King Charles issued a heartfelt message to Hong Kong after a deadly blaze."
+      ]
+    },
+    {
+      "size": 8,
+      "pages": 5,
+      "mass": 1.8000000000000003,
+      "coherence": 1.0,
+      "tension": 0.0,
+      "corr": 0,
+      "contra": 0,
+      "sample_texts": [
+        "The fire initially ignited the green mesh nets covering Block 6 before spreading to polystyrene boards around the windows.",
+        "The fire's rapid spread was due to non-fire-resistant nets and flammable foam used in construction.",
+        "The fire at the estate was likely made worse by the use of protective netting on its scaffolding that did not meet fire-resistance standards.",
+        "Flames quickly climbed the apartment blocks, which were wrapped with bamboo scaffolding.",
+        "The netting, as well as foam boards attached to the windows during the work, contributed to the spread of the fire."
+      ]
+    },
+    {
+      "size": 7,
+      "pages": 2,
+      "mass": 1.26,
+      "coherence": 1.0,
+      "tension": 0.0,
+      "corr": 0,
+      "contra": 0,
+      "sample_texts": [
+        "Maria Corina Machado spent more than a year in hiding.",
+        "Maria Corina Machado plans to return to Venezuela despite being in hiding for almost a year.",
+        "Maria Corina Machado plans to return to Venezuela.",
+        "Maria Corina Machado fractured a vertebra while fleeing Venezuela.",
+        "Maria Corina Machado gave an interview from her hideout in Oslo after escaping Venezuela."
+      ]
+    },
+    {
+      "size": 7,
+      "pages": 5,
+      "mass": 1.5750000000000002,
+      "coherence": 1.0,
+      "tension": 0.0,
+      "corr": 0,
+      "contra": 0,
+      "sample_texts": [
+        "Do Kwon's actions contributed to the collapse of investments for hundreds of thousands of investors",
+        "Do Kwon's fraud caused a $40 billion loss.",
+        "Do Kwon was charged with misleading investors and inflating the value of Terra and Luna",
+        "Do Kwon fled after the collapse of Luna.",
+        "The loss from Do Kwon's fraud exceeded the combined losses from Sam Bankman-Fried and Karl Sebastian Greenwood\u2019s frauds."
+      ]
+    },
+    {
+      "size": 7,
+      "pages": 5,
+      "mass": 1.5750000000000002,
+      "coherence": 1.0,
+      "tension": 0.0,
+      "corr": 3,
+      "contra": 0,
+      "sample_texts": [
+        "Do Kwon agreed to forfeit over US$19 million as part of his plea deal.",
+        "Do Kwon pleaded guilty to fraud charges in Manhattan federal court.",
+        "Do Kwon pleaded guilty to fraud charges in Manhattan federal court.",
+        "Do Kwon agreed to forfeit over $19 million as part of his plea deal.",
+        "Do Kwon pleaded guilty in August after being extradited to the United States."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,218 @@
+{
+  "cross_entities": [
+    {
+      "entity": "donald trump",
+      "appears_in": 5,
+      "events": [
+        {
+          "id": "event_4",
+          "size": 22,
+          "label": "The BBC rejected claims it had defamed Donald Trum..."
+        },
+        {
+          "id": "event_5",
+          "size": 35,
+          "label": "Two Brown University students were killed, and 9 s..."
+        },
+        {
+          "id": "event_17",
+          "size": 7,
+          "label": "Maria Corina Machado stated that she 'absolutely s..."
+        },
+        {
+          "id": "event_1",
+          "size": 100,
+          "label": "Human rights organizations see Jimmy Lai as a pris..."
+        },
+        {
+          "id": "event_14",
+          "size": 12,
+          "label": "Rob Reiner gave an interview to Ali Velshi critici..."
+        }
+      ]
+    },
+    {
+      "entity": "charlie kirk",
+      "appears_in": 2,
+      "events": [
+        {
+          "id": "sub_111",
+          "size": 12,
+          "label": "Charlie Kirk was assassinated while speaking at a ..."
+        },
+        {
+          "id": "sub_178",
+          "size": 19,
+          "label": "Amanda Seyfried addressed the backlash in a subseq..."
+        }
+      ]
+    },
+    {
+      "entity": "hong kong",
+      "appears_in": 2,
+      "events": [
+        {
+          "id": "event_1",
+          "size": 100,
+          "label": "Human rights organizations see Jimmy Lai as a pris..."
+        },
+        {
+          "id": "event_2",
+          "size": 68,
+          "label": "The fire at Wang Fuk Court started on November 26,..."
+        }
+      ]
+    },
+    {
+      "entity": "rob reiner",
+      "appears_in": 2,
+      "events": [
+        {
+          "id": "event_6",
+          "size": 24,
+          "label": "Nick Reiner could face the death penalty..."
+        },
+        {
+          "id": "event_14",
+          "size": 12,
+          "label": "Rob Reiner gave an interview to Ali Velshi critici..."
+        }
+      ]
+    },
+    {
+      "entity": "do kwon",
+      "appears_in": 2,
+      "events": [
+        {
+          "id": "event_13",
+          "size": 9,
+          "label": "Do Kwon created two virtual currencies, TerraUSD a..."
+        },
+        {
+          "id": "event_9",
+          "size": 31,
+          "label": "Do Kwon was sentenced to 15 years in prison...."
+        }
+      ]
+    },
+    {
+      "entity": "venezuela",
+      "appears_in": 2,
+      "events": [
+        {
+          "id": "event_12",
+          "size": 10,
+          "label": "Maria Corina Machado spent more than a year in hid..."
+        },
+        {
+          "id": "event_10",
+          "size": 28,
+          "label": "Venezuela\u2019s oil exports have fallen sharply since ..."
+        }
+      ]
+    },
+    {
+      "entity": "maria corina machado",
+      "appears_in": 2,
+      "events": [
+        {
+          "id": "event_17",
+          "size": 7,
+          "label": "Maria Corina Machado stated that she 'absolutely s..."
+        },
+        {
+          "id": "event_12",
+          "size": 10,
+          "label": "Maria Corina Machado spent more than a year in hid..."
+        }
+      ]
+    }
+  ],
+  "entity_overlaps": [
+    {
+      "event1": "sub_111",
+      "event2": "sub_178",
+      "jaccard": 0.25
+    },
+    {
+      "event1": "event_4",
+      "event2": "event_5",
+      "jaccard": 0.25
+    },
+    {
+      "event1": "event_4",
+      "event2": "event_14",
+      "jaccard": 0.2
+    },
+    {
+      "event1": "event_9",
+      "event2": "event_13",
+      "jaccard": 0.2
+    },
+    {
+      "event1": "event_10",
+      "event2": "event_12",
+      "jaccard": 0.2
+    },
+    {
+      "event1": "event_4",
+      "event2": "event_17",
+      "jaccard": 0.16666666666666666
+    },
+    {
+      "event1": "event_5",
+      "event2": "event_14",
+      "jaccard": 0.16666666666666666
+    },
+    {
+      "event1": "event_1",
+      "event2": "event_4",
+      "jaccard": 0.14285714285714285
+    },
+    {
+      "event1": "event_5",
+      "event2": "event_17",
+      "jaccard": 0.14285714285714285
+    },
+    {
+      "event1": "event_12",
+      "event2": "event_17",
+      "jaccard": 0.14285714285714285
+    },
+    {
+      "event1": "event_1",
+      "event2": "event_2",
+      "jaccard": 0.125
+    },
+    {
+      "event1": "event_1",
+      "event2": "event_5",
+      "jaccard": 0.125
+    },
+    {
+      "event1": "event_6",
+      "event2": "event_14",
+      "jaccard": 0.125
+    },
+    {
+      "event1": "event_14",
+      "event2": "event_17",
+      "jaccard": 0.125
+    },
+    {
+      "event1": "event_1",
+      "event2": "event_14",
+      "jaccard": 0.1111111111111111
+    },
+    {
+      "event1": "event_1",
+      "event2": "event_17",
+      "jaccard": 0.1
+    }
+  ],
+  "summary": {
+    "total_cross_entities": 7,
+    "total_overlapping_pairs": 16,
+    "llm_calls": 469
+  }
+}

@@ -1,0 +1,165 @@
+{
+  "causal_claims": [
+    {
+      "claim_id": "cl_7v6e9d1t",
+      "eu_id": "sub_175",
+      "text": "Amanda Seyfried addressed the backlash in a subsequent statement.",
+      "causal_type": "effect",
+      "causal_phrase": "addressed the backlash",
+      "references_other": true
+    },
+    {
+      "claim_id": "cl_6cgr3avu",
+      "eu_id": "sub_79",
+      "text": "Prosecutors argued that Do Kwon lied to investors about his cryptocurrencies.",
+      "causal_type": "attribution",
+      "causal_phrase": "lied to investors",
+      "references_other": false
+    },
+    {
+      "claim_id": "cl_oc3g25km",
+      "eu_id": "event_18",
+      "text": "Washington is ratcheting up political and economic pressure on President Nicolas Maduro.",
+      "causal_type": "cause",
+      "causal_phrase": "ratcheting up political and economic pressure",
+      "references_other": false
+    },
+    {
+      "claim_id": "cl_oahbwhel",
+      "eu_id": "event_9",
+      "text": "Do Kwon's actions contributed to the collapse of investments for hundreds of thousands of investors",
+      "causal_type": "cause",
+      "causal_phrase": "Do Kwon's actions contributed to the collapse of investments",
+      "references_other": true
+    },
+    {
+      "claim_id": "cl_wokpf524",
+      "eu_id": "sub_252",
+      "text": "Donald Trump suggested Rob Reiner died of 'Trump derangement syndrome'.",
+      "causal_type": "attribution",
+      "causal_phrase": "suggested Rob Reiner died of 'Trump derangement syndrome'",
+      "references_other": false
+    },
+    {
+      "claim_id": "cl_cs2gbkdk",
+      "eu_id": "event_4",
+      "text": "The massacre at Bondi Beach followed a wave of antisemitic attacks in Australia.",
+      "causal_type": "cause",
+      "causal_phrase": "followed a wave of antisemitic attacks",
+      "references_other": true
+    },
+    {
+      "claim_id": "cl_ja82rl4k",
+      "eu_id": "sub_136",
+      "text": "Robert F. Kennedy Jr. justified revoking almost $500 million in funding earmarked for mRNA vaccine r",
+      "causal_type": "cause",
+      "causal_phrase": "justified revoking almost $500 million in funding earmarked for mRNA vaccine research by falsely claiming that mRNA vaccines are not safe and effective",
+      "references_other": true
+    },
+    {
+      "claim_id": "cl_97i81yhj",
+      "eu_id": "sub_134",
+      "text": "King Charles issued a heartfelt message to Hong Kong after a deadly blaze.",
+      "causal_type": "effect",
+      "causal_phrase": "after a deadly blaze",
+      "references_other": true
+    },
+    {
+      "claim_id": "cl_avdmdwc5",
+      "eu_id": "event_15",
+      "text": "SpaceX uses US Space Force tracking data to help steer clear of any collision with other satellites.",
+      "causal_type": "cause",
+      "causal_phrase": "to help steer clear of any collision with other satellites",
+      "references_other": true
+    },
+    {
+      "claim_id": "cl_57w33a1i",
+      "eu_id": "event_2",
+      "text": "Hong Kong apartment fire death toll rises as police allege negligence",
+      "causal_type": "attribution",
+      "causal_phrase": "police allege negligence",
+      "references_other": true
+    },
+    {
+      "claim_id": "cl_vp83fgx3",
+      "eu_id": "sub_269",
+      "text": "Flames quickly climbed the apartment blocks, which were wrapped with bamboo scaffolding.",
+      "causal_type": "cause",
+      "causal_phrase": "Flames quickly climbed the apartment blocks",
+      "references_other": true
+    },
+    {
+      "claim_id": "cl_eln2xw84",
+      "eu_id": "sub_269",
+      "text": "The fire at the estate was likely made worse by the use of protective netting on its scaffolding tha",
+      "causal_type": "cause",
+      "causal_phrase": "was likely made worse by the use of protective netting on its scaffolding that did not meet fire-resistance standards",
+      "references_other": true
+    },
+    {
+      "claim_id": "cl_q3rmqrf8",
+      "eu_id": "event_19",
+      "text": "CAS Space responded to Nicolls' post, saying it did its due diligence as the launch services provide",
+      "causal_type": "attribution",
+      "causal_phrase": "did its due diligence as the launch services provider",
+      "references_other": true
+    },
+    {
+      "claim_id": "cl_np5mp8r0",
+      "eu_id": "sub_79",
+      "text": "Do Kwon took sole responsibility for the fraud.",
+      "causal_type": "attribution",
+      "causal_phrase": "took sole responsibility",
+      "references_other": true
+    },
+    {
+      "claim_id": "cl_bemsr794",
+      "eu_id": "sub_134",
+      "text": "Hong Kong and Beijing rush to tamp down anger over deadly fire.",
+      "causal_type": "effect",
+      "causal_phrase": "rush to tamp down anger",
+      "references_other": true
+    },
+    {
+      "claim_id": "cl_8sghg4f7",
+      "eu_id": "sub_269",
+      "text": "The fire's rapid spread was due to non-fire-resistant nets and flammable foam used in construction.",
+      "causal_type": "cause",
+      "causal_phrase": "due to non-fire-resistant nets and flammable foam used in construction",
+      "references_other": false
+    },
+    {
+      "claim_id": "cl_i2hdl54l",
+      "eu_id": "event_2",
+      "text": "Hong Kong authorities allege that the construction company used unsafe materials in the renovation o",
+      "causal_type": "attribution",
+      "causal_phrase": "allege that the construction company used unsafe materials",
+      "references_other": false
+    },
+    {
+      "claim_id": "cl_k6uid3d6",
+      "eu_id": "sub_108",
+      "text": "King Charles III resumed some public duties two months after his diagnosis was revealed",
+      "causal_type": "effect",
+      "causal_phrase": "after",
+      "references_other": true
+    }
+  ],
+  "relationships": [
+    {
+      "event1_id": "event_15",
+      "event1_label": "One of the satellites veered relatively close to a...",
+      "event2_id": "event_19",
+      "event2_label": "CAS Space is in contact with Michael Nicolls to le...",
+      "relationship": "causal",
+      "direction": "A_to_B",
+      "confidence": 0.85,
+      "explanation": "Event A, the close approach of the Starlink satellite with another satellite, likely prompted CAS Space to investigate the incident, leading to Event B."
+    }
+  ],
+  "summary": {
+    "claims_with_causal_language": 18,
+    "inter_event_relationships": 1,
+    "llm_calls": 593
+  }
+}

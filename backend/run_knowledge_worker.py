@@ -5,6 +5,14 @@ Run Knowledge Worker - Unified extraction, identification, and linking pipeline
 Replaces semantic_worker + wikidata_worker with a single atomic operation.
 Listens to queue:semantic:high for pages to process.
 """
+import os
+from pathlib import Path
+
+# Load .env from project root (one level up from backend/)
+from dotenv import load_dotenv
+env_path = Path(__file__).parent.parent / '.env'
+load_dotenv(env_path)
+
 import asyncio
 import logging
 from workers.knowledge_worker import run_knowledge_worker

@@ -1,0 +1,638 @@
+{
+  "dependency_analysis": {
+    "claims_analyzed": 0,
+    "high_dependency_pairs": [
+      {
+        "claim_a": "People attend a vigil near the scene of the deadly",
+        "claim_b": "People attend a vigil near the scene of the deadly",
+        "dependency_score": 1.0,
+        "text_similarity": 0.913,
+        "structural_similarity": 1.0,
+        "same_page": 1.0
+      },
+      {
+        "claim_a": "Hong Kong apartment fire death toll hits 128 as ci",
+        "claim_b": "Hong Kong apartment fire death toll hits 128 as ci",
+        "dependency_score": 1.0,
+        "text_similarity": 0.867,
+        "structural_similarity": 1.0,
+        "same_page": 1.0
+      },
+      {
+        "claim_a": "Hong Kong and Beijing rush to tamp down anger over",
+        "claim_b": "Hong Kong and Beijing rush to tamp down anger over",
+        "dependency_score": 0.879,
+        "text_similarity": 0.846,
+        "structural_similarity": 0.5,
+        "same_page": 1.0
+      },
+      {
+        "claim_a": "The fire at Wang Fuk Court killed at least 156 peo",
+        "claim_b": "The fire at Wang Fuk Court killed at least 156 peo",
+        "dependency_score": 0.75,
+        "text_similarity": 1.0,
+        "structural_similarity": 1.0,
+        "same_page": 0.0
+      },
+      {
+        "claim_a": "The blaze stems from years of negligence and collu",
+        "claim_b": "The blaze stems from years of negligence and collu",
+        "dependency_score": 0.565,
+        "text_similarity": 0.8,
+        "structural_similarity": 0.5,
+        "same_page": 1.0
+      },
+      {
+        "claim_a": "Authorities push a narrative about bamboo scaffold",
+        "claim_b": "Authorities push a narrative about bamboo scaffold",
+        "dependency_score": 0.55,
+        "text_similarity": 0.75,
+        "structural_similarity": 0.5,
+        "same_page": 1.0
+      },
+      {
+        "claim_a": "Hong Kong apartment fire death toll rises as polic",
+        "claim_b": "Hong Kong apartment fire death toll hits 128 as ci",
+        "dependency_score": 0.542,
+        "text_similarity": 0.389,
+        "structural_similarity": 0.5,
+        "same_page": 1.0
+      },
+      {
+        "claim_a": "Hong Kong apartment fire death toll rises as polic",
+        "claim_b": "Hong Kong apartment fire death toll hits 128 as ci",
+        "dependency_score": 0.542,
+        "text_similarity": 0.389,
+        "structural_similarity": 0.5,
+        "same_page": 1.0
+      },
+      {
+        "claim_a": "Amanda Seyfried is standing by a controversial com",
+        "claim_b": "Amanda Seyfried is refusing to apologize for her c",
+        "dependency_score": 0.542,
+        "text_similarity": 0.389,
+        "structural_similarity": 0.5,
+        "same_page": 1.0
+      },
+      {
+        "claim_a": "Lee Jae Myung prayed for the souls of those who lo",
+        "claim_b": "Lee Jae Myung prayed for the speedy recovery of th",
+        "dependency_score": 0.52,
+        "text_similarity": 0.318,
+        "structural_similarity": 0.5,
+        "same_page": 1.0
+      },
+      {
+        "claim_a": "Amanda Seyfried expressed she was glad to make her",
+        "claim_b": "Amanda Seyfried said she is not apologizing for he",
+        "dependency_score": 0.52,
+        "text_similarity": 0.167,
+        "structural_similarity": 0.5,
+        "same_page": 1.0
+      },
+      {
+        "claim_a": "Lee Jae Myung conveyed his sympathy to all and hop",
+        "claim_b": "Lee Jae Myung prayed for the speedy recovery of th",
+        "dependency_score": 0.507,
+        "text_similarity": 0.273,
+        "structural_similarity": 0.5,
+        "same_page": 1.0
+      }
+    ],
+    "effective_corroboration_analysis": [
+      {
+        "claim": "The fire engulfed several residential tower blocks in Hong K",
+        "raw_corroborations": 2,
+        "effective_corroboration": 2.0,
+        "independence_ratio": 1.0,
+        "dependency_groups": 2
+      },
+      {
+        "claim": "Amanda Seyfried called Charlie Kirk 'hateful' after his deat",
+        "raw_corroborations": 6,
+        "effective_corroboration": 3.54,
+        "independence_ratio": 0.59,
+        "dependency_groups": 3
+      },
+      {
+        "claim": "Amanda Seyfried refused to apologize for her comment about C",
+        "raw_corroborations": 4,
+        "effective_corroboration": 2.33,
+        "independence_ratio": 0.58,
+        "dependency_groups": 2
+      },
+      {
+        "claim": "Amanda Seyfried described Charlie Kirk as 'hateful' in the c",
+        "raw_corroborations": 3,
+        "effective_corroboration": 2.21,
+        "independence_ratio": 0.74,
+        "dependency_groups": 2
+      },
+      {
+        "claim": "Amanda Seyfried commented 'hateful' under an Instagram post ",
+        "raw_corroborations": 2,
+        "effective_corroboration": 2.0,
+        "independence_ratio": 1.0,
+        "dependency_groups": 2
+      },
+      {
+        "claim": "Jimmy Lai has been held for 1,800 days in solitary confineme",
+        "raw_corroborations": 2,
+        "effective_corroboration": 2.0,
+        "independence_ratio": 1.0,
+        "dependency_groups": 2
+      },
+      {
+        "claim": "Jimmy Lai has been in arbitrary detention for almost five ye",
+        "raw_corroborations": 3,
+        "effective_corroboration": 3.0,
+        "independence_ratio": 1.0,
+        "dependency_groups": 3
+      },
+      {
+        "claim": "Jimmy Lai turned 78 in a Hong Kong prison.",
+        "raw_corroborations": 2,
+        "effective_corroboration": 1.21,
+        "independence_ratio": 0.6,
+        "dependency_groups": 1
+      },
+      {
+        "claim": "Jimmy Lai has been languishing in prison for five years.",
+        "raw_corroborations": 6,
+        "effective_corroboration": 5.21,
+        "independence_ratio": 0.87,
+        "dependency_groups": 5
+      },
+      {
+        "claim": "Jimmy Lai is awaiting a ruling on charges of sedition and co",
+        "raw_corroborations": 3,
+        "effective_corroboration": 3.0,
+        "independence_ratio": 1.0,
+        "dependency_groups": 3
+      },
+      {
+        "claim": "Jimmy Lai is currently imprisoned in Hong Kong on national s",
+        "raw_corroborations": 5,
+        "effective_corroboration": 5.0,
+        "independence_ratio": 1.0,
+        "dependency_groups": 5
+      },
+      {
+        "claim": "Jimmy Lai was charged five years ago.",
+        "raw_corroborations": 3,
+        "effective_corroboration": 3.0,
+        "independence_ratio": 1.0,
+        "dependency_groups": 3
+      },
+      {
+        "claim": "Donald Trump discussed Jimmy Lai's case with Xi Jinping.",
+        "raw_corroborations": 2,
+        "effective_corroboration": 2.0,
+        "independence_ratio": 1.0,
+        "dependency_groups": 2
+      },
+      {
+        "claim": "Jimmy Lai has been in jail for more than 1,700 days.",
+        "raw_corroborations": 2,
+        "effective_corroboration": 2.0,
+        "independence_ratio": 1.0,
+        "dependency_groups": 2
+      },
+      {
+        "claim": "Donald Trump reportedly raised the issue of Jimmy Lai's impr",
+        "raw_corroborations": 3,
+        "effective_corroboration": 2.21,
+        "independence_ratio": 0.74,
+        "dependency_groups": 2
+      },
+      {
+        "claim": "Jimmy Lai has been jailed for more than 1,800 days.",
+        "raw_corroborations": 2,
+        "effective_corroboration": 2.0,
+        "independence_ratio": 1.0,
+        "dependency_groups": 2
+      },
+      {
+        "claim": "Jimmy Lai is currently on trial under national security legi",
+        "raw_corroborations": 2,
+        "effective_corroboration": 2.0,
+        "independence_ratio": 1.0,
+        "dependency_groups": 2
+      },
+      {
+        "claim": "Tyler Robinson was charged with aggravated murder in the dea",
+        "raw_corroborations": 2,
+        "effective_corroboration": 2.0,
+        "independence_ratio": 1.0,
+        "dependency_groups": 2
+      },
+      {
+        "claim": "Do Kwon was sentenced to 15 years in prison by a US federal ",
+        "raw_corroborations": 3,
+        "effective_corroboration": 1.33,
+        "independence_ratio": 0.44,
+        "dependency_groups": 1
+      },
+      {
+        "claim": "Do Kwon pleaded guilty to fraud charges in Manhattan federal",
+        "raw_corroborations": 2,
+        "effective_corroboration": 2.0,
+        "independence_ratio": 1.0,
+        "dependency_groups": 2
+      },
+      {
+        "claim": "TIME\u2019s Person of the Year award has previously included Bara",
+        "raw_corroborations": 2,
+        "effective_corroboration": 1.21,
+        "independence_ratio": 0.6,
+        "dependency_groups": 1
+      },
+      {
+        "claim": "Jensen Huang founded Nvidia.",
+        "raw_corroborations": 2,
+        "effective_corroboration": 1.21,
+        "independence_ratio": 0.6,
+        "dependency_groups": 1
+      },
+      {
+        "claim": "Pope Leo XIV made history as the first American pope.",
+        "raw_corroborations": 3,
+        "effective_corroboration": 1.33,
+        "independence_ratio": 0.44,
+        "dependency_groups": 1
+      },
+      {
+        "claim": "Charlie Kirk was assassinated in September.",
+        "raw_corroborations": 2,
+        "effective_corroboration": 1.21,
+        "independence_ratio": 0.6,
+        "dependency_groups": 1
+      },
+      {
+        "claim": "Benjamin Netanyahu was a foreign competitor for TIME\u2019s Perso",
+        "raw_corroborations": 2,
+        "effective_corroboration": 1.21,
+        "independence_ratio": 0.6,
+        "dependency_groups": 1
+      },
+      {
+        "claim": "Xi Jinping was a foreign competitor for TIME\u2019s Person of the",
+        "raw_corroborations": 2,
+        "effective_corroboration": 1.21,
+        "independence_ratio": 0.6,
+        "dependency_groups": 1
+      },
+      {
+        "claim": "TIME magazine selected AI leaders as Person of the Year for ",
+        "raw_corroborations": 3,
+        "effective_corroboration": 1.33,
+        "independence_ratio": 0.44,
+        "dependency_groups": 1
+      },
+      {
+        "claim": "Donald Trump was previously a recipient of TIME's Person of ",
+        "raw_corroborations": 2,
+        "effective_corroboration": 1.21,
+        "independence_ratio": 0.6,
+        "dependency_groups": 1
+      },
+      {
+        "claim": "Mark Zuckerberg was featured on a TIME magazine cover symbol",
+        "raw_corroborations": 2,
+        "effective_corroboration": 2.0,
+        "independence_ratio": 1.0,
+        "dependency_groups": 2
+      },
+      {
+        "claim": "Sam Altman was featured on a TIME magazine cover symbolizing",
+        "raw_corroborations": 2,
+        "effective_corroboration": 2.0,
+        "independence_ratio": 1.0,
+        "dependency_groups": 2
+      },
+      {
+        "claim": "Pope Leo XIV is the first American pope.",
+        "raw_corroborations": 2,
+        "effective_corroboration": 1.21,
+        "independence_ratio": 0.6,
+        "dependency_groups": 1
+      },
+      {
+        "claim": "Zohran Mamdani was rumored to win TIME's Person of the Year ",
+        "raw_corroborations": 2,
+        "effective_corroboration": 1.21,
+        "independence_ratio": 0.6,
+        "dependency_groups": 1
+      },
+      {
+        "claim": "The outlet\u2019s iconic award has previously included recipients",
+        "raw_corroborations": 2,
+        "effective_corroboration": 2.0,
+        "independence_ratio": 1.0,
+        "dependency_groups": 2
+      },
+      {
+        "claim": "Donald Trump was previously a recipient of Time Magazine's P",
+        "raw_corroborations": 3,
+        "effective_corroboration": 1.33,
+        "independence_ratio": 0.44,
+        "dependency_groups": 1
+      },
+      {
+        "claim": "Sam Altman is the CEO of OpenAI",
+        "raw_corroborations": 2,
+        "effective_corroboration": 1.21,
+        "independence_ratio": 0.6,
+        "dependency_groups": 1
+      },
+      {
+        "claim": "One of Time magazine's covers includes tech leaders like Mar",
+        "raw_corroborations": 2,
+        "effective_corroboration": 2.0,
+        "independence_ratio": 1.0,
+        "dependency_groups": 2
+      },
+      {
+        "claim": "The fire at Wang Fuk Court resulted in over a hundred deaths",
+        "raw_corroborations": 4,
+        "effective_corroboration": 3.21,
+        "independence_ratio": 0.8,
+        "dependency_groups": 3
+      },
+      {
+        "claim": "Jimmy Lai has pleaded not guilty to two counts of conspiracy",
+        "raw_corroborations": 5,
+        "effective_corroboration": 4.21,
+        "independence_ratio": 0.84,
+        "dependency_groups": 4
+      },
+      {
+        "claim": "The US military seized an oil tanker off the coast of Venezu",
+        "raw_corroborations": 2,
+        "effective_corroboration": 2.0,
+        "independence_ratio": 1.0,
+        "dependency_groups": 2
+      },
+      {
+        "claim": "The US claims the tanker is used to transport sanctioned oil",
+        "raw_corroborations": 2,
+        "effective_corroboration": 2.0,
+        "independence_ratio": 1.0,
+        "dependency_groups": 2
+      },
+      {
+        "claim": "Do Kwon was sentenced to 15 years in prison",
+        "raw_corroborations": 2,
+        "effective_corroboration": 1.21,
+        "independence_ratio": 0.6,
+        "dependency_groups": 1
+      },
+      {
+        "claim": "Tyler Robinson is accused of killing Charlie Kirk.",
+        "raw_corroborations": 3,
+        "effective_corroboration": 3.0,
+        "independence_ratio": 1.0,
+        "dependency_groups": 3
+      },
+      {
+        "claim": "The fire at Wang Fuk Court killed at least 160 people.",
+        "raw_corroborations": 5,
+        "effective_corroboration": 5.0,
+        "independence_ratio": 1.0,
+        "dependency_groups": 5
+      },
+      {
+        "claim": "At least 128 people were killed in the Wang Fuk Court fire.",
+        "raw_corroborations": 2,
+        "effective_corroboration": 2.0,
+        "independence_ratio": 1.0,
+        "dependency_groups": 2
+      },
+      {
+        "claim": "Providence\u2019s mayor said the shooting left at least two peopl",
+        "raw_corroborations": 2,
+        "effective_corroboration": 2.0,
+        "independence_ratio": 1.0,
+        "dependency_groups": 2
+      },
+      {
+        "claim": "Multiple people have been shot near Brown University",
+        "raw_corroborations": 2,
+        "effective_corroboration": 1.21,
+        "independence_ratio": 0.6,
+        "dependency_groups": 1
+      },
+      {
+        "claim": "The shooting at Brown University killed two people and left ",
+        "raw_corroborations": 3,
+        "effective_corroboration": 2.21,
+        "independence_ratio": 0.74,
+        "dependency_groups": 2
+      },
+      {
+        "claim": "A fatal shooting broke out on Brown University campus on Sat",
+        "raw_corroborations": 5,
+        "effective_corroboration": 4.21,
+        "independence_ratio": 0.84,
+        "dependency_groups": 4
+      },
+      {
+        "claim": "A person of interest was taken into custody in connection wi",
+        "raw_corroborations": 2,
+        "effective_corroboration": 2.0,
+        "independence_ratio": 1.0,
+        "dependency_groups": 2
+      },
+      {
+        "claim": "At least 11 victims were killed in the Bondi Beach shooting.",
+        "raw_corroborations": 2,
+        "effective_corroboration": 2.0,
+        "independence_ratio": 1.0,
+        "dependency_groups": 2
+      },
+      {
+        "claim": "At least 11 people were killed in the shooting at Bondi Beac",
+        "raw_corroborations": 3,
+        "effective_corroboration": 3.0,
+        "independence_ratio": 1.0,
+        "dependency_groups": 3
+      },
+      {
+        "claim": "CAS Space responded to Nicolls' post, saying it did its due ",
+        "raw_corroborations": 3,
+        "effective_corroboration": 2.21,
+        "independence_ratio": 0.74,
+        "dependency_groups": 2
+      },
+      {
+        "claim": "At least 29 others were hospitalized after the Bondi Beach s",
+        "raw_corroborations": 2,
+        "effective_corroboration": 1.21,
+        "independence_ratio": 0.6,
+        "dependency_groups": 1
+      },
+      {
+        "claim": "Jimmy Lai faces life in jail if convicted.",
+        "raw_corroborations": 4,
+        "effective_corroboration": 4.0,
+        "independence_ratio": 1.0,
+        "dependency_groups": 4
+      },
+      {
+        "claim": "Jimmy Lai was found guilty of conspiracy to collude with for",
+        "raw_corroborations": 6,
+        "effective_corroboration": 5.21,
+        "independence_ratio": 0.87,
+        "dependency_groups": 5
+      },
+      {
+        "claim": "Jimmy Lai was found guilty of sedition and collusion with fo",
+        "raw_corroborations": 2,
+        "effective_corroboration": 2.0,
+        "independence_ratio": 1.0,
+        "dependency_groups": 2
+      },
+      {
+        "claim": "Rob Reiner and his wife Michele were found stabbed to death ",
+        "raw_corroborations": 4,
+        "effective_corroboration": 3.21,
+        "independence_ratio": 0.8,
+        "dependency_groups": 3
+      },
+      {
+        "claim": "Rob Reiner and Michele Singer Reiner were found dead in thei",
+        "raw_corroborations": 4,
+        "effective_corroboration": 3.21,
+        "independence_ratio": 0.8,
+        "dependency_groups": 3
+      },
+      {
+        "claim": "Two Brown University students were killed, and 9 students we",
+        "raw_corroborations": 2,
+        "effective_corroboration": 1.21,
+        "independence_ratio": 0.6,
+        "dependency_groups": 1
+      },
+      {
+        "claim": "Judge Amy Pellman denied Xu Bo\u2019s request for parentage.",
+        "raw_corroborations": 2,
+        "effective_corroboration": 2.0,
+        "independence_ratio": 1.0,
+        "dependency_groups": 2
+      },
+      {
+        "claim": "Xu Bo requested parental recognition for dozens of unborn ch",
+        "raw_corroborations": 5,
+        "effective_corroboration": 4.21,
+        "independence_ratio": 0.84,
+        "dependency_groups": 4
+      },
+      {
+        "claim": "Xu Bo was seeking parental rights for at least four unborn c",
+        "raw_corroborations": 2,
+        "effective_corroboration": 2.0,
+        "independence_ratio": 1.0,
+        "dependency_groups": 2
+      },
+      {
+        "claim": "Xu Bo had already fathered, or was in the process of fatheri",
+        "raw_corroborations": 2,
+        "effective_corroboration": 2.0,
+        "independence_ratio": 1.0,
+        "dependency_groups": 2
+      },
+      {
+        "claim": "Xu Bo's company claimed he has more than 100 children born t",
+        "raw_corroborations": 2,
+        "effective_corroboration": 2.0,
+        "independence_ratio": 1.0,
+        "dependency_groups": 2
+      },
+      {
+        "claim": "Rob Reiner and Michele Reiner were found dead in their Los A",
+        "raw_corroborations": 2,
+        "effective_corroboration": 1.21,
+        "independence_ratio": 0.6,
+        "dependency_groups": 1
+      },
+      {
+        "claim": "Jimmy Lai has been in prison for more than five years",
+        "raw_corroborations": 2,
+        "effective_corroboration": 2.0,
+        "independence_ratio": 1.0,
+        "dependency_groups": 2
+      }
+    ],
+    "summary": {
+      "avg_independence_ratio": 0.8274996186653343,
+      "high_dependency_count": 12
+    }
+  },
+  "case_study": {
+    "findings": [],
+    "historical_claims_count": 21,
+    "explicit_citations_count": 99,
+    "sample_citations": [
+      {
+        "claim": "Eric Chan said that seven of 20 additional samples collected from the site faile",
+        "citations": [
+          "Eric Chan"
+        ]
+      },
+      {
+        "claim": "John Lee said an independent committee led by a judge will investigate the fire.",
+        "citations": [
+          "John Lee"
+        ]
+      },
+      {
+        "claim": "Jean-Pierre Cabestan said the disaster may overshadow an election for Hong Kong\u2019",
+        "citations": [
+          "Pierre Cabestan"
+        ]
+      },
+      {
+        "claim": "John Lee said police and the Fire Services Department had formed a special inves",
+        "citations": [
+          "John Lee"
+        ]
+      },
+      {
+        "claim": "About 700 people have been evacuated to temporary shelters, according to BBC.",
+        "citations": [
+          "BBC"
+        ]
+      },
+      {
+        "claim": "Derek Armstrong Chan said falling debris and collapsing scaffolding posed signif",
+        "citations": [
+          "Derek Armstrong Chan"
+        ]
+      },
+      {
+        "claim": "Andy Yeung said another firefighter was treated for heat exhaustion.",
+        "citations": [
+          "Andy Yeung"
+        ]
+      },
+      {
+        "claim": "The Indonesian consulate general said that nine migrant domestic workers died in",
+        "citations": [
+          "The Indonesian consulate general"
+        ]
+      },
+      {
+        "claim": "The fire was first reported at Wang Fuk Court in Tai Po.",
+        "citations": [
+          "The fire was first"
+        ]
+      },
+      {
+        "claim": "John Lee said more than 900 people had sought refuge at temporary shelters.",
+        "citations": [
+          "John Lee"
+        ]
+      }
+    ]
+  }
+}

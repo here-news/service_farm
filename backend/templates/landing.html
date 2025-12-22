@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HERE - A Breathing Knowledge System</title>
+    <style>
+        :root {
+            --bg-color: #030305;
+            --text-color: #ffffff;
+            --accent-primary: #818cf8;
+            --accent-secondary: #c084fc;
+            --accent-glow: rgba(129, 140, 248, 0.5);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        #graph-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        .content-overlay {
+            position: relative;
+            z-index: 10;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            pointer-events: none;
+            background: radial-gradient(circle at center, transparent 0%, rgba(3, 3, 5, 0.7) 100%);
+        }
+
+        .hero-content {
+            opacity: 0;
+            transform: translateY(30px);
+            animation: fadeUp 1.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            animation-delay: 0.5s;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.6rem 1.2rem;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 100px;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            color: #a5b4fc;
+            margin-bottom: 2.5rem;
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(10px);
+        }
+
+        .status-dot {
+            width: 6px;
+            height: 6px;
+            background-color: #818cf8;
+            border-radius: 50%;
+            margin-right: 10px;
+            box-shadow: 0 0 10px #818cf8;
+            animation: pulse 2s infinite;
+        }
+
+        h1 {
+            font-size: 5rem;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, #ffffff 0%, #a5b4fc 50%, #e0e7ff 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            filter: drop-shadow(0 0 40px rgba(165, 180, 252, 0.2));
+            line-height: 1;
+        }
+
+        p.subtitle {
+            font-size: 1.4rem;
+            color: #94a3b8;
+            font-weight: 300;
+            max-width: 600px;
+            line-height: 1.6;
+            margin: 0 auto 1rem;
+            letter-spacing: 0.02em;
+        }
+
+        p.coming-soon {
+            font-size: 1rem;
+            color: #64748b;
+            font-style: italic;
+        }
+
+        .stats-bar {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 20;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            padding: 0.8rem 1.5rem;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 100px;
+            font-size: 0.85rem;
+            color: #94a3b8;
+        }
+
+        .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .stat-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .stat-dot.entities { background: #a78bfa; }
+        .stat-dot.events { background: #3b82f6; }
+        .stat-dot.live {
+            background: #10b981;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes fadeUp {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.5; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.3); }
+        }
+
+        @media (max-width: 768px) {
+            h1 { font-size: 3rem; }
+            p.subtitle { font-size: 1.1rem; padding: 0 20px; }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="graph-canvas"></canvas>
+
+    <div class="content-overlay">
+        <div class="hero-content">
+            <div class="status-badge">
+                <div class="status-dot"></div>System Breathing
+            </div>
+            <h1>HERE</h1>
+            <p class="subtitle">a breathing knowledge system</p>
+            <p class="coming-soon">(coming soon...)</p>
+        </div>
+    </div>
+
+    <div class="stats-bar">
+        <div class="stat-item">
+            <div class="stat-dot entities"></div>
+            <span id="entity-count">0</span> entities
+        </div>
+        <div class="stat-item">
+            <div class="stat-dot events"></div>
+            <span id="event-count">0</span> events
+        </div>
+        <div class="stat-item">
+            <div class="stat-dot live"></div>
+            <span>live</span>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('graph-canvas');
+        const ctx = canvas.getContext('2d');
+
+        let width, height;
+        let nodes = [];
+        let links = [];
+        let zaps = [];
+
+        // Entity type colors
+        const COLORS = {
+            PERSON: '#a78bfa',
+            ORGANIZATION: '#f59e0b',
+            LOCATION: '#10b981',
+            EVENT: '#3b82f6',
+            DEFAULT: '#94a3b8'
+        };
+
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // Global breathing state
+        let globalBreathPhase = 0;
+        const BREATH_SPEED = 0.02; // How fast the breath cycles
+        const BREATH_WAVE_SPEED = 0.003; // How fast the wave propagates
+
+        // Node class with physics
+        class Node {
+            constructor(id, name, type, size, color, eventIds = []) {
+                this.id = id;
+                this.name = name;
+                this.type = type;
+                this.baseSize = size;
+                this.size = size;
+                this.color = color;
+                this.eventIds = eventIds;
+                this.x = Math.random() * width;
+                this.y = Math.random() * height;
+                this.vx = (Math.random() - 0.5) * 0.3;
+                this.vy = (Math.random() - 0.5) * 0.3;
+                this.breathOffset = Math.random() * Math.PI * 2; // Individual phase offset
+                this.glowIntensity = 0.6;
+                this.targetGlow = 0.6;
+            }
+
+            update() {
+                // Slow drift
+                this.x += this.vx;
+                this.y += this.vy;
+
+                // Boundary bounce with padding
+                const padding = 100;
+                if (this.x < padding || this.x > width - padding) this.vx *= -1;
+                if (this.y < padding || this.y > height - padding) this.vy *= -1;
+
+                // Keep in bounds
+                this.x = Math.max(padding, Math.min(width - padding, this.x));
+                this.y = Math.max(padding, Math.min(height - padding, this.y));
+
+                // Slight random drift change
+                if (Math.random() < 0.01) {
+                    this.vx += (Math.random() - 0.5) * 0.1;
+                    this.vy += (Math.random() - 0.5) * 0.1;
+                    this.vx = Math.max(-0.5, Math.min(0.5, this.vx));
+                    this.vy = Math.max(-0.5, Math.min(0.5, this.vy));
+                }
+
+                // Breathing animation - wave that propagates from center
+                const distFromCenter = Math.sqrt(
+                    Math.pow(this.x - width/2, 2) +
+                    Math.pow(this.y - height/2, 2)
+                );
+                const waveDelay = distFromCenter * BREATH_WAVE_SPEED;
+                const breathPhase = globalBreathPhase - waveDelay + this.breathOffset * 0.3;
+                const breathScale = 1 + Math.sin(breathPhase) * 0.15;
+                this.size = this.baseSize * breathScale;
+
+                // Glow pulses with breath
+                const glowPulse = 0.5 + Math.sin(breathPhase) * 0.3;
+                this.glowIntensity = this.glowIntensity * 0.95 + (this.targetGlow * glowPulse) * 0.05;
+            }
+
+            // Called when this node receives a zap
+            energize() {
+                this.targetGlow = 1.5;
+                setTimeout(() => { this.targetGlow = 0.6; }, 500);
+            }
+
+            draw() {
+                // Outer glow ring (breathing)
+                ctx.save();
+                ctx.shadowColor = this.color;
+                ctx.shadowBlur = 20 * this.glowIntensity;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size * 1.2, 0, Math.PI * 2);
+                ctx.strokeStyle = this.color;
+                ctx.globalAlpha = this.glowIntensity * 0.3;
+                ctx.lineWidth = 2;
+                ctx.stroke();
+                ctx.restore();
+
+                // Main glow
+                ctx.save();
+                ctx.shadowColor = this.color;
+                ctx.shadowBlur = 15;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.globalAlpha = this.glowIntensity;
+                ctx.fill();
+                ctx.restore();
+
+                // Solid center
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size * 0.7, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+            }
+        }
+
+        // Lightning zap effect
+        class Zap {
+            constructor(source, target) {
+                this.source = source;
+                this.target = target;
+                this.progress = 0;
+                this.duration = 300 + Math.random() * 200;
+                this.startTime = Date.now();
+                this.segments = this.generateSegments();
+            }
+
+            generateSegments() {
+                const segments = [];
+                const dx = this.target.x - this.source.x;
+                const dy = this.target.y - this.source.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                const numSegs = Math.max(4, Math.floor(dist / 50));
+
+                for (let i = 0; i <= numSegs; i++) {
+                    const t = i / numSegs;
+                    const baseX = this.source.x + dx * t;
+                    const baseY = this.source.y + dy * t;
+
+                    // Add perpendicular jitter (not at endpoints)
+                    let jitterX = 0, jitterY = 0;
+                    if (i > 0 && i < numSegs) {
+                        const perpX = -dy / dist;
+                        const perpY = dx / dist;
+                        const jitter = (Math.random() - 0.5) * 40;
+                        jitterX = perpX * jitter;
+                        jitterY = perpY * jitter;
+                    }
+
+                    segments.push({ x: baseX + jitterX, y: baseY + jitterY });
+                }
+                return segments;
+            }
+
+            update() {
+                const elapsed = Date.now() - this.startTime;
+                this.progress = Math.min(1, elapsed / this.duration);
+                return this.progress < 1;
+            }
+
+            draw() {
+                if (this.segments.length < 2) return;
+
+                const drawCount = Math.ceil(this.segments.length * this.progress);
+
+                ctx.save();
+                ctx.beginPath();
+                ctx.moveTo(this.segments[0].x, this.segments[0].y);
+
+                for (let i = 1; i < drawCount; i++) {
+                    ctx.lineTo(this.segments[i].x, this.segments[i].y);
+                }
+
+                // Outer glow
+                ctx.shadowColor = '#fbbf24';
+                ctx.shadowBlur = 15;
+                ctx.strokeStyle = '#fef08a';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+
+                // Inner bright line
+                ctx.shadowBlur = 0;
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+
+                ctx.restore();
+
+                // Impact flash at target when complete
+                if (this.progress > 0.9) {
+                    ctx.save();
+                    ctx.beginPath();
+                    const flashSize = this.target.size * 2 * (1 - (this.progress - 0.9) * 10);
+                    ctx.arc(this.target.x, this.target.y, flashSize, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(251, 191, 36, ${1 - (this.progress - 0.9) * 10})`;
+                    ctx.fill();
+                    ctx.restore();
+                }
+            }
+        }
+
+        // Calculate co-occurrence coefficient between two nodes
+        function getCooccurrenceCoeff(node1, node2) {
+            if (!node1.eventIds || !node2.eventIds) return 0;
+            const shared = node1.eventIds.filter(id => node2.eventIds.includes(id));
+            return shared.length;
+        }
+
+        // Pick a zap pair based on coefficients
+        function pickZapPair() {
+            if (nodes.length < 2) return null;
+
+            // Build weighted candidates
+            const candidates = [];
+            for (let i = 0; i < nodes.length; i++) {
+                for (let j = i + 1; j < nodes.length; j++) {
+                    const coeff = getCooccurrenceCoeff(nodes[i], nodes[j]);
+                    // Base weight + co-occurrence bonus
+                    let weight = 1 + coeff * 3;
+
+                    // Type affinity bonus
+                    const types = [nodes[i].type, nodes[j].type].sort().join('-');
+                    if (types === 'ORGANIZATION-PERSON') weight *= 1.5;
+                    if (types === 'LOCATION-ORGANIZATION') weight *= 1.3;
+                    if (types === 'LOCATION-PERSON') weight *= 1.2;
+
+                    candidates.push({ i, j, weight });
+                }
+            }
+
+            if (candidates.length === 0) return null;
+
+            // Weighted random selection
+            const totalWeight = candidates.reduce((sum, c) => sum + c.weight, 0);
+            let rand = Math.random() * totalWeight;
+
+            for (const c of candidates) {
+                rand -= c.weight;
+                if (rand <= 0) {
+                    return [nodes[c.i], nodes[c.j]];
+                }
+            }
+
+            return [nodes[0], nodes[1]];
+        }
+
+        // Trigger a zap
+        function triggerZap() {
+            const pair = pickZapPair();
+            if (pair) {
+                // Randomly pick direction
+                const [source, target] = Math.random() < 0.5 ? pair : [pair[1], pair[0]];
+                zaps.push(new Zap(source, target));
+            }
+        }
+
+        // Draw faint connection lines between co-occurring entities
+        function drawConnections() {
+            ctx.save();
+            for (let i = 0; i < nodes.length; i++) {
+                for (let j = i + 1; j < nodes.length; j++) {
+                    const coeff = getCooccurrenceCoeff(nodes[i], nodes[j]);
+                    if (coeff > 0) {
+                        const opacity = Math.min(0.15, coeff * 0.05);
+                        ctx.beginPath();
+                        ctx.moveTo(nodes[i].x, nodes[i].y);
+                        ctx.lineTo(nodes[j].x, nodes[j].y);
+                        ctx.strokeStyle = `rgba(148, 163, 184, ${opacity})`;
+                        ctx.lineWidth = 1;
+                        ctx.stroke();
+                    }
+                }
+            }
+            ctx.restore();
+        }
+
+        // Main animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Clear with slight fade for trail effect
+            ctx.fillStyle = 'rgba(3, 3, 5, 0.3)';
+            ctx.fillRect(0, 0, width, height);
+
+            // Draw connections
+            drawConnections();
+
+            // Update and draw nodes
+            nodes.forEach(node => {
+                node.update();
+                node.draw();
+            });
+
+            // Update and draw zaps
+            zaps = zaps.filter(zap => {
+                const alive = zap.update();
+                if (alive || zap.progress < 1.1) {
+                    zap.draw();
+                }
+                return alive;
+            });
+        }
+
+        // Fetch data from API
+        async function fetchGraphData() {
+            try {
+                const response = await fetch('/api/coherence/feed?limit=30');
+                const data = await response.json();
+
+                const events = data.events || [];
+                if (events.length === 0) return;
+
+                // Fetch entity details for each event
+                const entityMap = new Map();
+                const eventIds = [];
+
+                const detailPromises = events.slice(0, 15).map(event =>
+                    fetch(`/api/event/${event.event_id || event.id}`)
+                        .then(r => r.json())
+                        .catch(() => null)
+                );
+
+                const details = await Promise.all(detailPromises);
+
+                details.forEach(result => {
+                    if (!result || !result.event) return;
+
+                    const eventId = result.event.event_id || result.event.id;
+                    eventIds.push(eventId);
+
+                    const entities = result.entities || [];
+                    entities.forEach(entity => {
+                        if (!entity.id || !entity.canonical_name) return;
+
+                        if (!entityMap.has(entity.id)) {
+                            entityMap.set(entity.id, {
+                                ...entity,
+                                eventIds: []
+                            });
+                        }
+                        entityMap.get(entity.id).eventIds.push(eventId);
+                    });
+                });
+
+                // Create nodes from entities (filter to important ones)
+                nodes = [];
+                let maxMentions = 1;
+                entityMap.forEach(e => {
+                    maxMentions = Math.max(maxMentions, e.eventIds.length);
+                });
+
+                entityMap.forEach((entity, id) => {
+                    const isPerson = entity.entity_type === 'PERSON';
+                    const isImportant = entity.eventIds.length >= 2 || isPerson;
+
+                    if (isImportant) {
+                        const mentionRatio = entity.eventIds.length / maxMentions;
+                        const size = 8 + mentionRatio * 20;
+                        const color = COLORS[entity.entity_type] || COLORS.DEFAULT;
+
+                        nodes.push(new Node(
+                            id,
+                            entity.canonical_name,
+                            entity.entity_type,
+                            size,
+                            color,
+                            entity.eventIds
+                        ));
+                    }
+                });
+
+                // Update stats
+                document.getElementById('entity-count').textContent = nodes.length;
+                document.getElementById('event-count').textContent = eventIds.length;
+
+                console.log(`Loaded ${nodes.length} entities from ${eventIds.length} events`);
+
+            } catch (err) {
+                console.error('Failed to fetch graph data:', err);
+            }
+        }
+
+        // Initialize
+        async function init() {
+            await fetchGraphData();
+            animate();
+
+            // Trigger zaps periodically (every 2-5 seconds)
+            setInterval(() => {
+                if (nodes.length >= 2) {
+                    triggerZap();
+                }
+            }, 2000 + Math.random() * 3000);
+
+            // Refresh data periodically (every 60 seconds)
+            setInterval(fetchGraphData, 60000);
+        }
+
+        init();
+    </script>
+</body>
+</html>

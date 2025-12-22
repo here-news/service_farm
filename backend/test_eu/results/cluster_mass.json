@@ -1,0 +1,599 @@
+{
+  "clusters": [
+    {
+      "id": "cluster_donald_trump",
+      "claim_count": 84,
+      "core_entities": [
+        "Donald Trump"
+      ],
+      "mass_total": 0.5060660801141657,
+      "mass_components": {
+        "claim_count": 0.9626295218680472,
+        "corroboration_density": 0.03298909925415949,
+        "tension": 0.2,
+        "entity_significance": 0.13471177944862153,
+        "source_diversity": 1.0,
+        "temporal_span": 1.0
+      },
+      "matched_event": "Trump vs. BBC Defamation Lawsuit"
+    },
+    {
+      "id": "cluster_wang_fuk_court",
+      "claim_count": 78,
+      "core_entities": [
+        "Wang Fuk Court"
+      ],
+      "mass_total": 0.4890223501595763,
+      "mass_components": {
+        "claim_count": 0.9467678767049003,
+        "corroboration_density": 0.011655011655011656,
+        "tension": 0.4,
+        "entity_significance": 0.08934372969460685,
+        "source_diversity": 0.7964601769911505,
+        "temporal_span": 1.0
+      },
+      "matched_event": "Wang Fuk Court Fire"
+    },
+    {
+      "id": "cluster_time",
+      "claim_count": 33,
+      "core_entities": [
+        "Time"
+      ],
+      "mass_total": 0.4776978386322436,
+      "mass_components": {
+        "claim_count": 0.764088502509945,
+        "corroboration_density": 0.30303030303030304,
+        "tension": 1.0,
+        "entity_significance": 0.14181286549707597,
+        "source_diversity": 0.1327433628318584,
+        "temporal_span": 0.66
+      },
+      "matched_event": "AI Innovators on TIME Covers"
+    },
+    {
+      "id": "cluster_hong_kong",
+      "claim_count": 105,
+      "core_entities": [
+        "Hong Kong"
+      ],
+      "mass_total": 0.47273909281253224,
+      "mass_components": {
+        "claim_count": 1.0,
+        "corroboration_density": 0.013736263736263738,
+        "tension": 0.0,
+        "entity_significance": 0.09995920032639738,
+        "source_diversity": 1.0,
+        "temporal_span": 1.0
+      },
+      "matched_event": "Wang Fuk Court Fire"
+    },
+    {
+      "id": "cluster_charlie_kirk",
+      "claim_count": 32,
+      "core_entities": [
+        "Charlie Kirk"
+      ],
+      "mass_total": 0.4609572232268158,
+      "mass_components": {
+        "claim_count": 0.757619990357176,
+        "corroboration_density": 0.23185483870967744,
+        "tension": 0.8,
+        "entity_significance": 0.1298245614035088,
+        "source_diversity": 0.35398230088495575,
+        "temporal_span": 0.64
+      },
+      "matched_event": "Charlie Kirk Assassination"
+    },
+    {
+      "id": "cluster_brown_university_library",
+      "claim_count": 41,
+      "core_entities": [
+        "Brown University Library"
+      ],
+      "mass_total": 0.45818148531766506,
+      "mass_components": {
+        "claim_count": 0.8098747594226537,
+        "corroboration_density": 0.09146341463414634,
+        "tension": 0.8,
+        "entity_significance": 0.08089668615984405,
+        "source_diversity": 0.39823008849557523,
+        "temporal_span": 0.82
+      },
+      "matched_event": "Brown University Shooting"
+    },
+    {
+      "id": "cluster_xu_bo",
+      "claim_count": 18,
+      "core_entities": [
+        "Xu Bo"
+      ],
+      "mass_total": 0.44875686088678085,
+      "mass_components": {
+        "claim_count": 0.6379982859432913,
+        "corroboration_density": 0.45751633986928103,
+        "tension": 1.0,
+        "entity_significance": 0.08552631578947369,
+        "source_diversity": 0.17699115044247787,
+        "temporal_span": 0.36
+      },
+      "matched_event": "Xu Bo Surrogacy Case"
+    },
+    {
+      "id": "cluster_jimmy_lai",
+      "claim_count": 114,
+      "core_entities": [
+        "Jimmy Lai"
+      ],
+      "mass_total": 0.4170078199691123,
+      "mass_components": {
+        "claim_count": 1.0,
+        "corroboration_density": 0.04812917248874399,
+        "tension": 0.0,
+        "entity_significance": 0.10549399815327791,
+        "source_diversity": 0.5752212389380531,
+        "temporal_span": 1.0
+      },
+      "matched_event": "Jimmy Lai Imprisonment"
+    },
+    {
+      "id": "cluster_xi_jinping",
+      "claim_count": 16,
+      "core_entities": [
+        "Xi Jinping"
+      ],
+      "mass_total": 0.3875986536942332,
+      "mass_components": {
+        "claim_count": 0.613898019286257,
+        "corroboration_density": 0.41666666666666663,
+        "tension": 0.0,
+        "entity_significance": 0.41557017543859653,
+        "source_diversity": 0.4424778761061947,
+        "temporal_span": 0.32
+      },
+      "matched_event": "TIME Person of the Year 2025"
+    },
+    {
+      "id": "cluster_bondi_beach",
+      "claim_count": 60,
+      "core_entities": [
+        "Bondi Beach"
+      ],
+      "mass_total": 0.3875673798280266,
+      "mass_components": {
+        "claim_count": 0.8907403066013385,
+        "corroboration_density": 0.02824858757062147,
+        "tension": 0.2,
+        "entity_significance": 0.07017543859649122,
+        "source_diversity": 0.39823008849557523,
+        "temporal_span": 1.0
+      },
+      "matched_event": "Bondi Beach Shooting"
+    },
+    {
+      "id": "cluster_john_lee",
+      "claim_count": 21,
+      "core_entities": [
+        "John Lee"
+      ],
+      "mass_total": 0.3661074279560859,
+      "mass_components": {
+        "claim_count": 0.6697641897061287,
+        "corroboration_density": 0.0,
+        "tension": 0.0,
+        "entity_significance": 0.4197994987468671,
+        "source_diversity": 0.7079646017699115,
+        "temporal_span": 0.42
+      },
+      "matched_event": "Wang Fuk Court Fire"
+    },
+    {
+      "id": "cluster_rob_reiner",
+      "claim_count": 56,
+      "core_entities": [
+        "Rob Reiner"
+      ],
+      "mass_total": 0.3581890412730293,
+      "mass_components": {
+        "claim_count": 0.8760445698180267,
+        "corroboration_density": 0.03571428571428571,
+        "tension": 0.0,
+        "entity_significance": 0.08051378446115287,
+        "source_diversity": 0.39823008849557523,
+        "temporal_span": 1.0
+      },
+      "matched_event": "Reiner Family Tragedy"
+    },
+    {
+      "id": "cluster_united_states",
+      "claim_count": 26,
+      "core_entities": [
+        "United States"
+      ],
+      "mass_total": 0.3576813794156417,
+      "mass_components": {
+        "claim_count": 0.714138851624206,
+        "corroboration_density": 0.06153846153846154,
+        "tension": 0.4,
+        "entity_significance": 0.15405701754385964,
+        "source_diversity": 0.39823008849557523,
+        "temporal_span": 0.52
+      },
+      "matched_event": "Venezuelan Oil Tanker Seizure"
+    },
+    {
+      "id": "cluster_michele_singer",
+      "claim_count": 13,
+      "core_entities": [
+        "Michele Singer"
+      ],
+      "mass_total": 0.3504635988963557,
+      "mass_components": {
+        "claim_count": 0.5718284755479184,
+        "corroboration_density": 0.7051282051282051,
+        "tension": 0.0,
+        "entity_significance": 0.11306042884990251,
+        "source_diversity": 0.30973451327433627,
+        "temporal_span": 0.26
+      },
+      "matched_event": "Reiner Family Tragedy"
+    },
+    {
+      "id": "cluster_amanda_seyfried",
+      "claim_count": 22,
+      "core_entities": [
+        "Amanda Seyfried"
+      ],
+      "mass_total": 0.3488218482055954,
+      "mass_components": {
+        "claim_count": 0.6793959560724939,
+        "corroboration_density": 0.367965367965368,
+        "tension": 0.2,
+        "entity_significance": 0.1608187134502924,
+        "source_diversity": 0.22123893805309736,
+        "temporal_span": 0.44
+      },
+      "matched_event": "Charlie Kirk Assassination"
+    },
+    {
+      "id": "cluster_tai_po_district",
+      "claim_count": 18,
+      "core_entities": [
+        "Tai Po District"
+      ],
+      "mass_total": 0.32216509733770343,
+      "mass_components": {
+        "claim_count": 0.6379982859432913,
+        "corroboration_density": 0.0,
+        "tension": 0.2,
+        "entity_significance": 0.41052631578947363,
+        "source_diversity": 0.30973451327433627,
+        "temporal_span": 0.36
+      },
+      "matched_event": "Wang Fuk Court Fire"
+    },
+    {
+      "id": "cluster_charles_iii",
+      "claim_count": 28,
+      "core_entities": [
+        "Charles III"
+      ],
+      "mass_total": 0.3177792575112441,
+      "mass_components": {
+        "claim_count": 0.7296225131497026,
+        "corroboration_density": 0.03968253968253968,
+        "tension": 0.2,
+        "entity_significance": 0.19047619047619047,
+        "source_diversity": 0.2654867256637168,
+        "temporal_span": 0.56
+      },
+      "matched_event": "King Charles III's Cancer Treatment Announcement"
+    },
+    {
+      "id": "cluster_venezuela",
+      "claim_count": 36,
+      "core_entities": [
+        "Venezuela"
+      ],
+      "mass_total": 0.31354696512288716,
+      "mass_components": {
+        "claim_count": 0.7824103183150796,
+        "corroboration_density": 0.05555555555555556,
+        "tension": 0.0,
+        "entity_significance": 0.17065390749601275,
+        "source_diversity": 0.2654867256637168,
+        "temporal_span": 0.72
+      },
+      "matched_event": "Venezuelan Oil Tanker Seizure"
+    },
+    {
+      "id": "cluster_do_kwon",
+      "claim_count": 43,
+      "core_entities": [
+        "Do Kwon"
+      ],
+      "mass_total": 0.3127521027873889,
+      "mass_components": {
+        "claim_count": 0.8199546729298166,
+        "corroboration_density": 0.0664451827242525,
+        "tension": 0.0,
+        "entity_significance": 0.04824561403508772,
+        "source_diversity": 0.2654867256637168,
+        "temporal_span": 0.86
+      },
+      "matched_event": "Do Kwon Sentencing"
+    },
+    {
+      "id": "cluster_bbc",
+      "claim_count": 32,
+      "core_entities": [
+        "BBC"
+      ],
+      "mass_total": 0.30690191295570557,
+      "mass_components": {
+        "claim_count": 0.757619990357176,
+        "corroboration_density": 0.05040322580645161,
+        "tension": 0.0,
+        "entity_significance": 0.17418546365914786,
+        "source_diversity": 0.30973451327433627,
+        "temporal_span": 0.64
+      },
+      "matched_event": "Trump vs. BBC Defamation Lawsuit"
+    },
+    {
+      "id": "cluster_china",
+      "claim_count": 20,
+      "core_entities": [
+        "China"
+      ],
+      "mass_total": 0.29720577976349183,
+      "mass_components": {
+        "claim_count": 0.6596842761989657,
+        "corroboration_density": 0.02631578947368421,
+        "tension": 0.0,
+        "entity_significance": 0.2681704260651629,
+        "source_diversity": 0.4424778761061947,
+        "temporal_span": 0.4
+      },
+      "matched_event": "Jimmy Lai Imprisonment"
+    },
+    {
+      "id": "cluster_elon_musk",
+      "claim_count": 10,
+      "core_entities": [
+        "Elon Musk"
+      ],
+      "mass_total": 0.2814280673845697,
+      "mass_components": {
+        "claim_count": 0.5195737064824407,
+        "corroboration_density": 0.5555555555555556,
+        "tension": 0.0,
+        "entity_significance": 0.06608187134502924,
+        "source_diversity": 0.22123893805309736,
+        "temporal_span": 0.2
+      },
+      "matched_event": "AI Innovators on TIME Covers"
+    },
+    {
+      "id": "cluster_los_angeles",
+      "claim_count": 11,
+      "core_entities": [
+        "Los Angeles"
+      ],
+      "mass_total": 0.2551316076950233,
+      "mass_components": {
+        "claim_count": 0.5384272503221113,
+        "corroboration_density": 0.2727272727272727,
+        "tension": 0.0,
+        "entity_significance": 0.15538847117794483,
+        "source_diversity": 0.2654867256637168,
+        "temporal_span": 0.22
+      },
+      "matched_event": "Reiner Family Tragedy"
+    },
+    {
+      "id": "cluster_jensen_huang",
+      "claim_count": 13,
+      "core_entities": [
+        "Jensen Huang"
+      ],
+      "mass_total": 0.25041327057401985,
+      "mass_components": {
+        "claim_count": 0.5718284755479184,
+        "corroboration_density": 0.3205128205128205,
+        "tension": 0.0,
+        "entity_significance": 0.0637958532695375,
+        "source_diversity": 0.22123893805309736,
+        "temporal_span": 0.26
+      },
+      "matched_event": "AI Innovators on TIME Covers"
+    },
+    {
+      "id": "cluster_nick_reiner",
+      "claim_count": 20,
+      "core_entities": [
+        "Nick Reiner"
+      ],
+      "mass_total": 0.24531249566829808,
+      "mass_components": {
+        "claim_count": 0.6596842761989657,
+        "corroboration_density": 0.05263157894736842,
+        "tension": 0.0,
+        "entity_significance": 0.11513157894736842,
+        "source_diversity": 0.2654867256637168,
+        "temporal_span": 0.4
+      },
+      "matched_event": "Reiner Family Tragedy"
+    },
+    {
+      "id": "cluster_tyler_robinson",
+      "claim_count": 19,
+      "core_entities": [
+        "Tyler Robinson"
+      ],
+      "mass_total": 0.24283607865290666,
+      "mass_components": {
+        "claim_count": 0.649112469029166,
+        "corroboration_density": 0.17543859649122806,
+        "tension": 0.0,
+        "entity_significance": 0.06688596491228072,
+        "source_diversity": 0.17699115044247787,
+        "temporal_span": 0.38
+      },
+      "matched_event": "Charlie Kirk Assassination"
+    },
+    {
+      "id": "cluster_mar\u00eda_corina_machado",
+      "claim_count": 21,
+      "core_entities": [
+        "Mar\u00eda Corina Machado"
+      ],
+      "mass_total": 0.23665381605021507,
+      "mass_components": {
+        "claim_count": 0.6697641897061287,
+        "corroboration_density": 0.0,
+        "tension": 0.0,
+        "entity_significance": 0.20394736842105263,
+        "source_diversity": 0.1327433628318584,
+        "temporal_span": 0.42
+      },
+      "matched_event": "Venezuelan Oil Tanker Seizure"
+    },
+    {
+      "id": "cluster_cas_space",
+      "claim_count": 19,
+      "core_entities": [
+        "CAS Space"
+      ],
+      "mass_total": 0.21551177600838972,
+      "mass_components": {
+        "claim_count": 0.649112469029166,
+        "corroboration_density": 0.08771929824561403,
+        "tension": 0.0,
+        "entity_significance": 0.051169590643274844,
+        "source_diversity": 0.1327433628318584,
+        "temporal_span": 0.38
+      },
+      "matched_event": "December 2023 Satellite Near-Collision Incident"
+    },
+    {
+      "id": "cluster_starlink",
+      "claim_count": 10,
+      "core_entities": [
+        "Starlink"
+      ],
+      "mass_total": 0.20756893577974644,
+      "mass_components": {
+        "claim_count": 0.5195737064824407,
+        "corroboration_density": 0.22222222222222224,
+        "tension": 0.0,
+        "entity_significance": 0.09649122807017543,
+        "source_diversity": 0.1327433628318584,
+        "temporal_span": 0.2
+      },
+      "matched_event": "December 2023 Satellite Near-Collision Incident"
+    },
+    {
+      "id": "cluster_nicol\u00e1s_maduro",
+      "claim_count": 11,
+      "core_entities": [
+        "Nicol\u00e1s Maduro"
+      ],
+      "mass_total": 0.19592710508693426,
+      "mass_components": {
+        "claim_count": 0.5384272503221113,
+        "corroboration_density": 0.0,
+        "tension": 0.0,
+        "entity_significance": 0.19846491228070173,
+        "source_diversity": 0.17699115044247787,
+        "temporal_span": 0.22
+      },
+      "matched_event": "Venezuelan Oil Tanker Seizure"
+    },
+    {
+      "id": "cluster_spacex",
+      "claim_count": 12,
+      "core_entities": [
+        "SpaceX"
+      ],
+      "mass_total": 0.19577222349541337,
+      "mass_components": {
+        "claim_count": 0.5557708294077383,
+        "corroboration_density": 0.07575757575757576,
+        "tension": 0.0,
+        "entity_significance": 0.06140350877192983,
+        "source_diversity": 0.22123893805309736,
+        "temporal_span": 0.24
+      },
+      "matched_event": "December 2023 Satellite Near-Collision Incident"
+    },
+    {
+      "id": "cluster_blue_origin",
+      "claim_count": 11,
+      "core_entities": [
+        "Blue Origin"
+      ],
+      "mass_total": 0.19395342087640796,
+      "mass_components": {
+        "claim_count": 0.5384272503221113,
+        "corroboration_density": 0.0,
+        "tension": 0.2,
+        "entity_significance": 0.03859649122807017,
+        "source_diversity": 0.17699115044247787,
+        "temporal_span": 0.22
+      },
+      "matched_event": "NS-37 Mission"
+    },
+    {
+      "id": "cluster_new_south_wales_police_force",
+      "claim_count": 10,
+      "core_entities": [
+        "New South Wales Police Force"
+      ],
+      "mass_total": 0.19218830130269837,
+      "mass_components": {
+        "claim_count": 0.5195737064824407,
+        "corroboration_density": 0.0,
+        "tension": 0.0,
+        "entity_significance": 0.1754385964912281,
+        "source_diversity": 0.22123893805309736,
+        "temporal_span": 0.2
+      },
+      "matched_event": "Bondi Beach Shooting"
+    },
+    {
+      "id": "cluster_jeffrey_epstein",
+      "claim_count": 10,
+      "core_entities": [
+        "Jeffrey Epstein"
+      ],
+      "mass_total": 0.16526874084797255,
+      "mass_components": {
+        "claim_count": 0.5195737064824407,
+        "corroboration_density": 0.0,
+        "tension": 0.0,
+        "entity_significance": 0.10721247563352826,
+        "source_diversity": 0.1327433628318584,
+        "temporal_span": 0.2
+      },
+      "matched_event": "King Charles III's Cancer Treatment Announcement"
+    },
+    {
+      "id": "cluster_michaela_benthaus",
+      "claim_count": 11,
+      "core_entities": [
+        "Michaela Benthaus"
+      ],
+      "mass_total": 0.1601232702786747,
+      "mass_components": {
+        "claim_count": 0.5384272503221113,
+        "corroboration_density": 0.0,
+        "tension": 0.0,
+        "entity_significance": 0.05263157894736842,
+        "source_diversity": 0.1327433628318584,
+        "temporal_span": 0.22
+      },
+      "matched_event": "NS-37 Mission"
+    }
+  ]
+}
