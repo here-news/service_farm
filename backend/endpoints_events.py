@@ -364,6 +364,149 @@ async def get_event_tree(event_id: str):
     }
 
 
+@router.get("/event/{event_id}/epistemic")
+async def get_event_epistemic(event_id: str):
+    """
+    Get epistemic state for an event.
+
+    Returns source diversity, coverage metrics, gaps, and perspective balance.
+    Used by EpistemicStateCard component to show what we know and don't know.
+    """
+    from datetime import datetime, timedelta
+    import re
+
+    event_repo, claim_repo, _, page_repo, _ = await init_services()
+
+    # Validate short ID format
+    if not event_id.startswith('ev_'):
+        raise HTTPException(status_code=400, detail="Invalid event ID format. Expected: ev_xxxxxxxx")
+
+    # Get event
+    event = await event_repo.get_by_id(event_id)
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+
+    # Get claims for this event
+    claims = await event_repo.get_event_claims(event_id)
+
+    # Classify sources by type
+    SOURCE_TYPES = {
+        'reuters.com': 'wire', 'apnews.com': 'wire', 'afp.com': 'wire',
+        'bbc.com': 'international', 'bbc.co.uk': 'international',
+        'theguardian.com': 'international', 'dw.com': 'international',
+        'aljazeera.com': 'international', 'cnn.com': 'international',
+        'nytimes.com': 'international', 'washingtonpost.com': 'international',
+        'scmp.com': 'local', 'hk01.com': 'local', 'mingpao.com': 'local',
+        'gov.hk': 'official', 'info.gov.hk': 'official',
+        'amnesty.org': 'ngo', 'hrw.org': 'ngo', 'rsf.org': 'ngo',
+    }
+
+    source_diversity = {'wire': 0, 'international': 0, 'local': 0, 'official': 0, 'ngo': 0, 'other': 0}
+    seen_domains = set()
+    page_times = []
+
+    for claim in claims:
+        if claim.page_id:
+            page = await page_repo.get_by_id(str(claim.page_id))
+            if page and page.url:
+                domain = page.url.lower().split('/')[2].replace('www.', '') if '/' in page.url else ''
+
+                if domain not in seen_domains:
+                    seen_domains.add(domain)
+                    source_type = 'other'
+                    for pattern, stype in SOURCE_TYPES.items():
+                        if pattern in domain:
+                            source_type = stype
+                            break
+                    source_diversity[source_type] += 1
+
+                if page.pub_time:
+                    page_times.append(page.pub_time)
+
+    # Calculate heat (recency factor)
+    heat = 0.0
+    if page_times:
+        now = datetime.utcnow()
+        most_recent = max(page_times)
+        if hasattr(most_recent, 'replace'):
+            most_recent = most_recent.replace(tzinfo=None)
+        hours_ago = (now - most_recent).total_seconds() / 3600
+        # Decay: 100% if < 1hr, 50% at 24hr, ~10% at 72hr
+        heat = max(0.0, min(1.0, 1.0 - (hours_ago / 168)))  # Week decay
+
+    # Calculate coverage (based on source diversity)
+    # Full coverage = at least one from each category except 'other'
+    expected_categories = ['wire', 'international', 'local', 'official', 'ngo']
+    covered = sum(1 for cat in expected_categories if source_diversity.get(cat, 0) > 0)
+    coverage = covered / len(expected_categories)
+
+    # Detect gaps
+    gaps = []
+
+    if source_diversity['official'] == 0:
+        gaps.append({
+            'type': 'missing_source',
+            'description': 'No official government sources',
+            'priority': 'high',
+            'bounty': 15
+        })
+
+    if source_diversity['ngo'] == 0:
+        gaps.append({
+            'type': 'perspective_gap',
+            'description': 'No NGO/human rights perspective',
+            'priority': 'medium',
+            'bounty': 20
+        })
+
+    if source_diversity['wire'] == 0:
+        gaps.append({
+            'type': 'missing_source',
+            'description': 'No wire service (Reuters, AP, AFP) coverage',
+            'priority': 'medium',
+            'bounty': 10
+        })
+
+    if source_diversity['local'] == 0:
+        gaps.append({
+            'type': 'missing_source',
+            'description': 'No local news sources',
+            'priority': 'low',
+            'bounty': 8
+        })
+
+    # Check for stale data
+    if heat < 0.3 and len(claims) > 0:
+        gaps.append({
+            'type': 'stale',
+            'description': 'Story may need fresh updates',
+            'priority': 'low',
+            'bounty': 5
+        })
+
+    # Detect contradictions (simplified - check topology if available)
+    has_contradiction = False
+    try:
+        _, _, _, _, topo_persistence = await init_services()
+        topology = await topo_persistence.get_topology(event_id)
+        if topology and len(topology.contradictions) > 0:
+            has_contradiction = True
+    except:
+        pass
+
+    return {
+        'event_id': event_id,
+        'source_count': sum(source_diversity.values()),
+        'source_diversity': source_diversity,
+        'claim_count': len(claims),
+        'coverage': round(coverage, 2),
+        'heat': round(heat, 2),
+        'has_contradiction': has_contradiction,
+        'gaps': gaps,
+        'last_updated': datetime.utcnow().isoformat()
+    }
+
+
 @router.get("/event/{event_id}/topology")
 async def get_event_topology(event_id: str):
     """

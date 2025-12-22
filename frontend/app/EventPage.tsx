@@ -7,6 +7,8 @@ import EpicenterMapCard from './components/event/EpicenterMapCard';
 import EventSidebar from './components/event/EventSidebar';
 import EventNarrativeContent from './components/event/EventNarrativeContent';
 import DebateThread from './components/event/DebateThread';
+import { EpistemicStateCard, QuestList, ContributionModal, EpistemicGap } from './components/epistemic';
+import useEpistemicState from './hooks/useEpistemicState';
 
 interface Entity {
     id: string;
@@ -97,6 +99,28 @@ const EventPage: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const graphRef = useRef<HTMLDivElement>(null);
+
+    // Epistemic state and contribution modal
+    const [showContributionModal, setShowContributionModal] = useState(false);
+    const [selectedQuest, setSelectedQuest] = useState<EpistemicGap | null>(null);
+    const { state: epistemicState, loading: epistemicLoading } = useEpistemicState(eventData?.event?.id);
+
+    const handleContributeClick = (gap: EpistemicGap) => {
+        setSelectedQuest(gap);
+        setShowContributionModal(true);
+    };
+
+    const handleContributionSubmit = async (contribution: any) => {
+        const response = await fetch('/api/contributions/submit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(contribution)
+        });
+        if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.detail || 'Failed to submit');
+        }
+    };
 
     useEffect(() => {
         loadEvent();
@@ -391,18 +415,49 @@ const EventPage: React.FC = () => {
 
                 {/* Right Sidebar - only show on narrative tab */}
                 {activeTab === 'narrative' && (
-                    <EventSidebar
-                        eventId={event.id}
-                        eventSlug={eventSlug || ''}
-                        currentFund={273003}
-                        distributedPercent={34}
-                        contributorCount={127}
-                        claimCount={claims.length}
-                        sourceCount={entities.filter(e => e.entity_type === 'ORG').length || 3}
-                        onNavigateToDebate={() => setActiveTab('debate')}
-                    />
+                    <div className="w-72 flex-shrink-0 space-y-4">
+                        {/* Epistemic State Card */}
+                        <EpistemicStateCard
+                            state={epistemicState}
+                            loading={epistemicLoading}
+                        />
+
+                        {/* Quest List - gaps as contribution asks */}
+                        {epistemicState && epistemicState.gaps.length > 0 && (
+                            <QuestList
+                                gaps={epistemicState.gaps}
+                                eventId={event.id}
+                                onContribute={handleContributeClick}
+                            />
+                        )}
+
+                        {/* Original Sidebar (fund, revision history) */}
+                        <EventSidebar
+                            eventId={event.id}
+                            eventSlug={eventSlug || ''}
+                            currentFund={273003}
+                            distributedPercent={34}
+                            contributorCount={127}
+                            claimCount={claims.length}
+                            sourceCount={epistemicState?.source_count || entities.filter(e => e.entity_type === 'ORG').length || 3}
+                            onNavigateToDebate={() => setActiveTab('debate')}
+                        />
+                    </div>
                 )}
             </div>
+
+            {/* Contribution Modal */}
+            <ContributionModal
+                isOpen={showContributionModal}
+                onClose={() => {
+                    setShowContributionModal(false);
+                    setSelectedQuest(null);
+                }}
+                eventId={event.id}
+                eventName={event.canonical_name}
+                selectedQuest={selectedQuest}
+                onSubmit={handleContributionSubmit}
+            />
         </div>
     );
 };

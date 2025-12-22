@@ -32,6 +32,15 @@ try:
 except ImportError as e:
     print(f"⚠️  Auth not available: {e}")
 
+# Import contributions router (epistemic layer)
+contributions_router = None
+try:
+    from api import contributions
+    contributions_router = contributions.router
+    print("✅ Contributions loaded")
+except ImportError as e:
+    print(f"⚠️  Contributions not available: {e}")
+
 # Try to import other feature routers
 feature_routers = []
 for module_name, prefix, tags in [
@@ -89,6 +98,9 @@ if coherence_router:
 if auth_router:
     app.include_router(auth_router)
 
+# Contributions router (epistemic layer)
+if contributions_router:
+    app.include_router(contributions_router, prefix="/api", tags=["Contributions"])
 
 # Feature routers (if available)
 for router, prefix, tags in feature_routers:
