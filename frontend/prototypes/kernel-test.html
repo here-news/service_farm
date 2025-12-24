@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Belief Kernel Test</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0a0a0a; color: #e0e0e0; padding: 20px;
+            line-height: 1.5;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 { color: #fff; margin-bottom: 10px; }
+        .subtitle { color: #888; margin-bottom: 20px; font-size: 14px; }
+
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .panel { background: #1a1a1a; border-radius: 8px; padding: 16px; }
+        .panel h2 { color: #aaa; font-size: 12px; text-transform: uppercase; margin-bottom: 12px; }
+
+        .metrics { display: flex; gap: 20px; margin-bottom: 20px; }
+        .metric { background: #1a1a1a; padding: 16px 24px; border-radius: 8px; text-align: center; }
+        .metric-value { font-size: 32px; font-weight: bold; }
+        .metric-label { font-size: 12px; color: #888; text-transform: uppercase; }
+        .metric.coherence .metric-value { color: #4ade80; }
+        .metric.entropy .metric-value { color: #f97316; }
+        .metric.beliefs .metric-value { color: #60a5fa; }
+        .metric.conflicts .metric-value { color: #ef4444; }
+
+        .belief { background: #252525; padding: 12px; border-radius: 6px; margin-bottom: 8px; }
+        .belief-text { color: #fff; margin-bottom: 6px; }
+        .belief-meta { font-size: 12px; color: #888; }
+        .belief-sources { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+        .source-tag { background: #333; padding: 2px 8px; border-radius: 4px; font-size: 11px; }
+        .supersedes { font-size: 11px; color: #666; font-style: italic; margin-top: 4px; }
+
+        .claim { padding: 10px; border-left: 3px solid #333; margin-bottom: 8px; background: #1a1a1a; }
+        .claim.COMPATIBLE { border-color: #4ade80; }
+        .claim.REDUNDANT { border-color: #60a5fa; }
+        .claim.REFINES { border-color: #a78bfa; }
+        .claim.SUPERSEDES { border-color: #fbbf24; }
+        .claim.CONFLICTS { border-color: #ef4444; }
+        .claim-text { font-size: 13px; margin-bottom: 4px; }
+        .claim-meta { font-size: 11px; color: #888; }
+        .claim-relation { font-size: 10px; font-weight: bold; padding: 2px 6px; border-radius: 3px; }
+
+        .prose { background: #1a2a1a; padding: 16px; border-radius: 8px; line-height: 1.7; }
+        .prose-meta { font-size: 11px; color: #888; margin-top: 10px; }
+
+        .conflict { background: #2a1a1a; padding: 12px; border-radius: 6px; margin-bottom: 8px; }
+        .conflict-claim { color: #f87171; margin-bottom: 4px; }
+        .conflict-vs { color: #888; font-size: 12px; }
+
+        .controls { margin-bottom: 20px; display: flex; gap: 10px; align-items: center; }
+        button { background: #333; color: #fff; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; }
+        button:hover { background: #444; }
+        button.primary { background: #2563eb; }
+        select, input { background: #252525; color: #fff; border: 1px solid #333; padding: 8px 12px; border-radius: 6px; }
+
+        .status { font-size: 12px; color: #888; }
+        .claims-scroll { max-height: 500px; overflow-y: auto; }
+        .beliefs-scroll { max-height: 400px; overflow-y: auto; }
+
+        .empty { color: #666; font-style: italic; padding: 20px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Belief Kernel</h1>
+        <div class="subtitle">Domain knowledge in prompt, not code. NO topics, NO clustering, NO thresholds.</div>
+
+        <div class="controls">
+            <select id="eventSelect">
+                <option value="">-- Select Event --</option>
+            </select>
+            <button onclick="createEvent()">New Investigation</button>
+            <button class="primary" onclick="loadClaims()">Load HK Fire Claims</button>
+            <button onclick="processNext()">Process Next</button>
+            <button onclick="autoProcess()">Auto Process</button>
+            <span class="status" id="status"></span>
+        </div>
+
+        <div class="metrics">
+            <div class="metric coherence">
+                <div class="metric-value" id="coherence">0%</div>
+                <div class="metric-label">Coherence</div>
+            </div>
+            <div class="metric entropy">
+                <div class="metric-value" id="entropy">0%</div>
+                <div class="metric-label">Entropy</div>
+            </div>
+            <div class="metric beliefs">
+                <div class="metric-value" id="beliefCount">0</div>
+                <div class="metric-label">Beliefs</div>
+            </div>
+            <div class="metric conflicts">
+                <div class="metric-value" id="conflictCount">0</div>
+                <div class="metric-label">Conflicts</div>
+            </div>
+        </div>
+
+        <div class="grid">
+            <div>
+                <div class="panel">
+                    <h2>Current Beliefs</h2>
+                    <div class="beliefs-scroll" id="beliefs">
+                        <div class="empty">No beliefs yet</div>
+                    </div>
+                </div>
+
+                <div class="panel" style="margin-top: 20px;">
+                    <h2>Conflicts</h2>
+                    <div id="conflicts">
+                        <div class="empty">No conflicts</div>
+                    </div>
+                </div>
+            </div>
+
+            <div>
+                <div class="panel">
+                    <h2>Narrative</h2>
+                    <div class="prose" id="narrative">
+                        <div class="empty">Awaiting information...</div>
+                    </div>
+                </div>
+
+                <div class="panel" style="margin-top: 20px;">
+                    <h2>Claim History (<span id="claimCount">0</span>)</h2>
+                    <div class="claims-scroll" id="claims">
+                        <div class="empty">No claims processed</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API = '/api/uee';
+        let currentEventId = null;
+        let pendingClaims = [];
+        let autoInterval = null;
+
+        async function loadEvents() {
+            const res = await fetch(`${API}/events`);
+            const events = await res.json();
+            const select = document.getElementById('eventSelect');
+            select.innerHTML = '<option value="">-- Select Event --</option>';
+            events.forEach(e => {
+                const opt = document.createElement('option');
+                opt.value = e.id;
+                opt.textContent = `${e.title} (${e.claim_count} claims)`;
+                select.appendChild(opt);
+            });
+        }
+
+        async function createEvent() {
+            const title = prompt('Investigation title:', 'New Investigation');
+            if (!title) return;
+            const res = await fetch(`${API}/events`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({title})
+            });
+            const event = await res.json();
+            currentEventId = event.id;
+            await loadEvents();
+            document.getElementById('eventSelect').value = event.id;
+            updateUI(event);
+            setStatus(`Created: ${event.id}`);
+        }
+
+        async function loadClaims() {
+            // Load HK Fire claims from the real event API
+            const res = await fetch('/api/event/f3c2c8f9-e10e-47c8-9877-b4b78f2e7a97');
+            const event = await res.json();
+            pendingClaims = event.claims || [];
+            setStatus(`Loaded ${pendingClaims.length} claims`);
+        }
+
+        async function processNext() {
+            if (!currentEventId) {
+                setStatus('Select or create an event first');
+                return;
+            }
+            if (pendingClaims.length === 0) {
+                setStatus('No claims to process');
+                return;
+            }
+
+            const claim = pendingClaims.shift();
+            setStatus(`Processing: ${claim.text?.substring(0, 50)}...`);
+
+            const res = await fetch(`${API}/events/${currentEventId}/claims`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    text: claim.text,
+                    source: claim.source_name || 'unknown',
+                    pub_time: claim.event_time
+                })
+            });
+            const result = await res.json();
+            setStatus(`${result.relation}: ${pendingClaims.length} remaining`);
+
+            // Refresh state
+            await refreshState();
+        }
+
+        async function autoProcess() {
+            if (autoInterval) {
+                clearInterval(autoInterval);
+                autoInterval = null;
+                setStatus('Stopped');
+                return;
+            }
+
+            autoInterval = setInterval(async () => {
+                if (pendingClaims.length === 0) {
+                    clearInterval(autoInterval);
+                    autoInterval = null;
+                    setStatus('Complete');
+                    await refreshNarrative();
+                    return;
+                }
+                await processNext();
+            }, 500);
+        }
+
+        async function refreshState() {
+            if (!currentEventId) return;
+            const res = await fetch(`${API}/events/${currentEventId}`);
+            const state = await res.json();
+            updateUI(state);
+        }
+
+        async function refreshNarrative() {
+            if (!currentEventId) return;
+            const res = await fetch(`${API}/events/${currentEventId}/narrative`);
+            const data = await res.json();
+            document.getElementById('narrative').innerHTML = `
+                ${data.narrative}
+                <div class="prose-meta">
+                    Coherence: ${(data.coherence * 100).toFixed(0)}% |
+                    Regenerated: ${data.regenerated ? 'Yes' : 'No (cached)'}
+                </div>
+            `;
+        }
+
+        function updateUI(state) {
+            document.getElementById('coherence').textContent = `${(state.coherence * 100).toFixed(0)}%`;
+            document.getElementById('entropy').textContent = `${(state.entropy * 100).toFixed(0)}%`;
+            document.getElementById('beliefCount').textContent = state.belief_count || 0;
+            document.getElementById('conflictCount').textContent = state.conflicts?.length || 0;
+            document.getElementById('claimCount').textContent = state.claim_count || 0;
+
+            // Beliefs
+            const beliefsEl = document.getElementById('beliefs');
+            if (state.beliefs?.length) {
+                beliefsEl.innerHTML = state.beliefs.map(b => `
+                    <div class="belief">
+                        <div class="belief-text">${b.text}</div>
+                        <div class="belief-sources">
+                            ${b.sources.map(s => `<span class="source-tag">${s}</span>`).join('')}
+                        </div>
+                        ${b.supersedes ? `<div class="supersedes">Supersedes: ${b.supersedes}</div>` : ''}
+                    </div>
+                `).join('');
+            } else {
+                beliefsEl.innerHTML = '<div class="empty">No beliefs yet</div>';
+            }
+
+            // Conflicts
+            const conflictsEl = document.getElementById('conflicts');
+            if (state.conflicts?.length) {
+                conflictsEl.innerHTML = state.conflicts.map(c => `
+                    <div class="conflict">
+                        <div class="conflict-claim">${c.new_claim}</div>
+                        <div class="conflict-vs">vs: ${c.existing_belief || 'unknown'}</div>
+                    </div>
+                `).join('');
+            } else {
+                conflictsEl.innerHTML = '<div class="empty">No conflicts</div>';
+            }
+
+            // Claims
+            const claimsEl = document.getElementById('claims');
+            if (state.claims?.length) {
+                claimsEl.innerHTML = state.claims.map(c => `
+                    <div class="claim ${c.relation}">
+                        <div class="claim-text">${c.text}</div>
+                        <div class="claim-meta">
+                            <span class="claim-relation">${c.relation}</span>
+                            ${c.source}
+                        </div>
+                    </div>
+                `).join('');
+            } else {
+                claimsEl.innerHTML = '<div class="empty">No claims processed</div>';
+            }
+        }
+
+        function setStatus(msg) {
+            document.getElementById('status').textContent = msg;
+        }
+
+        document.getElementById('eventSelect').addEventListener('change', async (e) => {
+            currentEventId = e.target.value;
+            if (currentEventId) {
+                await refreshState();
+                await refreshNarrative();
+            }
+        });
+
+        // Init
+        loadEvents();
+    </script>
+</body>
+</html>
