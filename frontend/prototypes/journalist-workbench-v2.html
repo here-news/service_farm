@@ -1,0 +1,1491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Journalist Workbench v2 - Belief Kernel + Collaboration</title>
+    <style>
+        :root {
+            --bg: #0a0a0f;
+            --surface: #12121a;
+            --surface-2: #1a1a24;
+            --surface-3: #222230;
+            --border: #2a2a3a;
+            --text: #e0e0e8;
+            --text-dim: #8888a0;
+            --text-body: #c8c8d4;
+            --accent: #6366f1;
+            --green: #22c55e;
+            --green-dim: rgba(34, 197, 94, 0.15);
+            --blue: #3b82f6;
+            --blue-dim: rgba(59, 130, 246, 0.15);
+            --yellow: #eab308;
+            --yellow-dim: rgba(234, 179, 8, 0.15);
+            --red: #ef4444;
+            --red-dim: rgba(239, 68, 68, 0.15);
+            --purple: #a855f7;
+            --purple-dim: rgba(168, 85, 247, 0.15);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Dashboard */
+        .dashboard {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            padding: 0.75rem 1.5rem;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .dash-metric {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .dash-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-dim);
+        }
+
+        .dash-value {
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .dash-value.green { color: var(--green); }
+        .dash-value.blue { color: var(--blue); }
+        .dash-value.yellow { color: var(--yellow); }
+        .dash-value.red { color: var(--red); }
+
+        .phase-badge {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.3rem 0.75rem;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: 2rem;
+            font-size: 0.8rem;
+        }
+
+        .phase-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--yellow);
+            animation: pulse 2s infinite;
+        }
+
+        .phase-dot.stable { background: var(--green); animation: none; }
+        .phase-dot.converging { background: var(--blue); }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        .dash-spacer { flex: 1; }
+
+        .dash-btn {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--surface-2);
+            color: var(--text);
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .dash-btn:hover { background: var(--surface-3); }
+        .dash-btn.active { background: var(--accent); border-color: var(--accent); }
+
+        .dash-btn.release {
+            background: var(--green-dim);
+            border-color: var(--green);
+            color: var(--green);
+        }
+
+        /* Main Layout - 3 columns */
+        .main-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr 320px;
+            height: calc(100vh - 52px);
+        }
+
+        /* Narrative Pane */
+        .narrative-pane {
+            padding: 1.5rem;
+            overflow-y: auto;
+            border-right: 1px solid var(--border);
+        }
+
+        .narrative-header {
+            margin-bottom: 1.5rem;
+        }
+
+        .narrative-title {
+            font-size: 1.6rem;
+            font-weight: 700;
+            line-height: 1.3;
+            margin-bottom: 0.5rem;
+        }
+
+        .narrative-meta {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+        }
+
+        .narrative-content {
+            font-size: 1.05rem;
+            line-height: 1.8;
+            color: var(--text-body);
+        }
+
+        .narrative-content p {
+            margin-bottom: 1rem;
+        }
+
+        .narrative-content h2 {
+            font-size: 1.1rem;
+            color: var(--text);
+            margin: 1.5rem 0 0.75rem 0;
+            padding-bottom: 0.25rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        /* Belief citations in narrative */
+        .belief-cite {
+            font-size: 0.75rem;
+            color: var(--accent);
+            cursor: pointer;
+            vertical-align: super;
+        }
+
+        .belief-cite:hover {
+            text-decoration: underline;
+        }
+
+        .source-count {
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            vertical-align: super;
+        }
+
+        /* Fact highlighting */
+        .fact {
+            padding: 0.1rem 0.2rem;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+
+        .fact.certain { background: var(--green-dim); border-bottom: 2px solid var(--green); }
+        .fact.likely { background: var(--blue-dim); border-bottom: 2px solid var(--blue); }
+        .fact.uncertain { background: var(--yellow-dim); border-bottom: 2px solid var(--yellow); }
+        .fact.contested { background: var(--red-dim); border-bottom: 2px solid var(--red); }
+
+        /* Topology Pane */
+        .topology-pane {
+            background: var(--surface);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            border-right: 1px solid var(--border);
+        }
+
+        .topology-header {
+            padding: 1rem 1.25rem;
+            background: var(--surface-2);
+            border-bottom: 1px solid var(--border);
+            font-size: 0.85rem;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .topology-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+        }
+
+        .section-header {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-dim);
+            padding: 0.5rem 0;
+            margin-top: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .section-header:first-child { margin-top: 0; }
+
+        /* Belief Cards */
+        .belief-card {
+            background: var(--surface-2);
+            border-radius: 8px;
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            border-left: 3px solid var(--border);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .belief-card:hover {
+            background: var(--surface-3);
+        }
+
+        .belief-card.high-certainty { border-left-color: var(--green); }
+        .belief-card.medium-certainty { border-left-color: var(--blue); }
+        .belief-card.low-certainty { border-left-color: var(--yellow); }
+        .belief-card.contested { border-left-color: var(--red); }
+
+        .belief-card.has-note {
+            box-shadow: inset 0 0 0 1px var(--purple);
+        }
+
+        .belief-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.4rem;
+        }
+
+        .belief-id {
+            font-size: 0.7rem;
+            font-family: monospace;
+            color: var(--accent);
+            background: var(--surface);
+            padding: 0.15rem 0.4rem;
+            border-radius: 3px;
+        }
+
+        .belief-certainty {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            margin-left: auto;
+        }
+
+        .belief-text {
+            font-size: 0.9rem;
+            line-height: 1.5;
+            color: var(--text-body);
+        }
+
+        .belief-meta {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-top: 0.5rem;
+            font-size: 0.75rem;
+            color: var(--text-dim);
+        }
+
+        .belief-sources {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .belief-actions {
+            margin-left: auto;
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .belief-action-btn {
+            background: none;
+            border: none;
+            color: var(--text-dim);
+            cursor: pointer;
+            font-size: 0.85rem;
+            padding: 0.2rem;
+        }
+
+        .belief-action-btn:hover {
+            color: var(--text);
+        }
+
+        .belief-action-btn.has-content {
+            color: var(--purple);
+        }
+
+        /* Conflict Card */
+        .conflict-card {
+            background: var(--red-dim);
+            border: 1px solid var(--red);
+            border-radius: 8px;
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .conflict-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.85rem;
+            color: var(--red);
+            margin-bottom: 0.5rem;
+        }
+
+        .conflict-claims {
+            font-size: 0.85rem;
+            color: var(--text-body);
+            margin-bottom: 0.5rem;
+        }
+
+        .conflict-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .conflict-btn {
+            flex: 1;
+            padding: 0.4rem;
+            border: none;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            background: var(--surface);
+            color: var(--text-dim);
+        }
+
+        .conflict-btn:hover {
+            background: var(--surface-3);
+            color: var(--text);
+        }
+
+        /* Gap Card */
+        .gap-card {
+            background: var(--yellow-dim);
+            border: 1px dashed var(--yellow);
+            border-radius: 8px;
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .gap-icon { font-size: 1.2rem; }
+
+        .gap-text {
+            flex: 1;
+            font-size: 0.85rem;
+            color: var(--yellow);
+        }
+
+        .gap-btn {
+            padding: 0.3rem 0.6rem;
+            background: var(--surface);
+            border: 1px solid var(--yellow);
+            border-radius: 4px;
+            color: var(--yellow);
+            font-size: 0.75rem;
+            cursor: pointer;
+        }
+
+        /* Collaboration Pane */
+        .collab-pane {
+            background: var(--surface);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .collab-header {
+            padding: 1rem 1.25rem;
+            background: var(--surface-2);
+            border-bottom: 1px solid var(--border);
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .collab-tabs {
+            display: flex;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .collab-tab {
+            flex: 1;
+            padding: 0.75rem;
+            text-align: center;
+            font-size: 0.8rem;
+            color: var(--text-dim);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .collab-tab:hover {
+            color: var(--text);
+        }
+
+        .collab-tab.active {
+            color: var(--accent);
+            border-bottom-color: var(--accent);
+        }
+
+        .collab-tab .count {
+            font-size: 0.7rem;
+            background: var(--surface-3);
+            padding: 0.1rem 0.4rem;
+            border-radius: 10px;
+            margin-left: 0.3rem;
+        }
+
+        .collab-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+        }
+
+        /* Notes */
+        .note-item {
+            background: var(--purple-dim);
+            border: 1px solid var(--purple);
+            border-radius: 8px;
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .note-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.4rem;
+            font-size: 0.8rem;
+        }
+
+        .note-belief-id {
+            font-family: monospace;
+            color: var(--purple);
+            background: var(--surface);
+            padding: 0.1rem 0.3rem;
+            border-radius: 3px;
+        }
+
+        .note-author {
+            color: var(--text-dim);
+            margin-left: auto;
+        }
+
+        .note-text {
+            font-size: 0.9rem;
+            color: var(--text-body);
+            line-height: 1.5;
+        }
+
+        /* Questions */
+        .question-item {
+            background: var(--blue-dim);
+            border: 1px solid var(--blue);
+            border-radius: 8px;
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .question-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.4rem;
+            font-size: 0.8rem;
+            color: var(--blue);
+        }
+
+        .question-text {
+            font-size: 0.9rem;
+            color: var(--text-body);
+            line-height: 1.5;
+        }
+
+        .question-context {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            margin-top: 0.4rem;
+        }
+
+        /* Add input */
+        .add-input-container {
+            padding: 1rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .add-input {
+            width: 100%;
+            padding: 0.6rem 0.8rem;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text);
+            font-size: 0.9rem;
+            resize: none;
+        }
+
+        .add-input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .add-input::placeholder {
+            color: var(--text-dim);
+        }
+
+        /* Entropy Chart */
+        .entropy-chart {
+            height: 80px;
+            background: var(--surface-2);
+            border-radius: 8px;
+            padding: 0.5rem;
+            margin-bottom: 1rem;
+            position: relative;
+        }
+
+        .entropy-chart canvas {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-overlay.hidden { display: none; }
+
+        .modal {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            width: 450px;
+            max-width: 90%;
+        }
+
+        .modal h3 {
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+        }
+
+        .modal-input {
+            width: 100%;
+            padding: 0.6rem 0.8rem;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text);
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+        }
+
+        .modal-input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 0.75rem;
+        }
+
+        .modal-btn {
+            flex: 1;
+            padding: 0.6rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            background: var(--surface-2);
+            color: var(--text);
+        }
+
+        .modal-btn.primary {
+            background: var(--accent);
+            border-color: var(--accent);
+        }
+
+        .modal-btn:hover {
+            filter: brightness(1.1);
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 1rem;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            padding: 0.75rem 1.5rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 0.9rem;
+            opacity: 0;
+            transition: all 0.3s ease;
+            z-index: 1001;
+        }
+
+        .toast.visible {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+
+        /* Superscript helpers */
+        sup.src-count {
+            font-size: 0.65rem;
+            color: var(--text-dim);
+        }
+
+        /* Legend */
+        .legend {
+            display: flex;
+            gap: 1rem;
+            padding: 0.75rem;
+            background: var(--surface-2);
+            border-radius: 6px;
+            margin-bottom: 1rem;
+            font-size: 0.75rem;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        .legend-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Dashboard -->
+    <div class="dashboard">
+        <div class="dash-metric">
+            <span class="dash-label">Entropy</span>
+            <span class="dash-value green" id="dash-entropy">--</span>
+        </div>
+        <div class="dash-metric">
+            <span class="dash-label">Coherence</span>
+            <span class="dash-value" id="dash-coherence">--</span>
+        </div>
+        <div class="dash-metric">
+            <span class="dash-label">Beliefs</span>
+            <span class="dash-value" id="dash-beliefs">0</span>
+        </div>
+        <div class="dash-metric">
+            <span class="dash-label">Claims</span>
+            <span class="dash-value" id="dash-claims">0</span>
+        </div>
+        <div class="phase-badge">
+            <span class="phase-dot" id="phase-dot"></span>
+            <span id="phase-text">Loading</span>
+        </div>
+        <div class="dash-spacer"></div>
+        <select id="topology-select" style="padding: 0.4rem; background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; color: var(--text);">
+            <option value="enriched">HK Fire - Enriched</option>
+        </select>
+        <button class="dash-btn" onclick="loadTopology()">Load</button>
+        <button class="dash-btn" onclick="generateProse()">Gen Prose</button>
+        <button class="dash-btn release" onclick="showRelease()">Release</button>
+    </div>
+
+    <!-- Main Container -->
+    <div class="main-container">
+        <!-- Narrative Pane -->
+        <div class="narrative-pane">
+            <div class="narrative-header">
+                <h1 class="narrative-title" id="narrative-title">Loading Topology...</h1>
+                <div class="narrative-meta" id="narrative-meta"></div>
+            </div>
+
+            <div class="legend">
+                <span class="legend-item"><span class="legend-dot" style="background: var(--green);"></span> Certain (3+ sources)</span>
+                <span class="legend-item"><span class="legend-dot" style="background: var(--blue);"></span> Likely (2 sources)</span>
+                <span class="legend-item"><span class="legend-dot" style="background: var(--yellow);"></span> Single source</span>
+                <span class="legend-item"><span class="legend-dot" style="background: var(--red);"></span> Contested</span>
+            </div>
+
+            <div class="narrative-content" id="narrative-content">
+                <p style="color: var(--text-dim);">Select a topology and click Load...</p>
+            </div>
+        </div>
+
+        <!-- Topology Pane -->
+        <div class="topology-pane">
+            <div class="topology-header">
+                <span>Belief Topology</span>
+                <span id="topology-count">0 beliefs</span>
+            </div>
+            <div class="topology-content" id="topology-content">
+                <!-- Beliefs, conflicts, gaps rendered here -->
+            </div>
+        </div>
+
+        <!-- Collaboration Pane -->
+        <div class="collab-pane">
+            <div class="collab-header">Collaboration</div>
+            <div class="collab-tabs">
+                <div class="collab-tab active" data-tab="notes" onclick="switchTab('notes')">
+                    Notes <span class="count" id="notes-count">0</span>
+                </div>
+                <div class="collab-tab" data-tab="questions" onclick="switchTab('questions')">
+                    Questions <span class="count" id="questions-count">0</span>
+                </div>
+                <div class="collab-tab" data-tab="history" onclick="switchTab('history')">
+                    History
+                </div>
+            </div>
+            <div class="collab-content" id="collab-content">
+                <!-- Notes/Questions/History rendered here -->
+            </div>
+            <div class="add-input-container">
+                <textarea class="add-input" id="add-input" placeholder="Add a note or question..." rows="2"></textarea>
+            </div>
+        </div>
+    </div>
+
+    <!-- Note Modal -->
+    <div class="modal-overlay hidden" id="note-modal">
+        <div class="modal">
+            <h3>Add Note to <span id="note-belief-id">bl_xxx</span></h3>
+            <textarea class="modal-input" id="note-input" placeholder="Your note about this belief..." rows="3"></textarea>
+            <div class="modal-actions">
+                <button class="modal-btn" onclick="closeNoteModal()">Cancel</button>
+                <button class="modal-btn primary" onclick="saveNote()">Save Note</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Question Modal -->
+    <div class="modal-overlay hidden" id="question-modal">
+        <div class="modal">
+            <h3>Ask Question</h3>
+            <div id="question-context" style="font-size: 0.85rem; color: var(--text-dim); margin-bottom: 0.75rem;"></div>
+            <textarea class="modal-input" id="question-input" placeholder="What do you want to know?" rows="3"></textarea>
+            <div class="modal-actions">
+                <button class="modal-btn" onclick="closeQuestionModal()">Cancel</button>
+                <button class="modal-btn primary" onclick="saveQuestion()">Post Question</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <script>
+        // =========================================================================
+        // STATE
+        // =========================================================================
+
+        const superscripts = {'0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴',
+                              '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹'};
+
+        function toSuperscript(n) {
+            return String(n).split('').map(d => superscripts[d] || d).join('');
+        }
+
+        let state = {
+            topology: null,
+            prose: null,
+            notes: [],       // {beliefId, text, author, time}
+            questions: [],   // {id, text, context, beliefId, author, time}
+            history: [],     // {action, beliefId, details, time}
+            currentTab: 'notes',
+            selectedBeliefId: null
+        };
+
+        // =========================================================================
+        // LOAD TOPOLOGY
+        // =========================================================================
+
+        async function loadTopology() {
+            const topologyId = document.getElementById('topology-select').value;
+
+            try {
+                const response = await fetch(`/prototypes/test_eu/results/topology_${topologyId}.json`);
+                if (!response.ok) throw new Error('Topology not found');
+
+                state.topology = await response.json();
+
+                updateDashboard();
+                renderTopology();
+                renderNarrative();
+
+                showToast(`Loaded ${state.topology.beliefs.length} beliefs`);
+
+            } catch (err) {
+                console.error('Failed to load topology:', err);
+                showToast('Failed to load topology: ' + err.message);
+            }
+        }
+
+        // =========================================================================
+        // DASHBOARD
+        // =========================================================================
+
+        function updateDashboard() {
+            const t = state.topology;
+            if (!t) return;
+
+            const m = t.metrics || {};
+
+            // Entropy
+            const entropyEl = document.getElementById('dash-entropy');
+            const entropy = m.entropy || 0;
+            entropyEl.textContent = entropy.toFixed(2);
+            entropyEl.className = 'dash-value ' + (entropy < 0.3 ? 'green' : entropy < 0.6 ? 'blue' : 'yellow');
+
+            // Coherence
+            const coherenceEl = document.getElementById('dash-coherence');
+            const coherence = m.coherence || 0;
+            coherenceEl.textContent = Math.round(coherence * 100) + '%';
+            coherenceEl.className = 'dash-value ' + (coherence >= 0.8 ? 'green' : coherence >= 0.5 ? 'blue' : 'yellow');
+
+            // Counts
+            document.getElementById('dash-beliefs').textContent = t.beliefs?.length || 0;
+            document.getElementById('dash-claims').textContent = m.claims_processed || 0;
+
+            // Phase
+            const phaseDot = document.getElementById('phase-dot');
+            const phaseText = document.getElementById('phase-text');
+
+            if (entropy < 0.3 && coherence >= 0.7) {
+                phaseDot.className = 'phase-dot stable';
+                phaseText.textContent = 'Stable';
+            } else if (entropy < 0.6) {
+                phaseDot.className = 'phase-dot converging';
+                phaseText.textContent = 'Converging';
+            } else {
+                phaseDot.className = 'phase-dot';
+                phaseText.textContent = 'Emerging';
+            }
+        }
+
+        // =========================================================================
+        // RENDER TOPOLOGY
+        // =========================================================================
+
+        function renderTopology() {
+            const t = state.topology;
+            if (!t) return;
+
+            const container = document.getElementById('topology-content');
+            let html = '';
+
+            // Entropy Chart placeholder
+            html += `
+                <div class="entropy-chart">
+                    <canvas id="entropy-canvas"></canvas>
+                </div>
+            `;
+
+            // Conflicts first (need attention)
+            if (t.conflicts && t.conflicts.length > 0) {
+                html += `<div class="section-header">Conflicts (${t.conflicts.length})</div>`;
+                t.conflicts.forEach(c => {
+                    html += `
+                        <div class="conflict-card">
+                            <div class="conflict-header">
+                                <span>⚠</span>
+                                <span>${c.id}</span>
+                            </div>
+                            <div class="conflict-claims">
+                                ${c.new_claim?.substring(0, 100)}...
+                                ${c.existing_belief_text ? `<br><small style="color: var(--text-dim);">vs: ${c.existing_belief_text?.substring(0, 80)}...</small>` : ''}
+                            </div>
+                            <div class="conflict-actions">
+                                <button class="conflict-btn" onclick="askQuestion('conflict', '${c.id}')">Ask</button>
+                                <button class="conflict-btn" onclick="addNote('${c.id}')">Note</button>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+
+            // Beliefs sorted by certainty
+            const sortedBeliefs = [...(t.beliefs || [])].sort((a, b) => b.certainty - a.certainty);
+
+            html += `<div class="section-header">Beliefs (${sortedBeliefs.length})</div>`;
+
+            sortedBeliefs.forEach(b => {
+                const srcCount = b.sources?.length || 0;
+                const certaintyClass = srcCount >= 3 ? 'high-certainty' :
+                                       srcCount >= 2 ? 'medium-certainty' : 'low-certainty';
+
+                const hasNote = state.notes.some(n => n.beliefId === b.id);
+
+                html += `
+                    <div class="belief-card ${certaintyClass} ${hasNote ? 'has-note' : ''}"
+                         onclick="selectBelief('${b.id}')"
+                         id="belief-${b.id}">
+                        <div class="belief-header">
+                            <span class="belief-id">${b.id}</span>
+                            <span class="belief-certainty">x${toSuperscript(srcCount)}</span>
+                        </div>
+                        <div class="belief-text">${b.text}</div>
+                        <div class="belief-meta">
+                            <span class="belief-sources">
+                                ${b.sources?.slice(0, 3).join(', ')}${b.sources?.length > 3 ? '...' : ''}
+                            </span>
+                            <div class="belief-actions">
+                                <button class="belief-action-btn ${hasNote ? 'has-content' : ''}"
+                                        onclick="event.stopPropagation(); addNote('${b.id}')"
+                                        title="Add note">📝</button>
+                                <button class="belief-action-btn"
+                                        onclick="event.stopPropagation(); askQuestion('belief', '${b.id}')"
+                                        title="Ask question">❓</button>
+                                <button class="belief-action-btn"
+                                        onclick="event.stopPropagation(); shareBelief('${b.id}')"
+                                        title="Share">📤</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            // Gaps (detected missing info)
+            const gaps = detectGaps(t);
+            if (gaps.length > 0) {
+                html += `<div class="section-header">Information Gaps</div>`;
+                gaps.forEach(gap => {
+                    html += `
+                        <div class="gap-card">
+                            <span class="gap-icon">?</span>
+                            <span class="gap-text">${gap.text}</span>
+                            <button class="gap-btn" onclick="askQuestion('gap', '${gap.id}')">Investigate</button>
+                        </div>
+                    `;
+                });
+            }
+
+            container.innerHTML = html;
+            document.getElementById('topology-count').textContent = `${sortedBeliefs.length} beliefs`;
+
+            // Draw entropy chart
+            setTimeout(() => drawEntropyChart(), 100);
+        }
+
+        function detectGaps(topology) {
+            // Simple gap detection - look for expected topics not covered
+            const gaps = [];
+
+            // Check if we have casualty info
+            const hasDeaths = topology.beliefs?.some(b =>
+                b.text.toLowerCase().includes('killed') || b.text.toLowerCase().includes('dead')
+            );
+            const hasInjured = topology.beliefs?.some(b =>
+                b.text.toLowerCase().includes('injured') || b.text.toLowerCase().includes('hurt')
+            );
+            const hasCause = topology.beliefs?.some(b =>
+                b.text.toLowerCase().includes('cause') || b.text.toLowerCase().includes('started')
+            );
+
+            if (!hasCause) {
+                gaps.push({ id: 'gap_cause', text: 'Cause of incident not established' });
+            }
+
+            return gaps;
+        }
+
+        function drawEntropyChart() {
+            const canvas = document.getElementById('entropy-canvas');
+            if (!canvas) return;
+
+            const ctx = canvas.getContext('2d');
+            const trajectory = state.topology?.entropy_trajectory || [];
+
+            if (trajectory.length === 0) return;
+
+            // Set canvas size
+            canvas.width = canvas.offsetWidth * 2;
+            canvas.height = canvas.offsetHeight * 2;
+            ctx.scale(2, 2);
+
+            const w = canvas.offsetWidth;
+            const h = canvas.offsetHeight;
+
+            // Clear
+            ctx.fillStyle = '#1a1a24';
+            ctx.fillRect(0, 0, w, h);
+
+            // Draw entropy line
+            ctx.beginPath();
+            ctx.strokeStyle = '#6366f1';
+            ctx.lineWidth = 2;
+
+            trajectory.forEach((point, i) => {
+                const x = (i / (trajectory.length - 1)) * w;
+                const y = h - (point.entropy * h);
+
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            });
+
+            ctx.stroke();
+
+            // Draw coherence line
+            ctx.beginPath();
+            ctx.strokeStyle = '#22c55e';
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([4, 4]);
+
+            trajectory.forEach((point, i) => {
+                const x = (i / (trajectory.length - 1)) * w;
+                const y = h - (point.coherence * h);
+
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            });
+
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        // =========================================================================
+        // RENDER NARRATIVE
+        // =========================================================================
+
+        function renderNarrative() {
+            const t = state.topology;
+            if (!t) return;
+
+            // Title from beliefs
+            document.getElementById('narrative-title').textContent = generateTitle(t);
+
+            // Meta
+            const claimCount = t.metrics?.claims_processed || 0;
+            const beliefCount = t.beliefs?.length || 0;
+            const sources = new Set();
+            t.beliefs?.forEach(b => b.sources?.forEach(s => sources.add(s)));
+
+            document.getElementById('narrative-meta').textContent =
+                `${claimCount} claims → ${beliefCount} beliefs from ${sources.size} sources`;
+
+            // If we have prose, render it
+            if (state.prose) {
+                renderProse(state.prose);
+            } else {
+                // Generate simple summary from beliefs
+                renderBeliefSummary(t);
+            }
+        }
+
+        function generateTitle(topology) {
+            const beliefs = topology.beliefs || [];
+            const text = beliefs.map(b => b.text).join(' ').toLowerCase();
+
+            // Extract key info
+            let location = 'Incident';
+            if (text.includes('hong kong')) location = 'Hong Kong';
+            if (text.includes('wang fuk')) location = 'Wang Fuk Court';
+
+            let type = '';
+            if (text.includes('fire')) type = 'Fire';
+            if (text.includes('explosion')) type = 'Explosion';
+
+            // Find death toll
+            const deathMatch = text.match(/(\d+)\s*(killed|dead|deaths)/);
+            const deaths = deathMatch ? deathMatch[1] : null;
+
+            if (deaths) {
+                return `${location} ${type} Kills ${deaths}`;
+            }
+            return `${location} ${type} - Developing`;
+        }
+
+        function renderBeliefSummary(topology) {
+            const beliefs = topology.beliefs || [];
+            if (beliefs.length === 0) {
+                document.getElementById('narrative-content').innerHTML =
+                    '<p style="color: var(--text-dim);">No beliefs to summarize.</p>';
+                return;
+            }
+
+            // Group by certainty
+            const certain = beliefs.filter(b => b.sources?.length >= 3);
+            const likely = beliefs.filter(b => b.sources?.length === 2);
+            const uncertain = beliefs.filter(b => b.sources?.length === 1);
+
+            let html = '';
+
+            if (certain.length > 0) {
+                html += '<h2>Confirmed</h2><p>';
+                certain.forEach(b => {
+                    html += `<span class="fact certain">${b.text}</span>`;
+                    html += `<sup class="belief-cite" onclick="scrollToBelief('${b.id}')">[${b.id}]</sup>`;
+                    html += `<sup class="src-count">x${toSuperscript(b.sources.length)}</sup> `;
+                });
+                html += '</p>';
+            }
+
+            if (likely.length > 0) {
+                html += '<h2>Reported</h2><p>';
+                likely.forEach(b => {
+                    html += `<span class="fact likely">${b.text}</span>`;
+                    html += `<sup class="belief-cite" onclick="scrollToBelief('${b.id}')">[${b.id}]</sup>`;
+                    html += `<sup class="src-count">x${toSuperscript(b.sources.length)}</sup> `;
+                });
+                html += '</p>';
+            }
+
+            if (uncertain.length > 0) {
+                html += '<h2>Unverified</h2><p>';
+                uncertain.slice(0, 10).forEach(b => {
+                    html += `<span class="fact uncertain">${b.text}</span>`;
+                    html += `<sup class="belief-cite" onclick="scrollToBelief('${b.id}')">[${b.id}]</sup>`;
+                    html += `<sup class="src-count">x${toSuperscript(b.sources.length)}</sup> `;
+                });
+                if (uncertain.length > 10) {
+                    html += `<span style="color: var(--text-dim);">...and ${uncertain.length - 10} more</span>`;
+                }
+                html += '</p>';
+            }
+
+            document.getElementById('narrative-content').innerHTML = html;
+        }
+
+        function renderProse(prose) {
+            // Convert markdown-style to HTML with citations
+            let html = prose
+                .replace(/\[([^\]]+)\]/g, '<sup class="belief-cite" onclick="scrollToBelief(\'$1\')">[$1]</sup>')
+                .replace(/x([⁰¹²³⁴⁵⁶⁷⁸⁹]+)/g, '<sup class="src-count">x$1</sup>')
+                .replace(/## ([^\n]+)/g, '<h2>$1</h2>')
+                .replace(/\n\n/g, '</p><p>');
+
+            if (!html.startsWith('<')) html = '<p>' + html;
+            if (!html.endsWith('>')) html += '</p>';
+
+            document.getElementById('narrative-content').innerHTML = html;
+        }
+
+        async function generateProse() {
+            showToast('Generating prose with gpt-5.2...');
+
+            // In real implementation, call kernel API
+            // For now, simulate
+            setTimeout(() => {
+                state.prose = `## Casualties
+
+At least 128 people were killed [bl_747f2610]x³ and 76 injured [bl_c4b16023]x², making it Hong Kong's deadliest fire in decades [bl_76f88b6c]x¹.
+
+## Response
+
+Firefighters deployed 128 fire trucks and 57 ambulances [bl_6b40c7aa]x¹. Emergency shelters were established at community centers for displaced residents [bl_8a912c3f]x¹.
+
+## Investigation
+
+The complex was undergoing renovation work at the time [bl_3c4eae07]x². Authorities are investigating whether construction materials contributed to the rapid spread [bl_f291c045]x¹.
+
+## Developing
+
+There are conflicting reports about the exact death toll, with some sources reporting higher numbers [cf_000].`;
+
+                renderProse(state.prose);
+                showToast('Prose generated');
+            }, 1500);
+        }
+
+        // =========================================================================
+        // COLLABORATION
+        // =========================================================================
+
+        function switchTab(tab) {
+            state.currentTab = tab;
+
+            // Update tab styling
+            document.querySelectorAll('.collab-tab').forEach(t => {
+                t.classList.toggle('active', t.dataset.tab === tab);
+            });
+
+            renderCollabContent();
+        }
+
+        function renderCollabContent() {
+            const container = document.getElementById('collab-content');
+            const input = document.getElementById('add-input');
+            let html = '';
+
+            if (state.currentTab === 'notes') {
+                input.placeholder = 'Add a note...';
+
+                if (state.notes.length === 0) {
+                    html = '<p style="color: var(--text-dim); text-align: center; padding: 2rem;">No notes yet. Click 📝 on a belief to add one.</p>';
+                } else {
+                    state.notes.forEach((note, i) => {
+                        const belief = state.topology?.beliefs?.find(b => b.id === note.beliefId);
+                        html += `
+                            <div class="note-item">
+                                <div class="note-header">
+                                    <span class="note-belief-id" onclick="scrollToBelief('${note.beliefId}')">${note.beliefId}</span>
+                                    <span class="note-author">${note.author || 'You'} - ${formatTime(note.time)}</span>
+                                </div>
+                                <div class="note-text">${note.text}</div>
+                                ${belief ? `<div style="font-size: 0.75rem; color: var(--text-dim); margin-top: 0.4rem;">${belief.text.substring(0, 80)}...</div>` : ''}
+                            </div>
+                        `;
+                    });
+                }
+
+            } else if (state.currentTab === 'questions') {
+                input.placeholder = 'Ask a question...';
+
+                if (state.questions.length === 0) {
+                    html = '<p style="color: var(--text-dim); text-align: center; padding: 2rem;">No questions yet. Click ❓ on a belief or gap to ask.</p>';
+                } else {
+                    state.questions.forEach(q => {
+                        html += `
+                            <div class="question-item">
+                                <div class="question-header">
+                                    <span>❓</span>
+                                    <span>${formatTime(q.time)}</span>
+                                </div>
+                                <div class="question-text">${q.text}</div>
+                                <div class="question-context">${q.context}</div>
+                            </div>
+                        `;
+                    });
+                }
+
+            } else if (state.currentTab === 'history') {
+                input.placeholder = 'Search history...';
+
+                if (state.history.length === 0) {
+                    html = '<p style="color: var(--text-dim); text-align: center; padding: 2rem;">No history yet.</p>';
+                } else {
+                    state.history.forEach(h => {
+                        html += `
+                            <div style="padding: 0.5rem; border-bottom: 1px solid var(--border); font-size: 0.85rem;">
+                                <span style="color: var(--text-dim);">${formatTime(h.time)}</span>
+                                <span>${h.action}</span>
+                                ${h.beliefId ? `<span class="belief-id" onclick="scrollToBelief('${h.beliefId}')">${h.beliefId}</span>` : ''}
+                            </div>
+                        `;
+                    });
+                }
+            }
+
+            container.innerHTML = html;
+            updateCollabCounts();
+        }
+
+        function updateCollabCounts() {
+            document.getElementById('notes-count').textContent = state.notes.length;
+            document.getElementById('questions-count').textContent = state.questions.length;
+        }
+
+        // =========================================================================
+        // NOTE/QUESTION MODALS
+        // =========================================================================
+
+        function addNote(beliefId) {
+            state.selectedBeliefId = beliefId;
+            document.getElementById('note-belief-id').textContent = beliefId;
+            document.getElementById('note-input').value = '';
+            document.getElementById('note-modal').classList.remove('hidden');
+            document.getElementById('note-input').focus();
+        }
+
+        function closeNoteModal() {
+            document.getElementById('note-modal').classList.add('hidden');
+        }
+
+        function saveNote() {
+            const text = document.getElementById('note-input').value.trim();
+            if (!text) return;
+
+            state.notes.push({
+                beliefId: state.selectedBeliefId,
+                text: text,
+                author: 'You',
+                time: new Date()
+            });
+
+            state.history.push({
+                action: 'Added note to',
+                beliefId: state.selectedBeliefId,
+                time: new Date()
+            });
+
+            closeNoteModal();
+            renderTopology();
+            renderCollabContent();
+            showToast('Note saved');
+        }
+
+        function askQuestion(type, id) {
+            state.selectedBeliefId = id;
+
+            let context = '';
+            if (type === 'belief') {
+                const belief = state.topology?.beliefs?.find(b => b.id === id);
+                context = `About belief ${id}: "${belief?.text?.substring(0, 80)}..."`;
+            } else if (type === 'conflict') {
+                context = `About conflict ${id}`;
+            } else if (type === 'gap') {
+                context = `Investigating: ${id}`;
+            }
+
+            document.getElementById('question-context').textContent = context;
+            document.getElementById('question-input').value = '';
+            document.getElementById('question-modal').classList.remove('hidden');
+            document.getElementById('question-input').focus();
+        }
+
+        function closeQuestionModal() {
+            document.getElementById('question-modal').classList.add('hidden');
+        }
+
+        function saveQuestion() {
+            const text = document.getElementById('question-input').value.trim();
+            if (!text) return;
+
+            state.questions.push({
+                id: 'q_' + Date.now(),
+                text: text,
+                context: document.getElementById('question-context').textContent,
+                beliefId: state.selectedBeliefId,
+                author: 'You',
+                time: new Date()
+            });
+
+            state.history.push({
+                action: 'Asked question about',
+                beliefId: state.selectedBeliefId,
+                time: new Date()
+            });
+
+            closeQuestionModal();
+            switchTab('questions');
+            showToast('Question posted');
+        }
+
+        // =========================================================================
+        // INTERACTIONS
+        // =========================================================================
+
+        function selectBelief(beliefId) {
+            // Highlight in topology
+            document.querySelectorAll('.belief-card').forEach(el => {
+                el.style.outline = el.id === `belief-${beliefId}` ? '2px solid var(--accent)' : 'none';
+            });
+
+            // Show in collab
+            const notes = state.notes.filter(n => n.beliefId === beliefId);
+            if (notes.length > 0) {
+                switchTab('notes');
+            }
+        }
+
+        function scrollToBelief(beliefId) {
+            const el = document.getElementById(`belief-${beliefId}`);
+            if (el) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                selectBelief(beliefId);
+            }
+        }
+
+        function shareBelief(beliefId) {
+            const belief = state.topology?.beliefs?.find(b => b.id === beliefId);
+            if (!belief) return;
+
+            const shareText = `${belief.text}\n\nSources: ${belief.sources?.join(', ')}\nCertainty: ${Math.round(belief.certainty * 100)}%`;
+
+            navigator.clipboard.writeText(shareText);
+            showToast('Belief copied to clipboard');
+        }
+
+        function showRelease() {
+            showToast('Release validation not implemented in demo');
+        }
+
+        // =========================================================================
+        // UTILITIES
+        // =========================================================================
+
+        function formatTime(date) {
+            if (!date) return '';
+            const d = new Date(date);
+            return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.classList.add('visible');
+
+            setTimeout(() => {
+                toast.classList.remove('visible');
+            }, 3000);
+        }
+
+        // =========================================================================
+        // KEYBOARD
+        // =========================================================================
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && e.target.id === 'add-input' && !e.shiftKey) {
+                e.preventDefault();
+                const text = e.target.value.trim();
+                if (!text) return;
+
+                if (state.currentTab === 'notes') {
+                    // Quick note without belief association
+                    state.notes.push({
+                        beliefId: 'general',
+                        text: text,
+                        author: 'You',
+                        time: new Date()
+                    });
+                    renderCollabContent();
+                } else if (state.currentTab === 'questions') {
+                    state.questions.push({
+                        id: 'q_' + Date.now(),
+                        text: text,
+                        context: 'General question',
+                        author: 'You',
+                        time: new Date()
+                    });
+                    renderCollabContent();
+                }
+                e.target.value = '';
+            }
+        });
+
+        // =========================================================================
+        // INIT
+        // =========================================================================
+
+        renderCollabContent();
+
+        // Auto-load on page load
+        loadTopology();
+    </script>
+</body>
+</html>

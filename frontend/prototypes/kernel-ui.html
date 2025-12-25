@@ -1,0 +1,985 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Belief Kernel UI - Event Viewer</title>
+    <style>
+        :root {
+            --bg: #0a0a0f;
+            --surface: #12121a;
+            --surface-2: #1a1a24;
+            --surface-3: #222230;
+            --border: #2a2a3a;
+            --text: #e0e0e8;
+            --text-dim: #8888a0;
+            --text-body: #c8c8d4;
+            --accent: #6366f1;
+            --green: #22c55e;
+            --green-dim: rgba(34, 197, 94, 0.15);
+            --red: #ef4444;
+            --red-dim: rgba(239, 68, 68, 0.15);
+            --yellow: #eab308;
+            --yellow-dim: rgba(234, 179, 8, 0.15);
+            --blue: #3b82f6;
+            --blue-dim: rgba(59, 130, 246, 0.15);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Header */
+        header {
+            margin-bottom: 2rem;
+        }
+
+        .event-selector {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .event-selector select {
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-size: 0.9rem;
+        }
+
+        .event-selector button {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+
+        .event-selector button:hover {
+            filter: brightness(1.1);
+        }
+
+        .event-title {
+            font-size: 2rem;
+            font-weight: 700;
+            line-height: 1.2;
+            margin-bottom: 0.5rem;
+        }
+
+        .event-meta {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            color: var(--text-dim);
+            font-size: 0.9rem;
+        }
+
+        .phase-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.3rem 0.75rem;
+            border-radius: 2rem;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .phase-badge.stable { background: var(--green-dim); border: 1px solid var(--green); color: var(--green); }
+        .phase-badge.converging { background: var(--blue-dim); border: 1px solid var(--blue); color: var(--blue); }
+        .phase-badge.emerging { background: var(--yellow-dim); border: 1px solid var(--yellow); color: var(--yellow); }
+        .phase-badge.contested { background: var(--red-dim); border: 1px solid var(--red); color: var(--red); }
+
+        /* Main Layout */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 2rem;
+        }
+
+        /* Prose Pane */
+        .prose-pane {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 2rem;
+        }
+
+        .prose-content {
+            font-size: 1.05rem;
+            color: var(--text-body);
+            line-height: 1.9;
+        }
+
+        .prose-content h2 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            color: var(--text);
+        }
+
+        .prose-content h3 {
+            font-size: 1.1rem;
+            margin: 1.5rem 0 0.75rem;
+            color: var(--text);
+        }
+
+        .prose-content p {
+            margin-bottom: 1rem;
+        }
+
+        .prose-content ul {
+            margin: 0.5rem 0 1rem 1.5rem;
+        }
+
+        .prose-content li {
+            margin-bottom: 0.5rem;
+        }
+
+        /* Entity & Belief Links */
+        .entity-link {
+            color: var(--accent);
+            cursor: pointer;
+            border-bottom: 1px dotted var(--accent);
+        }
+
+        .entity-link:hover {
+            filter: brightness(1.2);
+        }
+
+        .belief-cite {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            vertical-align: super;
+            cursor: pointer;
+        }
+
+        .belief-cite:hover {
+            color: var(--accent);
+        }
+
+        /* Fact Highlighting */
+        .fact-highlight {
+            position: relative;
+            padding: 0.1rem 0.3rem;
+            border-radius: 3px;
+            cursor: help;
+        }
+
+        .fact-highlight.certain { background: var(--green-dim); border-bottom: 2px solid var(--green); }
+        .fact-highlight.likely { background: var(--blue-dim); border-bottom: 2px solid var(--blue); }
+        .fact-highlight.uncertain { background: var(--yellow-dim); border-bottom: 2px solid var(--yellow); }
+        .fact-highlight.contested { background: var(--red-dim); border-bottom: 2px solid var(--red); }
+
+        /* Sidebar */
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        /* Metrics Card */
+        .metrics-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .metrics-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.25rem;
+            background: var(--surface-2);
+            border-bottom: 1px solid var(--border);
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.5rem;
+            padding: 1rem;
+        }
+
+        .metric-box {
+            text-align: center;
+            padding: 0.75rem 0.5rem;
+            background: var(--surface-2);
+            border-radius: 8px;
+        }
+
+        .metric-value {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        .metric-label {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            color: var(--text-dim);
+            margin-top: 0.15rem;
+        }
+
+        /* Convergence Chart */
+        .chart-section {
+            padding: 1rem 1.25rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .chart-canvas {
+            width: 100%;
+            height: 100px;
+        }
+
+        .chart-legend {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-top: 0.5rem;
+            font-size: 0.75rem;
+            color: var(--text-dim);
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        .legend-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        /* Beliefs Card */
+        .beliefs-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .beliefs-header {
+            padding: 1rem 1.25rem;
+            background: var(--surface-2);
+            border-bottom: 1px solid var(--border);
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .beliefs-content {
+            padding: 1rem 1.25rem;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .belief-item {
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            background: var(--surface-2);
+            border-radius: 6px;
+            font-size: 0.85rem;
+        }
+
+        .belief-item-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.35rem;
+        }
+
+        .belief-id {
+            font-size: 0.7rem;
+            color: var(--accent);
+            font-family: monospace;
+        }
+
+        .belief-category {
+            font-size: 0.65rem;
+            padding: 0.1rem 0.4rem;
+            background: var(--surface-3);
+            border-radius: 3px;
+            text-transform: uppercase;
+        }
+
+        .belief-certainty {
+            margin-left: auto;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .belief-text {
+            color: var(--text-body);
+            margin-bottom: 0.35rem;
+        }
+
+        .belief-meta {
+            display: flex;
+            gap: 1rem;
+            font-size: 0.7rem;
+            color: var(--text-dim);
+        }
+
+        /* Conflicts Card */
+        .conflicts-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .conflicts-header {
+            padding: 1rem 1.25rem;
+            background: var(--red-dim);
+            border-bottom: 1px solid var(--red);
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--red);
+        }
+
+        .conflicts-content {
+            padding: 1rem 1.25rem;
+        }
+
+        .conflict-item {
+            padding: 0.75rem;
+            background: var(--surface-2);
+            border-radius: 6px;
+            margin-bottom: 0.5rem;
+            font-size: 0.85rem;
+        }
+
+        .conflict-new {
+            margin-bottom: 0.35rem;
+        }
+
+        .conflict-vs {
+            color: var(--text-dim);
+            font-size: 0.8rem;
+        }
+
+        .conflict-reasoning {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            margin-top: 0.35rem;
+            font-style: italic;
+        }
+
+        /* Relations Breakdown */
+        .relations-section {
+            padding: 1rem 1.25rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .relation-row {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 0.35rem;
+            font-size: 0.8rem;
+        }
+
+        .relation-name {
+            width: 90px;
+            text-transform: uppercase;
+            font-size: 0.7rem;
+            color: var(--text-dim);
+        }
+
+        .relation-bar {
+            flex: 1;
+            height: 6px;
+            background: var(--surface);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .relation-fill {
+            height: 100%;
+            border-radius: 3px;
+        }
+
+        .relation-fill.compatible { background: var(--green); }
+        .relation-fill.redundant { background: var(--blue); }
+        .relation-fill.refines { background: var(--accent); }
+        .relation-fill.supersedes { background: var(--yellow); }
+        .relation-fill.conflicts { background: var(--red); }
+
+        .relation-count {
+            width: 30px;
+            text-align: right;
+            font-size: 0.75rem;
+        }
+
+        /* Fact Legend */
+        .fact-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            padding: 1rem 1.25rem;
+            background: var(--surface-2);
+            border-top: 1px solid var(--border);
+            font-size: 0.75rem;
+        }
+
+        .legend-chip {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        .legend-chip-dot {
+            width: 12px;
+            height: 4px;
+            border-radius: 2px;
+        }
+
+        .legend-chip-dot.certain { background: var(--green); }
+        .legend-chip-dot.likely { background: var(--blue); }
+        .legend-chip-dot.uncertain { background: var(--yellow); }
+        .legend-chip-dot.contested { background: var(--red); }
+
+        /* Loading State */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            color: var(--text-dim);
+        }
+
+        .loading-spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 0.5rem;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .green { color: var(--green); }
+        .blue { color: var(--blue); }
+        .yellow { color: var(--yellow); }
+        .red { color: var(--red); }
+
+        /* Prose Footer */
+        .prose-footer {
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+            font-size: 0.8rem;
+            color: var(--text-dim);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <div class="event-selector">
+                <select id="event-select">
+                    <option value="enriched">HK Fire - Enriched (30 claims)</option>
+                    <option value="rich">HK Fire - RICH Mode (130)</option>
+                    <option value="plain">HK Fire - PLAIN Mode (130)</option>
+                </select>
+                <button onclick="loadTopology()">Load</button>
+                <button onclick="regenerateProse()">Regenerate Prose</button>
+            </div>
+            <h1 class="event-title" id="event-title">Loading...</h1>
+            <div class="event-meta">
+                <span id="event-claims">-- claims</span>
+                <span>|</span>
+                <span id="event-beliefs">-- beliefs</span>
+                <span>|</span>
+                <span class="phase-badge emerging" id="phase-badge">Loading</span>
+            </div>
+        </header>
+
+        <!-- Main Grid -->
+        <div class="main-grid">
+            <!-- Prose Pane -->
+            <div class="prose-pane">
+                <div class="prose-content" id="prose-content">
+                    <div class="loading">
+                        <div class="loading-spinner"></div>
+                        Loading topology...
+                    </div>
+                </div>
+
+                <!-- Fact Legend -->
+                <div class="fact-legend">
+                    <span style="color: var(--text-dim); margin-right: 0.5rem;">Certainty:</span>
+                    <span class="legend-chip"><span class="legend-chip-dot certain"></span> High (75%+)</span>
+                    <span class="legend-chip"><span class="legend-chip-dot likely"></span> Medium (50-75%)</span>
+                    <span class="legend-chip"><span class="legend-chip-dot uncertain"></span> Low (25-50%)</span>
+                    <span class="legend-chip"><span class="legend-chip-dot contested"></span> Unverified</span>
+                </div>
+            </div>
+
+            <!-- Sidebar -->
+            <div class="sidebar">
+                <!-- Metrics Card -->
+                <div class="metrics-card">
+                    <div class="metrics-header">
+                        <span>Epistemic Metrics</span>
+                    </div>
+
+                    <div class="metrics-grid">
+                        <div class="metric-box">
+                            <div class="metric-value green" id="metric-coherence">--%</div>
+                            <div class="metric-label">Coherence</div>
+                        </div>
+                        <div class="metric-box">
+                            <div class="metric-value" id="metric-entropy">--</div>
+                            <div class="metric-label">Entropy</div>
+                        </div>
+                        <div class="metric-box">
+                            <div class="metric-value" id="metric-compression">--x</div>
+                            <div class="metric-label">Compression</div>
+                        </div>
+                    </div>
+
+                    <!-- Relations Breakdown -->
+                    <div class="relations-section" id="relations-section">
+                        <!-- Populated by JS -->
+                    </div>
+
+                    <!-- Convergence Chart -->
+                    <div class="chart-section">
+                        <canvas id="chart-canvas" class="chart-canvas"></canvas>
+                        <div class="chart-legend">
+                            <span class="legend-item"><span class="legend-dot" style="background: var(--green);"></span> Coherence</span>
+                            <span class="legend-item"><span class="legend-dot" style="background: var(--red);"></span> Entropy</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Beliefs Card -->
+                <div class="beliefs-card">
+                    <div class="beliefs-header" id="beliefs-header">Beliefs (--)</div>
+                    <div class="beliefs-content" id="beliefs-content">
+                        <div class="loading">
+                            <div class="loading-spinner"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Conflicts Card -->
+                <div class="conflicts-card" id="conflicts-card" style="display: none;">
+                    <div class="conflicts-header" id="conflicts-header">Unresolved Conflicts (--)</div>
+                    <div class="conflicts-content" id="conflicts-content"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // API base URL (adjust for your environment)
+        const API_BASE = '/api/kernel';
+
+        // Superscript helper
+        const superscripts = {'0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴',
+                              '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹'};
+        function toSuperscript(n) {
+            return String(n).split('').map(d => superscripts[d] || d).join('');
+        }
+
+        // Current topology data
+        let currentTopology = null;
+        let currentProse = null;
+
+        // =========================================================================
+        // DATA LOADING
+        // =========================================================================
+
+        async function loadTopology() {
+            const eventId = document.getElementById('event-select').value;
+
+            try {
+                // For demo, load from local JSON files
+                const response = await fetch(`/prototypes/test_eu/results/topology_${eventId}.json`);
+                if (!response.ok) throw new Error('Topology not found');
+                currentTopology = await response.json();
+
+                renderTopology(currentTopology);
+                renderProse(currentTopology);
+            } catch (err) {
+                console.error('Failed to load topology:', err);
+                document.getElementById('prose-content').innerHTML =
+                    `<div class="loading">Error: ${err.message}</div>`;
+            }
+        }
+
+        async function regenerateProse() {
+            if (!currentTopology) {
+                alert('Load topology first');
+                return;
+            }
+
+            document.getElementById('prose-content').innerHTML =
+                '<div class="loading"><div class="loading-spinner"></div>Generating prose with gpt-5.2...</div>';
+
+            try {
+                const eventId = document.getElementById('event-select').value;
+                const response = await fetch(`${API_BASE}/prose/${eventId}?model=gpt-5.2`);
+                if (!response.ok) throw new Error('Prose generation failed');
+                const data = await response.json();
+
+                document.getElementById('prose-content').innerHTML = formatProseWithCitations(data.prose);
+            } catch (err) {
+                console.error('Failed to regenerate prose:', err);
+                // Fallback to local prose generation
+                renderProse(currentTopology);
+            }
+        }
+
+        // =========================================================================
+        // RENDERING
+        // =========================================================================
+
+        function renderTopology(topology) {
+            const metrics = topology.metrics || {};
+            const beliefs = topology.beliefs || [];
+            const conflicts = topology.conflicts || [];
+            const relations = topology.relations || {};
+            const trajectory = topology.entropy_trajectory || [];
+
+            // Header
+            document.getElementById('event-title').textContent =
+                beliefs.length > 0 ? generateTitle(beliefs) : 'Event Analysis';
+            document.getElementById('event-claims').textContent =
+                `${metrics.claims_processed || '?'} claims`;
+            document.getElementById('event-beliefs').textContent =
+                `${metrics.belief_count || beliefs.length} beliefs`;
+
+            // Phase badge
+            updatePhaseBadge(metrics);
+
+            // Metrics
+            const coherence = metrics.coherence || 0;
+            const entropy = metrics.entropy || 0;
+            const compression = metrics.compression || 0;
+
+            document.getElementById('metric-coherence').textContent =
+                `${(coherence * 100).toFixed(0)}%`;
+            document.getElementById('metric-coherence').className =
+                'metric-value ' + (coherence > 0.7 ? 'green' : coherence > 0.5 ? 'blue' : 'yellow');
+
+            document.getElementById('metric-entropy').textContent =
+                entropy.toFixed(2);
+            document.getElementById('metric-entropy').className =
+                'metric-value ' + (entropy < 0.3 ? 'green' : entropy < 0.5 ? 'yellow' : 'red');
+
+            document.getElementById('metric-compression').textContent =
+                `${compression.toFixed(1)}x`;
+
+            // Relations
+            renderRelations(relations, metrics.claims_processed || 100);
+
+            // Chart
+            renderChart(trajectory);
+
+            // Beliefs
+            renderBeliefs(beliefs);
+
+            // Conflicts
+            renderConflicts(conflicts);
+        }
+
+        function generateTitle(beliefs) {
+            // Find the most significant belief (casualties usually)
+            const casualties = beliefs.find(b =>
+                b.category === 'casualties' && b.text.toLowerCase().includes('dead'));
+            if (casualties) {
+                return casualties.text.substring(0, 60) + '...';
+            }
+            return beliefs[0]?.text?.substring(0, 60) + '...' || 'Event Analysis';
+        }
+
+        function updatePhaseBadge(metrics) {
+            const badge = document.getElementById('phase-badge');
+            const coherence = metrics.coherence || 0;
+            const entropy = metrics.entropy || 1;
+            const conflicts = metrics.conflict_count || 0;
+
+            let phase, cssClass;
+            if (conflicts > 3) {
+                phase = 'Contested';
+                cssClass = 'contested';
+            } else if (coherence > 0.7 && entropy < 0.3) {
+                phase = 'Stable';
+                cssClass = 'stable';
+            } else if (coherence > 0.5) {
+                phase = 'Converging';
+                cssClass = 'converging';
+            } else {
+                phase = 'Emerging';
+                cssClass = 'emerging';
+            }
+
+            badge.textContent = phase;
+            badge.className = 'phase-badge ' + cssClass;
+        }
+
+        function renderRelations(relations, total) {
+            const container = document.getElementById('relations-section');
+            const order = ['COMPATIBLE', 'REDUNDANT', 'REFINES', 'SUPERSEDES', 'CONFLICTS'];
+
+            container.innerHTML = order.map(rel => {
+                const count = relations[rel] || 0;
+                const pct = (count / total) * 100;
+                const cssClass = rel.toLowerCase();
+
+                return `
+                    <div class="relation-row">
+                        <span class="relation-name">${rel}</span>
+                        <div class="relation-bar">
+                            <div class="relation-fill ${cssClass}" style="width: ${pct}%"></div>
+                        </div>
+                        <span class="relation-count">${count}</span>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderChart(trajectory) {
+            const canvas = document.getElementById('chart-canvas');
+            const ctx = canvas.getContext('2d');
+
+            const dpr = window.devicePixelRatio || 1;
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            ctx.scale(dpr, dpr);
+
+            const width = rect.width;
+            const height = rect.height;
+            const padding = { left: 5, right: 5, top: 10, bottom: 10 };
+
+            ctx.clearRect(0, 0, width, height);
+
+            if (trajectory.length === 0) return;
+
+            // Grid
+            ctx.strokeStyle = '#2a2a3a';
+            ctx.lineWidth = 0.5;
+            for (let i = 0; i <= 4; i++) {
+                const y = padding.top + (height - padding.top - padding.bottom) * i / 4;
+                ctx.beginPath();
+                ctx.moveTo(padding.left, y);
+                ctx.lineTo(width - padding.right, y);
+                ctx.stroke();
+            }
+
+            const maxClaim = trajectory[trajectory.length - 1]?.claim_index || 100;
+
+            const getX = (claim) => padding.left + (claim / maxClaim) * (width - padding.left - padding.right);
+            const getY = (val) => padding.top + (1 - val) * (height - padding.top - padding.bottom);
+
+            // Coherence line (green)
+            ctx.strokeStyle = '#22c55e';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            trajectory.forEach((d, i) => {
+                const x = getX(d.claim_index);
+                const y = getY(d.coherence);
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            });
+            ctx.stroke();
+
+            // Entropy line (red, inverted)
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            trajectory.forEach((d, i) => {
+                const x = getX(d.claim_index);
+                const y = getY(1 - d.entropy);
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            });
+            ctx.stroke();
+
+            // Dots
+            trajectory.forEach(d => {
+                const x = getX(d.claim_index);
+
+                ctx.fillStyle = '#22c55e';
+                ctx.beginPath();
+                ctx.arc(x, getY(d.coherence), 2, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#ef4444';
+                ctx.beginPath();
+                ctx.arc(x, getY(1 - d.entropy), 2, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        function renderBeliefs(beliefs) {
+            const container = document.getElementById('beliefs-content');
+            const header = document.getElementById('beliefs-header');
+
+            header.textContent = `Beliefs (${beliefs.length})`;
+
+            // Sort by certainty descending
+            const sorted = [...beliefs].sort((a, b) => (b.certainty || 0) - (a.certainty || 0));
+
+            container.innerHTML = sorted.slice(0, 20).map(b => {
+                const certainty = b.certainty || 0;
+                const certaintyClass = certainty >= 0.75 ? 'green' :
+                                       certainty >= 0.5 ? 'blue' :
+                                       certainty >= 0.25 ? 'yellow' : 'red';
+
+                const srcCount = b.sources?.length || 0;
+                return `
+                    <div class="belief-item">
+                        <div class="belief-item-header">
+                            <span class="belief-id">${b.id}</span>
+                            <sup style="margin-left: 0.3rem;">ˣ${toSuperscript(srcCount)}</sup>
+                            <span class="belief-certainty ${certaintyClass}">${(certainty * 100).toFixed(0)}%</span>
+                        </div>
+                        <div class="belief-text">${b.text}</div>
+                        ${b.supersedes_text ? `<div class="belief-meta"><span>Was: ${b.supersedes_text.substring(0, 40)}...</span></div>` : ''}
+                    </div>
+                `;
+            }).join('');
+
+            if (beliefs.length > 20) {
+                container.innerHTML += `<div style="text-align: center; color: var(--text-dim); font-size: 0.8rem; padding: 0.5rem;">
+                    +${beliefs.length - 20} more beliefs
+                </div>`;
+            }
+        }
+
+        function renderConflicts(conflicts) {
+            const card = document.getElementById('conflicts-card');
+            const header = document.getElementById('conflicts-header');
+            const container = document.getElementById('conflicts-content');
+
+            if (conflicts.length === 0) {
+                card.style.display = 'none';
+                return;
+            }
+
+            card.style.display = 'block';
+            header.textContent = `Unresolved Conflicts (${conflicts.length})`;
+
+            container.innerHTML = conflicts.map(c => `
+                <div class="conflict-item">
+                    <div class="conflict-new">${c.new_claim}</div>
+                    ${c.existing_belief_text ? `<div class="conflict-vs">vs: ${c.existing_belief_text}</div>` : ''}
+                    ${c.reasoning ? `<div class="conflict-reasoning">${c.reasoning}</div>` : ''}
+                </div>
+            `).join('');
+        }
+
+        function renderProse(topology) {
+            const beliefs = topology.beliefs || [];
+            const conflicts = topology.conflicts || [];
+
+            // Sort by certainty (source count) - LLM organizes thematically
+            const sorted = [...beliefs].sort((a, b) => (b.certainty || 0) - (a.certainty || 0));
+
+            // Simple list view - full prose from regenerateProse() via API
+            let html = '<h2>Beliefs (by certainty)</h2><ul>';
+
+            sorted.forEach(b => {
+                const certaintyClass = b.certainty >= 0.75 ? 'certain' :
+                                      b.certainty >= 0.5 ? 'likely' :
+                                      b.certainty >= 0.25 ? 'uncertain' : 'contested';
+                const srcCount = b.sources?.length || 0;
+                html += `<li>
+                    <span class="fact-highlight ${certaintyClass}">${b.text}</span>
+                    <sup class="belief-cite">[${b.id}]</sup>
+                    <sup style="color: var(--text-dim);">ˣ${toSuperscript(srcCount)}</sup>
+                </li>`;
+            });
+            html += '</ul>';
+
+            if (conflicts.length > 0) {
+                html += '<h3>Unresolved Conflicts</h3><ul>';
+                conflicts.forEach(c => {
+                    html += `<li class="fact-highlight contested">${c.new_claim}
+                        ${c.existing_belief_text ? ` vs "${c.existing_belief_text}"` : ''}</li>`;
+                });
+                html += '</ul>';
+            }
+
+            html += `
+                <div class="prose-footer">
+                    ${beliefs.length} beliefs from ${topology.metrics?.claims_processed || '?'} claims.
+                    Click "Regenerate Prose" for LLM-organized narrative.
+                </div>
+            `;
+
+            document.getElementById('prose-content').innerHTML = html;
+        }
+
+        function formatProseWithCitations(proseMarkdown) {
+            // Convert markdown to HTML with entity/belief link styling
+            let html = proseMarkdown
+                .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+                .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+                .replace(/^\- (.+)$/gm, '<li>$1</li>')
+                .replace(/\n\n/g, '</p><p>')
+                .replace(/\[bl_([a-z0-9]+)\]/g, '<span class="belief-cite">[bl_$1]</span>')
+                .replace(/\[en_([a-z0-9]+)\]/g, '<span class="entity-link" onclick="showEntity(\'en_$1\')">[en_$1]</span>');
+
+            // Wrap paragraphs
+            html = '<p>' + html + '</p>';
+            html = html.replace(/<\/p><p><h/g, '</p><h');
+            html = html.replace(/<\/h([23])><p>/g, '</h$1>');
+
+            // Wrap lists
+            html = html.replace(/(<li>.*<\/li>)+/g, '<ul>$&</ul>');
+
+            return html;
+        }
+
+        function showEntity(entityId) {
+            if (currentTopology?.entity_lookup) {
+                const name = Object.keys(currentTopology.entity_lookup)
+                    .find(k => currentTopology.entity_lookup[k] === entityId);
+                alert(`Entity: ${name || entityId}\nID: ${entityId}`);
+            }
+        }
+
+        // =========================================================================
+        // INIT
+        // =========================================================================
+
+        // Load on startup
+        window.addEventListener('load', loadTopology);
+        window.addEventListener('resize', () => {
+            if (currentTopology?.entropy_trajectory) {
+                renderChart(currentTopology.entropy_trajectory);
+            }
+        });
+    </script>
+</body>
+</html>

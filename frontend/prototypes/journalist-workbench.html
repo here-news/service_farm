@@ -1,0 +1,2076 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Journalist Workbench - Epistemic Engine</title>
+    <style>
+        :root {
+            --bg: #0a0a0f;
+            --surface: #12121a;
+            --surface-2: #1a1a24;
+            --surface-3: #222230;
+            --border: #2a2a3a;
+            --text: #e0e0e8;
+            --text-dim: #8888a0;
+            --text-body: #c8c8d4;
+            --accent: #6366f1;
+            --green: #22c55e;
+            --green-dim: rgba(34, 197, 94, 0.15);
+            --blue: #3b82f6;
+            --blue-dim: rgba(59, 130, 246, 0.15);
+            --yellow: #eab308;
+            --yellow-dim: rgba(234, 179, 8, 0.15);
+            --red: #ef4444;
+            --red-dim: rgba(239, 68, 68, 0.15);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Dashboard */
+        .dashboard {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            padding: 0.75rem 1.5rem;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .dash-metric {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .dash-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-dim);
+        }
+
+        .dash-value {
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .dash-value.green { color: var(--green); }
+        .dash-value.blue { color: var(--blue); }
+        .dash-value.yellow { color: var(--yellow); }
+        .dash-value.red { color: var(--red); }
+
+        .phase-badge {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.3rem 0.75rem;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: 2rem;
+            font-size: 0.8rem;
+        }
+
+        .phase-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--yellow);
+            animation: pulse 2s infinite;
+        }
+
+        .phase-dot.stable { background: var(--green); animation: none; }
+        .phase-dot.emerging { background: var(--yellow); }
+        .phase-dot.converging { background: var(--blue); }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        .dash-spacer { flex: 1; }
+
+        .dash-btn {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--surface-2);
+            color: var(--text);
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .dash-btn:hover {
+            background: var(--surface-3);
+        }
+
+        .dash-btn.active {
+            background: var(--accent);
+            border-color: var(--accent);
+        }
+
+        .dash-btn.release {
+            background: var(--green-dim);
+            border-color: var(--green);
+            color: var(--green);
+        }
+
+        .dash-btn.release:hover {
+            background: var(--green);
+            color: var(--bg);
+        }
+
+        /* Main Layout */
+        .main-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            height: calc(100vh - 52px);
+        }
+
+        /* Narrative Pane */
+        .narrative-pane {
+            padding: 2rem;
+            overflow-y: auto;
+            border-right: 1px solid var(--border);
+        }
+
+        .narrative-header {
+            margin-bottom: 1.5rem;
+        }
+
+        .narrative-title {
+            font-size: 1.8rem;
+            font-weight: 700;
+            line-height: 1.3;
+            margin-bottom: 0.5rem;
+        }
+
+        .narrative-meta {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+        }
+
+        .narrative-content {
+            font-size: 1.1rem;
+            line-height: 1.9;
+            color: var(--text-body);
+        }
+
+        .narrative-content p {
+            margin-bottom: 1.25rem;
+        }
+
+        /* Fact highlights in narrative */
+        .fact {
+            padding: 0.1rem 0.3rem;
+            border-radius: 3px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .fact:hover {
+            filter: brightness(1.3);
+        }
+
+        .fact.certain {
+            background: var(--green-dim);
+            border-bottom: 2px solid var(--green);
+        }
+
+        .fact.likely {
+            background: var(--blue-dim);
+            border-bottom: 2px solid var(--blue);
+        }
+
+        .fact.uncertain {
+            background: var(--yellow-dim);
+            border-bottom: 2px solid var(--yellow);
+        }
+
+        .fact.contested {
+            background: var(--red-dim);
+            border-bottom: 2px solid var(--red);
+        }
+
+        .fact-legend {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+        }
+
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        .legend-dot {
+            width: 10px;
+            height: 3px;
+            border-radius: 2px;
+        }
+
+        /* Tree Pane */
+        .tree-pane {
+            background: var(--surface);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .tree-header {
+            padding: 1rem 1.25rem;
+            background: var(--surface-2);
+            border-bottom: 1px solid var(--border);
+            font-size: 0.85rem;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .tree-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+        }
+
+        /* Tree nodes - Forum style */
+        .tree-branch {
+            margin-bottom: 1rem;
+            background: var(--surface-2);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .branch-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            background: var(--surface-3);
+            cursor: pointer;
+            transition: all 0.2s;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .branch-header:hover {
+            background: var(--surface);
+        }
+
+        .branch-indicator {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .branch-indicator.green { background: var(--green); }
+        .branch-indicator.blue { background: var(--blue); }
+        .branch-indicator.yellow { background: var(--yellow); }
+        .branch-indicator.red { background: var(--red); }
+
+        .branch-name {
+            font-weight: 600;
+            font-size: 0.95rem;
+            flex: 1;
+        }
+
+        .branch-value {
+            font-size: 1.3rem;
+            font-weight: 700;
+        }
+
+        .branch-meta {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .branch-entropy {
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            padding: 0.2rem 0.5rem;
+            background: var(--surface);
+            border-radius: 3px;
+        }
+
+        .branch-count {
+            font-size: 0.7rem;
+            color: var(--text-dim);
+        }
+
+        .branch-children {
+            padding: 0.5rem;
+        }
+
+        /* Testimony levels */
+        .testimony-group {
+            margin-bottom: 0.5rem;
+        }
+
+        .testimony-group-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.4rem 0.75rem;
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+        }
+
+        .testimony-group-header:hover {
+            color: var(--text);
+        }
+
+        .testimony-group-icon {
+            font-size: 0.6rem;
+            transition: transform 0.2s;
+        }
+
+        .testimony-group.collapsed .testimony-group-icon {
+            transform: rotate(-90deg);
+        }
+
+        .testimony-group.collapsed .testimony-list {
+            display: none;
+        }
+
+        .testimony-list {
+            margin-left: 1rem;
+            padding-left: 0.75rem;
+            border-left: 2px solid var(--border);
+        }
+
+        .testimony-item {
+            padding: 0.6rem 0.75rem;
+            margin-bottom: 0.25rem;
+            background: var(--surface);
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+
+        .testimony-item:hover {
+            background: var(--surface-3);
+        }
+
+        .testimony-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .testimony-value {
+            font-weight: 700;
+            font-size: 1rem;
+        }
+
+        .testimony-relation {
+            font-size: 0.65rem;
+            padding: 0.15rem 0.4rem;
+            border-radius: 3px;
+            text-transform: uppercase;
+            font-weight: 500;
+        }
+
+        .testimony-relation.seeds { background: var(--surface-3); color: var(--text-dim); }
+        .testimony-relation.updates { background: var(--blue-dim); color: var(--blue); }
+        .testimony-relation.corroborates { background: var(--green-dim); color: var(--green); }
+        .testimony-relation.contradicts { background: var(--red-dim); color: var(--red); }
+
+        .testimony-source {
+            margin-left: auto;
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--text);
+        }
+
+        .testimony-body {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            line-height: 1.5;
+        }
+
+        .testimony-meta {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-top: 0.4rem;
+            font-size: 0.7rem;
+            color: var(--text-dim);
+        }
+
+        .testimony-time {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .testimony-confidence {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .confidence-bar {
+            width: 40px;
+            height: 4px;
+            background: var(--surface-3);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .confidence-fill {
+            height: 100%;
+            border-radius: 2px;
+        }
+
+        /* Tree section headers */
+        .tree-section-header {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-dim);
+            padding: 0.5rem 0.75rem;
+            margin-top: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .tree-section-header:first-child {
+            margin-top: 0;
+        }
+
+        /* Claim Thread - Forum style */
+        .claim-thread {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            padding: 0.5rem;
+        }
+
+        .thread-item {
+            display: flex;
+            gap: 0.75rem;
+            padding: 0.75rem;
+            background: var(--surface-2);
+            border-radius: 8px;
+            border-left: 3px solid var(--border);
+        }
+
+        .thread-item:hover {
+            background: var(--surface-3);
+        }
+
+        .thread-number {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-dim);
+            min-width: 30px;
+        }
+
+        .thread-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .thread-header {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 0.4rem;
+            font-size: 0.8rem;
+        }
+
+        .thread-source {
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .thread-relation {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            padding: 0.1rem 0.4rem;
+            background: var(--surface);
+            border-radius: 3px;
+        }
+
+        .thread-time {
+            color: var(--text-dim);
+            margin-left: auto;
+            font-size: 0.75rem;
+        }
+
+        .thread-text {
+            font-size: 0.9rem;
+            color: var(--text-body);
+            line-height: 1.5;
+        }
+
+        .thread-metrics {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.4rem;
+            margin-top: 0.5rem;
+        }
+
+        .thread-metric {
+            font-size: 0.7rem;
+            padding: 0.2rem 0.5rem;
+            background: var(--accent);
+            color: white;
+            border-radius: 3px;
+            text-transform: capitalize;
+        }
+
+        /* Conflict node */
+        .conflict-node {
+            background: var(--red-dim);
+            border: 1px solid var(--red);
+            border-radius: 6px;
+            padding: 0.75rem;
+            margin-top: 0.5rem;
+        }
+
+        .conflict-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.8rem;
+            color: var(--red);
+            margin-bottom: 0.5rem;
+        }
+
+        .conflict-values {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .conflict-option {
+            flex: 1;
+            padding: 0.5rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            text-align: center;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+
+        .conflict-option:hover {
+            border-color: var(--accent);
+        }
+
+        .conflict-option .value {
+            font-weight: 600;
+        }
+
+        .conflict-option .support {
+            font-size: 0.7rem;
+            color: var(--text-dim);
+        }
+
+        .conflict-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .conflict-btn {
+            flex: 1;
+            padding: 0.4rem;
+            border: none;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            background: var(--surface-2);
+            color: var(--text-dim);
+        }
+
+        .conflict-btn:hover {
+            background: var(--surface-3);
+            color: var(--text);
+        }
+
+        /* Gap node */
+        .gap-node {
+            background: var(--yellow-dim);
+            border: 1px dashed var(--yellow);
+            border-radius: 6px;
+            padding: 0.75rem;
+            margin-top: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .gap-icon {
+            font-size: 1.2rem;
+        }
+
+        .gap-text {
+            flex: 1;
+            font-size: 0.85rem;
+            color: var(--yellow);
+        }
+
+        .gap-btn {
+            padding: 0.3rem 0.6rem;
+            background: var(--surface);
+            border: 1px solid var(--yellow);
+            border-radius: 4px;
+            color: var(--yellow);
+            font-size: 0.75rem;
+            cursor: pointer;
+        }
+
+        /* Auto-progress indicator */
+        .auto-indicator {
+            position: fixed;
+            bottom: 1rem;
+            right: 1rem;
+            padding: 0.5rem 1rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.8rem;
+            display: none;
+        }
+
+        .auto-indicator.visible {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .auto-progress-bar {
+            width: 100px;
+            height: 4px;
+            background: var(--surface-3);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .auto-progress-fill {
+            height: 100%;
+            background: var(--accent);
+            transition: width 0.1s linear;
+        }
+
+        /* Initialize modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-overlay.hidden {
+            display: none;
+        }
+
+        .modal {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 2rem;
+            width: 500px;
+            max-width: 90%;
+        }
+
+        .modal h2 {
+            margin-bottom: 1rem;
+        }
+
+        .modal-input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text);
+            font-size: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .modal-input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .modal-input::placeholder {
+            color: var(--text-dim);
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 0.75rem;
+        }
+
+        .modal-btn {
+            flex: 1;
+            padding: 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            background: var(--surface-2);
+            color: var(--text);
+        }
+
+        .modal-btn.primary {
+            background: var(--accent);
+            border-color: var(--accent);
+        }
+
+        .modal-btn:hover {
+            filter: brightness(1.1);
+        }
+
+        /* Release validation panel */
+        .validation-panel {
+            position: fixed;
+            top: 52px;
+            right: 0;
+            bottom: 0;
+            width: 350px;
+            background: var(--surface);
+            border-left: 1px solid var(--border);
+            padding: 1.5rem;
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+            z-index: 100;
+            overflow-y: auto;
+        }
+
+        .validation-panel.visible {
+            transform: translateX(0);
+        }
+
+        .validation-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .validation-header h3 {
+            font-size: 1.1rem;
+        }
+
+        .validation-close {
+            background: none;
+            border: none;
+            color: var(--text-dim);
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+
+        .validation-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem;
+            background: var(--surface-2);
+            border-radius: 6px;
+            margin-bottom: 0.5rem;
+        }
+
+        .validation-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.85rem;
+        }
+
+        .validation-icon.pass {
+            background: var(--green-dim);
+            color: var(--green);
+        }
+
+        .validation-icon.fail {
+            background: var(--red-dim);
+            color: var(--red);
+        }
+
+        .validation-icon.warn {
+            background: var(--yellow-dim);
+            color: var(--yellow);
+        }
+
+        .validation-text {
+            flex: 1;
+            font-size: 0.9rem;
+        }
+
+        .validation-actions {
+            margin-top: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .validation-btn {
+            padding: 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            background: var(--surface-2);
+            color: var(--text);
+            text-align: center;
+        }
+
+        .validation-btn.confirm {
+            background: var(--green);
+            border-color: var(--green);
+            color: var(--bg);
+        }
+
+        .validation-btn:hover {
+            filter: brightness(1.1);
+        }
+
+        /* Notification toast */
+        .toast {
+            position: fixed;
+            bottom: 1rem;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            padding: 0.75rem 1.5rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 0.9rem;
+            opacity: 0;
+            transition: all 0.3s ease;
+            z-index: 1001;
+        }
+
+        .toast.visible {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+
+        .toast.success {
+            border-color: var(--green);
+            background: var(--green-dim);
+        }
+    </style>
+</head>
+<body>
+    <!-- Dashboard -->
+    <div class="dashboard">
+        <div class="dash-metric">
+            <span class="dash-label">Entropy</span>
+            <span class="dash-value green" id="dash-entropy">1.00</span>
+        </div>
+        <div class="dash-metric">
+            <span class="dash-label">Coherence</span>
+            <span class="dash-value" id="dash-coherence">--</span>
+        </div>
+        <div class="dash-metric">
+            <span class="dash-label">Claims</span>
+            <span class="dash-value" id="dash-claims">0</span>
+        </div>
+        <div class="phase-badge">
+            <span class="phase-dot emerging" id="phase-dot"></span>
+            <span id="phase-text">Initializing</span>
+        </div>
+        <div class="dash-spacer"></div>
+        <button class="dash-btn" onclick="switchInvestigation()" title="Switch Investigation">
+            ⟳ Switch
+        </button>
+        <button class="dash-btn" id="auto-btn" onclick="toggleAuto()">
+            <span id="auto-icon">▶</span> Auto
+        </button>
+        <button class="dash-btn" id="speed-btn" onclick="toggleSpeed()" title="Toggle speed">
+            1x
+        </button>
+        <button class="dash-btn release" onclick="showValidation()">Release</button>
+    </div>
+
+    <!-- Main Container -->
+    <div class="main-container">
+        <!-- Narrative Pane -->
+        <div class="narrative-pane">
+            <div class="narrative-header">
+                <h1 class="narrative-title" id="narrative-title">Loading...</h1>
+                <div class="narrative-meta" id="narrative-meta"></div>
+            </div>
+            <div class="narrative-content" id="narrative-content">
+                <p style="color: var(--text-dim);">Waiting for initialization...</p>
+            </div>
+            <div class="fact-legend">
+                <span class="legend-item"><span class="legend-dot" style="background: var(--green);"></span> Certain (&gt;80%)</span>
+                <span class="legend-item"><span class="legend-dot" style="background: var(--blue);"></span> Likely (50-80%)</span>
+                <span class="legend-item"><span class="legend-dot" style="background: var(--yellow);"></span> Uncertain (30-50%)</span>
+                <span class="legend-item"><span class="legend-dot" style="background: var(--red);"></span> Contested (&lt;30%)</span>
+            </div>
+
+        </div>
+
+        <!-- Tree Pane -->
+        <div class="tree-pane">
+            <div class="tree-header">
+                <span>Claim Tree</span>
+                <span id="tree-count">0 metrics</span>
+            </div>
+            <div class="tree-content" id="tree-content">
+                <!-- Tree will be rendered here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Auto-progress indicator -->
+    <div class="auto-indicator" id="auto-indicator">
+        <span>Next claim in</span>
+        <div class="auto-progress-bar">
+            <div class="auto-progress-fill" id="auto-progress-fill"></div>
+        </div>
+    </div>
+
+    <!-- Initialize Modal -->
+    <div class="modal-overlay" id="init-modal">
+        <div class="modal">
+            <h2>Start Investigation</h2>
+
+            <!-- Existing UEE Investigations -->
+            <div style="margin-bottom: 1.5rem;">
+                <label style="font-size: 0.85rem; color: var(--text-dim); display: block; margin-bottom: 0.5rem;">
+                    Continue Existing Investigation:
+                </label>
+                <select id="uee-select" class="modal-input" style="width: 100%;">
+                    <option value="">-- Select existing --</option>
+                </select>
+                <button class="modal-btn primary" style="margin-top: 0.5rem; width: 100%;" onclick="loadExistingUEE()">
+                    Load Selected
+                </button>
+            </div>
+
+            <div style="text-align: center; color: var(--text-dim); margin: 1rem 0;">— or —</div>
+
+            <!-- Load from HERE.news -->
+            <div>
+                <label style="font-size: 0.85rem; color: var(--text-dim); display: block; margin-bottom: 0.5rem;">
+                    Load New Event from Graph:
+                </label>
+                <input type="text" class="modal-input" id="init-input"
+                       placeholder="Enter event ID (e.g., ev_pth3a8dc)...">
+                <div class="modal-actions" style="margin-top: 0.5rem;">
+                    <button class="modal-btn" onclick="loadRealEvent('ev_pth3a8dc')">HK Fire (130)</button>
+                    <button class="modal-btn" onclick="loadRealEvent('ev_ce27mn2o')">Jimmy Lai</button>
+                    <button class="modal-btn" onclick="loadRealEvent('ev_yxbkxpfd')">Reiner</button>
+                    <button class="modal-btn primary" onclick="initFromInput()">Load</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Validation Panel -->
+    <div class="validation-panel" id="validation-panel">
+        <div class="validation-header">
+            <h3>Pre-Release Validation</h3>
+            <button class="validation-close" onclick="hideValidation()">&times;</button>
+        </div>
+        <div id="validation-checks">
+            <!-- Checks rendered here -->
+        </div>
+        <div class="validation-actions">
+            <button class="validation-btn confirm" onclick="confirmRelease()">
+                Confirm Release (v<span id="next-version">1</span>)
+            </button>
+            <button class="validation-btn" onclick="hideValidation()">Cancel</button>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <script>
+        // =========================================================================
+        // STATE
+        // =========================================================================
+
+        // Real API for fetching events/claims from HERE.news
+        const REAL_API = '/api';
+        // UEE API for epistemic engine operations (proxied through main app)
+        const UEE_API = '/api/uee';
+
+        let state = {
+            eventId: null,
+            realEventId: null,  // ID from HERE.news (e.g., ev_pth3a8dc)
+            event: null,
+            autoMode: false,
+            autoTimer: null,
+            autoProgress: 0,
+            autoSpeed: 1,  // 1x, 2x, 4x
+            claimQueue: [],  // Real claims waiting to be processed
+            processedClaimIds: new Set(),  // Track which claims we've processed
+            currentVersion: 0,
+        };
+
+        // Fallback sample claims (only if no real data)
+        const sampleClaims = [
+            // Day 1 - Initial reports
+            { text: "At least 11 people killed in Hong Kong high-rise fire", source: "BBC News", time: "2024-11-26T08:00:00Z" },
+            { text: "Fire breaks out in Wang Fuk Court, Tai Po district", source: "SCMP", time: "2024-11-26T08:15:00Z" },
+            { text: "Multiple residential towers engulfed in flames", source: "AFP", time: "2024-11-26T08:30:00Z" },
+            { text: "Death toll rises to 17 as rescue efforts continue", source: "Reuters", time: "2024-11-26T10:00:00Z" },
+            { text: "11 confirmed dead in Hong Kong fire, dozens trapped", source: "Al Jazeera", time: "2024-11-26T10:30:00Z" },
+            { text: "Residents describe jumping from windows to escape", source: "RTHK", time: "2024-11-26T11:00:00Z" },
+            { text: "36 confirmed dead in Hong Kong apartment fire", source: "AP", time: "2024-11-26T14:00:00Z" },
+            { text: "Over 50 injured, many in critical condition", source: "HK Gov", time: "2024-11-26T16:00:00Z" },
+            { text: "Fire believed to have started on 15th floor", source: "Fire Dept", time: "2024-11-26T18:00:00Z" },
+            { text: "279 people reported missing after tower fire", source: "Police", time: "2024-11-26T20:00:00Z" },
+            // Day 2 - Updates
+            { text: "Death toll rises to 45 as search continues", source: "Gov HK", time: "2024-11-27T08:00:00Z" },
+            { text: "45 dead confirmed, 230 still missing", source: "Reuters", time: "2024-11-27T10:00:00Z" },
+            { text: "52 injured now hospitalized, 12 critical", source: "Hospital Auth", time: "2024-11-27T12:00:00Z" },
+            { text: "Investigation focuses on renovation materials", source: "Fire Dept", time: "2024-11-27T14:00:00Z" },
+            { text: "Flammable insulation panels may have accelerated fire", source: "SCMP", time: "2024-11-27T16:00:00Z" },
+            // Day 3 - Major update
+            { text: "128 confirmed dead as DNA identification proceeds", source: "HK Gov", time: "2024-11-28T12:00:00Z" },
+            { text: "128 bodies recovered, deadliest fire in decades", source: "BBC", time: "2024-11-28T14:00:00Z" },
+            { text: "Missing persons list reduced to 150", source: "Police", time: "2024-11-28T16:00:00Z" },
+            // Day 4 - Investigation
+            { text: "Fire originated on 14th floor, investigators say", source: "Police", time: "2024-11-29T10:00:00Z" },
+            { text: "14 arrested in connection with fire", source: "Police", time: "2024-11-29T14:00:00Z" },
+            { text: "Contractor executives among those detained", source: "SCMP", time: "2024-11-29T16:00:00Z" },
+            // Day 5
+            { text: "76 injured confirmed, 8 still in critical condition", source: "Hospital Auth", time: "2024-11-30T08:00:00Z" },
+            { text: "Death toll reaches 140 as more victims identified", source: "Gov HK", time: "2024-11-30T12:00:00Z" },
+            // Week 2
+            { text: "Death toll reaches 156 after more bodies found", source: "Gov HK", time: "2024-12-03T10:00:00Z" },
+            { text: "Missing persons count down to 45", source: "Police", time: "2024-12-03T14:00:00Z" },
+            { text: "Building safety review ordered for all public housing", source: "Gov HK", time: "2024-12-04T10:00:00Z" },
+            { text: "Arrests rise to 20, including contractor executives", source: "Police", time: "2024-12-05T12:00:00Z" },
+            { text: "Missing persons down to 6", source: "Police", time: "2024-12-05T16:00:00Z" },
+            { text: "158 confirmed dead, 2 still critical", source: "Hospital Auth", time: "2024-12-06T10:00:00Z" },
+            { text: "All missing persons accounted for", source: "Gov HK", time: "2024-12-08T10:00:00Z" },
+            { text: "Final death toll confirmed at 160", source: "Gov HK", time: "2024-12-11T09:00:00Z" },
+            { text: "160 dead in Hong Kong's worst fire disaster since 1996", source: "Reuters", time: "2024-12-11T12:00:00Z" },
+            { text: "Chief Executive announces compensation fund for victims", source: "Gov HK", time: "2024-12-12T10:00:00Z" },
+            { text: "3,200 residents displaced, temporary housing arranged", source: "Social Welfare", time: "2024-12-12T14:00:00Z" },
+            { text: "Criminal charges filed against 8 contractors", source: "Justice Dept", time: "2024-12-15T10:00:00Z" },
+        ];
+
+        // =========================================================================
+        // INITIALIZATION
+        // =========================================================================
+
+        async function initFromInput() {
+            const input = document.getElementById('init-input').value.trim();
+            if (!input) {
+                showToast('Please enter a title or URL');
+                return;
+            }
+
+            // Check if it's an event ID
+            if (input.startsWith('ev_')) {
+                await loadRealEvent(input);
+            } else {
+                // Search for matching event or create new
+                await createEvent(input);
+            }
+        }
+
+        async function initFromUEE() {
+            // Load Wang Fuk Court Fire - the real event with 130 claims
+            await loadRealEvent('ev_pth3a8dc');
+        }
+
+        async function loadRealEvent(eventId) {
+            try {
+                showToast('Loading real event data...');
+
+                // Fetch real event from HERE.news API
+                const response = await fetch(`${REAL_API}/event/${eventId}`);
+                const realEvent = await response.json();
+
+                if (!realEvent || !realEvent.claims) {
+                    showToast('Event not found or has no claims');
+                    return;
+                }
+
+                state.realEventId = eventId;
+                state.realEvent = realEvent;  // Store full real event data
+
+                // Queue real claims for processing (sorted by time if available)
+                const claims = realEvent.claims.map(c => ({
+                    id: c.id,
+                    text: c.text,
+                    source: c.source_name || c.source || 'Unknown',
+                    time: c.event_time || c.published_at || c.created_at,  // Graph uses event_time
+                    pageId: c.page_id,
+                    entities: c.entities || []  // Include entities from graph
+                }));
+
+                // Sort by time
+                claims.sort((a, b) => new Date(a.time || 0) - new Date(b.time || 0));
+
+                state.claimQueue = claims;
+                state.processedClaimIds = new Set();
+
+                // NO PRE-LOADING - title will EMERGE from claims
+                // Create UEE event with generic placeholder
+                const ueeResponse = await fetch(`${UEE_API}/events`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title: 'New Investigation',  // Will be replaced by emergent title
+                        event_type: 'unknown'
+                    })
+                });
+
+                const ueeEvent = await ueeResponse.json();
+                state.eventId = ueeEvent.id;
+                state.event = ueeEvent;
+
+                document.getElementById('init-modal').classList.add('hidden');
+
+                updateDashboard();
+                updateNarrative();
+                updateTree();
+
+                showToast(`Loaded ${claims.length} real claims. Press Space for auto-mode.`);
+
+            } catch (err) {
+                console.error('Failed to load real event:', err);
+                showToast('Failed to load event: ' + err.message);
+            }
+        }
+
+        async function createEvent(title) {
+            try {
+                const response = await fetch(`${UEE_API}/events`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, event_type: 'disaster' })
+                });
+
+                const event = await response.json();
+                state.eventId = event.id;
+                state.event = event;
+                state.claimQueue = [...sampleClaims];
+
+                document.getElementById('init-modal').classList.add('hidden');
+
+                updateDashboard();
+                updateNarrative();
+                updateTree();
+
+                showToast('Event created. Ready to process claims.');
+
+            } catch (err) {
+                console.error('Failed to create event:', err);
+                showToast('Failed to connect to UEE server');
+            }
+        }
+
+        // =========================================================================
+        // AUTO-PROGRESS MODE
+        // =========================================================================
+
+        function toggleAuto() {
+            state.autoMode = !state.autoMode;
+
+            const btn = document.getElementById('auto-btn');
+            const indicator = document.getElementById('auto-indicator');
+
+            if (state.autoMode) {
+                btn.classList.add('active');
+                document.getElementById('auto-icon').textContent = '⏸';
+                indicator.classList.add('visible');
+                startAutoProgress();
+            } else {
+                btn.classList.remove('active');
+                document.getElementById('auto-icon').textContent = '▶';
+                indicator.classList.remove('visible');
+                stopAutoProgress();
+            }
+        }
+
+        function startAutoProgress() {
+            state.autoProgress = 0;
+            updateProgressBar();
+
+            // Base: 30 seconds (300 * 100ms), speed multiplier reduces this
+            const baseSteps = 300 / state.autoSpeed;
+
+            state.autoTimer = setInterval(() => {
+                state.autoProgress += 100 / baseSteps;
+                updateProgressBar();
+
+                if (state.autoProgress >= 100) {
+                    processNextClaim();
+                    state.autoProgress = 0;
+                }
+            }, 100);
+        }
+
+        function stopAutoProgress() {
+            if (state.autoTimer) {
+                clearInterval(state.autoTimer);
+                state.autoTimer = null;
+            }
+        }
+
+        function toggleSpeed() {
+            // Cycle through 1x -> 2x -> 4x -> 1x
+            if (state.autoSpeed === 1) state.autoSpeed = 2;
+            else if (state.autoSpeed === 2) state.autoSpeed = 4;
+            else state.autoSpeed = 1;
+
+            document.getElementById('speed-btn').textContent = `${state.autoSpeed}x`;
+
+            // Restart timer if auto mode is active
+            if (state.autoMode) {
+                stopAutoProgress();
+                startAutoProgress();
+            }
+        }
+
+        function updateProgressBar() {
+            document.getElementById('auto-progress-fill').style.width = `${state.autoProgress}%`;
+        }
+
+        async function processNextClaim() {
+            if (state.claimQueue.length === 0) {
+                showToast('All claims processed');
+                toggleAuto();
+                return;
+            }
+
+            const claim = state.claimQueue.shift();
+            await addClaim(claim);
+        }
+
+        async function addClaim(claim) {
+            if (!state.eventId) return;
+
+            // Track processed claims
+            if (claim.id && state.processedClaimIds.has(claim.id)) {
+                return; // Already processed
+            }
+
+            try {
+                const response = await fetch(`${UEE_API}/events/${state.eventId}/claims`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        id: claim.id,  // For cached embedding lookup in PostgreSQL
+                        text: claim.text,
+                        source: claim.source,
+                        pub_time: claim.time,
+                        entities: claim.entities || []  // Pass graph entities to UEE
+                    })
+                });
+
+                const result = await response.json();
+
+                if (claim.id) {
+                    state.processedClaimIds.add(claim.id);
+                }
+
+                // Refresh event state (prose comes from event.prose)
+                await refreshEvent();
+
+                // Show relation info
+                const relations = result.relations || [];
+                if (relations.length > 0) {
+                    const rel = relations[0];
+                    showToast(`${rel.relation.toUpperCase()}: ${rel.topic || 'claim processed'}`);
+                }
+
+            } catch (err) {
+                console.error('Failed to add claim:', err);
+            }
+        }
+
+        async function refreshEvent() {
+            if (!state.eventId) return;
+
+            try {
+                const response = await fetch(`${UEE_API}/events/${state.eventId}`);
+                state.event = await response.json();
+
+                updateDashboard();
+                updateNarrative();
+                updateTree();
+
+            } catch (err) {
+                console.error('Failed to refresh event:', err);
+            }
+        }
+
+        // =========================================================================
+        // UI UPDATES
+        // =========================================================================
+
+        function updateDashboard() {
+            const event = state.event;
+            if (!event) return;
+
+            // Entropy
+            const entropyEl = document.getElementById('dash-entropy');
+            entropyEl.textContent = event.entropy.toFixed(2);
+            entropyEl.className = 'dash-value ' + getEntropyColor(event.entropy);
+
+            // Coherence
+            const coherence = calculateCoherence(event);
+            const coherenceEl = document.getElementById('dash-coherence');
+            coherenceEl.textContent = coherence + '%';
+            coherenceEl.className = 'dash-value ' + (coherence >= 80 ? 'green' : coherence >= 50 ? 'blue' : 'yellow');
+
+            // Claims
+            document.getElementById('dash-claims').textContent = event.claim_count || 0;
+
+            // Phase
+            const phaseDot = document.getElementById('phase-dot');
+            const phaseText = document.getElementById('phase-text');
+            phaseDot.className = 'phase-dot ' + event.phase;
+            phaseText.textContent = event.phase.charAt(0).toUpperCase() + event.phase.slice(1);
+        }
+
+        function updateNarrative() {
+            const event = state.event;
+            if (!event) return;
+
+            // Title - EMERGES from epistemic state, not pre-loaded
+            const title = generateTitle(event);
+            document.getElementById('narrative-title').textContent = title;
+
+            // Meta - count unique sources properly
+            const claimCount = event.claim_count || 0;
+            const sources = new Set();
+            (event.claims || []).forEach(c => {
+                if (c.source && c.source !== 'Unknown') sources.add(c.source);
+            });
+            const sourceCount = sources.size || 1;
+
+            const queueRemaining = state.claimQueue?.length || 0;
+            document.getElementById('narrative-meta').textContent =
+                `${claimCount} claims processed from ${sourceCount} sources (${queueRemaining} remaining)`;
+
+            // Narrative - SYNTHESIZED from belief states (or LLM)
+            const narrative = generateNarrative(event);
+            if (narrative !== null) {
+                document.getElementById('narrative-content').innerHTML = narrative;
+            }
+        }
+
+        function generateTitle(event) {
+            const claims = event.claims || [];
+            const beliefs = {};
+            (event.belief_states || []).forEach(bs => {
+                beliefs[bs.topic.toLowerCase()] = bs;  // UEE uses 'topic'
+            });
+
+            // No claims yet
+            if (claims.length === 0) {
+                return 'Awaiting First Claim...';
+            }
+
+            // Extract location from claims (look for place names)
+            let location = extractLocation(claims);
+
+            // Extract event type from claims
+            let eventType = extractEventType(claims);
+
+            // Build title based on what we know
+            const deaths = beliefs.death_toll?.current_value || beliefs.deaths?.current_value;
+            const injured = beliefs.injured?.current_value;
+
+            if (claims.length < 3) {
+                // Very early - minimal info
+                return `${eventType} Reported${location ? ' in ' + location : ''}`;
+            }
+
+            if (deaths && deaths > 0) {
+                // We know death toll
+                if (claims.length < 10) {
+                    return `${eventType} Kills ${deaths}${location ? ' in ' + location : ''}`;
+                } else if (claims.length < 30) {
+                    return `${location || ''} ${eventType} Death Toll: ${deaths}`.trim();
+                } else {
+                    // Mature event - full title
+                    const scale = deaths > 100 ? "Deadly" : deaths > 50 ? "Major" : "";
+                    return `${location || ''} ${eventType} Kills ${deaths}${scale ? ' - ' + scale + ' Disaster' : ''}`.trim();
+                }
+            }
+
+            // No death toll yet
+            return `${eventType}${location ? ' in ' + location : ''} - Developing`;
+        }
+
+        function extractLocation(claims) {
+            // Use canonical entities from Neo4j graph - no regex needed
+            const locations = new Map();
+
+            claims.forEach(c => {
+                // Use entities attached to claim (from Neo4j graph)
+                (c.entities || []).forEach(ent => {
+                    if (ent.entity_type === 'LOCATION') {
+                        const name = ent.canonical_name;
+                        locations.set(name, (locations.get(name) || 0) + 1);
+                    }
+                });
+            });
+
+            // Return most mentioned location (canonical name from graph)
+            let topLoc = null;
+            let topCount = 0;
+            locations.forEach((count, loc) => {
+                if (count > topCount) {
+                    topCount = count;
+                    topLoc = loc;
+                }
+            });
+
+            return topLoc;
+        }
+
+        function extractEventType(claims) {
+            // Count event type mentions
+            const types = { fire: 0, explosion: 0, collapse: 0, accident: 0 };
+
+            claims.forEach(c => {
+                const text = (c.text || '').toLowerCase();
+                if (text.includes('fire') || text.includes('blaze') || text.includes('flames')) types.fire++;
+                if (text.includes('explo')) types.explosion++;
+                if (text.includes('collaps')) types.collapse++;
+                if (text.includes('accident')) types.accident++;
+            });
+
+            // Return most mentioned type
+            let topType = 'Incident';
+            let topCount = 0;
+            Object.entries(types).forEach(([type, count]) => {
+                if (count > topCount) {
+                    topCount = count;
+                    topType = type.charAt(0).toUpperCase() + type.slice(1);
+                }
+            });
+
+            return topType;
+        }
+
+        // Track if we have LLM narrative
+        let hasLLMNarrative = false;
+
+        // Fetch narrative from UEE (semantic generation)
+        async function fetchNarrative() {
+            if (!state.eventId) return;
+
+            try {
+                const response = await fetch(`${UEE_API}/events/${state.eventId}/narrative`);
+                const data = await response.json();
+
+                // Update title
+                if (data.title) {
+                    document.getElementById('narrative-title').textContent = data.title;
+                }
+
+                // Update prose - convert markdown to HTML with highlighting
+                if (data.prose) {
+                    let prose = markdownToHtml(data.prose);
+                    if (!prose.startsWith('<p>')) {
+                        prose = '<p>' + prose + '</p>';
+                    }
+                    document.getElementById('narrative-content').innerHTML = prose;
+                    hasLLMNarrative = true;
+                }
+            } catch (err) {
+                console.error('Failed to fetch narrative:', err);
+            }
+        }
+
+        // Convert markdown to HTML with certainty styling
+        function markdownToHtml(text) {
+            return text
+                // **bold** = confirmed (green)
+                .replace(/\*\*([^*]+)\*\*/g, '<span class="fact certain">$1</span>')
+                // *italic* = reported (blue)
+                .replace(/\*([^*]+)\*/g, '<span class="fact likely">$1</span>')
+                // ~unverified~ = unverified (yellow)
+                .replace(/~([^~]+)~/g, '<span class="fact uncertain">$1</span>')
+                // Paragraphs
+                .replace(/\n\n/g, '</p><p>');
+        }
+
+        function generateNarrative(event) {
+            if (!event.claims || event.claims.length === 0) {
+                return `<p style="color: var(--text-dim);">No claims processed yet. Add claims or enable auto-mode.</p>`;
+            }
+
+            // Use prose from event state if available (generated by UEE)
+            if (event.prose) {
+                let prose = markdownToHtml(event.prose);
+                if (!prose.startsWith('<p>')) {
+                    prose = '<p>' + prose + '</p>';
+                }
+                return prose;
+            }
+
+            // Fetch semantic narrative from UEE every 5 claims if no prose yet
+            if (event.claims.length >= 3 && event.claims.length % 5 === 0) {
+                fetchNarrative();
+            }
+
+            // If we already have LLM narrative (from fetchNarrative), don't overwrite it
+            if (hasLLMNarrative) {
+                return null;  // Signal to not update
+            }
+
+            // Show brief status while LLM generates
+            const beliefs = event.belief_states || [];
+            const contradictions = event.contradictions?.length || 0;
+
+            let html = `<p style="color: var(--text-dim); font-style: italic;">`;
+            html += `Analyzing ${event.claims.length} claims across ${beliefs.length} topics...`;
+            if (contradictions > 0) {
+                html += ` <span style="color: var(--yellow);">(${contradictions} conflicts detected)</span>`;
+            }
+            html += `</p>`;
+
+            return html;
+        }
+
+        function updateTree() {
+            const event = state.event;
+            if (!event) return;
+
+            const container = document.getElementById('tree-content');
+
+            if (!event.claims || event.claims.length === 0) {
+                container.innerHTML = `
+                    <div style="color: var(--text-dim); text-align: center; padding: 2rem;">
+                        No claims processed yet.<br>
+                        <small>Press Space for auto-mode or N for next claim.</small>
+                    </div>
+                `;
+                document.getElementById('tree-count').textContent = '0 claims';
+                return;
+            }
+
+            let html = '';
+
+            // KEY METRICS ONLY - filter out noise (UEE uses 'topic' not 'metric')
+            const keyMetrics = ['death_toll', 'deaths', 'injured', 'missing', 'arrests', 'displaced'];
+            const relevantBeliefs = (event.belief_states || []).filter(bs =>
+                keyMetrics.includes(bs.topic.toLowerCase())
+            );
+
+            // Render key metrics as belief cards (if any)
+            if (relevantBeliefs.length > 0) {
+                html += `<div class="tree-section-header">Belief States</div>`;
+                relevantBeliefs.forEach(bs => {
+                    const color = getEntropyColor(bs.entropy);
+                    const topicName = bs.topic.replace(/_/g, ' ');
+
+                    html += `
+                        <div class="tree-branch" id="branch-${bs.topic}">
+                            <div class="branch-header" onclick="toggleBranch('${bs.topic}')">
+                                <div class="branch-indicator ${color}"></div>
+                                <span class="branch-name">${topicName}</span>
+                                <span class="branch-value">${bs.current_value}</span>
+                                <div class="branch-meta">
+                                    <span class="branch-entropy">H=${bs.entropy.toFixed(2)}</span>
+                                    <span class="branch-count">${bs.corroborations} corr</span>
+                                </div>
+                            </div>
+                            <div class="branch-children" id="children-${bs.topic}">
+                                ${renderBeliefHistory(bs)}
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+
+            // CLAIM THREAD - Show all claims as a discussion thread
+            html += `<div class="tree-section-header">Claim Thread (${event.claims.length} claims)</div>`;
+            html += `<div class="claim-thread">`;
+
+            event.claims.forEach((claim, idx) => {
+                // Get relation from claim.relation.relations array
+                const relations = claim.relation?.relations || [];
+                const firstRel = relations[0];
+                const relation = firstRel?.relation || 'processed';
+                const relationColor = {
+                    'seeds': 'var(--accent)',
+                    'updates': 'var(--blue)',
+                    'corroborates': 'var(--green)',
+                    'contradicts': 'var(--red)'
+                }[relation] || 'var(--text-dim)';
+
+                const time = claim.pub_time ? new Date(claim.pub_time).toLocaleString() : '';
+
+                // Get extracted metrics from claim.extracted_metrics
+                const metrics = claim.extracted_metrics?.metrics || [];
+
+                html += `
+                    <div class="thread-item">
+                        <div class="thread-number">#${idx + 1}</div>
+                        <div class="thread-content">
+                            <div class="thread-header">
+                                <span class="thread-source">${claim.source || 'Unknown'}</span>
+                                <span class="thread-relation" style="color: ${relationColor}">${relation.toUpperCase()}</span>
+                                <span class="thread-time">${time}</span>
+                            </div>
+                            <div class="thread-text">${claim.text}</div>
+                            ${metrics.length ? `
+                                <div class="thread-metrics">
+                                    ${metrics.map(m =>
+                                        `<span class="thread-metric">${m.name}: ${m.value}</span>`
+                                    ).join('')}
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += `</div>`;
+
+            // Render contradictions - only for KEY metrics
+            const keyConflictMetrics = ['deaths', 'injured', 'missing', 'arrests'];
+            const keyConflicts = (event.contradictions || []).filter(c =>
+                keyConflictMetrics.includes(c.topic?.toLowerCase())
+            );
+
+            if (keyConflicts.length > 0) {
+                html += `<div class="tree-section-header">Active Conflicts</div>`;
+                keyConflicts.forEach(c => {
+                    html += `
+                        <div class="conflict-node" style="margin: 0.5rem;">
+                            <div class="conflict-header">
+                                <span style="color: var(--red);">⚠</span>
+                                <span>Conflict: ${c.topic.replace('_', ' ')}</span>
+                            </div>
+                            <div class="conflict-values">
+                                ${c.values.map((v, i) => `
+                                    <div class="conflict-option" onclick="resolveConflict('${c.id}', '${v}')">
+                                        <div class="value">${v}</div>
+                                        <div class="support">${c.support[i]} claim(s)</div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                            <div class="conflict-actions">
+                                <button class="conflict-btn" onclick="askUEE('${c.id}')">Ask UEE</button>
+                                <button class="conflict-btn" onclick="investigateMore('${c.topic}')">Investigate</button>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+
+            // Check for gaps (expected metrics not yet seen)
+            const expectedMetrics = ['deaths', 'injured'];
+            const seenMetrics = (event.belief_states || []).map(bs => bs.topic.toLowerCase());
+            const gaps = expectedMetrics.filter(m => !seenMetrics.includes(m));
+
+            if (gaps.length > 0 && event.claim_count > 3) {
+                gaps.forEach(gap => {
+                    html += `
+                        <div class="gap-node">
+                            <span class="gap-icon">?</span>
+                            <span class="gap-text">Missing: ${gap}</span>
+                            <button class="gap-btn" onclick="investigateGap('${gap}')">Find</button>
+                        </div>
+                    `;
+                });
+            }
+
+            container.innerHTML = html;
+            document.getElementById('tree-count').textContent = `${event.belief_states?.length || 0} beliefs`;
+        }
+
+        function renderTestimonies(claims, metric, beliefState) {
+            if (claims.length === 0) return '<div class="testimony-item" style="color: var(--text-dim);">No testimonies yet</div>';
+
+            // Group claims by relation type
+            const groups = {
+                seeds: claims.filter(c => c.relation?.relation === 'seeds'),
+                updates: claims.filter(c => c.relation?.relation === 'updates'),
+                corroborates: claims.filter(c => c.relation?.relation === 'corroborates'),
+                contradicts: claims.filter(c => c.relation?.relation === 'contradicts'),
+            };
+
+            let html = '';
+
+            // Render each group
+            for (const [groupName, groupClaims] of Object.entries(groups)) {
+                if (groupClaims.length === 0) continue;
+
+                const groupLabel = {
+                    seeds: 'Initial Report',
+                    updates: 'Updates',
+                    corroborates: 'Corroborations',
+                    contradicts: 'Contradictions'
+                }[groupName];
+
+                html += `
+                    <div class="testimony-group">
+                        <div class="testimony-group-header" onclick="this.parentElement.classList.toggle('collapsed')">
+                            <span class="testimony-group-icon">▼</span>
+                            <span>${groupLabel} (${groupClaims.length})</span>
+                        </div>
+                        <div class="testimony-list">
+                            ${groupClaims.map(c => renderSingleTestimony(c, metric)).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            return html || '<div class="testimony-item" style="color: var(--text-dim);">Processing...</div>';
+        }
+
+        function renderBeliefHistory(beliefState) {
+            const history = beliefState.history || [];
+            if (history.length === 0) return '<div style="color: var(--text-dim); padding: 0.5rem;">No history yet</div>';
+
+            let html = '<div class="belief-history">';
+            history.forEach((h, idx) => {
+                const relationColor = {
+                    'seeds': 'var(--accent)',
+                    'updates': 'var(--blue)',
+                    'corroborates': 'var(--green)',
+                    'contradicts': 'var(--red)'
+                }[h.relation] || 'var(--text-dim)';
+
+                html += `
+                    <div class="history-item" style="padding: 0.4rem 0; border-bottom: 1px solid var(--border);">
+                        <span style="color: ${relationColor}; font-weight: 500;">${h.relation?.toUpperCase()}</span>
+                        <span style="margin-left: 0.5rem;">${h.value}</span>
+                        <span style="color: var(--text-dim); margin-left: 0.5rem; font-size: 0.8rem;">(${h.source})</span>
+                    </div>
+                `;
+            });
+            html += '</div>';
+            return html;
+        }
+
+        function renderSingleTestimony(claim, metric) {
+            const metricData = claim.extracted_metrics?.metrics?.find(m => m.name === metric);
+            const value = metricData?.value || '?';
+            const relation = claim.relation?.relations?.[0]?.relation || 'unknown';
+            const time = claim.pub_time ? new Date(claim.pub_time).toLocaleDateString() : '';
+            const confidence = claim.relation?.relations?.[0]?.confidence || 0.5;
+            const confPercent = Math.round(confidence * 100);
+            const confColor = confidence > 0.8 ? 'var(--green)' : confidence > 0.5 ? 'var(--blue)' : 'var(--yellow)';
+
+            return `
+                <div class="testimony-item">
+                    <div class="testimony-header">
+                        <span class="testimony-value">${value}</span>
+                        <span class="testimony-relation ${relation}">${relation}</span>
+                        <span class="testimony-source">${claim.source || 'Unknown'}</span>
+                    </div>
+                    <div class="testimony-body">${claim.text?.substring(0, 120) || ''}...</div>
+                    <div class="testimony-meta">
+                        <span class="testimony-time">${time}</span>
+                        <span class="testimony-confidence">
+                            <span class="confidence-bar">
+                                <span class="confidence-fill" style="width: ${confPercent}%; background: ${confColor};"></span>
+                            </span>
+                            ${confPercent}%
+                        </span>
+                    </div>
+                </div>
+            `;
+        }
+
+        // =========================================================================
+        // INTERACTIONS
+        // =========================================================================
+
+        function toggleBranch(metric) {
+            const children = document.getElementById(`children-${metric}`);
+            children.style.display = children.style.display === 'none' ? 'block' : 'none';
+        }
+
+        function highlightBranch(metric) {
+            const branch = document.getElementById(`branch-${metric}`);
+            if (branch) {
+                branch.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                branch.style.background = 'var(--accent)';
+                setTimeout(() => branch.style.background = '', 1000);
+            }
+        }
+
+        async function resolveConflict(conflictId, chosenValue) {
+            if (!state.eventId) return;
+
+            try {
+                await fetch(`${API_BASE}/events/${state.eventId}/conflicts/${conflictId}/resolve`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        resolution: chosenValue,
+                        resolved_by: 'journalist',
+                        reason: 'Manual resolution by journalist'
+                    })
+                });
+
+                await refreshEvent();
+                showToast(`Resolved: chose "${chosenValue}"`);
+
+            } catch (err) {
+                console.error('Failed to resolve conflict:', err);
+            }
+        }
+
+        function askUEE(conflictId) {
+            showToast('UEE: Analyzing sources... (demo: check publication times and source credibility)');
+        }
+
+        function investigateMore(topic) {
+            showToast(`Investigating ${topic}... (demo: would search for more sources)`);
+        }
+
+        function investigateGap(gap) {
+            showToast(`Looking for ${gap} information... (demo: would search claims)`);
+        }
+
+        // =========================================================================
+        // RELEASE VALIDATION
+        // =========================================================================
+
+        function showValidation() {
+            const event = state.event;
+            if (!event) return;
+
+            const checks = [];
+
+            // Check 1: Has minimum claims
+            const hasEnoughClaims = event.claim_count >= 3;
+            checks.push({
+                pass: hasEnoughClaims,
+                text: `Minimum claims: ${event.claim_count}/3`
+            });
+
+            // Check 2: Entropy below threshold
+            const lowEntropy = event.entropy < 0.5;
+            checks.push({
+                pass: lowEntropy,
+                warn: event.entropy < 0.7 && !lowEntropy,
+                text: `Entropy: ${event.entropy.toFixed(2)} ${lowEntropy ? '(good)' : event.entropy < 0.7 ? '(acceptable)' : '(high uncertainty)'}`
+            });
+
+            // Check 3: No unresolved conflicts
+            const conflictCount = event.contradictions?.filter(c => c.status === 'active').length || 0;
+            checks.push({
+                pass: conflictCount === 0,
+                warn: conflictCount > 0 && conflictCount <= 2,
+                text: `Unresolved conflicts: ${conflictCount}`
+            });
+
+            // Check 4: Has key metrics
+            const hasDeaths = event.belief_states?.some(bs => bs.topic === 'death_toll' || bs.topic === 'deaths');
+            checks.push({
+                pass: hasDeaths,
+                text: `Key metric (deaths): ${hasDeaths ? 'present' : 'missing'}`
+            });
+
+            // Check 5: Multiple sources
+            const sourceCount = new Set(event.claims?.map(c => c.source) || []).size;
+            checks.push({
+                pass: sourceCount >= 2,
+                text: `Source diversity: ${sourceCount} sources`
+            });
+
+            // Render checks
+            const checksHtml = checks.map(c => `
+                <div class="validation-item">
+                    <div class="validation-icon ${c.pass ? 'pass' : c.warn ? 'warn' : 'fail'}">
+                        ${c.pass ? '✓' : c.warn ? '!' : '✗'}
+                    </div>
+                    <div class="validation-text">${c.text}</div>
+                </div>
+            `).join('');
+
+            document.getElementById('validation-checks').innerHTML = checksHtml;
+            document.getElementById('next-version').textContent = (event.versions?.length || 0) + 1;
+            document.getElementById('validation-panel').classList.add('visible');
+        }
+
+        function hideValidation() {
+            document.getElementById('validation-panel').classList.remove('visible');
+        }
+
+        async function confirmRelease() {
+            if (!state.eventId) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/events/${state.eventId}/versions`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        released_by: 'journalist'
+                    })
+                });
+
+                const result = await response.json();
+
+                hideValidation();
+                await refreshEvent();
+
+                showToast(`Released version ${result.version}`, 'success');
+
+            } catch (err) {
+                console.error('Failed to release:', err);
+                showToast('Failed to release version');
+            }
+        }
+
+        // =========================================================================
+        // UTILITIES
+        // =========================================================================
+
+        function getEntropyColor(entropy) {
+            if (entropy < 0.2) return 'green';
+            if (entropy < 0.4) return 'blue';
+            if (entropy < 0.6) return 'yellow';
+            return 'red';
+        }
+
+        function getCertaintyClass(entropy) {
+            if (entropy < 0.2) return 'certain';
+            if (entropy < 0.4) return 'likely';
+            if (entropy < 0.6) return 'uncertain';
+            return 'contested';
+        }
+
+        function calculateCoherence(event) {
+            // Use coherence from UEE if available
+            if (event.coherence !== undefined) {
+                return Math.round(event.coherence * 100);
+            }
+            // Fallback to contradiction-based calculation
+            if (!event.contradictions || event.contradictions.length === 0) return 50;
+            const active = event.contradictions.filter(c => c.status === 'active').length;
+            const total = event.contradictions.length;
+            return Math.round(((total - active) / Math.max(total, 1)) * 100);
+        }
+
+        function showToast(message, type = '') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = 'toast visible ' + type;
+
+            setTimeout(() => {
+                toast.classList.remove('visible');
+            }, 3000);
+        }
+
+        // =========================================================================
+        // KEYBOARD SHORTCUTS
+        // =========================================================================
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === ' ' && e.target.tagName !== 'INPUT') {
+                e.preventDefault();
+                toggleAuto();
+            }
+            if (e.key === 'n' && e.target.tagName !== 'INPUT') {
+                processNextClaim();
+            }
+        });
+
+        // =========================================================================
+        // INIT
+        // =========================================================================
+
+        // Populate UEE investigations dropdown
+        async function populateUEESelect() {
+            try {
+                const response = await fetch(`${UEE_API}/events`);
+                const events = await response.json();
+                const select = document.getElementById('uee-select');
+
+                events.forEach(e => {
+                    const opt = document.createElement('option');
+                    opt.value = e.id;
+                    opt.textContent = `${e.title} (${e.claim_count} claims, ${e.phase})`;
+                    select.appendChild(opt);
+                });
+            } catch (err) {
+                console.log('UEE server not available');
+                document.getElementById('init-input').placeholder = 'UEE offline - enter title for demo';
+            }
+        }
+
+        // Load an existing UEE investigation
+        async function loadExistingUEE() {
+            const select = document.getElementById('uee-select');
+            const eventId = select.value;
+
+            if (!eventId) {
+                showToast('Please select an investigation');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${UEE_API}/events/${eventId}`);
+                const event = await response.json();
+
+                state.eventId = event.id;
+                state.event = event;
+                state.claimQueue = [];  // No more claims to add for existing
+
+                document.getElementById('init-modal').classList.add('hidden');
+
+                updateDashboard();
+                updateNarrative();
+                updateTree();
+
+                // Fetch semantic narrative from UEE
+                if (event.claim_count >= 3) {
+                    fetchNarrative();
+                }
+
+                showToast(`Loaded "${event.title}" with ${event.claim_count} claims`);
+            } catch (err) {
+                console.error('Failed to load UEE event:', err);
+                showToast('Failed to load investigation');
+            }
+        }
+
+        // Switch to a different investigation
+        function switchInvestigation() {
+            // Re-populate and show modal
+            const select = document.getElementById('uee-select');
+            select.innerHTML = '<option value="">-- Select existing --</option>';
+            populateUEESelect();
+            document.getElementById('init-modal').classList.remove('hidden');
+        }
+
+        // Initialize on load
+        populateUEESelect();
+    </script>
+</body>
+</html>
