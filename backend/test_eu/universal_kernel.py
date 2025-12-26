@@ -749,36 +749,29 @@ Respond with JSON:
                         pairs.append((n1, n2, sim))
         return pairs
 
-    BATCH_CLASSIFY_PROMPT = """Classify relationships between claim pairs about the same event.
+    BATCH_CLASSIFY_PROMPT = """For each pair, identify WHAT QUESTION each claim answers.
 
-STEP 1: Identify the METRIC each claim measures:
-- Death toll (count of dead)
-- Injury count
-- Fire/incident cause or origin
-- Response resources (trucks, ambulances, personnel)
-- Government/official response
-- Personal stories/individuals affected
-- Other specific metric
+Two claims relate only if they answer the SAME question with different values.
+Different questions = NOVEL (no epistemic relation).
 
-If metrics are DIFFERENT → NOVEL (no edge needed)
+For each pair:
+1. q1 = question claim1 answers (e.g. "count of X", "cause of Y", "time of Z")
+2. q2 = question claim2 answers
+3. If q1 ≠ q2 → NOVEL
+4. If q1 = q2:
+   - Similar values → CONFIRMS
+   - One more specific → REFINES
+   - Temporal update → SUPERSEDES
+   - Different values, no timing → DIVERGENT
 
-STEP 2: For SAME metric, determine relationship:
-- CONFIRMS: Same metric, same values, agreement
-- REFINES: Adds detail/precision (specific person within count, precise vs approximate)
-- SUPERSEDES: Later update with NEW value (REQUIRES "now", "risen to", later timestamp)
-- CONFLICTS: Same metric, incompatible values, SAME time reference
-- DIVERGENT: SAME metric, DIFFERENT values, time order UNCLEAR
+Example: "50 apples picked" vs "50 oranges shipped"
+q1 = "count of apples picked", q2 = "count of oranges shipped"
+q1 ≠ q2 → NOVEL (the number 50 is coincidence)
 
-CRITICAL RULES:
-1. "128 dead" vs "76 injured" → NOVEL (death ≠ injury)
-2. "firefighter among dead" vs "100+ dead" → REFINES (specific ⊂ count)
-3. "36 dead" vs "128 dead" → DIVERGENT (same metric, different counts, unclear timing)
-4. "128 fire trucks" vs "128 dead" → NOVEL (resources ≠ casualties)
-
-PAIRS TO CLASSIFY:
+PAIRS:
 {pairs_text}
 
-Return JSON: {{"results": [{{"pair": 1, "relation": "NOVEL|CONFIRMS|REFINES|SUPERSEDES|CONFLICTS|DIVERGENT", "reasoning": "metric_A vs metric_B: explanation"}}]}}"""
+Return JSON: {{"results": [{{"pair": 1, "q1": "...", "q2": "...", "same_q": true/false, "relation": "NOVEL|CONFIRMS|REFINES|SUPERSEDES|CONFLICTS|DIVERGENT"}}]}}"""
 
     async def _batch_classify(
         self,
@@ -828,13 +821,29 @@ Pair {i+1} (sim={sim:.2f}):
                     idx = item.get("pair", 0) - 1
                     if 0 <= idx < len(batch):
                         relation = item.get("relation", "NOVEL").upper()
+                        same_q = item.get("same_q", item.get("same_metric", True))
+                        q1 = item.get("q1", item.get("type1", "")).lower()
+                        q2 = item.get("q2", item.get("type2", "")).lower()
+
+                        # VALIDATION: If LLM says questions differ, MUST be NOVEL
+                        if not same_q:
+                            continue  # Different questions = NOVEL (no edge)
+
+                        # HARD VALIDATION: If q1/q2 strings are too different, reject
+                        # This catches cases where LLM says same_q=true but questions differ
+                        if q1 and q2:
+                            from rapidfuzz import fuzz
+                            q_sim = fuzz.token_sort_ratio(q1, q2)
+                            if q_sim < 70:  # Questions must be >70% similar
+                                continue  # Questions too different = NOVEL
+
                         if relation in ("CONFIRMS", "REFINES", "SUPERSEDES", "CONFLICTS", "DIVERGENT"):
                             n1, n2, _ = batch[idx]
                             batch_edges[idx] = Edge(
                                 from_id=n1.id,
                                 to_id=n2.id,
                                 relation=relation,
-                                reasoning=item.get("reasoning", ""),
+                                reasoning=f"[{q1}] vs [{q2}]",
                                 would_resolve=item.get("would_resolve", "")
                             )
 
