@@ -1,0 +1,258 @@
+{
+  "input": {
+    "claims": [
+      {
+        "text": "Fire kills 11 in Tai Po",
+        "source": "BBC"
+      },
+      {
+        "text": "Blaze at Wang Fuk Court leaves 11 dead",
+        "source": "Reuters"
+      },
+      {
+        "text": "Death toll rises to 36 as rescue continues",
+        "source": "SCMP"
+      },
+      {
+        "text": "36 confirmed dead in Hong Kong fire",
+        "source": "HK Gov"
+      },
+      {
+        "text": "Fire broke out on 14th floor of Wang Fuk Court",
+        "source": "BBC"
+      },
+      {
+        "text": "Blaze started around 3am on 14th floor",
+        "source": "Reuters"
+      },
+      {
+        "text": "Over 100 firefighters responded to the scene",
+        "source": "SCMP"
+      },
+      {
+        "text": "Jimmy Lai's trial continues in Hong Kong",
+        "source": "NYT"
+      },
+      {
+        "text": "Lai denies sedition charges",
+        "source": "Guardian"
+      },
+      {
+        "text": "Trial enters fourth week",
+        "source": "AP"
+      }
+    ],
+    "claim_count": 10
+  },
+  "output": {
+    "belief_count": 6,
+    "compression_ratio": 1.6666666666666667
+  },
+  "topology": {
+    "nodes": [
+      {
+        "id": 0,
+        "text": "Death toll rises to 36 as rescue continues.",
+        "sources": [
+          "SCMP",
+          "HK Gov",
+          "Reuters",
+          "BBC"
+        ],
+        "source_count": 4,
+        "entropy": 0.3,
+        "confidence": "confirmed"
+      },
+      {
+        "id": 1,
+        "text": "Fire broke out on 14th floor of Wang Fuk Court",
+        "sources": [
+          "BBC"
+        ],
+        "source_count": 1,
+        "entropy": 0.8,
+        "confidence": "reported"
+      },
+      {
+        "id": 2,
+        "text": "Blaze started around 3am on 14th floor",
+        "sources": [
+          "Reuters"
+        ],
+        "source_count": 1,
+        "entropy": 0.8,
+        "confidence": "reported"
+      },
+      {
+        "id": 3,
+        "text": "Over 100 firefighters responded to the scene",
+        "sources": [
+          "SCMP"
+        ],
+        "source_count": 1,
+        "entropy": 0.8,
+        "confidence": "reported"
+      },
+      {
+        "id": 4,
+        "text": "Jimmy Lai's trial continues in Hong Kong",
+        "sources": [
+          "AP",
+          "NYT"
+        ],
+        "source_count": 2,
+        "entropy": 0.5,
+        "confidence": "likely"
+      },
+      {
+        "id": 5,
+        "text": "Lai denies sedition charges",
+        "sources": [
+          "Guardian"
+        ],
+        "source_count": 1,
+        "entropy": 0.8,
+        "confidence": "reported"
+      }
+    ],
+    "edges": [
+      {
+        "source": 0,
+        "target": 1,
+        "relation": "same_event",
+        "weight": 0.25,
+        "shared_sources": [
+          "BBC"
+        ]
+      },
+      {
+        "source": 0,
+        "target": 2,
+        "relation": "same_event",
+        "weight": 0.25,
+        "shared_sources": [
+          "Reuters"
+        ]
+      },
+      {
+        "source": 0,
+        "target": 3,
+        "relation": "same_event",
+        "weight": 0.25,
+        "shared_sources": [
+          "SCMP"
+        ]
+      },
+      {
+        "source": 1,
+        "target": 2,
+        "relation": "semantic_weak",
+        "weight": 0.31178325607865487,
+        "similarity": 0.624
+      }
+    ],
+    "surfaces": [
+      {
+        "beliefs": [
+          0,
+          3,
+          2,
+          1
+        ],
+        "size": 4,
+        "total_sources": 4
+      },
+      {
+        "beliefs": [
+          4
+        ],
+        "size": 1,
+        "total_sources": 2
+      },
+      {
+        "beliefs": [
+          5
+        ],
+        "size": 1,
+        "total_sources": 1
+      }
+    ],
+    "stats": {
+      "total_beliefs": 6,
+      "total_edges": 4,
+      "connected_surfaces": 1,
+      "isolated_beliefs": 2
+    }
+  },
+  "summary": {
+    "total_claims": 10,
+    "total_beliefs": 6,
+    "compression": 1.6666666666666667,
+    "confirmed": 1,
+    "corroborated": 1,
+    "single_source": 4,
+    "conflicts": 0,
+    "entropy": 0.6666666666666666,
+    "coherence": 0.7,
+    "relations": {
+      "novel": 6,
+      "confirms": 3,
+      "supersedes": 1
+    },
+    "beliefs": [
+      {
+        "text": "Death toll rises to 36 as rescue continues.",
+        "sources": [
+          "SCMP",
+          "HK Gov",
+          "Reuters",
+          "BBC"
+        ],
+        "entropy": 0.3,
+        "superseded": "Fire kills 11 in Tai Po"
+      },
+      {
+        "text": "Fire broke out on 14th floor of Wang Fuk Court",
+        "sources": [
+          "BBC"
+        ],
+        "entropy": 0.8,
+        "superseded": null
+      },
+      {
+        "text": "Blaze started around 3am on 14th floor",
+        "sources": [
+          "Reuters"
+        ],
+        "entropy": 0.8,
+        "superseded": null
+      },
+      {
+        "text": "Over 100 firefighters responded to the scene",
+        "sources": [
+          "SCMP"
+        ],
+        "entropy": 0.8,
+        "superseded": null
+      },
+      {
+        "text": "Jimmy Lai's trial continues in Hong Kong",
+        "sources": [
+          "AP",
+          "NYT"
+        ],
+        "entropy": 0.5,
+        "superseded": null
+      },
+      {
+        "text": "Lai denies sedition charges",
+        "sources": [
+          "Guardian"
+        ],
+        "entropy": 0.8,
+        "superseded": null
+      }
+    ],
+    "unresolved_conflicts": []
+  }
+}
