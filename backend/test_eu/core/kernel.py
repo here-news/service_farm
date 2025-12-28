@@ -573,6 +573,186 @@ Return JSON:
         """Validate topology against Jaynes principle."""
         return validate_jaynes(self.topo)
 
+    # =========================================================================
+    # SURFACE-LEVEL PROSE GENERATION
+    # =========================================================================
+
+    async def label_surface(self, surface_idx: int) -> str:
+        """
+        Generate a short descriptive label for a surface.
+
+        Uses LLM to summarize what the surface is about.
+        """
+        self.topo.compute()
+
+        if surface_idx >= len(self.topo.surfaces):
+            return "Unknown"
+
+        surface = self.topo.surfaces[surface_idx]
+        nodes = [self.topo.nodes[i] for i in surface.node_indices]
+
+        if not nodes:
+            return "Empty surface"
+
+        # Get sample beliefs from surface
+        beliefs_text = "\n".join(f"- {n.text[:100]}" for n in nodes[:5])
+
+        prompt = f"""Based on these beliefs, generate a SHORT (3-6 word) descriptive label:
+
+{beliefs_text}
+
+Return ONLY the label, nothing else. Examples:
+- "Hong Kong High-Rise Fire"
+- "Jimmy Lai National Security Trial"
+- "Do Kwon Crypto Fraud Case"
+"""
+
+        try:
+            response = await self.llm.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0,
+                max_tokens=20
+            )
+            label = response.choices[0].message.content.strip().strip('"')
+            surface.label = label
+            return label
+        except Exception:
+            return nodes[0].text[:50] if nodes else "Unknown"
+
+    async def generate_surface_prose(self, surface_idx: int) -> Dict:
+        """
+        Generate epistemic prose for ONE surface.
+
+        Returns:
+            {
+                'label': surface label,
+                'prose': generated summary,
+                'stats': {confirmed, corroborated, uncertain, contested}
+            }
+        """
+        self.topo.compute()
+
+        if surface_idx >= len(self.topo.surfaces):
+            return {'label': 'Unknown', 'prose': '', 'stats': {}}
+
+        surface = self.topo.surfaces[surface_idx]
+        nodes = [self.topo.nodes[i] for i in surface.node_indices]
+
+        if not nodes:
+            return {'label': 'Empty', 'prose': 'No beliefs.', 'stats': {}}
+
+        # Categorize by confidence
+        confirmed = [n for n in nodes if n.source_count >= 3]
+        corroborated = [n for n in nodes if n.source_count == 2]
+        uncertain = [n for n in nodes if n.source_count == 1]
+
+        # Find conflicts for this surface
+        node_ids = {n.id for n in nodes}
+        contested = [c for c in self.conflicts if c.node_id in node_ids]
+
+        # Build belief text by confidence level
+        beliefs_text = ""
+        if confirmed:
+            beliefs_text += "CONFIRMED (3+ independent sources):\n"
+            beliefs_text += "\n".join(f"- {n.text}" for n in confirmed[:5])
+            beliefs_text += "\n\n"
+
+        if corroborated:
+            beliefs_text += "CORROBORATED (2 sources):\n"
+            beliefs_text += "\n".join(f"- {n.text}" for n in corroborated[:5])
+            beliefs_text += "\n\n"
+
+        if uncertain[:3]:
+            beliefs_text += "REPORTED (single source - unconfirmed):\n"
+            beliefs_text += "\n".join(f"- {n.text}" for n in uncertain[:3])
+            beliefs_text += "\n\n"
+
+        if contested:
+            beliefs_text += "CONTESTED (conflicting reports):\n"
+            for c in contested[:2]:
+                beliefs_text += f"- Conflict: {c.reasoning[:60]}...\n"
+
+        # Generate prose
+        prompt = f"""Write a news summary based ONLY on these beliefs:
+
+{beliefs_text}
+
+RULES:
+- ONLY include facts from beliefs above
+- For CONFIRMED: state as fact
+- For CORROBORATED: use hedging ("sources report...", "according to...")
+- For REPORTED: note uncertainty ("one source claims...", "unconfirmed reports suggest...")
+- For CONTESTED: note the dispute
+- Maximum 100 words
+- Be epistemically honest
+
+Return ONLY the prose summary."""
+
+        try:
+            response = await self.llm.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3,
+                max_tokens=200
+            )
+            prose = response.choices[0].message.content.strip()
+        except Exception as e:
+            prose = f"Error generating prose: {e}"
+
+        return {
+            'label': surface.label or await self.label_surface(surface_idx),
+            'prose': prose,
+            'stats': {
+                'confirmed': len(confirmed),
+                'corroborated': len(corroborated),
+                'uncertain': len(uncertain),
+                'contested': len(contested),
+                'total_nodes': len(nodes),
+                'entropy': surface.entropy(),
+                'sources': surface.total_sources
+            }
+        }
+
+    async def generate_all_prose(self) -> List[Dict]:
+        """
+        Generate prose for ALL surfaces.
+
+        Each surface = one event cluster.
+        Returns list of {label, prose, stats} for each surface.
+        """
+        self.topo.compute()
+
+        results = []
+        for i, surface in enumerate(self.topo.surfaces):
+            result = await self.generate_surface_prose(i)
+            result['surface_id'] = i
+            result['size'] = surface.size
+            results.append(result)
+
+        return results
+
+    async def report(self) -> Dict:
+        """
+        Generate full epistemic report.
+
+        Returns topology structure + per-surface prose.
+        """
+        self.topo.compute()
+
+        # Get base topology
+        topo_data = self.topology()
+
+        # Generate prose for each surface
+        surface_reports = await self.generate_all_prose()
+
+        return {
+            'topology': topo_data,
+            'surfaces': surface_reports,
+            'jaynes': self.validate(),
+            'summary': self.summary()
+        }
+
 
 # =============================================================================
 # BACKWARDS COMPATIBILITY: Belief alias

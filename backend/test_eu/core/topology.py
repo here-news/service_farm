@@ -19,9 +19,42 @@ Philosophy:
 
 import numpy as np
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Set, Tuple, Callable
+from typing import List, Dict, Optional, Set, Tuple, Callable, Protocol, runtime_checkable, Union
 from enum import Enum
 from collections import defaultdict
+
+
+# =============================================================================
+# BELIEF SET PROTOCOL (unified interface for nodes, surfaces, meta-surfaces)
+# =============================================================================
+
+@runtime_checkable
+class BeliefSet(Protocol):
+    """
+    Protocol for any set of beliefs at any level of hierarchy.
+
+    Implementations:
+    - Node: atomic belief (set of size 1)
+    - Surface: set of nodes (connected component)
+    - MetaSurface: set of surfaces (cluster of clusters)
+
+    All levels support the same operations:
+    - entropy(): epistemic uncertainty
+    - centroid: semantic position
+    - sources: provenance union
+    - mass: epistemic weight
+    """
+
+    @property
+    def centroid(self) -> Optional[List[float]]: ...
+
+    def entropy(self) -> float: ...
+
+    @property
+    def source_count(self) -> int: ...
+
+    @property
+    def mass(self) -> float: ...
 
 
 # =============================================================================
@@ -145,6 +178,17 @@ class Node:
         else:
             return "reported"
 
+    # BeliefSet protocol implementation
+    @property
+    def centroid(self) -> Optional[List[float]]:
+        """Node's centroid is its embedding (atomic case)."""
+        return self.embedding
+
+    @property
+    def mass(self) -> float:
+        """Node mass = plausibility (how much epistemic weight)."""
+        return self.plausibility()
+
 
 # =============================================================================
 # EDGE: Relation between nodes
@@ -176,11 +220,13 @@ class Edge:
 @dataclass
 class Surface:
     """
-    A connected component in the topology.
+    A connected component in the topology (set of nodes).
 
     Surfaces emerge from edge connectivity:
     - Nodes connected by edges form a surface
     - Isolated nodes are singleton surfaces
+
+    Implements BeliefSet protocol - same operations as Node.
 
     In news: surfaces often represent events
     In general: surfaces represent coherent proposition clusters
@@ -190,10 +236,11 @@ class Surface:
 
     # Computed properties (set by topology builder)
     total_sources: int = 0
-    mass: float = 0.0
+    _mass: float = 0.0
     coherence: float = 1.0
     centroid: Optional[List[float]] = None
     label: str = ""
+    _avg_entropy: float = 0.8  # Cached average node entropy
 
     @property
     def size(self) -> int:
@@ -206,6 +253,203 @@ class Surface:
     @property
     def is_isolated(self) -> bool:
         return self.size == 1
+
+    # BeliefSet protocol implementation
+    def entropy(self) -> float:
+        """
+        Surface entropy = average of member node entropies.
+
+        A surface with many well-corroborated nodes has low entropy.
+        A surface with uncertain nodes has high entropy.
+        """
+        return self._avg_entropy
+
+    @property
+    def source_count(self) -> int:
+        """Total unique sources across all nodes in surface."""
+        return self.total_sources
+
+    @property
+    def mass(self) -> float:
+        """Epistemic weight of the surface."""
+        return self._mass
+
+    def plausibility(self) -> float:
+        """Surface plausibility = 1 - entropy."""
+        return 1.0 - self.entropy()
+
+    def distance_to(self, other: 'Surface') -> float:
+        """
+        Semantic distance to another surface.
+
+        Returns 1 - cosine_similarity(centroids).
+        Returns 1.0 if either centroid is missing.
+        """
+        if self.centroid is None or other.centroid is None:
+            return 1.0
+        sim = cosine_similarity(self.centroid, other.centroid)
+        return 1.0 - sim
+
+    def confidence_level(self) -> str:
+        """Surface confidence based on source convergence."""
+        if self.total_sources >= 5:
+            return "well-established"
+        elif self.total_sources >= 3:
+            return "confirmed"
+        elif self.total_sources >= 2:
+            return "corroborated"
+        else:
+            return "reported"
+
+
+# =============================================================================
+# METASURFACE: Set of surfaces (hierarchical clustering)
+# =============================================================================
+
+@dataclass
+class MetaSurface:
+    """
+    A cluster of surfaces (set of sets).
+
+    MetaSurfaces emerge from surface proximity:
+    - Surfaces with similar centroids form a meta-surface
+    - Implements same BeliefSet protocol as Surface
+
+    This enables recursive hierarchy:
+    - Node ⊂ Surface ⊂ MetaSurface ⊂ MetaSurface...
+
+    Same operations at every level.
+    """
+    id: int
+    surface_indices: List[int]
+    surfaces: List[Surface] = field(default_factory=list)
+
+    # Computed properties
+    _centroid: Optional[List[float]] = None
+    _mass: float = 0.0
+    _avg_entropy: float = 0.8
+    total_sources: int = 0
+    label: str = ""
+
+    @property
+    def size(self) -> int:
+        """Number of surfaces in this meta-surface."""
+        return len(self.surface_indices)
+
+    @property
+    def total_nodes(self) -> int:
+        """Total nodes across all surfaces."""
+        return sum(s.size for s in self.surfaces)
+
+    # BeliefSet protocol implementation
+    @property
+    def centroid(self) -> Optional[List[float]]:
+        """Centroid of surface centroids."""
+        return self._centroid
+
+    def entropy(self) -> float:
+        """Average entropy of member surfaces."""
+        return self._avg_entropy
+
+    @property
+    def source_count(self) -> int:
+        """Total unique sources across all surfaces."""
+        return self.total_sources
+
+    @property
+    def mass(self) -> float:
+        """Sum of surface masses."""
+        return self._mass
+
+    def plausibility(self) -> float:
+        """Meta-surface plausibility."""
+        return 1.0 - self.entropy()
+
+    def distance_to(self, other: 'MetaSurface') -> float:
+        """Semantic distance to another meta-surface."""
+        if self.centroid is None or other.centroid is None:
+            return 1.0
+        sim = cosine_similarity(self.centroid, other.centroid)
+        return 1.0 - sim
+
+
+# =============================================================================
+# DISTANCE MATRIX (for surface/meta-surface clustering)
+# =============================================================================
+
+def compute_distance_matrix(items: List[Union[Surface, MetaSurface]]) -> np.ndarray:
+    """
+    Compute pairwise distance matrix for surfaces or meta-surfaces.
+
+    Returns NxN matrix where D[i,j] = distance between items i and j.
+    Distance = 1 - cosine_similarity(centroids).
+
+    Use for:
+    - Identifying related surfaces
+    - Detecting gaps (high distance = unconnected topics)
+    - Hierarchical clustering
+    """
+    n = len(items)
+    matrix = np.ones((n, n))  # Default to max distance
+
+    for i in range(n):
+        matrix[i, i] = 0.0  # Self-distance is 0
+        for j in range(i + 1, n):
+            if items[i].centroid is not None and items[j].centroid is not None:
+                sim = cosine_similarity(items[i].centroid, items[j].centroid)
+                dist = 1.0 - sim
+                matrix[i, j] = dist
+                matrix[j, i] = dist
+
+    return matrix
+
+
+def find_clusters(items: List[Union[Surface, MetaSurface]],
+                  threshold: float = 0.45) -> List[List[int]]:
+    """
+    Cluster surfaces/meta-surfaces by centroid proximity.
+
+    Simple single-linkage clustering:
+    - Items with distance < threshold are linked
+    - Connected components form clusters
+
+    Returns list of clusters (each cluster is list of item indices).
+    """
+    n = len(items)
+    if n == 0:
+        return []
+
+    # Build adjacency from distance matrix
+    dist_matrix = compute_distance_matrix(items)
+    adj = defaultdict(set)
+
+    for i in range(n):
+        for j in range(i + 1, n):
+            if dist_matrix[i, j] < threshold:
+                adj[i].add(j)
+                adj[j].add(i)
+
+    # Find connected components
+    visited = set()
+    clusters = []
+
+    for i in range(n):
+        if i in visited:
+            continue
+        cluster = []
+        stack = [i]
+        while stack:
+            node = stack.pop()
+            if node in visited:
+                continue
+            visited.add(node)
+            cluster.append(node)
+            stack.extend(adj[node] - visited)
+        clusters.append(sorted(cluster))
+
+    # Sort by size (largest first)
+    clusters.sort(key=len, reverse=True)
+    return clusters
 
 
 # =============================================================================
@@ -237,6 +481,7 @@ class Topology:
         self.nodes: List[Node] = []
         self.edges: List[Edge] = []
         self.surfaces: List[Surface] = []
+        self.meta_surfaces: List[MetaSurface] = []
         self._dirty = True  # Needs recomputation
 
     def add_node(self, node: Node) -> int:
@@ -352,6 +597,9 @@ class Topology:
             embeddings = [n.embedding for n in nodes_in_surface if n.embedding]
             surface_centroid = centroid(embeddings)
 
+            # Compute average entropy of nodes
+            avg_entropy = sum(n.entropy() for n in nodes_in_surface) / len(nodes_in_surface) if nodes_in_surface else 0.8
+
             # Mass = size * coherence * source_factor
             size = len(comp)
             coherence = 1.0  # TODO: compute from internal conflicts
@@ -361,11 +609,92 @@ class Topology:
                 id=idx,
                 node_indices=comp,
                 total_sources=len(sources),
-                mass=round(mass, 3),
+                _mass=round(mass, 3),
                 coherence=coherence,
                 centroid=surface_centroid,
-                label=nodes_in_surface[0].text[:50] if nodes_in_surface else ''
+                label=nodes_in_surface[0].text[:50] if nodes_in_surface else '',
+                _avg_entropy=round(avg_entropy, 3)
             ))
+
+    def find_meta_surfaces(self, threshold: float = 0.45) -> List[MetaSurface]:
+        """
+        Cluster surfaces into meta-surfaces by semantic proximity.
+
+        This is the hierarchical step: surfaces that are semantically
+        close form meta-surfaces (set of sets).
+
+        Args:
+            threshold: Distance threshold for clustering (lower = stricter)
+
+        Returns:
+            List of MetaSurface objects, sorted by size.
+        """
+        self.compute()
+
+        if len(self.surfaces) < 2:
+            self.meta_surfaces = []
+            return self.meta_surfaces
+
+        # Use find_clusters helper
+        clusters = find_clusters(self.surfaces, threshold=threshold)
+
+        self.meta_surfaces = []
+        for idx, cluster_indices in enumerate(clusters):
+            surfaces_in_cluster = [self.surfaces[i] for i in cluster_indices]
+
+            # Compute meta-surface centroid from surface centroids
+            surface_centroids = [s.centroid for s in surfaces_in_cluster if s.centroid]
+            meta_centroid = centroid(surface_centroids) if surface_centroids else None
+
+            # Aggregate metrics
+            total_sources = len(set().union(*[
+                set().union(*[self.nodes[ni].sources for ni in s.node_indices])
+                for s in surfaces_in_cluster
+            ])) if surfaces_in_cluster else 0
+
+            total_mass = sum(s.mass for s in surfaces_in_cluster)
+            avg_entropy = sum(s.entropy() for s in surfaces_in_cluster) / len(surfaces_in_cluster) if surfaces_in_cluster else 0.8
+
+            self.meta_surfaces.append(MetaSurface(
+                id=idx,
+                surface_indices=cluster_indices,
+                surfaces=surfaces_in_cluster,
+                _centroid=meta_centroid,
+                _mass=round(total_mass, 3),
+                _avg_entropy=round(avg_entropy, 3),
+                total_sources=total_sources,
+                label=surfaces_in_cluster[0].label if surfaces_in_cluster else ''
+            ))
+
+        return self.meta_surfaces
+
+    def surface_distance_matrix(self) -> np.ndarray:
+        """
+        Compute pairwise distance matrix for all surfaces.
+
+        Useful for visualization and gap detection.
+        """
+        self.compute()
+        return compute_distance_matrix(self.surfaces)
+
+    def find_gaps(self, threshold: float = 0.7) -> List[Tuple[int, int, float]]:
+        """
+        Find pairs of surfaces that are semantically distant.
+
+        Returns list of (surface_i, surface_j, distance) where distance > threshold.
+        These represent potential "gaps" in coverage or unrelated topics.
+        """
+        self.compute()
+        dist_matrix = self.surface_distance_matrix()
+        gaps = []
+
+        for i in range(len(self.surfaces)):
+            for j in range(i + 1, len(self.surfaces)):
+                if dist_matrix[i, j] > threshold:
+                    gaps.append((i, j, dist_matrix[i, j]))
+
+        gaps.sort(key=lambda x: -x[2])  # Largest gaps first
+        return gaps
 
     # =========================================================================
     # AGGREGATE METRICS
