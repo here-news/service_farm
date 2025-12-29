@@ -46,3 +46,12 @@ dist/
 build/
 *.egg-info/
 frontend/node_modules/
+
+# Experimental scripts (keep for reference but don't commit)
+backend/test_eu/experiments/
+
+# EU test results and state
+backend/test_eu/results/
+backend/test_eu/topology_*.json
+backend/test_eu/uee_state/
+backend/backend/
