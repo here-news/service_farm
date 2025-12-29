@@ -107,24 +107,39 @@ class Node:
     - Semantic position (embedding)
     - Provenance (sources)
     - Epistemic state (entropy, plausibility)
+
+    Note: event_id is optional metadata for higher-level interpretation.
+    The kernel does not compute this - use EventInterpreter for event grouping.
     """
     id: str
     text: str
     sources: Set[str] = field(default_factory=set)
     claim_ids: Set[str] = field(default_factory=set)
+    entity_ids: Set[str] = field(default_factory=set)  # Pre-extracted entity IDs for clustering
     embedding: Optional[List[float]] = None
     superseded: Optional[str] = None
     evolution: List[Tuple[str, str]] = field(default_factory=list)
     metadata: Dict = field(default_factory=dict)
+    event_id: Optional[str] = None  # Optional: set by EventInterpreter, not kernel
 
     @property
     def source_count(self) -> int:
         return len(self.sources)
 
-    def add_source(self, source: str, claim_id: str):
-        """Add corroborating source."""
+    def has_entity_overlap(self, other: 'Node') -> bool:
+        """Check if this node shares any entities with another node."""
+        return bool(self.entity_ids & other.entity_ids)
+
+    def shared_entities(self, other: 'Node') -> Set[str]:
+        """Get shared entity IDs with another node."""
+        return self.entity_ids & other.entity_ids
+
+    def add_source(self, source: str, claim_id: str, entity_ids: Set[str] = None):
+        """Add corroborating source and optionally merge entities."""
         self.sources.add(source)
         self.claim_ids.add(claim_id)
+        if entity_ids:
+            self.entity_ids.update(entity_ids)
 
     def update(self, new_text: str, source: str, claim_id: str):
         """Update node with new value (supersession)."""
@@ -473,9 +488,9 @@ class Topology:
     """
 
     # Similarity thresholds for edge creation
-    SIM_THRESHOLD = 0.65       # Strong semantic connection
-    WEAK_SIM_THRESHOLD = 0.50  # Weak semantic connection
-    MERGE_THRESHOLD = 0.55     # Surface merge threshold
+    SIM_THRESHOLD = 0.55       # Strong semantic connection
+    WEAK_SIM_THRESHOLD = 0.40  # Weak semantic connection (lowered to enable emergence)
+    MERGE_THRESHOLD = 0.45     # Surface merge threshold
 
     def __init__(self):
         self.nodes: List[Node] = []
@@ -516,25 +531,46 @@ class Topology:
                 if i >= j:
                     continue
 
-                # Source overlap (shared sources = likely same topic)
-                shared = n1.sources & n2.sources
-                if shared:
-                    key = (i, j, 'same_event')
+                # Event identity (LLM-determined same real-world event)
+                # This is the strongest signal - connects claims about same event
+                # regardless of embedding similarity
+                if n1.event_id and n2.event_id and n1.event_id == n2.event_id:
+                    key = (i, j, 'event_identity')
                     if key not in edge_set:
                         edge_set.add(key)
                         self.edges.append(Edge(
                             source=i,
                             target=j,
-                            relation='same_event',
-                            weight=len(shared) / max(len(n1.sources), len(n2.sources)),
-                            metadata={'shared_sources': list(shared)}
+                            relation='event_identity',
+                            weight=1.0,  # Strongest weight
+                            metadata={'event_id': n1.event_id}
                         ))
+
+                # Source overlap (shared sources = likely same topic)
+                # IMPORTANT: Require semantic similarity to prevent pollution
+                # Two claims from same source about different topics should NOT connect
+                shared = n1.sources & n2.sources
+                if shared and n1.embedding and n2.embedding:
+                    sim = cosine_similarity(n1.embedding, n2.embedding)
+                    # Only create edge if semantically related (not just same source)
+                    if sim >= self.WEAK_SIM_THRESHOLD:
+                        key = (i, j, 'same_event')
+                        if key not in edge_set:
+                            edge_set.add(key)
+                            self.edges.append(Edge(
+                                source=i,
+                                target=j,
+                                relation='same_event',
+                                weight=len(shared) / max(len(n1.sources), len(n2.sources)),
+                                metadata={'shared_sources': list(shared), 'similarity': round(sim, 3)}
+                            ))
 
                 # Semantic similarity (embedding-based)
                 if n1.embedding and n2.embedding:
                     sim = cosine_similarity(n1.embedding, n2.embedding)
 
                     if sim >= self.SIM_THRESHOLD:
+                        # Strong semantic similarity: edge always created
                         key = (i, j, 'semantic')
                         if key not in edge_set:
                             edge_set.add(key)
@@ -546,16 +582,26 @@ class Topology:
                                 metadata={'similarity': round(sim, 3)}
                             ))
                     elif sim >= self.WEAK_SIM_THRESHOLD:
-                        key = (i, j, 'semantic_weak')
-                        if key not in edge_set:
-                            edge_set.add(key)
-                            self.edges.append(Edge(
-                                source=i,
-                                target=j,
-                                relation='semantic_weak',
-                                weight=sim * 0.5,
-                                metadata={'similarity': round(sim, 3)}
-                            ))
+                        # Weak semantic: requires entity overlap OR source overlap
+                        has_entity_overlap = n1.has_entity_overlap(n2)
+                        has_source_overlap = bool(n1.sources & n2.sources)
+
+                        if has_entity_overlap or has_source_overlap:
+                            key = (i, j, 'semantic_weak')
+                            if key not in edge_set:
+                                edge_set.add(key)
+                                shared_ents = list(n1.shared_entities(n2))
+                                self.edges.append(Edge(
+                                    source=i,
+                                    target=j,
+                                    relation='semantic_weak',
+                                    weight=sim * 0.5,
+                                    metadata={
+                                        'similarity': round(sim, 3),
+                                        'entity_overlap': has_entity_overlap,
+                                        'shared_entities': shared_ents[:3] if shared_ents else []
+                                    }
+                                ))
 
     def _find_surfaces(self):
         """Discover connected components (surfaces)."""

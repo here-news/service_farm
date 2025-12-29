@@ -16,25 +16,34 @@ Philosophy:
 
 NO domain-specific logic in this file.
 Use HintExtractor for domain-specific enhancements.
+
+Repository Integration:
+- Optional ClaimRepository for pgvector similarity search
+- Falls back to in-memory O(n) if no repository provided
+- See WEAVER_HYPOTHESIS.md for architecture details
 """
 
 import asyncio
 import json
 import re
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional, Callable, Protocol
+from typing import List, Dict, Optional, Callable, Protocol, Tuple, TYPE_CHECKING
 
 from .topology import (
     Topology, Node, Edge, Surface, Relation,
     cosine_similarity, validate_jaynes
 )
 
+if TYPE_CHECKING:
+    from repositories.claim_repository import ClaimRepository
+    from models.domain.claim import Claim as DomainClaim
+
 
 # =============================================================================
 # SIMILARITY THRESHOLDS
 # =============================================================================
 
-SIM_THRESHOLD = 0.65       # High similarity = skip LLM, directly confirms
+SIM_THRESHOLD = 0.85       # Very high similarity = skip LLM (conservative - prevents false CONFIRMS)
 WEAK_SIM_THRESHOLD = 0.50  # Medium similarity = LLM with hint
 
 
@@ -122,6 +131,9 @@ class EpistemicKernel:
     - llm_client: OpenAI-compatible async client
     - hint_extractor: Domain-specific pattern extraction
     - prompt_template: Custom LLM prompt (optional)
+
+    Note: Event detection is handled at a higher level (see EventInterpreter).
+    The kernel focuses on pure epistemic structure.
     """
 
     def __init__(
@@ -129,12 +141,18 @@ class EpistemicKernel:
         llm_client=None,
         use_embeddings: bool = True,
         hint_extractor: HintExtractor = None,
-        prompt_template: str = None
+        prompt_template: str = None,
+        confidence_threshold: float = 0.5,
+        claim_repository: 'ClaimRepository' = None
     ):
         self.llm = llm_client
         self.use_embeddings = use_embeddings
         self.hint_extractor = hint_extractor or DefaultHintExtractor()
         self.prompt_template = prompt_template
+        self.confidence_threshold = confidence_threshold  # Min confidence to apply relation
+
+        # Repository for pgvector similarity (optional - falls back to in-memory O(n))
+        self.claim_repository = claim_repository
 
         # State
         self.topo = Topology()
@@ -142,9 +160,13 @@ class EpistemicKernel:
         self.history: List[Dict] = []
         self._claim_counter = 0
 
+        # Map claim_id -> node_idx for repository-backed mode
+        self._claim_to_node: Dict[str, int] = {}
+
         # Efficiency tracking
         self.llm_calls = 0
         self.llm_calls_skipped = 0
+        self.pgvector_queries = 0
 
     # =========================================================================
     # BACKWARDS COMPATIBILITY
@@ -175,6 +197,8 @@ class EpistemicKernel:
         if not self.use_embeddings or not self.llm:
             return None
         try:
+            # Use text-embedding-3-small (1536 dims) to match stored claim embeddings
+            # Note: Can switch to text-embedding-3-large (3072 dims) after backfilling
             response = await self.llm.embeddings.create(
                 model="text-embedding-3-small",
                 input=text[:8000]
@@ -184,29 +208,122 @@ class EpistemicKernel:
             return None
 
     # =========================================================================
+    # SIMILARITY SEARCH (pgvector or in-memory)
+    # =========================================================================
+
+    async def _find_similar(
+        self,
+        embedding: List[float],
+        exclude_claim_id: str = None
+    ) -> Tuple[float, Optional[int], Optional[str]]:
+        """
+        Find most similar existing node.
+
+        Uses pgvector if claim_repository is available, else O(n) in-memory.
+
+        Returns:
+            (best_similarity, best_node_idx, best_claim_id)
+        """
+        if self.claim_repository and embedding:
+            # Use pgvector for efficient similarity search
+            return await self._find_similar_pgvector(embedding, exclude_claim_id)
+        else:
+            # Fall back to in-memory O(n) search
+            return self._find_similar_inmemory(embedding)
+
+    async def _find_similar_pgvector(
+        self,
+        embedding: List[float],
+        exclude_claim_id: str = None
+    ) -> Tuple[float, Optional[int], Optional[str]]:
+        """
+        pgvector-backed similarity search.
+
+        Queries PostgreSQL for top candidates, returns best match.
+        """
+        self.pgvector_queries += 1
+
+        exclude_ids = [exclude_claim_id] if exclude_claim_id else []
+        results = await self.claim_repository.find_similar(
+            embedding=embedding,
+            limit=5,
+            exclude_claim_ids=exclude_ids
+        )
+
+        if not results:
+            return 0.0, None, None
+
+        # Find best match that's in our topology
+        for r in results:
+            claim_id = r['claim_id']
+            similarity = r['similarity']
+
+            if claim_id in self._claim_to_node:
+                node_idx = self._claim_to_node[claim_id]
+                return similarity, node_idx, claim_id
+
+        # Best match not in our topology yet - return it anyway for potential linking
+        best = results[0]
+        return best['similarity'], None, best['claim_id']
+
+    def _find_similar_inmemory(
+        self,
+        embedding: List[float]
+    ) -> Tuple[float, Optional[int], Optional[str]]:
+        """
+        In-memory O(n) similarity search.
+
+        Used when no repository is available.
+        """
+        best_sim = 0.0
+        best_idx = None
+
+        if embedding:
+            for i, node in enumerate(self.topo.nodes):
+                if node.embedding:
+                    sim = cosine_similarity(embedding, node.embedding)
+                    if sim > best_sim:
+                        best_sim = sim
+                        best_idx = i
+
+        return best_sim, best_idx, None
+
+    # =========================================================================
     # CORE OPERATION: PROCESS CLAIM
     # =========================================================================
 
-    async def process(self, claim_text: str, source: str) -> Dict:
+    async def process(
+        self,
+        claim_text: str,
+        source: str,
+        embedding: List[float] = None,
+        similar_candidates: List[Tuple[int, float]] = None,
+        claim_id: str = None
+    ) -> Dict:
         """
-        Process one claim.
+        Process one claim through the epistemic kernel.
+
+        Args:
+            claim_text: The pure claim text
+            source: Source identifier (e.g., domain name)
+            embedding: Pre-computed embedding from data layer (for storage in node)
+            similar_candidates: Pre-computed similarity candidates from pgvector.
+                               List of (node_idx, similarity_score) tuples, sorted by similarity desc.
+                               If None, falls back to in-memory search (for testing).
+            claim_id: Optional claim ID (for tracking). Auto-generated if not provided.
 
         Flow:
-        1. Get embedding for pre-filter
-        2. If no nodes, create first node
-        3. Else: use embedding similarity to gate LLM
-           - High similarity: skip LLM, directly CONFIRMS
-           - Medium similarity: LLM with hint
-           - Low similarity: full LLM classification
-        4. Update topology based on relation
+        1. If no nodes, create first node
+        2. Use similarity candidates to gate LLM:
+           - High similarity + no update language: skip LLM, CONFIRMS
+           - Otherwise: LLM classification
+        3. Update topology based on relation
 
-        Returns: {relation, affected_belief, reasoning, ...}
+        Returns: {relation, affected_belief, reasoning, confidence, ...}
         """
-        claim_id = self._next_claim_id()
+        if claim_id is None:
+            claim_id = self._next_claim_id()
         hints = self.hint_extractor.extract(claim_text)
-
-        # Get embedding FIRST (for pre-filter)
-        claim_embedding = await self._get_embedding(claim_text)
 
         # First claim = first node
         if not self.topo.nodes:
@@ -215,7 +332,7 @@ class EpistemicKernel:
                 text=claim_text,
                 sources={source},
                 claim_ids={claim_id},
-                embedding=claim_embedding
+                embedding=embedding
             )
             self.topo.add_node(node)
             result = {
@@ -227,18 +344,17 @@ class EpistemicKernel:
             return result
 
         # =====================================================================
-        # EMBEDDING PRE-FILTER
+        # SIMILARITY-BASED GATING
         # =====================================================================
-        best_sim = 0.0
-        best_idx = None
-
-        if claim_embedding:
-            for i, node in enumerate(self.topo.nodes):
-                if node.embedding:
-                    sim = cosine_similarity(claim_embedding, node.embedding)
-                    if sim > best_sim:
-                        best_sim = sim
-                        best_idx = i
+        # Use pre-computed candidates from data layer (pgvector)
+        # Fall back to in-memory if no candidates provided (for testing)
+        if similar_candidates is not None:
+            best_idx, best_sim = similar_candidates[0] if similar_candidates else (None, 0.0)
+        elif embedding:
+            # Fallback: in-memory O(n) search (for testing without pgvector)
+            best_sim, best_idx, _ = self._find_similar_inmemory(embedding)
+        else:
+            best_sim, best_idx = 0.0, None
 
         # Decision based on similarity
         if best_sim >= SIM_THRESHOLD:
@@ -275,7 +391,7 @@ class EpistemicKernel:
             result = await self._classify_with_llm(claim_text, source, hints)
 
         # Update topology
-        self._apply_relation(result, claim_text, source, claim_id, claim_embedding)
+        self._apply_relation(result, claim_text, source, claim_id, embedding)
         self._record_history(claim_text, source, claim_id, result)
 
         return result
@@ -288,20 +404,51 @@ class EpistemicKernel:
         claim_id: str,
         embedding: Optional[List[float]]
     ):
-        """Apply classified relation to topology."""
+        """Apply classified relation to topology based on confidence threshold."""
         relation = Relation(result['relation'])
         affected_idx = result.get('affected_belief')
 
+        # Parse confidence (support both numeric and string for robustness)
+        confidence = result.get('confidence', 0.5)
+        if isinstance(confidence, str):
+            confidence = {'HIGH': 0.9, 'MEDIUM': 0.6, 'LOW': 0.3}.get(confidence.upper(), 0.5)
+        confidence = float(confidence)
+
+        # Below threshold: treat as NOVEL but store tentative relationship
+        if confidence < self.confidence_threshold and relation != Relation.NOVEL:
+            result['applied_relation'] = 'novel'
+            result['tentative_relation'] = relation.value
+            result['tentative_target'] = affected_idx
+            result['below_threshold'] = True
+            relation = Relation.NOVEL
+            affected_idx = None
+        else:
+            result['applied_relation'] = relation.value
+            result['below_threshold'] = False
+
         if relation == Relation.NOVEL:
+            # Build metadata
+            node_metadata = {
+                'confidence': confidence
+            }
+            # If downgraded from another relation, store tentative link
+            if result.get('tentative_relation'):
+                node_metadata['tentative_relation'] = result['tentative_relation']
+                node_metadata['tentative_target'] = result['tentative_target']
+
             node = Node(
                 id=self._next_node_id(),
                 text=claim_text,
                 sources={source},
                 claim_ids={claim_id},
                 embedding=embedding,
-                metadata={'question_type': result.get('question_answered')}
+                metadata=node_metadata
             )
+            node_idx = len(self.topo.nodes)
             self.topo.add_node(node)
+
+            # Track claim_id -> node_idx for pgvector mode
+            self._claim_to_node[claim_id] = node_idx
 
         elif relation == Relation.CONFIRMS:
             if affected_idx is not None and 0 <= affected_idx < len(self.topo.nodes):
@@ -370,16 +517,16 @@ class EpistemicKernel:
         Claims only relate if they answer the SAME question.
         """
 
-        # Similarity context
+        # Similarity context - warn LLM that embeddings capture topic, not event identity
         similarity_context = ""
         if similarity_hint is not None and similar_node_idx is not None:
             similar_node = self.topo.nodes[similar_node_idx]
             similarity_context = f"""
-EMBEDDING SIMILARITY HINT:
+EMBEDDING CONTEXT:
 This claim has {similarity_hint:.0%} semantic similarity to node [{similar_node_idx}].
-High similarity (>65%) suggests they answer the same question.
-If values differ and there's update language, this is likely SUPERSEDES.
-If values are the same, this is likely CONFIRMS.
+CAUTION: Embedding similarity captures TOPIC overlap (e.g., "missing persons", "investigation").
+It does NOT indicate same real-world event. Two claims about different incidents can have high similarity.
+You must determine event identity from EXPLICIT shared entities/locations, not from this similarity score.
 """
 
         # Use custom prompt or default
@@ -438,28 +585,41 @@ SOURCE: {source}
 EXTRACTED: numbers={hints['numbers']}, has_update_language={hints['has_update_language']}
 {similarity_context}
 
-STEP 1 - IDENTIFY THE QUESTION:
-What specific question does this claim answer?
-Examples: "quantity of X", "location of Y", "cause of Z", "identity of W"
+STEP 1 - EXTRACT ENTITIES FROM NEW CLAIM ONLY:
+List entities (people, places, organizations) that are EXPLICITLY mentioned in the NEW CLAIM text.
+Do NOT include entities from existing propositions. Only extract what appears in the new claim.
+What real-world event does this claim refer to (if identifiable from the claim text)?
 
 STEP 2 - FIND MATCHING PROPOSITION:
-Does any existing proposition answer the SAME question?
-If not -> NOVEL (different questions = no relationship)
+Does any existing proposition refer to the SAME SPECIFIC real-world event?
+Evidence for same event:
+- Shared specific location (e.g., "Wang Fuk Court", not just "Hong Kong")
+- Shared specific people (e.g., "John Lee")
+- Same specific incident explicitly referenced
 
-STEP 3 - IF SAME QUESTION, DETERMINE RELATIONSHIP:
-- CONFIRMS: Same question, same answer (corroboration)
-- REFINES: Same question, more specific (adds detail)
-- SUPERSEDES: Same question, different answer WITH update language
-- CONFLICTS: Same question, different answer, NO temporal ordering
+STEP 3 - DETERMINE RELATIONSHIP AND CONFIDENCE:
+- CONFIRMS: Same claim, different source (corroboration)
+- REFINES: Adds detail to same event (more specific)
+- SUPERSEDES: Updates a value WITH temporal/update language
+- CONFLICTS: Contradicts existing claim about same event
+- NOVEL: Different event or unclear if same event
+
+CONFIDENCE (0.0 to 1.0):
+- 0.9-1.0: Explicit shared specific entities (e.g., both mention "Wang Fuk Court fire")
+- 0.6-0.8: Strong implicit connection (e.g., "John Lee investigation" after fire claims)
+- 0.3-0.5: Possible connection, thematic similarity only
+- 0.0-0.2: Unlikely same event, generic topic overlap
 
 Return JSON:
 {{
-  "question_answered": "what question this claim answers",
-  "matching_proposition_question": "what question the matching proposition answers (or null)",
+  "entities": ["list of entities mentioned in new claim"],
+  "event_reference": "what real-world event this refers to",
+  "shared_entities": ["entities shared with matching proposition"],
+  "same_event": true/false,
+  "confidence": <0.0 to 1.0>,
   "relation": "NOVEL|CONFIRMS|REFINES|SUPERSEDES|CONFLICTS",
   "affected_belief": <index number or null>,
-  "reasoning": "one sentence explanation",
-  "normalized_claim": "the claim in clear standalone form"
+  "reasoning": "one sentence explanation"
 }}"""
 
     # =========================================================================
@@ -549,6 +709,8 @@ Return JSON:
             'llm_calls': self.llm_calls,
             'llm_calls_skipped': self.llm_calls_skipped,
             'llm_efficiency': f'{saved_pct:.0f}% saved',
+            'pgvector_queries': self.pgvector_queries,
+            'similarity_mode': 'pgvector' if self.claim_repository else 'in-memory',
             'beliefs': [
                 {
                     'text': n.text,
@@ -763,7 +925,7 @@ Belief = Node
 
 
 # =============================================================================
-# CONVENIENCE FUNCTION
+# CONVENIENCE FUNCTIONS
 # =============================================================================
 
 async def process_claims(
@@ -772,7 +934,9 @@ async def process_claims(
     hint_extractor: HintExtractor = None
 ) -> EpistemicKernel:
     """
-    Process a list of (text, source) claims.
+    Process a list of (text, source) or (text, source, embedding) claims.
+
+    For testing/simple use cases without pgvector.
 
     Returns: Configured EpistemicKernel with processed claims.
     """
@@ -781,7 +945,87 @@ async def process_claims(
         hint_extractor=hint_extractor
     )
 
-    for text, source in claims:
-        await kernel.process(text, source)
+    for item in claims:
+        if len(item) == 3:
+            text, source, embedding = item
+        else:
+            text, source = item
+            embedding = None
+
+        await kernel.process(text, source, embedding=embedding)
+
+    return kernel
+
+
+async def process_domain_claims(
+    claims: List['DomainClaim'],
+    llm_client,
+    claim_repository: 'ClaimRepository' = None,
+    hint_extractor: HintExtractor = None,
+    embeddings: Dict[str, List[float]] = None
+) -> EpistemicKernel:
+    """
+    Process a list of Claim domain models.
+
+    Args:
+        claims: List of Claim domain models (with entities hydrated)
+        llm_client: OpenAI-compatible async client
+        claim_repository: Optional - enables pgvector similarity search
+        hint_extractor: Optional domain-specific hints
+        embeddings: Dict mapping claim_id -> embedding vector (pre-computed)
+
+    Returns: Configured EpistemicKernel with processed claims.
+
+    Architecture:
+        Data layer provides:
+        - embeddings: Pre-computed from claim text (via OpenAI/etc)
+        - similar_candidates: From pgvector query (via claim_repository)
+
+        Kernel does:
+        - LLM classification (CONFIRMS, REFINES, etc.)
+        - Topology updates
+    """
+    kernel = EpistemicKernel(
+        llm_client=llm_client,
+        hint_extractor=hint_extractor
+    )
+    embeddings = embeddings or {}
+
+    for claim in claims:
+        # Get pre-computed embedding from data layer
+        embedding = embeddings.get(claim.id)
+
+        # Get similar candidates from pgvector if available
+        similar_candidates = None
+        if claim_repository and embedding:
+            results = await claim_repository.find_similar(
+                embedding=embedding,
+                limit=5,
+                exclude_claim_ids=[claim.id]
+            )
+            # Convert to (node_idx, similarity) tuples
+            # Note: node_idx mapping requires tracking processed claim_ids
+            similar_candidates = []
+            for r in results:
+                if r['claim_id'] in kernel._claim_to_node:
+                    node_idx = kernel._claim_to_node[r['claim_id']]
+                    similar_candidates.append((node_idx, r['similarity']))
+
+        # Extract source domain
+        source = claim.metadata.get('source_name', 'unknown') if claim.metadata else 'unknown'
+        if not source or source == 'unknown':
+            source = f"source_{claim.page_id[:8]}" if claim.page_id else 'unknown'
+
+        result = await kernel.process(
+            claim_text=claim.text,
+            source=source,
+            embedding=embedding,
+            similar_candidates=similar_candidates if similar_candidates else None,
+            claim_id=claim.id
+        )
+
+        # Track claim_id -> node_idx for subsequent pgvector lookups
+        if result.get('applied_relation') == 'novel' or result.get('relation') == 'novel':
+            kernel._claim_to_node[claim.id] = len(kernel.topo.nodes) - 1
 
     return kernel

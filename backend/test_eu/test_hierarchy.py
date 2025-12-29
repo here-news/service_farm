@@ -26,8 +26,10 @@ def test_surface_entropy():
     topo = Topology()
 
     # Two nodes: 1 source (H=0.8) and 3 sources (H=0.46)
-    topo.add_node(Node(id="n0", text="A", sources={"S1"}))
-    topo.add_node(Node(id="n1", text="B", sources={"S1", "S2", "S3"}))
+    # Include identical embeddings so they form a surface
+    emb = [1.0, 0.0, 0.0]  # Identical embeddings = same topic
+    topo.add_node(Node(id="n0", text="A", sources={"S1"}, embedding=emb))
+    topo.add_node(Node(id="n1", text="B", sources={"S1", "S2", "S3"}, embedding=emb))
 
     topo.compute()
 
