@@ -327,6 +327,18 @@ async def get_event_tree(event_id: str):
         if event_time and hasattr(event_time, 'isoformat'):
             event_time = event_time.isoformat()
 
+        # Include entities if hydrated
+        entities = []
+        if c.entities:
+            entities = [
+                {
+                    'id': str(e.id),
+                    'canonical_name': e.canonical_name,
+                    'entity_type': e.entity_type
+                }
+                for e in c.entities
+            ]
+
         return {
             'id': str(c.id),
             'text': c.text,
@@ -334,6 +346,8 @@ async def get_event_tree(event_id: str):
             'confidence': c.confidence,
             'modality': c.modality,
             'page_id': str(c.page_id) if c.page_id else None,
+            'source_name': c.metadata.get('source_name') if c.metadata else None,
+            'entities': entities,  # Now includes linked entities
         }
 
     def entity_to_dict(e: Entity) -> dict:

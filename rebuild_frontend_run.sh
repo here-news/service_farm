@@ -4,6 +4,9 @@
 
 set -e
 
+# Clear shell env vars that override .env file
+unset POSTGRES_HOST NEO4J_URI NEO4J_PASSWORD POSTGRES_PASSWORD 2>/dev/null || true
+
 echo "Building frontend..."
 docker-compose build app
 

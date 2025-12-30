@@ -575,6 +575,591 @@ def weave_hierarchy(items: List[FieldItem],
 # TEST
 # =============================================================================
 
+# =============================================================================
+# SPRING FORCE FIELD (D3-style with principled hub detection)
+# =============================================================================
+
+@dataclass
+class SpringNode:
+    """A surface in the spring force field."""
+    id: str
+    embedding: Optional[List[float]] = None
+    anchor_entities: Set[str] = field(default_factory=set)
+    entities: Set[str] = field(default_factory=set)
+    sources: Set[str] = field(default_factory=set)
+
+    # Position (for visualization / actual simulation if needed)
+    x: float = 0.0
+    y: float = 0.0
+
+
+@dataclass
+class Spring:
+    """Connection between two nodes with stiffness (evidence strength)."""
+    node1_id: str
+    node2_id: str
+    stiffness: float  # 0 = no binding, 1 = rigid
+    evidence: Dict[str, float] = field(default_factory=dict)  # breakdown
+
+
+@dataclass
+class SpringCluster:
+    """An emerged event as a basin/attractor."""
+    id: str
+    core_nodes: Set[str] = field(default_factory=set)  # High connectivity
+    periphery_nodes: Set[str] = field(default_factory=set)  # Low connectivity
+
+    # Signature
+    anchor_weights: Dict[str, float] = field(default_factory=dict)
+    centroid: Optional[List[float]] = None
+
+
+class SpringForceField:
+    """
+    D3-style force-based event clustering with principled hub detection.
+
+    Mental model:
+    - Nodes = surfaces
+    - Springs = evidence connections
+    - Stiffness = evidence strength
+      - Rare anchors → stiff springs (bind tightly)
+      - Hub entities → near-zero stiffness (don't bind)
+      - Semantic similarity → weak springs (proximity, not identity)
+    - Events = co-moving clusters / basins
+
+    Key insight: Hub detection is PRINCIPLED
+    - Entity is hub if it appears across MULTIPLE semantic clusters
+    - Not just high df - must cross semantic boundaries
+    """
+
+    def __init__(self,
+                 hub_cluster_threshold: int = 2,
+                 semantic_cluster_sim: float = 0.55,
+                 stiffness_threshold: float = 0.3,
+                 known_hubs: Set[str] = None):
+        """
+        Args:
+            hub_cluster_threshold: Entity appearing in this many semantic
+                                   clusters is considered a hub
+            semantic_cluster_sim: Similarity threshold for semantic clustering
+            stiffness_threshold: Minimum stiffness for springs that form structure
+            known_hubs: Set of entity names that are known hubs (e.g., common
+                       locations like "Hong Kong", "China", "US"). These are
+                       always treated as hubs regardless of detection.
+        """
+        self.hub_cluster_threshold = hub_cluster_threshold
+        self.semantic_cluster_sim = semantic_cluster_sim
+        self.stiffness_threshold = stiffness_threshold
+        self.known_hubs = known_hubs or set()
+
+        self.nodes: Dict[str, SpringNode] = {}
+        self.springs: List[Spring] = []
+        self.hub_entities: Set[str] = set()
+        self.clusters: List[SpringCluster] = []
+
+        # Document frequencies
+        self.anchor_df: Dict[str, int] = defaultdict(int)
+        self.entity_df: Dict[str, int] = defaultdict(int)
+
+    def add_node(self, node: SpringNode):
+        """Add a surface node to the force field."""
+        self.nodes[node.id] = node
+        for a in node.anchor_entities:
+            self.anchor_df[a] += 1
+        for e in node.entities:
+            self.entity_df[e] += 1
+
+    def build(self):
+        """
+        Build the force field:
+        1. Detect hubs via component merge impact + known hubs
+        2. Compute springs between all node pairs
+        3. Find clusters via stiff-spring connectivity
+        """
+        nodes = list(self.nodes.values())
+        if len(nodes) < 2:
+            return
+
+        # Step 1: Detect hubs via component merge impact
+        detected_hubs = self._detect_hubs(nodes)
+
+        # Merge with known hubs (e.g., common locations)
+        self.hub_entities = detected_hubs | self.known_hubs
+
+        # Step 2: Compute springs
+        self.springs = self._compute_all_springs(nodes)
+
+        # Step 3: Find clusters
+        self.clusters = self._find_clusters()
+
+    def _detect_hubs(self, nodes: List[SpringNode]) -> Set[str]:
+        """
+        Detect hub symbols using COMPONENT MERGE IMPACT on the surface graph.
+
+        Key insight: Hub detection is a property of ANY symbol (anchor OR entity)
+        that bridges across otherwise separate event clusters. This is NOT ad-hoc -
+        it's derived from graph topology.
+
+        Algorithm:
+        1. Build surface adjacency WITHOUT each candidate symbol
+        2. Find connected components without this symbol
+        3. If adding this symbol's edges merges LARGE components that were
+           previously separate → it's bridging across events (hub)
+        4. If it only adds edges within existing components → event-defining
+
+        This applies to BOTH anchors and entities uniformly.
+        """
+        node_ids = {n.id for n in nodes}
+        node_map = {n.id: n for n in nodes}
+
+        def find_components(adj: Dict[str, Set[str]]) -> List[Set[str]]:
+            """Find all connected components, returning list of node ID sets."""
+            visited: Set[str] = set()
+            components: List[Set[str]] = []
+            for node_id in node_ids:
+                if node_id in visited:
+                    continue
+                component: Set[str] = set()
+                queue = [node_id]
+                while queue:
+                    curr = queue.pop(0)
+                    if curr in visited:
+                        continue
+                    visited.add(curr)
+                    component.add(curr)
+                    queue.extend(adj.get(curr, set()) - visited)
+                components.append(component)
+            return components
+
+        def is_hub_symbol(symbol: str, symbol_surfaces: Set[str],
+                         get_node_symbols: callable) -> bool:
+            """
+            Test if a symbol is a hub using component merge impact.
+
+            Args:
+                symbol: The symbol to test
+                symbol_surfaces: Set of node IDs containing this symbol
+                get_node_symbols: Function to get all symbols from a node
+            """
+            if len(symbol_surfaces) < 3:
+                return False  # Not frequent enough to matter
+
+            # Build adjacency WITHOUT this symbol
+            adj_without: Dict[str, Set[str]] = defaultdict(set)
+            for i, n1 in enumerate(nodes):
+                for n2 in nodes[i+1:]:
+                    # Shared symbols excluding the candidate
+                    shared = (get_node_symbols(n1) & get_node_symbols(n2)) - {symbol}
+                    if shared:
+                        adj_without[n1.id].add(n2.id)
+                        adj_without[n2.id].add(n1.id)
+
+            # Find components WITHOUT this symbol
+            components_without = find_components(adj_without)
+
+            # Check: how many nodes would be orphaned (have no other symbols)?
+            orphan_count = 0
+            for nid in symbol_surfaces:
+                node = node_map[nid]
+                other_symbols = get_node_symbols(node) - {symbol}
+                if not other_symbols:
+                    orphan_count += 1
+
+            # If marking this as hub would orphan many nodes, don't do it
+            if orphan_count >= 3:
+                return False  # Essential symbol for these nodes
+
+            # Check if symbol bridges multiple components
+            component_counts = []
+            for comp in components_without:
+                overlap = comp & symbol_surfaces
+                if overlap:
+                    component_counts.append(len(overlap))
+
+            # Hub if symbol appears significantly (>=3) in 2+ separate components
+            if len(component_counts) >= 2:
+                large_presence = len([c for c in component_counts if c >= 3])
+                if large_presence >= 2:
+                    return True
+
+            return False
+
+        hubs: Set[str] = set()
+
+        # 1. Detect anchor hubs
+        anchor_surfaces: Dict[str, Set[str]] = defaultdict(set)
+        for node in nodes:
+            for a in node.anchor_entities:
+                anchor_surfaces[a].add(node.id)
+
+        for anchor, surfaces in anchor_surfaces.items():
+            if is_hub_symbol(anchor, surfaces, lambda n: n.anchor_entities):
+                hubs.add(anchor)
+
+        # 2. Detect entity hubs (same principle applies!)
+        # This catches "Hong Kong", "China", "John Lee" etc. as hubs
+        entity_surfaces: Dict[str, Set[str]] = defaultdict(set)
+        for node in nodes:
+            for e in node.entities:
+                entity_surfaces[e].add(node.id)
+
+        for entity, surfaces in entity_surfaces.items():
+            if is_hub_symbol(entity, surfaces, lambda n: n.entities):
+                hubs.add(entity)
+
+        return hubs
+
+    def _semantic_cluster(self, nodes: List[SpringNode]) -> List[List[SpringNode]]:
+        """
+        Cluster nodes by semantic similarity (embedding cosine).
+        Uses greedy single-linkage.
+        """
+        if not nodes:
+            return []
+
+        with_emb = [n for n in nodes if n.embedding]
+        without_emb = [n for n in nodes if not n.embedding]
+
+        if not with_emb:
+            return [[n] for n in nodes]
+
+        # Greedy single-linkage clustering
+        clusters: List[Set[str]] = []
+        node_to_cluster: Dict[str, int] = {}
+
+        for node in with_emb:
+            best_cluster = None
+            for i, cluster in enumerate(clusters):
+                for cid in cluster:
+                    other = self.nodes[cid]
+                    if other.embedding:
+                        sim = cosine_similarity(node.embedding, other.embedding)
+                        if sim >= self.semantic_cluster_sim:
+                            best_cluster = i
+                            break
+                if best_cluster is not None:
+                    break
+
+            if best_cluster is not None:
+                clusters[best_cluster].add(node.id)
+                node_to_cluster[node.id] = best_cluster
+            else:
+                node_to_cluster[node.id] = len(clusters)
+                clusters.append({node.id})
+
+        # Nodes without embeddings are their own clusters
+        for node in without_emb:
+            clusters.append({node.id})
+
+        return [[self.nodes[nid] for nid in cluster] for cluster in clusters]
+
+    def _compute_all_springs(self, nodes: List[SpringNode]) -> List[Spring]:
+        """Compute springs between all node pairs."""
+        springs = []
+        n = len(nodes)
+
+        for i in range(n):
+            for j in range(i + 1, n):
+                spring = self._compute_spring(nodes[i], nodes[j])
+                if spring.stiffness > 0.01:
+                    springs.append(spring)
+
+        return springs
+
+    def _compute_spring(self, n1: SpringNode, n2: SpringNode) -> Spring:
+        """
+        Compute spring stiffness between two nodes.
+
+        MULTI-SIGNAL REQUIREMENT:
+        Event binding requires ≥2 strong signals. Single-entity overlap
+        is NOT sufficient for event binding (even if non-hub).
+
+        Signal types:
+        1. Non-hub anchor overlap (strong)
+        2. Non-hub entity overlap (moderate)
+        3. Semantic similarity (weak)
+
+        Stiffness is computed as:
+        - If ≥2 non-hub anchors OR (1 non-hub anchor + 1 other signal): stiff (0.5-1.0)
+        - If only 1 signal: weak (capped at 0.25)
+        - Hubs contribute near-zero regardless
+
+        This prevents single-entity incidental references from binding events.
+        """
+        evidence = {}
+        n_surfaces = len(self.nodes)
+
+        # Collect all signals
+        signals = []  # List of (type, strength, details)
+
+        # 1. Anchor overlap
+        shared_anchors = n1.anchor_entities & n2.anchor_entities
+        non_hub_anchors = shared_anchors - self.hub_entities
+        hub_anchors = shared_anchors & self.hub_entities
+
+        anchor_signal_strength = 0.0
+        if non_hub_anchors:
+            n_shared = len(non_hub_anchors)
+            if n_shared >= 2:
+                anchor_signal_strength = 0.7 + 0.3 * min(1.0, n_shared / 3)
+                evidence['anchor_bundle'] = True
+            else:
+                anchor_signal_strength = 0.5
+                # Check for co-anchor context (additional support)
+                n1_other = n1.anchor_entities - non_hub_anchors - self.hub_entities
+                n2_other = n2.anchor_entities - non_hub_anchors - self.hub_entities
+                coanchor_overlap = n1_other & n2_other
+                if coanchor_overlap:
+                    anchor_signal_strength += 0.1 * min(len(coanchor_overlap), 2)
+                    evidence['coanchor_support'] = list(coanchor_overlap)[:3]
+
+            evidence['non_hub_anchors'] = list(non_hub_anchors)
+            signals.append(('anchor', anchor_signal_strength, non_hub_anchors))
+
+        if hub_anchors:
+            evidence['hub_anchors'] = list(hub_anchors)
+            # Hubs don't count as signals
+
+        # 2. Entity overlap
+        shared_entities = n1.entities & n2.entities
+        non_hub_entities = shared_entities - self.hub_entities
+
+        entity_signal_strength = 0.0
+        if non_hub_entities:
+            entity_score = 0.0
+            for e in non_hub_entities:
+                df = self.entity_df[e]
+                idf = np.log(1 + n_surfaces / df) if df > 0 else 0
+                entity_score += idf
+
+            max_idf = np.log(1 + n_surfaces)
+            normalized = min(1.0, entity_score / (max_idf * 3))
+            entity_signal_strength = 0.2 + 0.2 * normalized
+
+            evidence['non_hub_entities'] = list(non_hub_entities)[:5]
+            signals.append(('entity', entity_signal_strength, non_hub_entities))
+
+        # 3. Semantic similarity
+        semantic_signal_strength = 0.0
+        if n1.embedding and n2.embedding:
+            sim = cosine_similarity(n1.embedding, n2.embedding)
+            if sim > 0.5:
+                semantic_signal_strength = (sim - 0.5) * 0.3
+                evidence['semantic_sim'] = sim
+                signals.append(('semantic', semantic_signal_strength, sim))
+
+        # MULTI-SIGNAL LOGIC
+        # Compute final stiffness based on signal count and strength
+        n_signals = len(signals)
+
+        if n_signals == 0:
+            # No evidence at all
+            stiffness = 0.0
+
+        elif n_signals == 1:
+            # Single signal - cap stiffness to prevent single-entity binding
+            # This is the key structural prior: one entity can be incidental
+            sig_type, sig_strength, _ = signals[0]
+            if sig_type == 'anchor':
+                # Single anchor: still weak unless it has multiple entries
+                if evidence.get('anchor_bundle') or evidence.get('coanchor_support'):
+                    stiffness = sig_strength  # Has supporting evidence
+                else:
+                    stiffness = min(0.25, sig_strength)  # Cap single-anchor
+            elif sig_type == 'entity':
+                # Single entity overlap is even weaker
+                stiffness = min(0.15, sig_strength)
+            else:
+                # Semantic only
+                stiffness = min(0.1, sig_strength)
+            evidence['single_signal_cap'] = True
+
+        else:
+            # ≥2 signals - full multi-signal binding
+            # Take max of signal strengths, boosted by multi-signal presence
+            max_strength = max(s[1] for s in signals)
+            signal_bonus = 0.1 * (n_signals - 1)  # Bonus for additional signals
+            stiffness = min(1.0, max_strength + signal_bonus)
+            evidence['multi_signal'] = True
+            evidence['signal_count'] = n_signals
+
+        evidence['stiffness'] = stiffness
+        return Spring(
+            node1_id=n1.id,
+            node2_id=n2.id,
+            stiffness=stiffness,
+            evidence=evidence
+        )
+
+    def _find_clusters(self) -> List[SpringCluster]:
+        """
+        Find clusters via stiff-spring connectivity.
+        Only springs above stiffness_threshold form cluster structure.
+        """
+        # Build adjacency from stiff springs only
+        adj: Dict[str, Set[str]] = defaultdict(set)
+        for spring in self.springs:
+            if spring.stiffness >= self.stiffness_threshold:
+                adj[spring.node1_id].add(spring.node2_id)
+                adj[spring.node2_id].add(spring.node1_id)
+
+        # Find connected components
+        visited: Set[str] = set()
+        clusters: List[SpringCluster] = []
+
+        for node_id in self.nodes:
+            if node_id in visited:
+                continue
+
+            component: Set[str] = set()
+            queue = [node_id]
+            while queue:
+                curr = queue.pop(0)
+                if curr in visited:
+                    continue
+                visited.add(curr)
+                component.add(curr)
+                queue.extend(adj[curr] - visited)
+
+            if component:
+                cluster = self._make_cluster(component, len(clusters))
+                clusters.append(cluster)
+
+        return clusters
+
+    def _make_cluster(self, node_ids: Set[str], cluster_idx: int) -> SpringCluster:
+        """Create a SpringCluster from a set of node IDs."""
+        cluster_id = f"spring_event_{cluster_idx}"
+
+        # Centroid
+        embeddings = []
+        for nid in node_ids:
+            node = self.nodes[nid]
+            if node.embedding:
+                embeddings.append(node.embedding)
+
+        centroid = None
+        if embeddings:
+            dim = len(embeddings[0])
+            centroid = [sum(e[i] for e in embeddings) / len(embeddings)
+                       for i in range(dim)]
+
+        # Anchor weights (IDF-weighted, excluding hubs)
+        anchor_weights: Dict[str, float] = defaultdict(float)
+        n_surfaces = len(self.nodes)
+
+        for nid in node_ids:
+            node = self.nodes[nid]
+            for a in node.anchor_entities:
+                if a not in self.hub_entities:
+                    df = self.anchor_df[a]
+                    idf = np.log(1 + n_surfaces / df) if df > 0 else 0
+                    anchor_weights[a] += idf
+
+        # Classify core vs periphery
+        core_nodes: Set[str] = set()
+        periphery_nodes: Set[str] = set()
+
+        for nid in node_ids:
+            stiff_connections = sum(
+                1 for s in self.springs
+                if s.stiffness >= self.stiffness_threshold and
+                ((s.node1_id == nid and s.node2_id in node_ids) or
+                 (s.node2_id == nid and s.node1_id in node_ids))
+            )
+            if stiff_connections >= 2:
+                core_nodes.add(nid)
+            else:
+                periphery_nodes.add(nid)
+
+        return SpringCluster(
+            id=cluster_id,
+            core_nodes=core_nodes,
+            periphery_nodes=periphery_nodes,
+            anchor_weights=dict(anchor_weights),
+            centroid=centroid
+        )
+
+    def compute_membership_weights(self) -> Dict[str, Dict[str, float]]:
+        """
+        Compute continuous membership weights for all nodes to all clusters.
+
+        Returns: Dict mapping node_id -> {cluster_id: weight}
+        """
+        weights: Dict[str, Dict[str, float]] = defaultdict(dict)
+
+        for node_id in self.nodes:
+            node = self.nodes[node_id]
+
+            for cluster in self.clusters:
+                weight = self._compute_node_cluster_affinity(node, cluster)
+                if weight > 0.01:
+                    weights[node_id][cluster.id] = weight
+
+        # Normalize so weights sum to 1 per node
+        for node_id in weights:
+            total = sum(weights[node_id].values())
+            if total > 0:
+                for cid in weights[node_id]:
+                    weights[node_id][cid] /= total
+
+        return dict(weights)
+
+    def _compute_node_cluster_affinity(self, node: SpringNode,
+                                        cluster: SpringCluster) -> float:
+        """Compute affinity of a node to a cluster."""
+        affinity = 0.0
+
+        # 1. Anchor match
+        node_anchors = node.anchor_entities - self.hub_entities
+        cluster_anchors = set(cluster.anchor_weights.keys())
+        shared = node_anchors & cluster_anchors
+
+        if shared:
+            for a in shared:
+                affinity += cluster.anchor_weights.get(a, 0) * 0.5
+
+        # 2. Spring connections to cluster members
+        cluster_members = cluster.core_nodes | cluster.periphery_nodes
+        for spring in self.springs:
+            if spring.node1_id == node.id and spring.node2_id in cluster_members:
+                affinity += spring.stiffness * 0.3
+            elif spring.node2_id == node.id and spring.node1_id in cluster_members:
+                affinity += spring.stiffness * 0.3
+
+        # 3. Semantic similarity to centroid (weak)
+        if node.embedding and cluster.centroid:
+            sim = cosine_similarity(node.embedding, cluster.centroid)
+            if sim > 0.5:
+                affinity += (sim - 0.5) * 0.2
+
+        return affinity
+
+    def get_diagnostics(self) -> Dict:
+        """Get diagnostic info about the force field."""
+        stiff_dist = {'0.0-0.1': 0, '0.1-0.3': 0, '0.3-0.5': 0, '0.5-0.7': 0, '0.7-1.0': 0}
+        for s in self.springs:
+            if s.stiffness < 0.1:
+                stiff_dist['0.0-0.1'] += 1
+            elif s.stiffness < 0.3:
+                stiff_dist['0.1-0.3'] += 1
+            elif s.stiffness < 0.5:
+                stiff_dist['0.3-0.5'] += 1
+            elif s.stiffness < 0.7:
+                stiff_dist['0.5-0.7'] += 1
+            else:
+                stiff_dist['0.7-1.0'] += 1
+
+        return {
+            'n_nodes': len(self.nodes),
+            'n_springs': len(self.springs),
+            'n_hubs': len(self.hub_entities),
+            'hub_entities': list(self.hub_entities)[:10],
+            'n_clusters': len(self.clusters),
+            'stiffness_distribution': stiff_dist,
+        }
+
+
 if __name__ == "__main__":
     # Simple test
     items = [

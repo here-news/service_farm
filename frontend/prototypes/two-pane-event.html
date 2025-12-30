@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Two-Pane Event Page - Prototype</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .marker { cursor: pointer; transition: all 0.2s; }
+        .marker:hover { transform: scale(1.2); }
+        .marker.active { transform: scale(1.3); }
+        .context-card { transition: all 0.3s; }
+        .context-card.highlight { box-shadow: 0 0 0 2px #6366f1; }
+        .narrative-section.highlight { background: linear-gradient(90deg, #eef2ff 0%, transparent 100%); }
+        .voice-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+    </style>
+</head>
+<body class="bg-slate-50">
+    <!-- Header -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <span class="text-xl font-bold text-indigo-600">HERE.news</span>
+                <span class="text-slate-300">|</span>
+                <span class="text-sm text-slate-500">Prototype: Two-Pane Event Page</span>
+            </div>
+            <div class="flex items-center gap-2 text-sm">
+                <span class="px-2 py-1 bg-amber-100 text-amber-700 rounded">🔥 Live</span>
+                <span class="text-slate-500">Last update: 2 min ago</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 py-6">
+        <!-- Event Title -->
+        <div class="mb-6">
+            <div class="flex items-center gap-2 mb-2">
+                <span class="px-2 py-0.5 bg-red-100 text-red-700 text-xs rounded-full uppercase font-medium">Trial</span>
+                <span class="text-slate-400 text-sm">Dec 2024 - Ongoing</span>
+            </div>
+            <h1 class="text-3xl font-bold text-slate-900 mb-2">Jimmy Lai National Security Trial</h1>
+            <p class="text-slate-500">Hong Kong media mogul faces charges under national security law</p>
+        </div>
+
+        <!-- Two Pane Layout -->
+        <div class="flex gap-6">
+            <!-- LEFT PANE: Narrative -->
+            <div class="flex-1 min-w-0">
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <!-- Story Health Bar -->
+                    <div class="px-6 py-4 bg-gradient-to-r from-slate-50 to-white border-b border-slate-100">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-4">
+                                <span class="text-sm font-medium text-slate-700">Voices heard:</span>
+                                <div class="flex items-center gap-1">
+                                    <span class="voice-dot bg-blue-500" title="Wire services"></span>
+                                    <span class="voice-dot bg-green-500" title="International"></span>
+                                    <span class="voice-dot bg-purple-500" title="Local"></span>
+                                    <span class="voice-dot bg-slate-300" title="Official - missing"></span>
+                                    <span class="voice-dot bg-rose-500" title="NGO"></span>
+                                </div>
+                                <span class="text-xs text-slate-400">4 of 5</span>
+                            </div>
+                            <div class="text-sm text-slate-500">
+                                <span class="font-medium text-indigo-600">156</span> claims from
+                                <span class="font-medium text-indigo-600">26</span> sources
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Narrative Content -->
+                    <div class="p-6 prose prose-slate max-w-none">
+                        <section id="section-1" class="narrative-section p-3 -mx-3 rounded-lg mb-6">
+                            <p class="text-lg leading-relaxed">
+                                Hong Kong media mogul <strong>Jimmy Lai</strong>, founder of the now-shuttered
+                                <em>Apple Daily</em> newspaper, is standing trial on charges of
+                                <span class="marker text-amber-600 cursor-pointer" data-context="tension-1">
+                                    "collusion with foreign forces"
+                                    <sup class="text-xs">⚡</sup>
+                                </span>
+                                under Hong Kong's national security law.
+                            </p>
+                        </section>
+
+                        <section id="section-2" class="narrative-section p-3 -mx-3 rounded-lg mb-6">
+                            <h3 class="text-xl font-bold text-slate-800 mb-3">The Charges</h3>
+                            <p class="leading-relaxed">
+                                Prosecutors allege Lai conspired with foreign governments to impose sanctions
+                                on Hong Kong and China. The charges carry a
+                                <span class="marker text-indigo-600" data-context="fact-1">
+                                    maximum sentence of life imprisonment
+                                    <sup class="text-xs">✓18</sup>
+                                </span>.
+                            </p>
+                            <p class="leading-relaxed mt-4">
+                                The trial began on
+                                <span class="marker text-indigo-600" data-context="fact-2">
+                                    December 18, 2024
+                                    <sup class="text-xs">✓12</sup>
+                                </span>
+                                after multiple delays. Lai has pleaded not guilty to all charges.
+                            </p>
+                        </section>
+
+                        <section id="section-3" class="narrative-section p-3 -mx-3 rounded-lg mb-6">
+                            <h3 class="text-xl font-bold text-slate-800 mb-3">International Response</h3>
+                            <p class="leading-relaxed">
+                                The trial has drawn
+                                <span class="marker text-amber-600" data-context="tension-2">
+                                    international criticism
+                                    <sup class="text-xs">⚡</sup>
+                                </span>,
+                                with the UK and US governments calling for Lai's release. Human rights
+                                organizations including Amnesty International have labeled him a
+                                <span class="marker text-purple-600" data-context="quote-1">
+                                    "prisoner of conscience"
+                                    <sup class="text-xs">💬</sup>
+                                </span>.
+                            </p>
+                            <p class="leading-relaxed mt-4">
+                                <span class="marker text-slate-400" data-context="gap-1">
+                                    The Hong Kong government's official position on these criticisms
+                                    <sup class="text-xs">❓</sup>
+                                </span>
+                                has not been directly addressed in available sources.
+                            </p>
+                        </section>
+
+                        <section id="section-4" class="narrative-section p-3 -mx-3 rounded-lg">
+                            <h3 class="text-xl font-bold text-slate-800 mb-3">Trial Progress</h3>
+                            <p class="leading-relaxed">
+                                The prosecution has presented evidence including
+                                <span class="marker text-indigo-600" data-context="fact-3">
+                                    Apple Daily articles and Lai's social media posts
+                                    <sup class="text-xs">✓8</sup>
+                                </span>.
+                                The defense argues the charges are politically motivated and that Lai was
+                                exercising his right to free speech.
+                            </p>
+                            <p class="leading-relaxed mt-4 text-slate-500 italic">
+                                The trial is expected to continue into
+                                <span class="marker text-slate-400" data-context="uncertain-1">
+                                    early 2025
+                                    <sup class="text-xs">~</sup>
+                                </span>.
+                            </p>
+                        </section>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT PANE: Community & Context -->
+            <div class="w-96 flex-shrink-0 space-y-4">
+                <!-- Active Context Card (changes based on hover/click) -->
+                <div id="context-panel" class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden sticky top-20">
+                    <div class="px-4 py-3 bg-gradient-to-r from-indigo-50 to-purple-50 border-b border-indigo-100">
+                        <h3 class="font-semibold text-slate-800 flex items-center gap-2">
+                            <span id="context-icon">📍</span>
+                            <span id="context-title">Click any marker to see details</span>
+                        </h3>
+                    </div>
+                    <div id="context-content" class="p-4">
+                        <div class="text-center py-8 text-slate-400">
+                            <div class="text-4xl mb-2">👆</div>
+                            <p>Click on highlighted text in the narrative to see sources, tensions, or gaps</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Community Activity Log -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="px-4 py-3 bg-gradient-to-r from-amber-50 to-yellow-50 border-b border-amber-100">
+                        <div class="flex items-center justify-between">
+                            <h3 class="font-semibold text-slate-800 flex items-center gap-2">
+                                <span>🌊</span>
+                                Live Activity
+                            </h3>
+                            <span class="text-xs text-amber-600 font-medium">12 watching</span>
+                        </div>
+                    </div>
+                    <div class="divide-y divide-slate-100 max-h-64 overflow-y-auto">
+                        <div class="p-3 hover:bg-slate-50">
+                            <div class="flex items-start gap-2">
+                                <span class="text-lg">📎</span>
+                                <div>
+                                    <p class="text-sm text-slate-700"><strong>@NewsHunter</strong> added a source</p>
+                                    <p class="text-xs text-slate-500">UK Foreign Office statement • 5 min ago</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="p-3 hover:bg-slate-50">
+                            <div class="flex items-start gap-2">
+                                <span class="text-lg">✅</span>
+                                <div>
+                                    <p class="text-sm text-slate-700">Claim corroborated by <strong>Reuters</strong></p>
+                                    <p class="text-xs text-slate-500">"Trial began Dec 18" • 12 min ago</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="p-3 hover:bg-slate-50">
+                            <div class="flex items-start gap-2">
+                                <span class="text-lg">💬</span>
+                                <div>
+                                    <p class="text-sm text-slate-700"><strong>@HKWatcher</strong> asked a question</p>
+                                    <p class="text-xs text-slate-500">"Any updates from today's session?" • 18 min ago</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="p-3 hover:bg-slate-50">
+                            <div class="flex items-start gap-2">
+                                <span class="text-lg">🎯</span>
+                                <div>
+                                    <p class="text-sm text-slate-700">Quest completed</p>
+                                    <p class="text-xs text-slate-500">"UK Gov position" +12 credits • 1 hr ago</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Open Questions -->
+                <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="px-4 py-3 border-b border-slate-100">
+                        <h3 class="font-semibold text-slate-800 flex items-center gap-2">
+                            <span>🙋</span>
+                            Can you help?
+                        </h3>
+                    </div>
+                    <div class="p-4 space-y-3">
+                        <div class="p-3 bg-amber-50 border border-amber-200 rounded-lg cursor-pointer hover:bg-amber-100 transition-colors">
+                            <p class="text-sm text-slate-700 font-medium">Has HK Gov responded to international criticism?</p>
+                            <div class="flex items-center justify-between mt-2">
+                                <span class="text-xs text-slate-500">High priority</span>
+                                <span class="text-xs font-bold text-amber-600">+15 credits</span>
+                            </div>
+                        </div>
+                        <div class="p-3 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-100 transition-colors">
+                            <p class="text-sm text-slate-700 font-medium">What did Lai say in his defense?</p>
+                            <div class="flex items-center justify-between mt-2">
+                                <span class="text-xs text-slate-500">Medium priority</span>
+                                <span class="text-xs font-bold text-amber-600">+10 credits</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Context Templates (hidden) -->
+    <template id="tension-template">
+        <div class="space-y-3">
+            <div class="flex items-center gap-2 text-amber-600">
+                <span class="text-xl">⚡</span>
+                <span class="font-medium">Contested Framing</span>
+            </div>
+            <div class="space-y-2">
+                <div class="p-3 bg-slate-50 rounded-lg">
+                    <div class="text-xs text-slate-500 mb-1">Prosecution framing:</div>
+                    <p class="text-sm text-slate-700">"Collusion with foreign forces to endanger national security"</p>
+                    <div class="text-xs text-slate-400 mt-1">Source: HK Dept of Justice, SCMP</div>
+                </div>
+                <div class="p-3 bg-slate-50 rounded-lg">
+                    <div class="text-xs text-slate-500 mb-1">Defense framing:</div>
+                    <p class="text-sm text-slate-700">"Peaceful advocacy and journalism, protected speech"</p>
+                    <div class="text-xs text-slate-400 mt-1">Source: Lai's legal team, BBC</div>
+                </div>
+                <div class="p-3 bg-slate-50 rounded-lg">
+                    <div class="text-xs text-slate-500 mb-1">NGO framing:</div>
+                    <p class="text-sm text-slate-700">"Political persecution of press freedom"</p>
+                    <div class="text-xs text-slate-400 mt-1">Source: Amnesty, RSF, HRW</div>
+                </div>
+            </div>
+            <button class="w-full py-2 text-sm text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors">
+                View full debate →
+            </button>
+        </div>
+    </template>
+
+    <template id="fact-template">
+        <div class="space-y-3">
+            <div class="flex items-center gap-2 text-green-600">
+                <span class="text-xl">✓</span>
+                <span class="font-medium">Corroborated Fact</span>
+            </div>
+            <p class="text-sm text-slate-700" id="fact-text"></p>
+            <div class="text-sm text-slate-500">
+                Confirmed by <span class="font-medium text-green-600" id="fact-count"></span> sources:
+            </div>
+            <div class="flex flex-wrap gap-1" id="fact-sources">
+            </div>
+            <div class="text-xs text-slate-400">
+                First reported: <span id="fact-first"></span>
+            </div>
+        </div>
+    </template>
+
+    <template id="gap-template">
+        <div class="space-y-3">
+            <div class="flex items-center gap-2 text-slate-500">
+                <span class="text-xl">❓</span>
+                <span class="font-medium">Information Gap</span>
+            </div>
+            <p class="text-sm text-slate-700">We haven't found direct sources for this aspect of the story.</p>
+            <div class="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <p class="text-sm font-medium text-slate-700">Can you help find:</p>
+                <p class="text-sm text-slate-600 mt-1" id="gap-description"></p>
+                <div class="flex items-center justify-between mt-3">
+                    <span class="text-xs text-amber-600 font-medium">+15 credits reward</span>
+                    <button class="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-sm rounded-lg transition-colors">
+                        I found something
+                    </button>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <template id="quote-template">
+        <div class="space-y-3">
+            <div class="flex items-center gap-2 text-purple-600">
+                <span class="text-xl">💬</span>
+                <span class="font-medium">Direct Quote</span>
+            </div>
+            <blockquote class="p-3 bg-purple-50 border-l-4 border-purple-400 rounded-r-lg">
+                <p class="text-sm text-slate-700 italic" id="quote-text"></p>
+                <footer class="text-xs text-slate-500 mt-2">— <span id="quote-source"></span></footer>
+            </blockquote>
+            <div class="text-sm text-slate-500">
+                Also referenced by:
+            </div>
+            <div class="flex flex-wrap gap-1" id="quote-refs"></div>
+        </div>
+    </template>
+
+    <script>
+        // Context data
+        const contexts = {
+            'tension-1': {
+                type: 'tension',
+                icon: '⚡',
+                title: 'Contested: "Collusion with foreign forces"',
+                section: 'section-1'
+            },
+            'tension-2': {
+                type: 'tension',
+                icon: '⚡',
+                title: 'Contested: International criticism',
+                section: 'section-3'
+            },
+            'fact-1': {
+                type: 'fact',
+                icon: '✓',
+                title: 'Confirmed: Maximum sentence',
+                text: 'Life imprisonment is the maximum penalty under the national security law.',
+                count: 18,
+                sources: ['Reuters', 'BBC', 'SCMP', 'Guardian', 'AP', 'AFP'],
+                first: 'Dec 18, 2024 via Reuters',
+                section: 'section-2'
+            },
+            'fact-2': {
+                type: 'fact',
+                icon: '✓',
+                title: 'Confirmed: Trial start date',
+                text: 'The trial began on December 18, 2024.',
+                count: 12,
+                sources: ['Reuters', 'BBC', 'AP', 'SCMP', 'Guardian'],
+                first: 'Dec 18, 2024 via AP',
+                section: 'section-2'
+            },
+            'fact-3': {
+                type: 'fact',
+                icon: '✓',
+                title: 'Confirmed: Evidence presented',
+                text: 'Prosecution evidence includes Apple Daily articles and social media posts.',
+                count: 8,
+                sources: ['SCMP', 'BBC', 'Reuters', 'Guardian'],
+                first: 'Dec 19, 2024 via SCMP',
+                section: 'section-4'
+            },
+            'quote-1': {
+                type: 'quote',
+                icon: '💬',
+                title: 'Quote: "Prisoner of conscience"',
+                text: 'Jimmy Lai is a prisoner of conscience, detained solely for peacefully exercising his human rights.',
+                source: 'Amnesty International, Dec 2024',
+                refs: ['RSF', 'HRW', 'PEN International'],
+                section: 'section-3'
+            },
+            'gap-1': {
+                type: 'gap',
+                icon: '❓',
+                title: 'Missing: HK Government response',
+                description: 'Official HK Government statement responding to UK/US criticism of the trial',
+                section: 'section-3'
+            },
+            'uncertain-1': {
+                type: 'uncertain',
+                icon: '~',
+                title: 'Uncertain: Trial end date',
+                section: 'section-4'
+            }
+        };
+
+        // Handle marker clicks
+        document.querySelectorAll('.marker').forEach(marker => {
+            marker.addEventListener('click', function() {
+                const contextId = this.dataset.context;
+                const context = contexts[contextId];
+
+                // Remove active state from all markers and sections
+                document.querySelectorAll('.marker').forEach(m => m.classList.remove('active'));
+                document.querySelectorAll('.narrative-section').forEach(s => s.classList.remove('highlight'));
+
+                // Add active state
+                this.classList.add('active');
+                document.getElementById(context.section)?.classList.add('highlight');
+
+                // Update context panel
+                updateContextPanel(context);
+            });
+        });
+
+        function updateContextPanel(context) {
+            const panel = document.getElementById('context-panel');
+            const icon = document.getElementById('context-icon');
+            const title = document.getElementById('context-title');
+            const content = document.getElementById('context-content');
+
+            icon.textContent = context.icon;
+            title.textContent = context.title;
+
+            // Generate content based on type
+            if (context.type === 'tension') {
+                content.innerHTML = document.getElementById('tension-template').innerHTML;
+            } else if (context.type === 'fact') {
+                const template = document.getElementById('fact-template').innerHTML;
+                content.innerHTML = template;
+                content.querySelector('#fact-text').textContent = context.text;
+                content.querySelector('#fact-count').textContent = context.count;
+                content.querySelector('#fact-first').textContent = context.first;
+                const sourcesDiv = content.querySelector('#fact-sources');
+                sourcesDiv.innerHTML = context.sources.map(s =>
+                    `<span class="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full">${s}</span>`
+                ).join('');
+            } else if (context.type === 'quote') {
+                const template = document.getElementById('quote-template').innerHTML;
+                content.innerHTML = template;
+                content.querySelector('#quote-text').textContent = context.text;
+                content.querySelector('#quote-source').textContent = context.source;
+                const refsDiv = content.querySelector('#quote-refs');
+                refsDiv.innerHTML = context.refs.map(r =>
+                    `<span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full">${r}</span>`
+                ).join('');
+            } else if (context.type === 'gap') {
+                const template = document.getElementById('gap-template').innerHTML;
+                content.innerHTML = template;
+                content.querySelector('#gap-description').textContent = context.description;
+            } else if (context.type === 'uncertain') {
+                content.innerHTML = `
+                    <div class="space-y-3">
+                        <div class="flex items-center gap-2 text-slate-500">
+                            <span class="text-xl">~</span>
+                            <span class="font-medium">Uncertain / Estimated</span>
+                        </div>
+                        <p class="text-sm text-slate-600">This information is approximate or based on projections, not confirmed facts.</p>
+                        <div class="p-3 bg-slate-50 rounded-lg text-sm text-slate-500">
+                            No sources have confirmed a specific trial end date.
+                        </div>
+                    </div>
+                `;
+            }
+
+            panel.classList.add('highlight');
+            setTimeout(() => panel.classList.remove('highlight'), 500);
+        }
+    </script>
+</body>
+</html>

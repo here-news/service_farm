@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Narrative Lineage - Event Builder</title>
+    <style>
+        :root {
+            --bg: #0a0a0f;
+            --surface: #12121a;
+            --surface-2: #1a1a24;
+            --border: #2a2a3a;
+            --text: #e0e0e8;
+            --text-dim: #8888a0;
+            --accent: #6366f1;
+            --accent-dim: #4f46e5;
+            --green: #22c55e;
+            --red: #ef4444;
+            --yellow: #eab308;
+            --blue: #3b82f6;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            font-weight: 500;
+        }
+
+        .version-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: var(--surface-2);
+            padding: 0.5rem 1rem;
+            border-radius: 2rem;
+            font-size: 0.85rem;
+            cursor: pointer;
+            border: 1px solid var(--border);
+        }
+
+        .version-badge:hover {
+            border-color: var(--accent);
+        }
+
+        .stability-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        .stability-indicator.stable { background: var(--green); }
+        .stability-indicator.converging { background: var(--yellow); }
+        .stability-indicator.volatile { background: var(--red); }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 2rem;
+        }
+
+        /* Left pane - Narrative */
+        .narrative-pane {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .pane-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            background: var(--surface-2);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .pane-title {
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--text-dim);
+        }
+
+        .view-toggle {
+            display: flex;
+            gap: 0.25rem;
+        }
+
+        .view-toggle button {
+            background: transparent;
+            border: none;
+            color: var(--text-dim);
+            padding: 0.25rem 0.75rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+
+        .view-toggle button.active {
+            background: var(--accent);
+            color: white;
+        }
+
+        .narrative-content {
+            padding: 1.5rem;
+        }
+
+        .narrative-summary {
+            font-size: 1.1rem;
+            line-height: 1.8;
+            margin-bottom: 1.5rem;
+        }
+
+        .narrative-facts {
+            margin-top: 1.5rem;
+        }
+
+        .fact-item {
+            display: flex;
+            gap: 0.75rem;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .fact-item:last-child {
+            border-bottom: none;
+        }
+
+        .fact-bullet {
+            color: var(--accent);
+            flex-shrink: 0;
+        }
+
+        .fact-text {
+            flex: 1;
+        }
+
+        /* Diff view */
+        .diff-line {
+            padding: 0.25rem 0.5rem;
+            font-size: 0.9rem;
+            border-radius: 4px;
+            margin-bottom: 0.25rem;
+        }
+
+        .diff-add {
+            background: rgba(34, 197, 94, 0.15);
+            color: var(--green);
+        }
+
+        .diff-remove {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--red);
+            text-decoration: line-through;
+        }
+
+        .diff-context {
+            color: var(--text-dim);
+        }
+
+        /* Right pane - Timeline & Controls */
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .panel-header {
+            padding: 1rem;
+            background: var(--surface-2);
+            border-bottom: 1px solid var(--border);
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+
+        .panel-content {
+            padding: 1rem;
+        }
+
+        /* Version Timeline */
+        .version-timeline {
+            position: relative;
+        }
+
+        .version-timeline::before {
+            content: '';
+            position: absolute;
+            left: 11px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: var(--border);
+        }
+
+        .version-item {
+            display: flex;
+            gap: 1rem;
+            padding: 0.75rem 0;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .version-item:hover {
+            background: var(--surface-2);
+            margin: 0 -1rem;
+            padding-left: 1rem;
+            padding-right: 1rem;
+        }
+
+        .version-item.active {
+            background: rgba(99, 102, 241, 0.1);
+            margin: 0 -1rem;
+            padding-left: 1rem;
+            padding-right: 1rem;
+        }
+
+        .version-dot {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: var(--surface);
+            border: 2px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            flex-shrink: 0;
+            position: relative;
+            z-index: 1;
+        }
+
+        .version-item.active .version-dot {
+            border-color: var(--accent);
+            background: var(--accent);
+            color: white;
+        }
+
+        .version-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .version-label {
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+
+        .version-meta {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+        }
+
+        .version-stability {
+            font-size: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        /* Add Claim Panel */
+        .claim-input {
+            width: 100%;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.75rem;
+            color: var(--text);
+            font-family: inherit;
+            font-size: 0.85rem;
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .claim-input::placeholder {
+            color: var(--text-dim);
+        }
+
+        .claim-input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .source-select {
+            margin-top: 0.75rem;
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .source-chip {
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            padding: 0.25rem 0.75rem;
+            border-radius: 1rem;
+            font-size: 0.75rem;
+            cursor: pointer;
+        }
+
+        .source-chip.selected {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: white;
+        }
+
+        .add-claim-btn {
+            margin-top: 1rem;
+            width: 100%;
+            background: var(--accent);
+            border: none;
+            padding: 0.75rem;
+            border-radius: 6px;
+            color: white;
+            font-weight: 500;
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+        .add-claim-btn:hover {
+            background: var(--accent-dim);
+        }
+
+        /* Convergence Chart */
+        .convergence-chart {
+            height: 100px;
+            display: flex;
+            align-items: flex-end;
+            gap: 4px;
+            padding: 0.5rem 0;
+        }
+
+        .chart-bar {
+            flex: 1;
+            background: var(--accent);
+            border-radius: 2px 2px 0 0;
+            min-height: 4px;
+            position: relative;
+        }
+
+        .chart-bar::after {
+            content: attr(data-label);
+            position: absolute;
+            bottom: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.65rem;
+            color: var(--text-dim);
+        }
+
+        /* Gap Suggestions */
+        .gap-item {
+            padding: 0.75rem;
+            background: var(--surface-2);
+            border-radius: 6px;
+            margin-bottom: 0.5rem;
+            cursor: pointer;
+            border: 1px solid transparent;
+        }
+
+        .gap-item:hover {
+            border-color: var(--accent);
+        }
+
+        .gap-type {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            color: var(--yellow);
+            margin-bottom: 0.25rem;
+        }
+
+        .gap-question {
+            font-size: 0.85rem;
+        }
+
+        .gap-impact {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            margin-top: 0.25rem;
+        }
+
+        /* Core Facts Badge */
+        .core-facts {
+            background: rgba(34, 197, 94, 0.1);
+            border: 1px solid var(--green);
+            border-radius: 6px;
+            padding: 0.75rem;
+            margin-bottom: 1rem;
+        }
+
+        .core-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            color: var(--green);
+            margin-bottom: 0.5rem;
+        }
+
+        .core-list {
+            font-size: 0.85rem;
+            color: var(--text);
+        }
+
+        .core-list li {
+            margin-left: 1rem;
+            margin-bottom: 0.25rem;
+        }
+
+        /* Metrics bar */
+        .metrics-bar {
+            display: flex;
+            gap: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .metric {
+            text-align: center;
+        }
+
+        .metric-value {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .metric-label {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+        }
+
+        .metric-value.green { color: var(--green); }
+        .metric-value.yellow { color: var(--yellow); }
+        .metric-value.red { color: var(--red); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div>
+                <h1>Wang Fuk Court Fire</h1>
+                <span style="color: var(--text-dim); font-size: 0.85rem;">Tai Po, Hong Kong &middot; November 2024</span>
+            </div>
+            <div class="version-badge" onclick="showVersionHistory()">
+                <span class="stability-indicator converging"></span>
+                <span>v13</span>
+                <span style="color: var(--text-dim);">130 claims</span>
+            </div>
+        </header>
+
+        <div class="metrics-bar">
+            <div class="metric">
+                <div class="metric-value green">96%</div>
+                <div class="metric-label">Epistemology Score</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value">86%</div>
+                <div class="metric-label">Stability</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value green">100%</div>
+                <div class="metric-label">Grounded</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value yellow">3</div>
+                <div class="metric-label">Open Gaps</div>
+            </div>
+        </div>
+
+        <div class="main-grid">
+            <!-- Left Pane - Narrative -->
+            <div class="narrative-pane">
+                <div class="pane-header">
+                    <span class="pane-title">CURRENT NARRATIVE</span>
+                    <div class="view-toggle">
+                        <button class="active" onclick="showView('current')">Current</button>
+                        <button onclick="showView('diff')">Diff</button>
+                        <button onclick="showView('core')">Core</button>
+                    </div>
+                </div>
+                <div class="narrative-content" id="narrative-view">
+                    <!-- Current View -->
+                    <div id="view-current">
+                        <div class="narrative-summary">
+                            A devastating fire at Wang Fuk Court in Tai Po, Hong Kong, has resulted in multiple fatalities and the displacement of thousands of residents. The blaze, which swept through seven high-rise residential towers, has raised concerns about safety standards and negligence related to ongoing renovations.
+                        </div>
+
+                        <div class="narrative-facts">
+                            <div class="fact-item">
+                                <span class="fact-bullet">•</span>
+                                <span class="fact-text">The fire at Wang Fuk Court displaced thousands of residents and resulted in at least four confirmed deaths.</span>
+                            </div>
+                            <div class="fact-item">
+                                <span class="fact-bullet">•</span>
+                                <span class="fact-text">More than 30 people remain missing, and the death toll is expected to rise as authorities continue their investigation.</span>
+                            </div>
+                            <div class="fact-item">
+                                <span class="fact-bullet">•</span>
+                                <span class="fact-text">Authorities have arrested 14 individuals linked to the renovation project on suspicion of manslaughter and corruption.</span>
+                            </div>
+                            <div class="fact-item">
+                                <span class="fact-bullet">•</span>
+                                <span class="fact-text">Firefighters struggled to control the blaze, deploying over 200 fire trucks and 100 ambulances to the scene.</span>
+                            </div>
+                            <div class="fact-item">
+                                <span class="fact-bullet">•</span>
+                                <span class="fact-text">Residents had previously raised concerns about the flammability of materials used in the building's renovations.</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Diff View -->
+                    <div id="view-diff" style="display: none;">
+                        <div style="color: var(--text-dim); font-size: 0.85rem; margin-bottom: 1rem;">
+                            Comparing v12 → v13 (+10 claims)
+                        </div>
+                        <div class="diff-context">A devastating fire at Wang Fuk Court in Tai Po, Hong Kong, has resulted in multiple fatalities and the displacement of thousands of residents.</div>
+                        <div class="diff-remove">- The blaze, which swept through seven high-rise residential towers, has left more than 30 people missing and raised concerns about safety standards during ongoing renovations.</div>
+                        <div class="diff-add">+ The blaze, which swept through seven high-rise residential towers, has raised concerns about safety standards and negligence related to ongoing renovations.</div>
+
+                        <div style="margin-top: 1.5rem; color: var(--text-dim); font-size: 0.85rem;">Key Facts Changes:</div>
+                        <div class="diff-remove" style="margin-top: 0.5rem;">- Residents had previously raised concerns about the flammability of materials used in the renovation, including styrofoam panels.</div>
+                        <div class="diff-add">+ More than 30 people remain missing, and the death toll is expected to rise as authorities continue their investigation.</div>
+                    </div>
+
+                    <!-- Core Facts View -->
+                    <div id="view-core" style="display: none;">
+                        <div class="core-facts">
+                            <div class="core-label">Stable Core (appears in all 13 versions)</div>
+                            <ul class="core-list">
+                                <li>Fire occurred at Wang Fuk Court, Tai Po, Hong Kong</li>
+                                <li>Seven high-rise residential towers affected</li>
+                                <li>Thousands of residents displaced</li>
+                                <li>Multiple fatalities confirmed (4+)</li>
+                                <li>30+ people reported missing</li>
+                                <li>200+ fire trucks deployed to scene</li>
+                            </ul>
+                        </div>
+
+                        <div style="margin-top: 1.5rem;">
+                            <div style="color: var(--text-dim); font-size: 0.85rem; margin-bottom: 0.75rem;">Emerging Facts (added after v5)</div>
+                            <div class="fact-item">
+                                <span class="fact-bullet" style="color: var(--yellow);">◐</span>
+                                <span class="fact-text">14 arrests made on manslaughter/corruption charges</span>
+                            </div>
+                            <div class="fact-item">
+                                <span class="fact-bullet" style="color: var(--yellow);">◐</span>
+                                <span class="fact-text">Concerns about flammable renovation materials</span>
+                            </div>
+                            <div class="fact-item">
+                                <span class="fact-bullet" style="color: var(--yellow);">◐</span>
+                                <span class="fact-text">900+ people in temporary shelters</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Sidebar -->
+            <div class="sidebar">
+                <!-- Add Claim -->
+                <div class="panel">
+                    <div class="panel-header">Add Evidence</div>
+                    <div class="panel-content">
+                        <textarea class="claim-input" placeholder="Paste or type a claim from a source...&#10;&#10;Example: 'The fire started on the 15th floor according to fire department officials.'"></textarea>
+                        <div class="source-select">
+                            <span class="source-chip" onclick="selectSource(this)">Wire</span>
+                            <span class="source-chip" onclick="selectSource(this)">Official</span>
+                            <span class="source-chip selected" onclick="selectSource(this)">News</span>
+                            <span class="source-chip" onclick="selectSource(this)">Social</span>
+                        </div>
+                        <button class="add-claim-btn" onclick="addClaim()">
+                            Add Claim → Re-synthesize
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Version Timeline -->
+                <div class="panel">
+                    <div class="panel-header">Version History</div>
+                    <div class="panel-content">
+                        <div class="version-timeline" id="version-list">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Convergence -->
+                <div class="panel">
+                    <div class="panel-header">Convergence</div>
+                    <div class="panel-content">
+                        <div class="convergence-chart" id="convergence-chart">
+                            <!-- Populated by JS -->
+                        </div>
+                        <div style="font-size: 0.8rem; color: var(--text-dim); margin-top: 1.5rem;">
+                            Stability trend: <span style="color: var(--green);">↗ Improving</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Gap Suggestions -->
+                <div class="panel">
+                    <div class="panel-header">Fill These Gaps</div>
+                    <div class="panel-content">
+                        <div class="gap-item" onclick="fillGap('official')">
+                            <div class="gap-type">Missing Source</div>
+                            <div class="gap-question">No official government/police statements</div>
+                            <div class="gap-impact">90% impact on confidence</div>
+                        </div>
+                        <div class="gap-item" onclick="fillGap('cause')">
+                            <div class="gap-type">Uncertainty</div>
+                            <div class="gap-question">What was the exact cause of the fire?</div>
+                            <div class="gap-impact">80% impact on confidence</div>
+                        </div>
+                        <div class="gap-item" onclick="fillGap('wire')">
+                            <div class="gap-type">Missing Source</div>
+                            <div class="gap-question">No wire service (Reuters/AP) coverage</div>
+                            <div class="gap-impact">70% impact on confidence</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Sample data from the lineage test
+        const versions = [
+            { v: 1, claims: 10, stability: 100, confidence: 85 },
+            { v: 2, claims: 20, stability: 21, confidence: 85 },
+            { v: 3, claims: 30, stability: 20, confidence: 85 },
+            { v: 4, claims: 40, stability: 68, confidence: 85 },
+            { v: 5, claims: 50, stability: 89, confidence: 85 },
+            { v: 6, claims: 60, stability: 53, confidence: 85 },
+            { v: 7, claims: 70, stability: 80, confidence: 85 },
+            { v: 8, claims: 80, stability: 53, confidence: 85 },
+            { v: 9, claims: 90, stability: 28, confidence: 85 },
+            { v: 10, claims: 100, stability: 64, confidence: 85 },
+            { v: 11, claims: 110, stability: 83, confidence: 85 },
+            { v: 12, claims: 120, stability: 58, confidence: 85 },
+            { v: 13, claims: 130, stability: 73, confidence: 85 },
+        ];
+
+        let currentVersion = 13;
+
+        function renderVersionTimeline() {
+            const container = document.getElementById('version-list');
+            // Show last 5 versions
+            const recent = versions.slice(-5).reverse();
+
+            container.innerHTML = recent.map(v => `
+                <div class="version-item ${v.v === currentVersion ? 'active' : ''}"
+                     onclick="selectVersion(${v.v})">
+                    <div class="version-dot">${v.v}</div>
+                    <div class="version-info">
+                        <div class="version-label">Version ${v.v}</div>
+                        <div class="version-meta">${v.claims} claims</div>
+                        <div class="version-stability">
+                            <span style="color: ${v.stability > 70 ? 'var(--green)' : v.stability > 40 ? 'var(--yellow)' : 'var(--red)'}">
+                                ${v.stability}% stable
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderConvergenceChart() {
+            const container = document.getElementById('convergence-chart');
+            container.innerHTML = versions.map(v => `
+                <div class="chart-bar"
+                     style="height: ${v.stability}%; background: ${v.stability > 70 ? 'var(--green)' : v.stability > 40 ? 'var(--yellow)' : 'var(--red)'}"
+                     data-label="v${v.v}"
+                     title="v${v.v}: ${v.stability}% stability">
+                </div>
+            `).join('');
+        }
+
+        function showView(view) {
+            document.querySelectorAll('.view-toggle button').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+
+            document.getElementById('view-current').style.display = view === 'current' ? 'block' : 'none';
+            document.getElementById('view-diff').style.display = view === 'diff' ? 'block' : 'none';
+            document.getElementById('view-core').style.display = view === 'core' ? 'block' : 'none';
+        }
+
+        function selectVersion(v) {
+            currentVersion = v;
+            renderVersionTimeline();
+            // Would update narrative content for selected version
+        }
+
+        function selectSource(el) {
+            document.querySelectorAll('.source-chip').forEach(c => c.classList.remove('selected'));
+            el.classList.add('selected');
+        }
+
+        function addClaim() {
+            const input = document.querySelector('.claim-input');
+            if (input.value.trim()) {
+                alert('Claim added! Re-synthesizing narrative...\n\nIn a real implementation, this would:\n1. Add the claim to the database\n2. Trigger narrative re-synthesis\n3. Create new version\n4. Show diff from previous');
+                input.value = '';
+            }
+        }
+
+        function fillGap(type) {
+            const suggestions = {
+                official: 'Try adding a statement from Hong Kong Fire Services or Police',
+                cause: 'Look for investigation reports about the fire origin',
+                wire: 'Check Reuters or Associated Press for their coverage'
+            };
+            alert(suggestions[type]);
+        }
+
+        function showVersionHistory() {
+            alert('Full version history would show:\n• All 13 versions\n• Claim diffs between each\n• Narrative paragraph changes\n• Convergence graph over time');
+        }
+
+        // Initialize
+        renderVersionTimeline();
+        renderConvergenceChart();
+    </script>
+</body>
+</html>

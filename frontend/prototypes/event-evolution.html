@@ -1,0 +1,1260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wang Fuk Court Fire - Live Event</title>
+    <style>
+        :root {
+            --bg: #0a0a0f;
+            --surface: #12121a;
+            --surface-2: #1a1a24;
+            --surface-3: #222230;
+            --border: #2a2a3a;
+            --text: #e0e0e8;
+            --text-dim: #8888a0;
+            --text-body: #c8c8d4;
+            --accent: #6366f1;
+            --green: #22c55e;
+            --green-dim: rgba(34, 197, 94, 0.15);
+            --red: #ef4444;
+            --red-dim: rgba(239, 68, 68, 0.15);
+            --yellow: #eab308;
+            --yellow-dim: rgba(234, 179, 8, 0.15);
+            --blue: #3b82f6;
+            --blue-dim: rgba(59, 130, 246, 0.15);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.7;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Header */
+        header {
+            margin-bottom: 2rem;
+        }
+
+        .event-category {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--accent);
+            margin-bottom: 0.5rem;
+        }
+
+        .event-title {
+            font-size: 2.2rem;
+            font-weight: 700;
+            line-height: 1.2;
+            margin-bottom: 0.75rem;
+        }
+
+        .event-meta {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            color: var(--text-dim);
+            font-size: 0.9rem;
+        }
+
+        .meta-separator {
+            color: var(--border);
+        }
+
+        .confidence-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.3rem 0.75rem;
+            background: var(--green-dim);
+            border: 1px solid var(--green);
+            border-radius: 2rem;
+            color: var(--green);
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .confidence-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--green);
+        }
+
+        /* Main Layout */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 360px;
+            gap: 2.5rem;
+        }
+
+        /* Article Pane */
+        .article-pane {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 2rem;
+        }
+
+        .article-content {
+            font-size: 1.1rem;
+            color: var(--text-body);
+            line-height: 1.9;
+        }
+
+        .article-content p {
+            margin-bottom: 1.5rem;
+        }
+
+        /* Highlighted Facts */
+        .fact-highlight {
+            position: relative;
+            padding: 0.1rem 0.4rem;
+            border-radius: 4px;
+            cursor: help;
+            transition: all 0.2s ease;
+        }
+
+        .fact-highlight:hover {
+            filter: brightness(1.2);
+        }
+
+        .fact-highlight.certain {
+            background: var(--green-dim);
+            border-bottom: 2px solid var(--green);
+        }
+
+        .fact-highlight.likely {
+            background: var(--blue-dim);
+            border-bottom: 2px solid var(--blue);
+        }
+
+        .fact-highlight.uncertain {
+            background: var(--yellow-dim);
+            border-bottom: 2px solid var(--yellow);
+        }
+
+        .fact-highlight.contested {
+            background: var(--red-dim);
+            border-bottom: 2px solid var(--red);
+        }
+
+        /* Fact Tooltip */
+        .fact-tooltip {
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--surface-3);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            font-size: 0.8rem;
+            white-space: nowrap;
+            z-index: 100;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s ease;
+            pointer-events: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        .fact-highlight:hover .fact-tooltip {
+            opacity: 1;
+            visibility: visible;
+            bottom: calc(100% + 8px);
+        }
+
+        .tooltip-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 1.5rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .tooltip-label {
+            color: var(--text-dim);
+        }
+
+        .tooltip-value {
+            font-weight: 500;
+        }
+
+        .tooltip-value.green { color: var(--green); }
+        .tooltip-value.yellow { color: var(--yellow); }
+        .tooltip-value.red { color: var(--red); }
+        .tooltip-value.blue { color: var(--blue); }
+
+        /* Section Headers */
+        .section-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin: 2rem 0 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-dim);
+        }
+
+        /* Sub-events in prose */
+        .subevent-section {
+            margin-top: 1.5rem;
+            padding-left: 1rem;
+            border-left: 3px solid var(--accent);
+        }
+
+        .subevent-label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--accent);
+            margin-bottom: 0.5rem;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        /* Consolidated Metrics Card */
+        .metrics-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .metrics-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.25rem;
+            background: var(--surface-2);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .metrics-title {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text);
+        }
+
+        .metrics-status {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            font-size: 0.8rem;
+            color: var(--green);
+        }
+
+        .metrics-status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--green);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .metrics-summary {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.5rem;
+            padding: 1rem;
+        }
+
+        .metric-mini {
+            text-align: center;
+            padding: 0.75rem 0.5rem;
+            background: var(--surface-2);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .metric-mini:hover {
+            background: var(--surface-3);
+        }
+
+        .metric-mini.active {
+            background: var(--accent);
+        }
+
+        .metric-mini-value {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        .metric-mini-label {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            color: var(--text-dim);
+            margin-top: 0.15rem;
+        }
+
+        .metric-mini.active .metric-mini-label {
+            color: rgba(255,255,255,0.7);
+        }
+
+        .green { color: var(--green); }
+        .yellow { color: var(--yellow); }
+        .red { color: var(--red); }
+        .blue { color: var(--blue); }
+
+        /* Metric Detail Panel */
+        .metric-detail {
+            padding: 1rem 1.25rem;
+            border-top: 1px solid var(--border);
+            display: none;
+        }
+
+        .metric-detail.visible {
+            display: block;
+        }
+
+        .metric-detail-header {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            color: var(--text-dim);
+            margin-bottom: 0.75rem;
+        }
+
+        .metric-detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.4rem 0;
+            font-size: 0.85rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .metric-detail-row:last-child {
+            border-bottom: none;
+        }
+
+        /* Convergence Chart */
+        .convergence-section {
+            padding: 1rem 1.25rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .convergence-chart {
+            height: 100px;
+            position: relative;
+            margin-bottom: 0.5rem;
+        }
+
+        .chart-canvas {
+            width: 100%;
+            height: 100%;
+        }
+
+        .chart-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.7rem;
+            color: var(--text-dim);
+        }
+
+        .chart-legend {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-top: 0.75rem;
+            font-size: 0.75rem;
+            color: var(--text-dim);
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        .legend-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+
+        /* Belief Evolution */
+        .belief-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .belief-header {
+            padding: 1rem 1.25rem;
+            background: var(--surface-2);
+            border-bottom: 1px solid var(--border);
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .belief-content {
+            padding: 1rem 1.25rem;
+        }
+
+        .belief-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.5rem 0;
+        }
+
+        .belief-date {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            width: 50px;
+        }
+
+        .belief-value {
+            font-size: 0.9rem;
+            font-weight: 600;
+            min-width: 40px;
+        }
+
+        .belief-bar-container {
+            flex: 1;
+            height: 6px;
+            background: var(--surface-2);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .belief-bar {
+            height: 100%;
+            background: var(--blue);
+            border-radius: 3px;
+            transition: width 0.3s ease;
+        }
+
+        .belief-change {
+            font-size: 0.7rem;
+            padding: 0.1rem 0.4rem;
+            border-radius: 3px;
+        }
+
+        .belief-change.update {
+            background: var(--blue-dim);
+            color: var(--blue);
+        }
+
+        /* Sources Card */
+        .sources-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        .sources-header {
+            padding: 1rem 1.25rem;
+            background: var(--surface-2);
+            border-bottom: 1px solid var(--border);
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .sources-content {
+            padding: 1rem 1.25rem;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .source-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.4rem 0;
+            font-size: 0.85rem;
+        }
+
+        .source-type {
+            font-size: 0.65rem;
+            padding: 0.15rem 0.4rem;
+            background: var(--surface-2);
+            border-radius: 3px;
+            text-transform: uppercase;
+        }
+
+        .source-type.wire { background: var(--green-dim); color: var(--green); }
+        .source-type.official { background: var(--blue-dim); color: var(--blue); }
+        .source-type.news { background: var(--surface-3); color: var(--text-dim); }
+
+        /* Fact Legend */
+        .fact-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            padding: 1rem 1.25rem;
+            background: var(--surface-2);
+            border-top: 1px solid var(--border);
+            font-size: 0.75rem;
+        }
+
+        .legend-chip {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        .legend-chip-dot {
+            width: 12px;
+            height: 4px;
+            border-radius: 2px;
+        }
+
+        .legend-chip-dot.certain { background: var(--green); }
+        .legend-chip-dot.likely { background: var(--blue); }
+        .legend-chip-dot.uncertain { background: var(--yellow); }
+        .legend-chip-dot.contested { background: var(--red); }
+
+        /* Footer */
+        .article-footer {
+            margin-top: 2rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border);
+            font-size: 0.85rem;
+            color: var(--text-dim);
+        }
+
+        .update-info {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .version-link {
+            color: var(--accent);
+            cursor: pointer;
+        }
+
+        .version-link:hover {
+            text-decoration: underline;
+        }
+
+        /* Belief States (general, engine-discovered) */
+        .belief-state-item {
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            background: var(--surface-2);
+            border-radius: 6px;
+        }
+
+        .belief-state-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.35rem;
+        }
+
+        .belief-state-name {
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+
+        .belief-state-prior {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            cursor: help;
+        }
+
+        .belief-state-value {
+            margin-left: auto;
+            font-size: 1.1rem;
+            font-weight: 700;
+        }
+
+        .belief-state-entropy {
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            padding: 0.15rem 0.4rem;
+            background: var(--surface);
+            border-radius: 3px;
+        }
+
+        .belief-state-history {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            margin-bottom: 0.25rem;
+        }
+
+        .history-item {
+            display: inline;
+        }
+
+        .history-item.update {
+            color: var(--blue);
+        }
+
+        .history-item.seed {
+            color: var(--text-dim);
+        }
+
+        .belief-state-support {
+            font-size: 0.7rem;
+            color: var(--text-dim);
+        }
+
+        .contradictions-section {
+            margin-top: 1rem;
+            padding-top: 0.75rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .contradictions-header {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            color: var(--red);
+            margin-bottom: 0.5rem;
+        }
+
+        .contradiction-item-mini {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem;
+            background: var(--red-dim);
+            border-radius: 4px;
+            font-size: 0.8rem;
+        }
+
+        .contradiction-topic {
+            color: var(--text-dim);
+            text-transform: capitalize;
+        }
+
+        .contradiction-values {
+            flex: 1;
+        }
+
+        .contradiction-entropy {
+            font-size: 0.7rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <div class="event-category">Breaking News / Hong Kong</div>
+            <h1 class="event-title">Wang Fuk Court Fire Kills 160 in Hong Kong's Deadliest Blaze in Decades</h1>
+            <div class="event-meta">
+                <span>Tai Po, Hong Kong</span>
+                <span class="meta-separator">|</span>
+                <span>November 26 - December 11, 2024</span>
+                <span class="meta-separator">|</span>
+                <span class="confidence-badge">
+                    <span class="confidence-dot"></span>
+                    92% Confidence
+                </span>
+            </div>
+        </header>
+
+        <!-- Main Grid -->
+        <div class="main-grid">
+            <!-- Article Pane -->
+            <div class="article-pane">
+                <div class="article-content">
+                    <p>
+                        A devastating fire swept through Wang Fuk Court in Tai Po, Hong Kong on November 26, 2024,
+                        killing <span class="fact-highlight certain" data-metric="deaths" data-value="160" data-entropy="0.12">
+                            160 people
+                            <span class="fact-tooltip">
+                                <div class="tooltip-row">
+                                    <span class="tooltip-label">Certainty</span>
+                                    <span class="tooltip-value green">88%</span>
+                                </div>
+                                <div class="tooltip-row">
+                                    <span class="tooltip-label">Sources</span>
+                                    <span class="tooltip-value">12 independent</span>
+                                </div>
+                                <div class="tooltip-row">
+                                    <span class="tooltip-label">Last updated</span>
+                                    <span class="tooltip-value">Dec 11</span>
+                                </div>
+                            </span>
+                        </span> and injuring
+                        <span class="fact-highlight certain" data-metric="injured" data-value="76" data-entropy="0.18">
+                            76 others
+                            <span class="fact-tooltip">
+                                <div class="tooltip-row">
+                                    <span class="tooltip-label">Certainty</span>
+                                    <span class="tooltip-value green">82%</span>
+                                </div>
+                                <div class="tooltip-row">
+                                    <span class="tooltip-label">Sources</span>
+                                    <span class="tooltip-value">8 independent</span>
+                                </div>
+                            </span>
+                        </span>. The blaze, which engulfed
+                        <span class="fact-highlight certain" data-entropy="0.10">
+                            seven residential towers
+                            <span class="fact-tooltip">
+                                <div class="tooltip-row">
+                                    <span class="tooltip-label">Certainty</span>
+                                    <span class="tooltip-value green">90%</span>
+                                </div>
+                            </span>
+                        </span>,
+                        became Hong Kong's deadliest fire in decades, prompting widespread concern about building safety standards.
+                    </p>
+
+                    <p>
+                        The fire rapidly spread through
+                        <span class="fact-highlight likely" data-entropy="0.35">
+                            flammable insulation panels installed during recent renovations
+                            <span class="fact-tooltip">
+                                <div class="tooltip-row">
+                                    <span class="tooltip-label">Certainty</span>
+                                    <span class="tooltip-value blue">65%</span>
+                                </div>
+                                <div class="tooltip-row">
+                                    <span class="tooltip-label">Status</span>
+                                    <span class="tooltip-value">Under investigation</span>
+                                </div>
+                            </span>
+                        </span>,
+                        according to preliminary findings. More than
+                        <span class="fact-highlight certain" data-entropy="0.15">
+                            200 fire trucks and 100 ambulances
+                            <span class="fact-tooltip">
+                                <div class="tooltip-row">
+                                    <span class="tooltip-label">Certainty</span>
+                                    <span class="tooltip-value green">85%</span>
+                                </div>
+                                <div class="tooltip-row">
+                                    <span class="tooltip-label">Source</span>
+                                    <span class="tooltip-value">HK Fire Services</span>
+                                </div>
+                            </span>
+                        </span>
+                        were deployed to the scene as firefighters battled to contain the inferno.
+                    </p>
+
+                    <!-- Investigation Sub-event -->
+                    <div class="subevent-section">
+                        <div class="subevent-label">Investigation & Arrests</div>
+                        <p>
+                            Authorities have arrested
+                            <span class="fact-highlight certain" data-metric="arrests" data-value="20" data-entropy="0.15">
+                                20 individuals
+                                <span class="fact-tooltip">
+                                    <div class="tooltip-row">
+                                        <span class="tooltip-label">Certainty</span>
+                                        <span class="tooltip-value green">85%</span>
+                                    </div>
+                                    <div class="tooltip-row">
+                                        <span class="tooltip-label">Updated from</span>
+                                        <span class="tooltip-value">14 (Dec 5)</span>
+                                    </div>
+                                </span>
+                            </span>
+                            on suspicion of manslaughter and corruption, including contractor executives linked to the renovation project.
+                            The fire is believed to have originated on the
+                            <span class="fact-highlight contested" data-entropy="0.65">
+                                15th floor
+                                <span class="fact-tooltip">
+                                    <div class="tooltip-row">
+                                        <span class="tooltip-label">Certainty</span>
+                                        <span class="tooltip-value red">35%</span>
+                                    </div>
+                                    <div class="tooltip-row">
+                                        <span class="tooltip-label">Conflict</span>
+                                        <span class="tooltip-value red">vs 14th floor</span>
+                                    </div>
+                                    <div class="tooltip-row">
+                                        <span class="tooltip-label">Status</span>
+                                        <span class="tooltip-value">Unresolved</span>
+                                    </div>
+                                </span>
+                            </span>,
+                            though this detail remains under investigation.
+                        </p>
+                    </div>
+
+                    <!-- Displacement Sub-event -->
+                    <div class="subevent-section">
+                        <div class="subevent-label">Displacement & Relief</div>
+                        <p>
+                            The disaster displaced
+                            <span class="fact-highlight certain" data-entropy="0.20">
+                                approximately 3,200 residents
+                                <span class="fact-tooltip">
+                                    <div class="tooltip-row">
+                                        <span class="tooltip-label">Certainty</span>
+                                        <span class="tooltip-value green">80%</span>
+                                    </div>
+                                </span>
+                            </span>
+                            who have been relocated to temporary shelters. Local authorities and relief organizations are providing
+                            emergency assistance as the investigation continues.
+                        </p>
+                    </div>
+
+                    <p>
+                        The death toll evolved significantly over the two-week period as DNA identification confirmed victims.
+                        Initial reports on November 26 cited
+                        <span class="fact-highlight likely" style="text-decoration: line-through; opacity: 0.6;">36 deaths</span>,
+                        which was later revised to 128, then 156, before reaching the final confirmed count of 160.
+                    </p>
+                </div>
+
+                <!-- Fact Legend -->
+                <div class="fact-legend">
+                    <span style="color: var(--text-dim); margin-right: 0.5rem;">Fact certainty:</span>
+                    <span class="legend-chip"><span class="legend-chip-dot certain"></span> Confirmed (>80%)</span>
+                    <span class="legend-chip"><span class="legend-chip-dot likely"></span> Likely (50-80%)</span>
+                    <span class="legend-chip"><span class="legend-chip-dot uncertain"></span> Uncertain (30-50%)</span>
+                    <span class="legend-chip"><span class="legend-chip-dot contested"></span> Contested (<30%)</span>
+                </div>
+
+                <!-- Footer -->
+                <div class="article-footer">
+                    <div class="update-info">
+                        <span>Last updated: December 11, 2024 at 09:00 HKT</span>
+                        <span class="meta-separator">|</span>
+                        <span class="version-link" onclick="showVersionHistory()">View 17 versions</span>
+                    </div>
+                    <div>
+                        This narrative is synthesized from 134 claims across 34 sources (12 independent).
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sidebar -->
+            <div class="sidebar">
+                <!-- Consolidated Metrics Card -->
+                <div class="metrics-card">
+                    <div class="metrics-header">
+                        <span class="metrics-title">Event Confidence</span>
+                        <span class="metrics-status">
+                            <span class="metrics-status-dot"></span>
+                            Converged
+                        </span>
+                    </div>
+
+                    <div class="metrics-summary">
+                        <div class="metric-mini active" onclick="showMetricDetail('entropy')">
+                            <div class="metric-mini-value green">0.18</div>
+                            <div class="metric-mini-label">Entropy</div>
+                        </div>
+                        <div class="metric-mini" onclick="showMetricDetail('coherence')">
+                            <div class="metric-mini-value green">92%</div>
+                            <div class="metric-mini-label">Coherence</div>
+                        </div>
+                        <div class="metric-mini" onclick="showMetricDetail('sources')">
+                            <div class="metric-mini-value">12</div>
+                            <div class="metric-mini-label">Indep. Sources</div>
+                        </div>
+                    </div>
+
+                    <!-- Metric Details (expandable) -->
+                    <div class="metric-detail visible" id="detail-entropy">
+                        <div class="metric-detail-header">Entropy Breakdown</div>
+                        <div class="metric-detail-row">
+                            <span>Starting entropy</span>
+                            <span>1.00 (unknown)</span>
+                        </div>
+                        <div class="metric-detail-row">
+                            <span>Corroboration reduction</span>
+                            <span class="green">-0.72</span>
+                        </div>
+                        <div class="metric-detail-row">
+                            <span>Contradiction penalty</span>
+                            <span class="red">+0.08</span>
+                        </div>
+                        <div class="metric-detail-row">
+                            <span>Independence discount</span>
+                            <span style="color: var(--text-dim);">35% effective</span>
+                        </div>
+                        <div class="metric-detail-row">
+                            <span><strong>Final entropy</strong></span>
+                            <span class="green"><strong>0.18</strong></span>
+                        </div>
+                    </div>
+
+                    <div class="metric-detail" id="detail-coherence">
+                        <div class="metric-detail-header">Coherence Breakdown</div>
+                        <div class="metric-detail-row">
+                            <span>Total contradictions found</span>
+                            <span>12</span>
+                        </div>
+                        <div class="metric-detail-row">
+                            <span>Resolved (temporal updates)</span>
+                            <span class="green">11</span>
+                        </div>
+                        <div class="metric-detail-row">
+                            <span>Active contradictions</span>
+                            <span class="red">1</span>
+                        </div>
+                        <div class="metric-detail-row">
+                            <span><strong>Coherence score</strong></span>
+                            <span class="green"><strong>92%</strong></span>
+                        </div>
+                    </div>
+
+                    <div class="metric-detail" id="detail-sources">
+                        <div class="metric-detail-header">Source Analysis</div>
+                        <div class="metric-detail-row">
+                            <span>Total sources</span>
+                            <span>34</span>
+                        </div>
+                        <div class="metric-detail-row">
+                            <span>Independent (35%)</span>
+                            <span class="green">12</span>
+                        </div>
+                        <div class="metric-detail-row">
+                            <span>Likely copies (65%)</span>
+                            <span style="color: var(--text-dim);">22</span>
+                        </div>
+                        <div class="metric-detail-row">
+                            <span>Wire services</span>
+                            <span>Reuters, AP, AFP</span>
+                        </div>
+                        <div class="metric-detail-row">
+                            <span>Official sources</span>
+                            <span>Gov HK, Police</span>
+                        </div>
+                    </div>
+
+                    <!-- Convergence Chart -->
+                    <div class="convergence-section">
+                        <div class="convergence-chart">
+                            <canvas id="convergence-canvas" class="chart-canvas"></canvas>
+                        </div>
+                        <div class="chart-labels">
+                            <span>Nov 26</span>
+                            <span>Dec 11</span>
+                        </div>
+                        <div class="chart-legend">
+                            <span class="legend-item"><span class="legend-dot" style="background: var(--green);"></span> Entropy</span>
+                            <span class="legend-item"><span class="legend-dot" style="background: var(--blue);"></span> Belief</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Belief States Card (GENERAL - engine-discovered metrics) -->
+                <div class="belief-card">
+                    <div class="belief-header">Belief States (Engine-Discovered)</div>
+                    <div class="belief-content" id="belief-states">
+                        <!-- Populated by JS from engine data -->
+                    </div>
+                </div>
+
+                <!-- Key Sources Card -->
+                <div class="sources-card">
+                    <div class="sources-header">Key Sources (12 independent)</div>
+                    <div class="sources-content">
+                        <div class="source-item">
+                            <span class="source-type wire">Wire</span>
+                            <span>Reuters (3 reports)</span>
+                        </div>
+                        <div class="source-item">
+                            <span class="source-type wire">Wire</span>
+                            <span>Associated Press</span>
+                        </div>
+                        <div class="source-item">
+                            <span class="source-type official">Official</span>
+                            <span>HK Government</span>
+                        </div>
+                        <div class="source-item">
+                            <span class="source-type official">Official</span>
+                            <span>HK Fire Services</span>
+                        </div>
+                        <div class="source-item">
+                            <span class="source-type news">News</span>
+                            <span>BBC, DW, SCMP</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // =========================================================================
+        // GENERAL DATA STRUCTURE
+        // This is what the epistemic engine would output for ANY event
+        // The UI renders whatever metrics the engine discovers
+        // =========================================================================
+
+        // Overall event entropy trajectory (universal)
+        const entropyTrajectory = [
+            { claim: 1, entropy: 1.0 },
+            { claim: 5, entropy: 0.82 },
+            { claim: 15, entropy: 0.65 },
+            { claim: 30, entropy: 0.52 },
+            { claim: 50, entropy: 0.42 },
+            { claim: 70, entropy: 0.32 },
+            { claim: 90, entropy: 0.25 },
+            { claim: 110, entropy: 0.20 },
+            { claim: 134, entropy: 0.18 },
+        ];
+
+        // Engine-discovered belief states (GENERAL structure)
+        // Each metric has: name, current belief, entropy, history, prior
+        const beliefStates = [
+            {
+                metric: "deaths",           // discovered by engine
+                label: "Deaths",            // display name
+                belief: 160,                // current belief
+                entropy: 0.12,              // metric-specific entropy
+                prior: "monotonic_increasing", // domain prior applied
+                history: [
+                    { time: "Nov 26", value: 36, relation: "seed" },
+                    { time: "Nov 28", value: 128, relation: "update" },
+                    { time: "Dec 03", value: 156, relation: "update" },
+                    { time: "Dec 11", value: 160, relation: "update" },
+                ],
+                corroborations: 45,
+                contradictions: 0,  // all resolved as updates
+            },
+            {
+                metric: "injured",
+                label: "Injured",
+                belief: 76,
+                entropy: 0.18,
+                prior: "monotonic_increasing",
+                history: [
+                    { time: "Nov 26", value: 52, relation: "seed" },
+                    { time: "Nov 28", value: 76, relation: "update" },
+                ],
+                corroborations: 12,
+                contradictions: 0,
+            },
+            {
+                metric: "missing",
+                label: "Missing",
+                belief: 0,
+                entropy: 0.15,
+                prior: "monotonic_decreasing",
+                history: [
+                    { time: "Nov 26", value: 279, relation: "seed" },
+                    { time: "Dec 03", value: 45, relation: "update" },
+                    { time: "Dec 05", value: 6, relation: "update" },
+                    { time: "Dec 11", value: 0, relation: "update" },
+                ],
+                corroborations: 8,
+                contradictions: 0,
+            },
+            {
+                metric: "arrests",
+                label: "Arrests",
+                belief: 20,
+                entropy: 0.15,
+                prior: "monotonic_increasing",
+                history: [
+                    { time: "Nov 29", value: 14, relation: "seed" },
+                    { time: "Dec 05", value: 20, relation: "update" },
+                ],
+                corroborations: 6,
+                contradictions: 0,
+            },
+        ];
+
+        // Active contradictions (unresolved)
+        const activeContradictions = [
+            {
+                topic: "fire_origin",
+                values: ["15th floor", "14th floor"],
+                support: [3, 2],  // claim counts for each
+                entropy: 0.65,
+            }
+        ];
+
+        // =========================================================================
+        // RENDER FUNCTIONS (general, data-driven)
+        // =========================================================================
+
+        function renderBeliefStates() {
+            const container = document.getElementById('belief-states');
+
+            container.innerHTML = beliefStates.map(state => {
+                const entropyClass = state.entropy < 0.2 ? 'green' : state.entropy < 0.4 ? 'blue' : 'yellow';
+                const priorLabel = state.prior === 'monotonic_increasing' ? '↑' :
+                                   state.prior === 'monotonic_decreasing' ? '↓' : '~';
+
+                // Show last few history items
+                const recentHistory = state.history.slice(-3);
+
+                return `
+                    <div class="belief-state-item">
+                        <div class="belief-state-header">
+                            <span class="belief-state-name">${state.label}</span>
+                            <span class="belief-state-prior" title="Prior: ${state.prior}">${priorLabel}</span>
+                            <span class="belief-state-value ${entropyClass}">${state.belief}</span>
+                            <span class="belief-state-entropy">H=${state.entropy.toFixed(2)}</span>
+                        </div>
+                        <div class="belief-state-history">
+                            ${recentHistory.map((h, i) => `
+                                <span class="history-item ${h.relation}">
+                                    ${h.value}${i < recentHistory.length - 1 ? ' →' : ''}
+                                </span>
+                            `).join('')}
+                        </div>
+                        <div class="belief-state-support">
+                            ${state.corroborations} corr / ${state.contradictions} contra
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            // Add active contradictions if any
+            if (activeContradictions.length > 0) {
+                container.innerHTML += `
+                    <div class="contradictions-section">
+                        <div class="contradictions-header">Unresolved Contradictions</div>
+                        ${activeContradictions.map(c => `
+                            <div class="contradiction-item-mini">
+                                <span class="contradiction-topic">${c.topic.replace('_', ' ')}</span>
+                                <span class="contradiction-values">${c.values.join(' vs ')}</span>
+                                <span class="contradiction-entropy red">H=${c.entropy.toFixed(2)}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+        }
+
+        function showMetricDetail(metric) {
+            // Update active state
+            document.querySelectorAll('.metric-mini').forEach(m => m.classList.remove('active'));
+            event.currentTarget.classList.add('active');
+
+            // Show corresponding detail
+            document.querySelectorAll('.metric-detail').forEach(d => d.classList.remove('visible'));
+            document.getElementById(`detail-${metric}`).classList.add('visible');
+        }
+
+        function showVersionHistory() {
+            alert('Version history:\n\n' +
+                'v17 (Dec 11): Final death toll 160\n' +
+                'v15 (Dec 05): Missing resolved, arrests updated to 20\n' +
+                'v12 (Dec 03): Death toll updated to 156\n' +
+                'v8 (Nov 29): Arrests information added\n' +
+                'v5 (Nov 28): Death toll updated to 128\n' +
+                'v3 (Nov 26): Title stabilized\n' +
+                'v1 (Nov 26): Initial event emergence'
+            );
+        }
+
+        function renderConvergenceChart() {
+            const canvas = document.getElementById('convergence-canvas');
+            const ctx = canvas.getContext('2d');
+
+            // Set canvas size for retina
+            const dpr = window.devicePixelRatio || 1;
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            ctx.scale(dpr, dpr);
+
+            const width = rect.width;
+            const height = rect.height;
+            const padding = { left: 5, right: 5, top: 10, bottom: 10 };
+
+            // Clear
+            ctx.clearRect(0, 0, width, height);
+
+            // Draw grid lines
+            ctx.strokeStyle = '#2a2a3a';
+            ctx.lineWidth = 0.5;
+            for (let i = 0; i <= 4; i++) {
+                const y = padding.top + (height - padding.top - padding.bottom) * i / 4;
+                ctx.beginPath();
+                ctx.moveTo(padding.left, y);
+                ctx.lineTo(width - padding.right, y);
+                ctx.stroke();
+            }
+
+            const maxClaim = 134;
+
+            // Helper to get coordinates
+            const getX = (claim) => padding.left + (claim / maxClaim) * (width - padding.left - padding.right);
+            const getY = (val) => padding.top + (1 - val) * (height - padding.top - padding.bottom);
+
+            // Draw entropy line (inverted so lower is better)
+            ctx.strokeStyle = '#22c55e';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            entropyTrajectory.forEach((d, i) => {
+                const x = getX(d.claim);
+                const y = getY(1 - d.entropy); // Invert: lower entropy = higher on chart
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            });
+            ctx.stroke();
+
+            // Draw belief line (normalized 0-160)
+            ctx.strokeStyle = '#3b82f6';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            let started = false;
+            entropyTrajectory.forEach((d) => {
+                if (d.belief === null) return;
+                const x = getX(d.claim);
+                const y = getY(d.belief / 160);
+                if (!started) {
+                    ctx.moveTo(x, y);
+                    started = true;
+                } else {
+                    ctx.lineTo(x, y);
+                }
+            });
+            ctx.stroke();
+
+            // Draw dots
+            entropyTrajectory.forEach(d => {
+                const x = getX(d.claim);
+
+                // Entropy dot
+                const yE = getY(1 - d.entropy);
+                ctx.fillStyle = '#22c55e';
+                ctx.beginPath();
+                ctx.arc(x, yE, 3, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Belief dot
+                if (d.belief !== null) {
+                    const yB = getY(d.belief / 160);
+                    ctx.fillStyle = '#3b82f6';
+                    ctx.beginPath();
+                    ctx.arc(x, yB, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            });
+        }
+
+        // Initialize
+        renderBeliefStates();
+        renderConvergenceChart();
+        window.addEventListener('resize', renderConvergenceChart);
+    </script>
+</body>
+</html>

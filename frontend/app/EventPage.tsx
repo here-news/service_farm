@@ -7,7 +7,16 @@ import EpicenterMapCard from './components/event/EpicenterMapCard';
 import EventSidebar from './components/event/EventSidebar';
 import EventNarrativeContent from './components/event/EventNarrativeContent';
 import DebateThread from './components/event/DebateThread';
-import { EpistemicStateCard, QuestList, ContributionModal, EpistemicGap } from './components/epistemic';
+import {
+    EpistemicStateCard,
+    QuestList,
+    ContributionModal,
+    EpistemicGap,
+    DivergentValuesCard,
+    AccountabilityChainCard,
+    DivergentTopic,
+    AccountabilityChain
+} from './components/epistemic';
 import useEpistemicState from './hooks/useEpistemicState';
 
 interface Entity {
@@ -90,7 +99,88 @@ interface EventData {
     page_thumbnails?: PageThumbnail[];
 }
 
-type TabType = 'narrative' | 'debate' | 'topology';
+type TabType = 'narrative' | 'debate' | 'epistemic' | 'topology';
+
+// Demo data for participatory epistemic features
+const DEMO_DIVERGENT_TOPICS: DivergentTopic[] = [
+    {
+        id: 'death_toll',
+        topic: 'Death Toll',
+        question: 'How many people died in the fire?',
+        status: 'needs_resolution',
+        values: [
+            { value: '36', source: 'dw.com (early report)', date: 'Nov 26, ~4:00 PM', votes: 0 },
+            { value: '83', source: 'trtworld.com', date: 'Nov 26, ~8:00 PM', votes: 2 },
+            { value: '128', source: 'dailymail.co.uk, asia.nikkei.com', date: 'Nov 27', votes: 5 },
+            { value: '160', source: 'hongkongfp.com (after DNA tests)', date: 'Dec 2', votes: 12, isLatest: true },
+        ]
+    },
+    {
+        id: 'fire_trucks',
+        topic: 'Fire Trucks Deployed',
+        question: 'How many fire trucks were deployed?',
+        status: 'needs_resolution',
+        values: [
+            { value: '128', source: 'dw.com', date: 'Initial deployment', votes: 3 },
+            { value: '200', source: 'theguardian.com', date: 'Peak deployment?', votes: 4 },
+        ]
+    },
+    {
+        id: 'arrests',
+        topic: 'Arrests',
+        question: 'How many people were arrested?',
+        status: 'temporal_update',
+        values: [
+            { value: '8', source: 'dailymail.co.uk', votes: 0 },
+            { value: '13', source: 'christianitytoday.com', votes: 1 },
+            { value: '14', source: 'hongkongfp.com', votes: 8, isLatest: true },
+        ],
+        resolution: {
+            value: '14',
+            explanation: 'Cumulative arrests over time. Current: 14+',
+            resolvedBy: '@editor_wong',
+            resolvedAt: '2024-12-20'
+        }
+    }
+];
+
+const DEMO_ACCOUNTABILITY_CHAINS: AccountabilityChain[] = [
+    {
+        id: 'relief_fund',
+        title: 'HK$300m Relief Fund',
+        type: 'relief_fund',
+        lastUpdated: '2024-12-20',
+        steps: [
+            { id: 'promise', label: 'PROMISE', text: 'John Lee announced HK$300m fund for residents', status: 'completed', source: 'theguardian.com', date: 'Nov 27' },
+            { id: 'action', label: 'ACTION', text: 'Fund legislation passed?', status: 'pending' },
+            { id: 'outcome', label: 'OUTCOME', text: 'Funds disbursed to residents?', status: 'unknown' },
+            { id: 'verification', label: 'VERIFICATION', text: 'Recipients verified?', status: 'unknown' },
+        ]
+    },
+    {
+        id: 'investigation',
+        title: 'Independent Investigation (Judge David Lok)',
+        type: 'investigation',
+        lastUpdated: '2024-12-20',
+        steps: [
+            { id: 'announced', label: 'ANNOUNCED', text: 'Judge David Lok appointed to lead committee', status: 'completed', source: 'hongkongfp.com', date: 'Nov 28' },
+            { id: 'progress', label: 'PROGRESS', text: 'Committee convened? Investigation ongoing?', status: 'pending' },
+            { id: 'report', label: 'REPORT', text: 'Report due in 9 months (approx. Aug 2026)', status: 'unknown', date: 'Aug 2026' },
+        ]
+    },
+    {
+        id: 'prosecution',
+        title: 'Criminal Prosecution (14 Arrested)',
+        type: 'prosecution',
+        lastUpdated: '2024-12-20',
+        steps: [
+            { id: 'arrest', label: 'ARREST', text: '14 arrested for manslaughter/corruption', status: 'completed', source: 'hongkongfp.com' },
+            { id: 'charges', label: 'CHARGES', text: 'Were formal charges filed?', status: 'pending' },
+            { id: 'trial', label: 'TRIAL', text: 'Trial scheduled?', status: 'unknown' },
+            { id: 'verdict', label: 'VERDICT', text: 'Conviction/acquittal?', status: 'unknown' },
+        ]
+    }
+];
 
 const EventPage: React.FC = () => {
     const { eventSlug } = useParams<{ eventSlug: string }>();
@@ -314,6 +404,7 @@ const EventPage: React.FC = () => {
                                 {[
                                     { id: 'narrative', label: 'Narrative', icon: '📰', suffix: null },
                                     { id: 'debate', label: 'Debate', icon: '💬', suffix: null },
+                                    { id: 'epistemic', label: 'Epistemic', icon: '⚡', suffix: DEMO_DIVERGENT_TOPICS.filter(t => t.status === 'needs_resolution').length > 0 ? `${DEMO_DIVERGENT_TOPICS.filter(t => t.status === 'needs_resolution').length}` : null },
                                     { id: 'topology', label: 'Topology', icon: '🔮', suffix: `φ ${Math.round(event.coherence * 100)}%` }
                                 ].map(tab => (
                                     <button
@@ -403,6 +494,69 @@ const EventPage: React.FC = () => {
                             )}
 
                             {activeTab === 'debate' && renderDebate()}
+
+                            {activeTab === 'epistemic' && (
+                                <div className="space-y-6">
+                                    {/* Header */}
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <h2 className="text-xl font-bold text-slate-800">Participatory Epistemology</h2>
+                                            <p className="text-sm text-slate-500 mt-1">
+                                                Help resolve uncertainties and track accountability
+                                            </p>
+                                        </div>
+                                        <button
+                                            onClick={() => setShowContributionModal(true)}
+                                            className="px-4 py-2 bg-indigo-500 text-white font-medium rounded-lg hover:bg-indigo-600 transition-colors"
+                                        >
+                                            + Contribute
+                                        </button>
+                                    </div>
+
+                                    {/* Divergent Values Section */}
+                                    <DivergentValuesCard
+                                        topics={DEMO_DIVERGENT_TOPICS}
+                                        onVote={async (topicId, value) => {
+                                            console.log('Vote:', topicId, value);
+                                        }}
+                                        onResolve={async (topicId, value, explanation, method) => {
+                                            console.log('Resolve:', topicId, value, explanation, method);
+                                        }}
+                                    />
+
+                                    {/* Accountability Chains Section */}
+                                    <AccountabilityChainCard
+                                        chains={DEMO_ACCOUNTABILITY_CHAINS}
+                                        onAddEvidence={(chainId, stepId) => {
+                                            console.log('Add evidence:', chainId, stepId);
+                                            setShowContributionModal(true);
+                                        }}
+                                        onSetReminder={(chainId, stepId) => {
+                                            console.log('Set reminder:', chainId, stepId);
+                                            alert('Reminder set! You will be notified when updates are available.');
+                                        }}
+                                    />
+
+                                    {/* Quest List */}
+                                    {epistemicState && epistemicState.gaps.length > 0 && (
+                                        <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+                                            <div className="px-4 py-3 bg-gradient-to-r from-amber-50 to-yellow-50 border-b border-amber-100">
+                                                <h3 className="font-semibold text-slate-800 flex items-center gap-2">
+                                                    <span>🎯</span>
+                                                    Open Quests
+                                                </h3>
+                                            </div>
+                                            <div className="p-4">
+                                                <QuestList
+                                                    gaps={epistemicState.gaps}
+                                                    eventId={event.id}
+                                                    onContribute={handleContributeClick}
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
 
                             {activeTab === 'topology' && (
                                 <div>

@@ -23,6 +23,7 @@ services:
       dockerfile: Dockerfile.app
     container_name: herenews-app
     network_mode: host
+    env_file: .env
     environment:
       POSTGRES_HOST: ${POSTGRES_HOST}
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
@@ -39,6 +40,7 @@ services:
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
     volumes:
       - ./backend:/app
+      - ./frontend/prototypes:/app/prototypes
     command: uvicorn main:app --host 0.0.0.0 --port 7272 --reload
 
   # Extraction Workers (parallel processing)
@@ -48,6 +50,7 @@ services:
       dockerfile: Dockerfile
     container_name: herenews-worker-extraction-1
     network_mode: host
+    env_file: .env
     environment:
       POSTGRES_HOST: ${POSTGRES_HOST}
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
@@ -66,6 +69,7 @@ services:
       dockerfile: Dockerfile
     container_name: herenews-worker-extraction-2
     network_mode: host
+    env_file: .env
     environment:
       POSTGRES_HOST: ${POSTGRES_HOST}
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
@@ -85,6 +89,7 @@ services:
       dockerfile: Dockerfile
     container_name: herenews-worker-knowledge-1
     network_mode: host
+    env_file: .env
     environment:
       POSTGRES_HOST: ${POSTGRES_HOST}
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
@@ -107,6 +112,7 @@ services:
       dockerfile: Dockerfile
     container_name: herenews-worker-knowledge-2
     network_mode: host
+    env_file: .env
     environment:
       POSTGRES_HOST: ${POSTGRES_HOST}
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}
@@ -130,6 +136,7 @@ services:
       dockerfile: Dockerfile
     container_name: herenews-worker-event
     network_mode: host
+    env_file: .env
     environment:
       POSTGRES_HOST: ${POSTGRES_HOST}
       POSTGRES_PORT: ${POSTGRES_PORT:-5432}

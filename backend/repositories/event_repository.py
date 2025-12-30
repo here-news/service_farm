@@ -500,27 +500,36 @@ class EventRepository:
 
     async def get_event_claims(self, event_id: str) -> List:
         """
-        Get all claims linked to an event from Neo4j graph, hydrated from PostgreSQL
+        Get all claims linked to an event from Neo4j graph, with entities hydrated.
 
         Args:
             event_id: Event ID (ev_xxxxxxxx format)
 
         Returns:
-            List of Claim domain models with entity_ids populated
+            List of Claim domain models with entities populated
         """
         # Import here to avoid circular dependency
         from models.domain.claim import Claim
+        from models.domain.entity import Entity
 
-        # Fetch all claim data from Neo4j (primary storage)
-        # Join with Page via CONTAINS relationship to get page_id
+        # Fetch all claim data from Neo4j with linked entities
         result = await self.neo4j._execute_read("""
             MATCH (e:Event {id: $event_id})-[r:INTAKES]->(c:Claim)
             OPTIONAL MATCH (p:Page)-[:EMITS]->(c)
+            OPTIONAL MATCH (c)-[:MENTIONS]->(ent:Entity)
+            WITH c, p, collect(DISTINCT {
+                id: ent.id,
+                canonical_name: ent.canonical_name,
+                entity_type: ent.entity_type,
+                wikidata_qid: ent.wikidata_qid
+            }) as entities
             RETURN c.id as id,
                    COALESCE(c.page_id, p.id) as page_id,
                    c.text as text,
                    c.modality as modality, c.confidence as confidence,
-                   c.event_time as event_time, c.metadata as metadata
+                   c.event_time as event_time, c.metadata as metadata,
+                   p.url as source_url,
+                   entities
             ORDER BY c.event_time
         """, {'event_id': event_id})
 
@@ -540,6 +549,17 @@ class EventRepository:
                 except json.JSONDecodeError:
                     metadata = {}
 
+            # Build Entity objects from collected entity data
+            entities = []
+            for ent_data in (row.get('entities') or []):
+                if ent_data.get('id'):  # Filter out null entities
+                    entities.append(Entity(
+                        id=ent_data['id'],
+                        canonical_name=ent_data.get('canonical_name', 'Unknown'),
+                        entity_type=ent_data.get('entity_type', 'UNKNOWN'),
+                        wikidata_qid=ent_data.get('wikidata_qid')
+                    ))
+
             claim = Claim(
                 id=row['id'],
                 page_id=row['page_id'],
@@ -547,11 +567,26 @@ class EventRepository:
                 modality=row.get('modality', 'observation'),
                 confidence=row.get('confidence', 0.8),
                 event_time=row['event_time'],
-                metadata=metadata
+                metadata=metadata,
+                entities=entities  # Hydrated entities
             )
+
+            # Extract source from URL domain
+            source_url = row.get('source_url')
+            if source_url:
+                try:
+                    from urllib.parse import urlparse
+                    domain = urlparse(source_url).netloc
+                    # Remove www. prefix and get clean domain
+                    if domain.startswith('www.'):
+                        domain = domain[4:]
+                    claim.metadata['source_name'] = domain
+                except:
+                    claim.metadata['source_name'] = source_url[:30]
+
             claims.append(claim)
 
-        logger.debug(f"Fetched {len(claims)} claims for event {event_id} with entity_ids")
+        logger.debug(f"Fetched {len(claims)} claims for event {event_id} with entities")
         return claims
 
     async def get_event_claims_with_timeline_data(self, event_id: str) -> List:
@@ -1292,6 +1327,124 @@ class EventRepository:
         """, {'event_id': event_id})
 
         return result[0]['count'] if result else 0
+
+    async def create_event_edge(
+        self,
+        source_id: str,
+        target_id: str,
+        relation_type: str,
+        confidence: float = 0.5,
+        reasoning: str = ""
+    ) -> None:
+        """
+        Create a relationship between two events in Neo4j.
+
+        Used by RecursiveWeaver (Phase 3) for narrative chains:
+        - FOLLOWS: E1 happened after E2
+        - CAUSES: E1 caused E2
+        - ENABLES: E1 enabled E2
+        - PART_OF: E1 is sub-event of E2
+        - RELATED_TO: Generic relation
+
+        Args:
+            source_id: Source event ID (ev_xxxxxxxx)
+            target_id: Target event ID (ev_xxxxxxxx)
+            relation_type: Relationship type (FOLLOWS, CAUSES, etc.)
+            confidence: Confidence score (0.0-1.0)
+            reasoning: Optional explanation
+        """
+        await self.neo4j._execute_write("""
+            MATCH (source:Event {id: $source_id})
+            MATCH (target:Event {id: $target_id})
+            MERGE (source)-[r:EVENT_EDGE {type: $relation_type}]->(target)
+            SET r.confidence = $confidence,
+                r.reasoning = $reasoning,
+                r.created_at = datetime()
+        """, {
+            'source_id': source_id,
+            'target_id': target_id,
+            'relation_type': relation_type,
+            'confidence': confidence,
+            'reasoning': reasoning
+        })
+
+        logger.debug(f"🔗 Created {relation_type} edge: {source_id} → {target_id}")
+
+    async def get_event_edges(
+        self,
+        event_id: str,
+        direction: str = "both"
+    ) -> List[Dict]:
+        """
+        Get event-event relationships for an event.
+
+        Args:
+            event_id: Event ID
+            direction: "outgoing", "incoming", or "both"
+
+        Returns:
+            List of edge dicts with source_id, target_id, relation_type, confidence
+        """
+        if direction == "outgoing":
+            query = """
+                MATCH (source:Event {id: $event_id})-[r:EVENT_EDGE]->(target:Event)
+                RETURN source.id as source_id, target.id as target_id,
+                       r.type as relation_type, r.confidence as confidence,
+                       target.canonical_name as target_name
+            """
+        elif direction == "incoming":
+            query = """
+                MATCH (source:Event)-[r:EVENT_EDGE]->(target:Event {id: $event_id})
+                RETURN source.id as source_id, target.id as target_id,
+                       r.type as relation_type, r.confidence as confidence,
+                       source.canonical_name as source_name
+            """
+        else:
+            query = """
+                MATCH (e:Event {id: $event_id})-[r:EVENT_EDGE]-(other:Event)
+                RETURN
+                    CASE WHEN startNode(r).id = $event_id THEN e.id ELSE other.id END as source_id,
+                    CASE WHEN endNode(r).id = $event_id THEN e.id ELSE other.id END as target_id,
+                    r.type as relation_type,
+                    r.confidence as confidence,
+                    other.canonical_name as other_name
+            """
+
+        result = await self.neo4j._execute_read(query, {'event_id': event_id})
+        return [dict(row) for row in result]
+
+    async def get_narrative_chain(
+        self,
+        start_event_id: str,
+        max_depth: int = 10
+    ) -> List[Dict]:
+        """
+        Get temporal chain of events following from start_event.
+
+        Traverses FOLLOWS edges to build narrative sequence.
+
+        Args:
+            start_event_id: Starting event ID
+            max_depth: Maximum chain length
+
+        Returns:
+            Ordered list of event dicts in the chain
+        """
+        result = await self.neo4j._execute_read("""
+            MATCH path = (start:Event {id: $start_id})-[:EVENT_EDGE*1..10]->(end:Event)
+            WHERE ALL(r IN relationships(path) WHERE r.type = 'FOLLOWS')
+            WITH nodes(path) as chain_nodes
+            UNWIND chain_nodes as e
+            WITH DISTINCT e
+            RETURN e.id as id, e.canonical_name as name,
+                   e.event_start as event_start, e.coherence as coherence
+            ORDER BY e.event_start
+        """, {
+            'start_id': start_event_id,
+            'max_depth': max_depth
+        })
+
+        return [dict(row) for row in result]
 
     async def get_events_by_entity(self, entity_id: str, limit: int = 20) -> List[dict]:
         """

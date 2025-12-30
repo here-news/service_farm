@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HERE.news - Jimmy Lai Trial</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap');
+
+        body { font-family: 'Inter', sans-serif; }
+        .narrative { font-family: 'Source Serif 4', Georgia, serif; }
+
+        .voice-line {
+            border-left: 3px solid transparent;
+            transition: all 0.2s;
+        }
+        .voice-line:hover {
+            background: linear-gradient(90deg, rgba(99,102,241,0.05) 0%, transparent 100%);
+        }
+        .voice-line[data-voice="prosecution"] { border-left-color: #ef4444; }
+        .voice-line[data-voice="defense"] { border-left-color: #3b82f6; }
+        .voice-line[data-voice="intl"] { border-left-color: #10b981; }
+        .voice-line[data-voice="ngo"] { border-left-color: #8b5cf6; }
+        .voice-line[data-voice="wire"] { border-left-color: #6b7280; }
+
+        .tension-marker {
+            background: linear-gradient(90deg, #fef3c7 0%, transparent 100%);
+            border-left: 3px solid #f59e0b;
+        }
+
+        .gap-marker {
+            background: linear-gradient(90deg, #fce7f3 0%, transparent 100%);
+            border-left: 3px solid #ec4899;
+            border-style: dashed;
+        }
+
+        .source-badge {
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-weight: 500;
+        }
+
+        .context-card {
+            transition: all 0.3s;
+        }
+        .context-card.active {
+            box-shadow: 0 0 0 2px #6366f1;
+        }
+
+        .timeline-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            border: 2px solid white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }
+
+        .fade-bottom {
+            mask-image: linear-gradient(to bottom, black 80%, transparent 100%);
+        }
+    </style>
+</head>
+<body class="bg-slate-100 min-h-screen">
+    <!-- Header -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-50 shadow-sm">
+        <div class="max-w-7xl mx-auto px-6 py-3">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-6">
+                    <a href="#" class="text-2xl font-bold tracking-tight">
+                        <span class="text-indigo-600">HERE</span><span class="text-slate-400">.news</span>
+                    </a>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div class="flex items-center gap-2 text-sm text-slate-500">
+                        <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                        <span>Live • 47 watching</span>
+                    </div>
+                    <button class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors">
+                        Contribute
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-6 py-8">
+        <!-- Event Header -->
+        <div class="mb-8">
+            <div class="flex items-center gap-3 mb-3">
+                <span class="px-3 py-1 bg-red-100 text-red-700 text-xs font-semibold rounded-full uppercase tracking-wide">Ongoing Trial</span>
+                <span class="text-slate-400">•</span>
+                <span class="text-sm text-slate-500">Hong Kong</span>
+                <span class="text-slate-400">•</span>
+                <span class="text-sm text-slate-500">Started Dec 18, 2024</span>
+            </div>
+            <h1 class="text-4xl font-bold text-slate-900 mb-4 leading-tight">
+                Jimmy Lai Faces Life Sentence in National Security Trial
+            </h1>
+
+            <!-- Story Health - Simplified -->
+            <div class="flex items-center gap-6 py-4 border-y border-slate-200 bg-slate-50 -mx-6 px-6">
+                <div class="flex items-center gap-3">
+                    <span class="text-sm text-slate-500">Sources:</span>
+                    <div class="flex items-center gap-1">
+                        <span class="w-3 h-3 rounded-full bg-gray-400" title="Wire services"></span>
+                        <span class="w-3 h-3 rounded-full bg-green-500" title="International media"></span>
+                        <span class="w-3 h-3 rounded-full bg-purple-500" title="Local media"></span>
+                        <span class="w-3 h-3 rounded-full bg-red-400 opacity-30" title="Official - limited"></span>
+                        <span class="w-3 h-3 rounded-full bg-violet-500" title="NGOs"></span>
+                    </div>
+                    <span class="text-sm font-medium text-slate-700">26 sources</span>
+                </div>
+                <div class="h-4 w-px bg-slate-300"></div>
+                <div class="flex items-center gap-2">
+                    <span class="text-sm text-slate-500">Story completeness:</span>
+                    <div class="w-32 h-2 bg-slate-200 rounded-full overflow-hidden">
+                        <div class="h-full bg-indigo-500 rounded-full" style="width: 75%"></div>
+                    </div>
+                    <span class="text-sm font-medium text-slate-700">75%</span>
+                </div>
+                <div class="h-4 w-px bg-slate-300"></div>
+                <div class="flex items-center gap-2 text-amber-600">
+                    <span class="text-lg">⚡</span>
+                    <span class="text-sm font-medium">2 active debates</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Two Pane Layout -->
+        <div class="flex gap-8">
+            <!-- LEFT: Narrative -->
+            <div class="flex-1 min-w-0">
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="p-8">
+                        <!-- Narrative with Voice Attribution -->
+                        <article class="narrative text-lg text-slate-800 leading-relaxed space-y-6">
+
+                            <!-- Opening -->
+                            <p class="text-xl text-slate-600">
+                                Hong Kong media tycoon Jimmy Lai, 76, appeared in court this week as his long-awaited national security trial entered its opening phase.
+                            </p>
+
+                            <!-- Voice Block: Wire Services -->
+                            <div class="voice-line pl-4 py-2" data-voice="wire">
+                                <p>
+                                    Lai faces charges of "conspiracy to collude with foreign forces" and sedition under the 2020 national security law.
+                                    <span class="text-indigo-600 cursor-pointer hover:underline" onclick="showContext('fact-charges')">
+                                        The maximum penalty is life imprisonment.
+                                    </span>
+                                </p>
+                                <div class="flex items-center gap-2 mt-2">
+                                    <span class="source-badge bg-gray-100 text-gray-600">Reuters</span>
+                                    <span class="source-badge bg-gray-100 text-gray-600">AP</span>
+                                    <span class="source-badge bg-gray-100 text-gray-600">AFP</span>
+                                    <span class="text-xs text-slate-400">• Dec 18, 2024</span>
+                                </div>
+                            </div>
+
+                            <!-- Tension Block -->
+                            <div class="tension-marker pl-4 py-4 my-6 cursor-pointer" onclick="showContext('tension-framing')">
+                                <div class="flex items-center gap-2 mb-3">
+                                    <span class="text-amber-500 text-lg">⚡</span>
+                                    <span class="text-sm font-semibold text-amber-700">Contested framing</span>
+                                </div>
+
+                                <div class="grid grid-cols-2 gap-4 text-base">
+                                    <div class="voice-line pl-3 py-2" data-voice="prosecution">
+                                        <p class="text-slate-700">"Lai used his media platform to collude with foreign governments to impose sanctions on China."</p>
+                                        <div class="mt-2">
+                                            <span class="source-badge bg-red-50 text-red-600">HK Prosecution</span>
+                                        </div>
+                                    </div>
+                                    <div class="voice-line pl-3 py-2" data-voice="defense">
+                                        <p class="text-slate-700">"These are legitimate acts of journalism and peaceful advocacy, protected under Hong Kong's Basic Law."</p>
+                                        <div class="mt-2">
+                                            <span class="source-badge bg-blue-50 text-blue-600">Defense Team</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="mt-3 text-sm text-amber-600 flex items-center gap-1">
+                                    <span>→</span>
+                                    <span>See 8 sources debating this point</span>
+                                </div>
+                            </div>
+
+                            <!-- International Response -->
+                            <h2 class="text-2xl font-bold text-slate-900 pt-4">International Response</h2>
+
+                            <div class="voice-line pl-4 py-2" data-voice="intl">
+                                <p>
+                                    British Foreign Secretary David Lammy called for Lai's immediate release, stating the charges are "politically motivated" and represent an "assault on media freedom."
+                                </p>
+                                <div class="flex items-center gap-2 mt-2">
+                                    <span class="source-badge bg-green-50 text-green-600">UK Foreign Office</span>
+                                    <span class="source-badge bg-green-50 text-green-600">BBC</span>
+                                    <span class="text-xs text-slate-400">• Dec 19, 2024</span>
+                                </div>
+                            </div>
+
+                            <div class="voice-line pl-4 py-2" data-voice="ngo">
+                                <p>
+                                    Amnesty International has designated Lai a
+                                    <span class="bg-purple-100 px-1 rounded cursor-pointer" onclick="showContext('quote-amnesty')">
+                                        "prisoner of conscience"
+                                    </span>,
+                                    stating he is "detained solely for peacefully exercising his human rights."
+                                </p>
+                                <div class="flex items-center gap-2 mt-2">
+                                    <span class="source-badge bg-purple-50 text-purple-600">Amnesty International</span>
+                                    <span class="source-badge bg-purple-50 text-purple-600">RSF</span>
+                                    <span class="text-xs text-slate-400">• Dec 18, 2024</span>
+                                </div>
+                            </div>
+
+                            <!-- Gap Block -->
+                            <div class="gap-marker pl-4 py-4 my-6 cursor-pointer" onclick="showContext('gap-hkgov')">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <span class="text-pink-500 text-lg">❓</span>
+                                    <span class="text-sm font-semibold text-pink-700">Missing perspective</span>
+                                </div>
+                                <p class="text-slate-600">
+                                    The Hong Kong government has not publicly responded to international criticism of the trial.
+                                </p>
+                                <div class="mt-3 flex items-center gap-3">
+                                    <button class="px-3 py-1.5 bg-pink-500 text-white text-sm rounded-lg hover:bg-pink-600 transition-colors">
+                                        I found something
+                                    </button>
+                                    <span class="text-sm text-pink-600">+15 credits</span>
+                                </div>
+                            </div>
+
+                            <!-- Trial Progress -->
+                            <h2 class="text-2xl font-bold text-slate-900 pt-4">Trial Progress</h2>
+
+                            <div class="voice-line pl-4 py-2" data-voice="wire">
+                                <p>
+                                    The prosecution presented digital evidence including Apple Daily editorials and Lai's Twitter posts as proof of his alleged collusion activities. The trial is expected to continue for several months.
+                                </p>
+                                <div class="flex items-center gap-2 mt-2">
+                                    <span class="source-badge bg-gray-100 text-gray-600">Reuters</span>
+                                    <span class="source-badge bg-green-50 text-green-600">Guardian</span>
+                                    <span class="text-xs text-slate-400">• Dec 20, 2024</span>
+                                </div>
+                            </div>
+
+                        </article>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT: Context & Community -->
+            <div class="w-[380px] flex-shrink-0 space-y-6">
+
+                <!-- Dynamic Context Panel -->
+                <div id="context-panel" class="context-card bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden sticky top-20">
+                    <div id="context-header" class="px-5 py-4 bg-gradient-to-r from-indigo-50 to-slate-50 border-b border-slate-100">
+                        <h3 class="font-semibold text-slate-800">About this story</h3>
+                    </div>
+                    <div id="context-body" class="p-5">
+                        <div class="text-center py-6">
+                            <div class="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                                <span class="text-2xl">👆</span>
+                            </div>
+                            <p class="text-slate-500 text-sm">Click highlighted text to see sources, debates, and evidence</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Voice Legend -->
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+                    <h3 class="font-semibold text-slate-800 mb-4">Voices in this story</h3>
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <span class="w-3 h-3 rounded-full bg-gray-400"></span>
+                                <span class="text-sm text-slate-600">Wire services</span>
+                            </div>
+                            <span class="text-xs text-slate-400">Reuters, AP, AFP</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <span class="w-3 h-3 rounded-full bg-green-500"></span>
+                                <span class="text-sm text-slate-600">International media</span>
+                            </div>
+                            <span class="text-xs text-slate-400">BBC, Guardian, DW</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <span class="w-3 h-3 rounded-full bg-purple-500"></span>
+                                <span class="text-sm text-slate-600">Local media</span>
+                            </div>
+                            <span class="text-xs text-slate-400">SCMP, RTHK</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <span class="w-3 h-3 rounded-full bg-red-400"></span>
+                                <span class="text-sm text-slate-600">Official sources</span>
+                            </div>
+                            <span class="text-xs text-amber-500 font-medium">Limited</span>
+                        </div>
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-2">
+                                <span class="w-3 h-3 rounded-full bg-violet-500"></span>
+                                <span class="text-sm text-slate-600">NGOs & Advocates</span>
+                            </div>
+                            <span class="text-xs text-slate-400">Amnesty, RSF</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live Activity -->
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+                        <h3 class="font-semibold text-slate-800">Live updates</h3>
+                        <span class="text-xs text-slate-400">Last 24 hours</span>
+                    </div>
+                    <div class="divide-y divide-slate-100 max-h-72 overflow-y-auto fade-bottom">
+                        <div class="px-5 py-3 hover:bg-slate-50 transition-colors">
+                            <div class="flex gap-3">
+                                <div class="timeline-dot bg-green-500 mt-1.5 flex-shrink-0"></div>
+                                <div>
+                                    <p class="text-sm text-slate-700">New source added: <span class="font-medium">UK Foreign Office</span></p>
+                                    <p class="text-xs text-slate-400 mt-1">by @NewsHunter • 5 min ago</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="px-5 py-3 hover:bg-slate-50 transition-colors">
+                            <div class="flex gap-3">
+                                <div class="timeline-dot bg-blue-500 mt-1.5 flex-shrink-0"></div>
+                                <div>
+                                    <p class="text-sm text-slate-700">Claim corroborated by <span class="font-medium">4 additional sources</span></p>
+                                    <p class="text-xs text-slate-400 mt-1">System • 12 min ago</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="px-5 py-3 hover:bg-slate-50 transition-colors">
+                            <div class="flex gap-3">
+                                <div class="timeline-dot bg-amber-500 mt-1.5 flex-shrink-0"></div>
+                                <div>
+                                    <p class="text-sm text-slate-700">New tension identified: <span class="font-medium">Trial fairness</span></p>
+                                    <p class="text-xs text-slate-400 mt-1">System • 1 hour ago</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="px-5 py-3 hover:bg-slate-50 transition-colors">
+                            <div class="flex gap-3">
+                                <div class="timeline-dot bg-purple-500 mt-1.5 flex-shrink-0"></div>
+                                <div>
+                                    <p class="text-sm text-slate-700">Quest completed: <span class="font-medium">"UK Gov position"</span></p>
+                                    <p class="text-xs text-slate-400 mt-1">by @HKWatcher • +12 credits • 2 hours ago</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Help Improve -->
+                <div class="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl border border-amber-200 p-5">
+                    <h3 class="font-semibold text-slate-800 mb-1">Help complete this story</h3>
+                    <p class="text-sm text-slate-500 mb-4">Earn credits by finding missing sources</p>
+
+                    <div class="space-y-3">
+                        <div class="bg-white rounded-xl p-4 border border-amber-200 cursor-pointer hover:shadow-md transition-shadow">
+                            <p class="text-sm font-medium text-slate-700 mb-2">Has HK Government responded to international criticism?</p>
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs px-2 py-0.5 bg-red-100 text-red-600 rounded-full">High priority</span>
+                                <span class="text-sm font-bold text-amber-600">+15 credits</span>
+                            </div>
+                        </div>
+                        <div class="bg-white rounded-xl p-4 border border-slate-200 cursor-pointer hover:shadow-md transition-shadow">
+                            <p class="text-sm font-medium text-slate-700 mb-2">What evidence has the defense presented?</p>
+                            <div class="flex items-center justify-between">
+                                <span class="text-xs px-2 py-0.5 bg-slate-100 text-slate-600 rounded-full">Medium</span>
+                                <span class="text-sm font-bold text-amber-600">+10 credits</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Context content definitions
+        const contexts = {
+            'fact-charges': {
+                title: 'Verified fact',
+                icon: '✓',
+                color: 'green',
+                html: `
+                    <div class="space-y-4">
+                        <div class="flex items-center gap-2 text-green-600">
+                            <span class="text-xl">✓</span>
+                            <span class="font-medium">Corroborated by 18 sources</span>
+                        </div>
+                        <p class="text-slate-600">Maximum penalty of life imprisonment under the national security law.</p>
+                        <div class="flex flex-wrap gap-2">
+                            <span class="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">Reuters</span>
+                            <span class="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">BBC</span>
+                            <span class="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">SCMP</span>
+                            <span class="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">AP</span>
+                            <span class="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">+14 more</span>
+                        </div>
+                        <div class="text-xs text-slate-400 pt-2 border-t border-slate-100">
+                            First reported: Dec 18, 2024 by Reuters
+                        </div>
+                    </div>
+                `
+            },
+            'tension-framing': {
+                title: 'Active debate',
+                icon: '⚡',
+                color: 'amber',
+                html: `
+                    <div class="space-y-4">
+                        <div class="flex items-center gap-2 text-amber-600">
+                            <span class="text-xl">⚡</span>
+                            <span class="font-medium">Contested framing</span>
+                        </div>
+                        <p class="text-slate-600 text-sm">Sources disagree on how to characterize Lai's actions.</p>
+
+                        <div class="space-y-3">
+                            <div class="p-3 bg-red-50 rounded-lg border-l-3 border-red-400">
+                                <div class="text-xs text-red-600 font-medium mb-1">Prosecution view</div>
+                                <p class="text-sm text-slate-700">"Criminal collusion endangering national security"</p>
+                                <div class="text-xs text-slate-400 mt-1">HK Dept of Justice, China Daily</div>
+                            </div>
+                            <div class="p-3 bg-blue-50 rounded-lg border-l-3 border-blue-400">
+                                <div class="text-xs text-blue-600 font-medium mb-1">Defense view</div>
+                                <p class="text-sm text-slate-700">"Protected journalism and peaceful advocacy"</p>
+                                <div class="text-xs text-slate-400 mt-1">Lai's legal team, BBC, Guardian</div>
+                            </div>
+                            <div class="p-3 bg-purple-50 rounded-lg border-l-3 border-purple-400">
+                                <div class="text-xs text-purple-600 font-medium mb-1">NGO view</div>
+                                <p class="text-sm text-slate-700">"Political persecution of press freedom"</p>
+                                <div class="text-xs text-slate-400 mt-1">Amnesty, RSF, CPJ</div>
+                            </div>
+                        </div>
+
+                        <button class="w-full py-2 text-sm text-amber-600 hover:bg-amber-50 rounded-lg transition-colors border border-amber-200">
+                            Join this discussion →
+                        </button>
+                    </div>
+                `
+            },
+            'quote-amnesty': {
+                title: 'Direct quote',
+                icon: '💬',
+                color: 'purple',
+                html: `
+                    <div class="space-y-4">
+                        <div class="flex items-center gap-2 text-purple-600">
+                            <span class="text-xl">💬</span>
+                            <span class="font-medium">Attributed quote</span>
+                        </div>
+                        <blockquote class="p-4 bg-purple-50 border-l-4 border-purple-400 rounded-r-lg">
+                            <p class="text-slate-700 italic">"Jimmy Lai is a prisoner of conscience, detained solely for peacefully exercising his human rights to freedom of expression and association."</p>
+                            <footer class="text-sm text-slate-500 mt-2">— Amnesty International, December 2024</footer>
+                        </blockquote>
+                        <div class="text-sm text-slate-500">Also cited by:</div>
+                        <div class="flex flex-wrap gap-2">
+                            <span class="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-full">RSF</span>
+                            <span class="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-full">HRW</span>
+                            <span class="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-full">CPJ</span>
+                            <span class="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-full">PEN</span>
+                        </div>
+                    </div>
+                `
+            },
+            'gap-hkgov': {
+                title: 'Information gap',
+                icon: '❓',
+                color: 'pink',
+                html: `
+                    <div class="space-y-4">
+                        <div class="flex items-center gap-2 text-pink-600">
+                            <span class="text-xl">❓</span>
+                            <span class="font-medium">Missing perspective</span>
+                        </div>
+                        <p class="text-slate-600">We haven't found direct statements from the Hong Kong government responding to international criticism.</p>
+
+                        <div class="p-4 bg-pink-50 rounded-lg border border-pink-200">
+                            <p class="text-sm font-medium text-slate-700 mb-2">We're looking for:</p>
+                            <ul class="text-sm text-slate-600 space-y-1">
+                                <li>• Official HK Gov press releases</li>
+                                <li>• Statements from Chief Executive's office</li>
+                                <li>• Justice Department responses</li>
+                            </ul>
+                        </div>
+
+                        <div class="flex items-center justify-between pt-2">
+                            <span class="text-sm text-pink-600 font-medium">Reward: +15 credits</span>
+                            <button class="px-4 py-2 bg-pink-500 text-white text-sm rounded-lg hover:bg-pink-600 transition-colors">
+                                Submit a source
+                            </button>
+                        </div>
+                    </div>
+                `
+            }
+        };
+
+        function showContext(id) {
+            const ctx = contexts[id];
+            const panel = document.getElementById('context-panel');
+            const header = document.getElementById('context-header');
+            const body = document.getElementById('context-body');
+
+            header.innerHTML = `
+                <div class="flex items-center gap-2">
+                    <span class="text-lg">${ctx.icon}</span>
+                    <h3 class="font-semibold text-slate-800">${ctx.title}</h3>
+                </div>
+            `;
+            body.innerHTML = ctx.html;
+
+            panel.classList.add('active');
+            setTimeout(() => panel.classList.remove('active'), 500);
+
+            // Scroll to panel on mobile
+            if (window.innerWidth < 1024) {
+                panel.scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+    </script>
+</body>
+</html>

@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from endpoints import router as artifacts_router
 from endpoints_rogue import router as rogue_router
 from endpoints_events import router as events_router
+import httpx
 
 # Add backend to path for API imports
 sys.path.insert(0, str(Path(__file__).parent))
@@ -114,6 +115,12 @@ if static_path.exists() and (static_path / "assets").exists():
     app.mount("/assets", StaticFiles(directory=str(static_path / "assets")), name="root-assets")
     app.mount("/app/assets", StaticFiles(directory=str(static_path / "assets")), name="app-assets")
 
+# Serve prototypes (design mockups)
+prototypes_path = Path("/app/prototypes") if Path("/app/prototypes").exists() else Path("/media/im3/plus/lab4/re_news/service_farm/frontend/prototypes")
+if prototypes_path.exists():
+    app.mount("/prototypes", StaticFiles(directory=str(prototypes_path), html=True), name="prototypes")
+    print(f"✅ Prototypes served at /prototypes")
+
 @app.get("/", response_class=HTMLResponse)
 async def root():
     """Serve React frontend at root (landing page)"""
@@ -144,6 +151,47 @@ if not auth_router:
             "user": None,
             "message": "Auth system not enabled"
         }
+
+# UEE Proxy - Forward /api/uee/* to the internal UEE server
+UEE_INTERNAL_URL = "http://localhost:5050/api"
+
+@app.get("/api/uee/events")
+async def uee_list_events():
+    """Proxy to UEE: list investigations"""
+    async with httpx.AsyncClient() as client:
+        response = await client.get(f"{UEE_INTERNAL_URL}/events")
+        return response.json()
+
+@app.post("/api/uee/events")
+async def uee_create_event(data: dict):
+    """Proxy to UEE: create investigation"""
+    async with httpx.AsyncClient() as client:
+        response = await client.post(f"{UEE_INTERNAL_URL}/events", json=data)
+        return response.json()
+
+@app.get("/api/uee/events/{event_id}")
+async def uee_get_event(event_id: str):
+    """Proxy to UEE: get investigation state"""
+    async with httpx.AsyncClient() as client:
+        response = await client.get(f"{UEE_INTERNAL_URL}/events/{event_id}")
+        return response.json()
+
+@app.post("/api/uee/events/{event_id}/claims")
+async def uee_add_claim(event_id: str, claim: dict):
+    """Proxy to UEE: add claim"""
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        response = await client.post(
+            f"{UEE_INTERNAL_URL}/events/{event_id}/claims",
+            json=claim
+        )
+        return response.json()
+
+@app.get("/api/uee/events/{event_id}/narrative")
+async def uee_get_narrative(event_id: str):
+    """Proxy to UEE: generate semantic narrative"""
+    async with httpx.AsyncClient(timeout=60.0) as client:
+        response = await client.get(f"{UEE_INTERNAL_URL}/events/{event_id}/narrative")
+        return response.json()
 
 # Frontend SPA routes (must be last)
 # Helper to serve the SPA

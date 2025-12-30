@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Event Page - Epistemic</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .source-tag {
+            cursor: pointer;
+            transition: all 0.15s;
+            border-bottom: 1px dotted currentColor;
+        }
+        .source-tag:hover {
+            background: rgba(99, 102, 241, 0.15);
+        }
+        .section-card { transition: all 0.2s; }
+        .section-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+        .section-card.active {
+            box-shadow: 0 0 0 2px #6366f1;
+        }
+        .voice-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+        .status-bar { width: 3px; border-radius: 2px; }
+        .pulse { animation: pulse 2s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+    <!-- Header -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <span class="text-xl font-bold text-indigo-600">HERE.news</span>
+            </div>
+            <div class="flex items-center gap-3">
+                <select id="event-selector" class="text-sm border border-slate-300 rounded-lg px-3 py-1.5 bg-white">
+                    <option value="">Loading...</option>
+                </select>
+                <span class="px-2 py-1 bg-amber-100 text-amber-700 rounded text-sm flex items-center gap-1">
+                    <span class="w-2 h-2 bg-amber-500 rounded-full pulse"></span>
+                    Live
+                </span>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 py-6">
+        <!-- Loading -->
+        <div id="loading" class="text-center py-16 text-slate-400">Loading...</div>
+
+        <!-- Content -->
+        <div id="content" class="hidden">
+            <!-- Title -->
+            <div class="mb-6">
+                <div class="flex items-center gap-2 mb-2">
+                    <span id="event-type" class="px-2 py-0.5 bg-red-100 text-red-700 text-xs rounded-full uppercase font-medium"></span>
+                    <span id="event-date" class="text-slate-400 text-sm"></span>
+                </div>
+                <h1 id="title" class="text-3xl font-bold text-slate-900 mb-3"></h1>
+                <p id="summary" class="text-slate-600 leading-relaxed"></p>
+            </div>
+
+            <!-- Two Pane -->
+            <div class="flex gap-6">
+                <!-- LEFT: Narrative -->
+                <div class="flex-1 min-w-0">
+                    <!-- Story Health -->
+                    <div class="bg-white rounded-xl border border-slate-200 mb-4 p-4">
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="flex items-center gap-4">
+                                <span class="text-sm text-slate-600">Voices:</span>
+                                <div id="voices" class="flex items-center gap-1"></div>
+                            </div>
+                            <div class="text-sm text-slate-500">
+                                <span id="claim-count" class="font-medium text-indigo-600"></span> claims ·
+                                <span id="confidence" class="font-medium text-green-600"></span> confidence
+                            </div>
+                        </div>
+                        <!-- Marker Legend -->
+                        <div class="flex items-center gap-4 text-xs text-slate-400 pt-2 border-t border-slate-100">
+                            <span><span class="text-amber-500">⚡</span> = sources disagree</span>
+                            <span><span class="text-slate-400">?</span> = needs verification</span>
+                        </div>
+                    </div>
+
+                    <!-- Sections -->
+                    <div id="sections" class="space-y-3"></div>
+                </div>
+
+                <!-- RIGHT: Context & Community -->
+                <div class="w-96 flex-shrink-0 space-y-4">
+                    <!-- Context Panel -->
+                    <div id="context-panel" class="bg-white rounded-xl border border-slate-200 overflow-hidden sticky top-20">
+                        <div class="px-4 py-3 bg-gradient-to-r from-indigo-50 to-purple-50 border-b">
+                            <h3 id="context-title" class="font-semibold text-slate-800 flex items-center gap-2">
+                                <span id="context-icon">👆</span>
+                                <span>Click a section to explore</span>
+                            </h3>
+                        </div>
+                        <div id="context-content" class="p-4">
+                            <p class="text-slate-400 text-sm text-center py-4">
+                                Click any narrative section to see its sources and epistemic details
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Community Activity -->
+                    <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                        <div class="px-4 py-3 bg-gradient-to-r from-amber-50 to-yellow-50 border-b">
+                            <div class="flex items-center justify-between">
+                                <h3 class="font-semibold text-slate-800 flex items-center gap-2">
+                                    <span>🌊</span> Live Activity
+                                </h3>
+                                <span class="text-xs text-amber-600">8 watching</span>
+                            </div>
+                        </div>
+                        <div id="activity" class="divide-y divide-slate-100 max-h-48 overflow-y-auto">
+                            <div class="p-3 text-sm text-slate-500">Loading activity...</div>
+                        </div>
+                    </div>
+
+                    <!-- Can You Help -->
+                    <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                        <div class="px-4 py-3 border-b">
+                            <h3 class="font-semibold text-slate-800 flex items-center gap-2">
+                                <span>🙋</span> Can you help?
+                            </h3>
+                        </div>
+                        <div id="gaps" class="p-4 space-y-3"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const VOICE_CONFIG = {
+            wire: { color: 'bg-blue-500', label: 'Wire', badge: 'bg-blue-100 text-blue-700' },
+            international: { color: 'bg-green-500', label: 'International', badge: 'bg-green-100 text-green-700' },
+            local: { color: 'bg-purple-500', label: 'Local', badge: 'bg-purple-100 text-purple-700' },
+            official: { color: 'bg-orange-500', label: 'Official', badge: 'bg-orange-100 text-orange-700' },
+            ngo: { color: 'bg-rose-500', label: 'NGO', badge: 'bg-rose-100 text-rose-700' },
+            other: { color: 'bg-slate-400', label: 'Other', badge: 'bg-slate-100 text-slate-600' }
+        };
+
+        const STATUS_COLORS = {
+            established: { bar: 'bg-green-500', label: 'Well-established', icon: '✓' },
+            reported: { bar: 'bg-indigo-500', label: 'Reported', icon: '📰' },
+            contested: { bar: 'bg-amber-500', label: 'Contested', icon: '⚡' },
+            uncertain: { bar: 'bg-slate-400', label: 'Uncertain', icon: '?' }
+        };
+
+        let currentData = null;
+        let activeSection = null;
+
+        async function loadIndex() {
+            try {
+                const res = await fetch('/prototypes/data/index_epistemic.json');
+                const index = await res.json();
+                const selector = document.getElementById('event-selector');
+                selector.innerHTML = '<option value="">Select event...</option>';
+                index.events.forEach(e => {
+                    const opt = document.createElement('option');
+                    opt.value = e.id;
+                    opt.textContent = e.title;
+                    selector.appendChild(opt);
+                });
+                if (index.events.length > 0) {
+                    selector.value = index.events[0].id;
+                    loadEvent(index.events[0].id);
+                }
+            } catch (err) {
+                document.getElementById('loading').innerHTML = '<div class="text-red-500">Run synthesize_epistemic.py first</div>';
+            }
+        }
+
+        async function loadEvent(eventId) {
+            if (!eventId) return;
+            document.getElementById('loading').classList.remove('hidden');
+            document.getElementById('content').classList.add('hidden');
+            try {
+                const res = await fetch(`/prototypes/data/${eventId}_epistemic.json`);
+                currentData = await res.json();
+                render(currentData);
+            } catch (err) { console.error(err); }
+        }
+
+        function render(data) {
+            document.getElementById('title').textContent = data.title;
+            document.getElementById('event-type').textContent = data.event_type || 'Event';
+            document.getElementById('summary').innerHTML = formatProse(data.summary);
+            document.getElementById('claim-count').textContent = data.total_claims;
+            document.getElementById('confidence').textContent = Math.round(data.confidence_overall * 100) + '%';
+
+            renderVoices(data.sources_by_type);
+            renderSections(data.sections);
+            renderGaps(data.gaps);
+            renderActivity(data);
+
+            document.getElementById('loading').classList.add('hidden');
+            document.getElementById('content').classList.remove('hidden');
+        }
+
+        function formatProse(text) {
+            // Parse epistemic markers - keep it minimal
+            return text
+                // {⚡} - contested point
+                .replace(/\{⚡\}/g,
+                    `<sup class="text-amber-500 cursor-help" title="Sources disagree">⚡</sup>`)
+                // {❓} - uncertain/needs verification
+                .replace(/\{❓\}/g,
+                    `<sup class="text-slate-400 cursor-help" title="Needs verification">?</sup>`)
+                // Remove any remaining brackets/markers
+                .replace(/\{[^}]+\}/g, '')
+                .replace(/\[[^\]]+\]/g, '');
+        }
+
+        function renderVoices(sourcesByType) {
+            const types = ['wire', 'international', 'local', 'official', 'ngo'];
+            let present = 0;
+            const html = types.map(type => {
+                const has = sourcesByType[type]?.length > 0;
+                if (has) present++;
+                const config = VOICE_CONFIG[type];
+                return `<span class="voice-dot ${has ? config.color : 'bg-slate-300'}"
+                              title="${config.label}${has ? ': ' + sourcesByType[type].join(', ') : ' - missing'}"></span>`;
+            }).join('');
+            document.getElementById('voices').innerHTML = html +
+                `<span class="text-xs text-slate-400 ml-1">${present}/${types.length}</span>`;
+        }
+
+        function renderSections(sections) {
+            const container = document.getElementById('sections');
+            container.innerHTML = sections.map((section, i) => {
+                const status = STATUS_COLORS[section.epistemic_status] || STATUS_COLORS.uncertain;
+                const sourceTypes = [...new Set(section.sources.map(s => s.type))];
+
+                return `
+                    <div class="section-card bg-white rounded-xl border border-slate-200 overflow-hidden cursor-pointer"
+                         onclick="selectSection(${i})" id="section-${i}">
+                        <div class="flex">
+                            <div class="status-bar ${status.bar} flex-shrink-0"></div>
+                            <div class="p-4 flex-1">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <span class="text-lg">${status.icon}</span>
+                                    <h3 class="font-medium text-slate-800">${section.heading || 'Overview'}</h3>
+                                    <span class="text-xs text-slate-400">${status.label}</span>
+                                </div>
+                                <p class="text-slate-600 text-sm leading-relaxed">
+                                    ${formatProse(section.prose)}
+                                </p>
+                                <div class="flex items-center gap-2 mt-3">
+                                    ${sourceTypes.slice(0, 3).map(t => {
+                                        const c = VOICE_CONFIG[t] || VOICE_CONFIG.other;
+                                        return `<span class="text-xs px-1.5 py-0.5 rounded ${c.badge}">${c.label}</span>`;
+                                    }).join('')}
+                                    <span class="text-xs text-slate-400 ml-auto">${section.sources.length} sources</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function selectSection(index) {
+            const section = currentData.sections[index];
+            if (!section) return;
+
+            // Update active state
+            document.querySelectorAll('.section-card').forEach((el, i) => {
+                el.classList.toggle('active', i === index);
+            });
+
+            const status = STATUS_COLORS[section.epistemic_status] || STATUS_COLORS.uncertain;
+            const confPct = Math.round(section.confidence * 100);
+
+            // Group sources by type
+            const byType = {};
+            section.sources.forEach(s => {
+                if (!byType[s.type]) byType[s.type] = new Set();
+                byType[s.type].add(s.name);
+            });
+
+            document.getElementById('context-icon').textContent = status.icon;
+            document.getElementById('context-title').innerHTML = `<span>${status.icon}</span> ${section.heading}`;
+
+            document.getElementById('context-content').innerHTML = `
+                <div class="space-y-4">
+                    <!-- Status -->
+                    <div class="flex items-center justify-between">
+                        <span class="text-sm font-medium text-slate-700">${status.label}</span>
+                        <span class="text-sm text-slate-500">${confPct}% confidence</span>
+                    </div>
+
+                    <!-- Confidence bar -->
+                    <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
+                        <div class="h-full ${status.bar} transition-all" style="width: ${confPct}%"></div>
+                    </div>
+
+                    <!-- Sources -->
+                    <div>
+                        <div class="text-xs text-slate-500 uppercase tracking-wide mb-2">Sources</div>
+                        <div class="space-y-2">
+                            ${Object.entries(byType).map(([type, names]) => {
+                                const c = VOICE_CONFIG[type] || VOICE_CONFIG.other;
+                                return `
+                                    <div class="flex items-start gap-2">
+                                        <span class="voice-dot ${c.color} mt-1"></span>
+                                        <div>
+                                            <div class="text-xs text-slate-500">${c.label}</div>
+                                            <div class="flex flex-wrap gap-1">
+                                                ${[...names].map(n => `<span class="text-xs px-1.5 py-0.5 ${c.badge} rounded">${n}</span>`).join('')}
+                                            </div>
+                                        </div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+
+                    <!-- Claims used -->
+                    <div class="text-xs text-slate-400 pt-2 border-t border-slate-100">
+                        Based on ${section.claims_used.length} claims
+                    </div>
+
+                    ${section.epistemic_status === 'contested' ? `
+                        <div class="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                            <p class="text-sm text-amber-800">⚡ Sources present different perspectives on this aspect</p>
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+
+        function renderGaps(gaps) {
+            const container = document.getElementById('gaps');
+            if (!gaps?.length) {
+                container.innerHTML = '<p class="text-sm text-green-600">Story coverage looks comprehensive!</p>';
+                return;
+            }
+
+            container.innerHTML = gaps.slice(0, 3).map(gap => `
+                <div class="p-3 ${gap.priority === 'high' ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-200'} border rounded-lg cursor-pointer hover:shadow-sm transition-shadow">
+                    <p class="text-sm text-slate-700 font-medium">${gap.question}</p>
+                    <div class="flex items-center justify-between mt-2">
+                        <span class="text-xs ${gap.priority === 'high' ? 'text-amber-600' : 'text-slate-500'}">${gap.priority}</span>
+                        <button class="text-xs px-2 py-1 bg-indigo-500 text-white rounded hover:bg-indigo-600">
+                            I found something
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderActivity(data) {
+            const sources = Object.values(data.sources_by_type).flat().slice(0, 3);
+            const activities = [
+                { icon: '📎', text: `New source added: <strong>${sources[0] || 'Reuters'}</strong>`, time: '3 min ago' },
+                { icon: '✓', text: `Claim corroborated by ${Math.floor(Math.random() * 3) + 2} sources`, time: '8 min ago' },
+                { icon: '💬', text: `<strong>@contributor</strong> asked about official response`, time: '15 min ago' },
+                { icon: '🎯', text: `Gap filled: "Local perspective"`, time: '1 hr ago' },
+            ];
+
+            document.getElementById('activity').innerHTML = activities.map(a => `
+                <div class="p-3 hover:bg-slate-50">
+                    <div class="flex items-start gap-2">
+                        <span class="text-lg">${a.icon}</span>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm text-slate-700">${a.text}</p>
+                            <p class="text-xs text-slate-400">${a.time}</p>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        document.getElementById('event-selector').addEventListener('change', e => loadEvent(e.target.value));
+        loadIndex();
+    </script>
+</body>
+</html>

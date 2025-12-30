@@ -1,0 +1,2100 @@
+{
+  "meta": {
+    "mode": "RICH",
+    "claims_processed": 130,
+    "timestamp": "2025-12-24T21:35:39.056740"
+  },
+  "metrics": {
+    "coherence": 0.7038461538461538,
+    "entropy": 0.9373239436619718,
+    "belief_count": 71,
+    "conflict_count": 2,
+    "compression": 1.8309859154929577
+  },
+  "relations": {
+    "COMPATIBLE": 71,
+    "SUPERSEDES": 26,
+    "REFINES": 6,
+    "REDUNDANT": 25,
+    "CONFLICTS": 2
+  },
+  "beliefs": [
+    {
+      "text": "About 200 fire trucks and more than 100 ambulances were deployed to the scene.",
+      "sources": [
+        "dw.com",
+        "theguardian.com"
+      ],
+      "source_count": 2,
+      "supersedes": "Firefighters deployed 128 fire trucks and 57 ambulances to the scene.",
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "The complex was undergoing major renovations.",
+      "sources": [
+        "dw.com"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "Hundreds of people were evacuated from the complex of almost 2,000 apartments.",
+      "sources": [
+        "theguardian.com",
+        "christianitytoday.com"
+      ],
+      "source_count": 2,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "The Fire Services Department confirmed that the fire alarm systems at Wang Fuk Court were not functioning during the fire.",
+      "sources": [
+        "hk.news.yahoo.com",
+        "christianitytoday.com",
+        "theguardian.com",
+        "abc.net.au"
+      ],
+      "source_count": 4,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "Seven of the eight 32-storey towers in Wang Fuk Court were engulfed in flames.",
+      "sources": [
+        "dw.com",
+        "theguardian.com",
+        "dailymail.co.uk",
+        "news.az"
+      ],
+      "source_count": 4,
+      "supersedes": "The fire engulfed several residential tower blocks in Hong Kong.",
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "Debris and scaffolding of the affected buildings are falling down.",
+      "sources": [
+        "dw.com"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "Xi Jinping urged authorities in Hong Kong to make every effort to extinguish the blaze.",
+      "sources": [
+        "theguardian.com",
+        "theguardian.com"
+      ],
+      "source_count": 2,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "Human remains previously believed to belong to one person were revealed to be from two individuals.",
+      "sources": [
+        "theguardian.com",
+        "christianitytoday.com",
+        "theguardian.com",
+        "dailymail.co.uk",
+        "trtworld.com",
+        "christianitytoday.com",
+        "news.az",
+        "abc.net.au",
+        "hongkongfp.com",
+        "hongkongfp.com",
+        "hongkongfp.com"
+      ],
+      "source_count": 11,
+      "supersedes": "The death toll in the Wang Fuk Court blaze has risen to 160 after DNA tests found one additional fatality.",
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "Most of the residents trapped in the fire were believed to be elderly people.",
+      "sources": [
+        "dw.com"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "The fire department received reports of a fire in the residential complex at 2:51 p.m.",
+      "sources": [
+        "dw.com",
+        "theguardian.com"
+      ],
+      "source_count": 2,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "The fire was upgraded to a Number 4 alarm at 3:34 p.m.",
+      "sources": [
+        "dw.com"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "The fire was still burning in the early hours of Thursday.",
+      "sources": [
+        "dw.com"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "76 others were injured in the fire.",
+      "sources": [
+        "trtworld.com",
+        "christianitytoday.com"
+      ],
+      "source_count": 2,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "Tai Po Baptist Church provided shelter and aid after the fire.",
+      "sources": [
+        "christianitytoday.com"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "Pastor Jenny Lam Yat-kwan lost three family members in the fire.",
+      "sources": [
+        "christianitytoday.com"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "More than 60 members of Tai Po Baptist Church lost their homes in the fire.",
+      "sources": [
+        "christianitytoday.com"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "The government would set up a HK$300m fund to help residents.",
+      "sources": [
+        "theguardian.com"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "The fire started on the external scaffolding of Wang Cheong House.",
+      "sources": [
+        "theguardian.com"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "29 people were still hospitalized, with seven of them in critical condition.",
+      "sources": [
+        "dw.com"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "At least 160 people have died due to a series of events and decisions related to the Wang Fuk Court fire.",
+      "sources": [
+        "trtworld.com",
+        "christianitytoday.com",
+        "hongkongfp.com",
+        "hongkongfp.com",
+        "mylondon.news",
+        "news.un.org",
+        "asia.nikkei.com",
+        "theatlantic.com",
+        "koreajoongangdaily.joins.com",
+        "asia.nikkei.com",
+        "ndtv.com",
+        "ndtv.com",
+        "asia.nikkei.com",
+        "dominotheory.com"
+      ],
+      "source_count": 14,
+      "supersedes": "The death toll from the Hong Kong apartment fire has reached 128.",
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "Ankara is deeply saddened by the loss of lives caused by the fire.",
+      "sources": [
+        "trtworld.com"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "T\u00fcrkiye has extended condolences to Hong Kong.",
+      "sources": [
+        "trtworld.com"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "More than 900 people had sought refuge at temporary shelters.",
+      "sources": [
+        "theguardian.com"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "The government will set up a task force to investigate the fire.",
+      "sources": [
+        "dailymail.co.uk"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "People attend a vigil near the scene of the deadly fire at the Wang Fuk Court housing complex in Hong Kong on Nov. 28.",
+      "sources": [
+        "asia.nikkei.com",
+        "asia.nikkei.com"
+      ],
+      "source_count": 2,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "Lee Jae Myung extended his condolences following the deadly fire at an apartment complex in Hong Kong.",
+      "sources": [
+        "koreajoongangdaily.joins.com"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "Firefighters struggled to bring the blaze under control.",
+      "sources": [
+        "dailymail.co.uk"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "Eight people have been arrested over the Wang Fuk Court fire.",
+      "sources": [
+        "dailymail.co.uk"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "National security police reportedly arrested three people over the weekend for alleged sedition in relation to the fatal fire.",
+      "sources": [
+        "hongkongfp.com"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "Miles Kwan organized a petition calling for an independent probe into the blaze.",
+      "sources": [
+        "hongkongfp.com"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "Authorities found that some of the netting at Wang Fuk Court had failed to meet fire safety standards.",
+      "sources": [
+        "hongkongfp.com",
+        "abc.net.au",
+        "christianitytoday.com",
+        "dominotheory.com"
+      ],
+      "source_count": 4,
+      "supersedes": "Seven out of 20 safety netting samples from the Tai Po housing estate did not pass fire safety tests.",
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "HKCNP convened a Zoom meeting to connect its affiliated pastors with Tai Po pastors.",
+      "sources": [
+        "christianitytoday.com"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "HKCNP partnered with Hung Fook Tong to place donation boxes at the retailer's stores.",
+      "sources": [
+        "christianitytoday.com"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "Hong Kong police arrested 15 people on suspicion of manslaughter related to the Wang Fuk Court fire.",
+      "sources": [
+        "hongkongfp.com",
+        "christianitytoday.com",
+        "theatlantic.com",
+        "dominotheory.com"
+      ],
+      "source_count": 4,
+      "supersedes": "Police have arrested at least 13 people involved with the renovations for suspected manslaughter.",
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "In Tai Po, the nets were reduced to ash while the bamboo frame remained almost unscathed.",
+      "sources": [
+        "abc.net.au"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "Volunteers and NGOs who rushed to help the displaced were abruptly ordered to leave the site.",
+      "sources": [
+        "abc.net.au"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "Beijing issued a warning not to let 'a disaster disrupt Hong Kong'.",
+      "sources": [
+        "abc.net.au"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "A 24-year-old university student launched a petition demanding an independent investigation.",
+      "sources": [
+        "abc.net.au"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "The press conference was cancelled due to notification from relevant departments.",
+      "sources": [
+        "hongkongfp.com"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "The press conference would have covered topics including support for affected residents and the establishment of a commission of inquiry.",
+      "sources": [
+        "hongkongfp.com"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "Hong Kong leader John Lee announced a judge-led independent committee to investigate the fire.",
+      "sources": [
+        "hongkongfp.com",
+        "aastocks.com",
+        "ndtv.com",
+        "dominotheory.com"
+      ],
+      "source_count": 4,
+      "supersedes": "John Lee appointed Judge David Lok as Independent Commission Chair for the Wang Fuk Court fire.",
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "The press conference was cancelled after some speakers, including Wong Kwok-ngon and Bruce Liu, were taken in by national security police.",
+      "sources": [
+        "hongkongfp.com",
+        "hongkongfp.com",
+        "hongkongfp.com"
+      ],
+      "source_count": 3,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "John Lee said that the government would not tolerate those who exploit the fatal Tai Po fire.",
+      "sources": [
+        "hongkongfp.com"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "Hong Kong's Independent Commission Against Corruption is investigating possible graft connected to Wang Fuk Court's renovation project.",
+      "sources": [
+        "christianitytoday.com",
+        "dominotheory.com"
+      ],
+      "source_count": 2,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "Jimmy Lai has been held for 1,800 days in solitary confinement in Hong Kong.",
+      "sources": [
+        "rsf.org"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "China\u2019s national security office summoned foreign media to warn them about spreading false information regarding the Wang Fuk Court fire.",
+      "sources": [
+        "dominotheory.com"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "Jimmy Lai turned 78 in a Hong Kong prison.",
+      "sources": [
+        "independent.co.uk"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "A report on the Wang Fuk Court fire is due in 9 months.",
+      "sources": [
+        "aastocks.com"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "The investigation is expected to provide clarity on the circumstances of the fire and measures to prevent future incidents.",
+      "sources": [
+        "news.az"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "Hong Kong and Beijing are taking measures to address public anger in response to the deadly fire.",
+      "sources": [
+        "asia.nikkei.com"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "Jimmy Lai's trial represents a test for press freedom and judicial independence in Hong Kong.",
+      "sources": [
+        "independent.co.uk"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "Hong Yip Service Co. Ltd. was involved in the renovation project at Wang Fuk Court.",
+      "sources": [
+        "hk.news.yahoo.com"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "Residents of Wang Fuk Court had been warning about safety issues since last year.",
+      "sources": [
+        "hk.news.yahoo.com",
+        "dominotheory.com"
+      ],
+      "source_count": 2,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "Hong Kong authorities accused AFP of smearing Hong Kong and misleading the public.",
+      "sources": [
+        "rsf.org"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "Chinese media has decried the politicization of the Wang Fuk Court fire.",
+      "sources": [
+        "dominotheory.com"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "Many people are still unaccounted for following the fire in Tai Po District.",
+      "sources": [
+        "mylondon.news"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "Sir Iain Duncan Smith said Jimmy Lai was in prison on trumped-up charges under the new oppressive Chinese National Security Law in Hong Kong.",
+      "sources": [
+        "independent.co.uk"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "The people of Hong Kong want answers and accountability.",
+      "sources": [
+        "news.un.org"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "Another six people were arrested in connection to fire alarms that failed to sound.",
+      "sources": [
+        "ndtv.com"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "The Hong Kong Housing Authority is responsible for overseeing public housing developments.",
+      "sources": [
+        "hk.news.yahoo.com"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "Police were relatively sure that three of those people lived at Wang Fuk Court complex.",
+      "sources": [
+        "ndtv.com"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "Volker T\u00fcrk insisted that there is an opportunity to restore meaningful civic space in Hong Kong.",
+      "sources": [
+        "news.un.org"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "The cumulative impacts of these laws reflect a systemic erosion in enjoyment of human rights in Hong Kong.",
+      "sources": [
+        "news.un.org"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "Hong Kong authorities allege that the construction company used unsafe materials in the renovation of Wang Fuk Court.",
+      "sources": [
+        "theatlantic.com",
+        "dominotheory.com"
+      ],
+      "source_count": 2,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "Hong Kong and Beijing are taking measures to address public anger in response to the deadly fire.",
+      "sources": [
+        "asia.nikkei.com"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "Antony Dapiran noted that accountability for local officials in China can be brutal and short.",
+      "sources": [
+        "dominotheory.com"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "China might blame Hong Kong\u2019s laissez-faire regulatory system for the Wang Fuk Court fire.",
+      "sources": [
+        "dominotheory.com"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "John Lee was questioned about his leadership in light of the Wang Fuk Court fire.",
+      "sources": [
+        "dominotheory.com"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "Hong Kong security chief Chris Tang urged society to stand united in dealing with the aftermath of the Wang Fuk Court fire.",
+      "sources": [
+        "dominotheory.com"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "The Hong Kong government, led by John Lee, has denied accusations against Jimmy Lai.",
+      "sources": [
+        "independent.co.uk"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    },
+    {
+      "text": "The Labour Department received complaints about the quality of the scaffolding netting at Wang Fuk Court in September last year.",
+      "sources": [
+        "hk.news.yahoo.com"
+      ],
+      "source_count": 1,
+      "supersedes": null,
+      "confidence": 1.0,
+      "updated_count": 0
+    }
+  ],
+  "conflicts": [
+    {
+      "new_claim": "Four people were found to have died before the fire.",
+      "source": "hongkongfp.com",
+      "conflicts_with": 7,
+      "existing_belief": "The death toll in the Wang Fuk Court blaze has risen to 160 after DNA tests found one additional fatality.",
+      "reasoning": "The new claim states that four people died before the fire, which contradicts the existing belief that the death toll from the fire has risen to 160, implying that all fatalities occurred during the fire itself."
+    },
+    {
+      "new_claim": "The Housing Bureau's independent review team did not find any non-compliance with flame-retardant standards during their inspection at Wang Fuk Court.",
+      "source": "hk.news.yahoo.com",
+      "conflicts_with": 30,
+      "existing_belief": "Authorities found that some of the netting at Wang Fuk Court had failed to meet fire safety standards.",
+      "reasoning": "The new claim asserts that the Housing Bureau's independent review team found no non-compliance with flame-retardant standards, which conflicts with existing belief [30] that some netting at Wang Fuk Court failed to meet fire safety standards."
+    }
+  ],
+  "history": [
+    {
+      "claim": "[2025-11-25 12:00] [observation] [conf:0.50] Firefighters deployed 128 fire trucks and 57 ambulances to the scene",
+      "source": "dw.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The claim about firefighters deploying 128 fire trucks and 57 ambulances does not conflict with any existing beliefs and can coexist with them.",
+        "normalized_claim": "Firefighters deployed 128 fire trucks and 57 ambulances to the scene."
+      }
+    },
+    {
+      "claim": "[2025-11-25 12:00] [observation] [conf:0.50] About 200 fire trucks and more than 100 ambulances were deployed to the scene.",
+      "source": "theguardian.com",
+      "result": {
+        "relation": "SUPERSEDES",
+        "affected_belief_index": 0,
+        "reasoning": "The new claim states that about 200 fire trucks and more than 100 ambulances were deployed, which updates the previous belief of 128 fire trucks and 57 ambulances.",
+        "normalized_claim": "About 200 fire trucks and more than 100 ambulances were deployed to the scene."
+      }
+    },
+    {
+      "claim": "[2025-11-25 12:00] [reported_speech] [conf:0.50] The complex was undergoing major renovations",
+      "source": "dw.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about the complex undergoing major renovations does not conflict with the existing beliefs about the emergency response and can coexist with them.",
+        "normalized_claim": "The complex was undergoing major renovations."
+      }
+    },
+    {
+      "claim": "[2025-11-25 12:00] [observation] [conf:0.50] Hundreds of people were evacuated from the complex of almost 2,000 apartments.",
+      "source": "theguardian.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about the evacuation of hundreds of people from the complex does not conflict with existing beliefs and can coexist with them, as it provides additional context about the situation.",
+        "normalized_claim": "Hundreds of people were evacuated from the complex of almost 2,000 apartments."
+      }
+    },
+    {
+      "claim": "[2025-11-25 12:00] [reported_speech] [conf:0.60] The Fire Services Department confirmed that the fire alarm systems at Wang Fuk Court were not functioning during the fire.",
+      "source": "hk.news.yahoo.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about the fire alarm systems not functioning is a separate fact that does not contradict or overlap with the existing beliefs regarding the fire response and evacuation.",
+        "normalized_claim": "The Fire Services Department confirmed that the fire alarm systems at Wang Fuk Court were not functioning during the fire."
+      }
+    },
+    {
+      "claim": "[2025-11-25 12:00] [observation] [conf:0.50] Firefighters have been trying for hours to douse fires at a residential building complex in the Tai Po district",
+      "source": "dw.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about firefighters trying to douse fires at a residential building complex in the Tai Po district can coexist with existing beliefs about the fire response and the situation at the complex.",
+        "normalized_claim": "Firefighters have been trying for hours to douse fires at a residential building complex in the Tai Po district."
+      }
+    },
+    {
+      "claim": "[2025-11-25 12:00] [observation] [conf:0.67] The fire at Wang Fuk Court resulted in over a hundred deaths.",
+      "source": "hk.news.yahoo.com",
+      "result": {
+        "relation": "SUPERSEDES",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about over a hundred deaths updates the situation regarding casualties, which is not covered by any existing beliefs, indicating a significant escalation in the reported death toll.",
+        "normalized_claim": "The fire at Wang Fuk Court resulted in over a hundred deaths."
+      }
+    },
+    {
+      "claim": "[2025-11-25 12:00] [reported_speech] [conf:0.50] At least 36 people were killed and 279 were unaccounted for in Hong Kong after a massive fire",
+      "source": "dw.com",
+      "result": {
+        "relation": "SUPERSEDES",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about at least 36 people being killed and 279 unaccounted for updates the situation regarding casualties from the fire, which is not covered by any existing beliefs.",
+        "normalized_claim": "At least 36 people were killed and 279 were unaccounted for in Hong Kong after a massive fire."
+      }
+    },
+    {
+      "claim": "[2025-11-25 12:00] [reported_speech] [conf:0.50] Debris and scaffolding of the affected buildings are falling down",
+      "source": "dw.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about debris and scaffolding falling down is a separate observation that does not contradict or overlap with existing beliefs about the fire and evacuation efforts.",
+        "normalized_claim": "Debris and scaffolding of the affected buildings are falling down."
+      }
+    },
+    {
+      "claim": "[2025-11-25 12:00] [reported_speech] [conf:0.50] Xi Jinping urged authorities in Hong Kong to make every effort to extinguish the blaze.",
+      "source": "theguardian.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about Xi Jinping urging authorities to extinguish the blaze does not conflict with or refine any existing beliefs, as it introduces a new perspective on the response to the fire.",
+        "normalized_claim": "Xi Jinping urged authorities in Hong Kong to make every effort to extinguish the blaze."
+      }
+    },
+    {
+      "claim": "[2025-11-25 12:00] [observation] [conf:0.50] A 37-year-old firefighter is known to be among the dead.",
+      "source": "theguardian.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about a firefighter's death does not conflict with or duplicate any existing beliefs, as they focus on different aspects of the incident.",
+        "normalized_claim": "A 37-year-old firefighter is known to be among the dead."
+      }
+    },
+    {
+      "claim": "[2025-11-25 12:00] [reported_speech] [conf:0.50] Most of the residents trapped in the fire were believed to be elderly people",
+      "source": "dw.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about most of the residents trapped being elderly people does not conflict with or refine any existing beliefs, as none of them address the age demographic of the residents.",
+        "normalized_claim": "Most of the residents trapped in the fire were believed to be elderly people."
+      }
+    },
+    {
+      "claim": "[2025-11-25 14:51] [observation] [conf:0.50] The fire department received reports of a fire in the residential complex at 2:51 p.m.",
+      "source": "dw.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about the fire department receiving reports of a fire at 2:51 p.m. is compatible with existing beliefs regarding the ongoing fire at the residential complex, as it provides a specific time for when the fire was reported without contradicting any current beliefs.",
+        "normalized_claim": "The fire department received reports of a fire in the residential complex at 2:51 p.m."
+      }
+    },
+    {
+      "claim": "[2025-11-25 15:34] [observation] [conf:0.50] The fire was upgraded to a Number 4 alarm at 3:34 p.m.",
+      "source": "dw.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about the fire being upgraded to a Number 4 alarm at 3:34 p.m. does not conflict with or duplicate any existing beliefs and can coexist with them.",
+        "normalized_claim": "The fire was upgraded to a Number 4 alarm at 3:34 p.m."
+      }
+    },
+    {
+      "claim": "[2025-11-26 12:00] [observation] [conf:0.50] The fire was still burning in the early hours of Thursday",
+      "source": "dw.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim states that the fire was still burning in the early hours of Thursday, which does not conflict with any existing beliefs and can coexist with them.",
+        "normalized_claim": "The fire was still burning in the early hours of Thursday."
+      }
+    },
+    {
+      "claim": "[2025-11-26 12:00] [reported_speech] [conf:0.50] 76 others were injured in the fire",
+      "source": "trtworld.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about 76 others being injured in the fire does not conflict with any existing beliefs and can coexist with them.",
+        "normalized_claim": "76 others were injured in the fire."
+      }
+    },
+    {
+      "claim": "[2025-11-26 12:00] [observation] [conf:0.50] Tai Po Baptist Church provided shelter and aid after the fire.",
+      "source": "christianitytoday.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about Tai Po Baptist Church providing shelter and aid after the fire does not conflict with or duplicate any existing beliefs and can coexist with them.",
+        "normalized_claim": "Tai Po Baptist Church provided shelter and aid after the fire."
+      }
+    },
+    {
+      "claim": "[2025-11-26 12:00] [reported_speech] [conf:0.50] Pastor Jenny Lam Yat-kwan lost three family members in the fire.",
+      "source": "christianitytoday.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The claim about Pastor Jenny Lam Yat-kwan losing three family members in the fire does not conflict with or duplicate any existing beliefs, as none of them mention specific individuals or family losses.",
+        "normalized_claim": "Pastor Jenny Lam Yat-kwan lost three family members in the fire."
+      }
+    },
+    {
+      "claim": "[2025-11-26 12:00] [reported_speech] [conf:0.50] More than 60 members of Tai Po Baptist Church lost their homes in the fire.",
+      "source": "christianitytoday.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about more than 60 members of Tai Po Baptist Church losing their homes in the fire does not conflict with existing beliefs and adds new information about the impact of the fire on the church community.",
+        "normalized_claim": "More than 60 members of Tai Po Baptist Church lost their homes in the fire."
+      }
+    },
+    {
+      "claim": "[2025-11-26 12:00] [observation] [conf:0.50] The fire at Wang Fuk Court became Hong Kong's deadliest fire in decades.",
+      "source": "christianitytoday.com",
+      "result": {
+        "relation": "SUPERSEDES",
+        "affected_belief_index": 7,
+        "reasoning": "The new claim that the fire at Wang Fuk Court became Hong Kong's deadliest fire in decades updates the existing belief about the death of a firefighter, indicating a higher death toll than previously reported.",
+        "normalized_claim": "The fire at Wang Fuk Court became Hong Kong's deadliest fire in decades."
+      }
+    },
+    {
+      "claim": "[2025-11-26 12:00] [observation] [conf:0.60] The fire engulfed several residential tower blocks in Hong Kong.",
+      "source": "theguardian.com",
+      "result": {
+        "relation": "REFINES",
+        "affected_belief_index": 4,
+        "reasoning": "The new claim specifies that the fire engulfed several residential tower blocks, which refines the existing belief that firefighters were trying to douse fires at a residential building complex in the Tai Po district.",
+        "normalized_claim": "The fire engulfed several residential tower blocks in Hong Kong."
+      }
+    },
+    {
+      "claim": "[2025-11-26 12:00] [reported_speech] [conf:0.50] The government would set up a HK$300m fund to help residents.",
+      "source": "theguardian.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about the government setting up a HK$300m fund to help residents is a separate piece of information that does not conflict with or refine any existing beliefs.",
+        "normalized_claim": "The government would set up a HK$300m fund to help residents."
+      }
+    },
+    {
+      "claim": "[2025-11-26 12:00] [observation] [conf:0.50] More than 100 people have died in a fire in Hong Kong.",
+      "source": "theguardian.com",
+      "result": {
+        "relation": "SUPERSEDES",
+        "affected_belief_index": 7,
+        "reasoning": "The new claim states that more than 100 people have died in the fire, which updates the previous belief that the fire at Wang Fuk Court became Hong Kong's deadliest fire in decades, implying a lower death toll.",
+        "normalized_claim": "More than 100 people have died in a fire in Hong Kong."
+      }
+    },
+    {
+      "claim": "[2025-11-26 12:00] [reported_speech] [conf:0.60] The fire started on the external scaffolding of Wang Cheong House.",
+      "source": "theguardian.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about the fire starting on the external scaffolding of Wang Cheong House does not conflict with or duplicate any existing beliefs, as it provides specific information about the origin of the fire.",
+        "normalized_claim": "The fire started on the external scaffolding of Wang Cheong House."
+      }
+    },
+    {
+      "claim": "[2025-11-26 12:00] [observation] [conf:0.50] At least 128 people were killed in the Wang Fuk Court fire.",
+      "source": "dailymail.co.uk",
+      "result": {
+        "relation": "SUPERSEDES",
+        "affected_belief_index": 7,
+        "reasoning": "The new claim of at least 128 people killed in the fire updates the previous belief that more than 100 people have died, providing a more accurate death toll.",
+        "normalized_claim": "At least 128 people were killed in the Wang Fuk Court fire."
+      }
+    },
+    {
+      "claim": "[2025-11-26 12:00] [reported_speech] [conf:0.64] Xi Jinping urged authorities in Hong Kong to extinguish the blaze.",
+      "source": "theguardian.com",
+      "result": {
+        "relation": "REDUNDANT",
+        "affected_belief_index": 6,
+        "reasoning": "The new claim reiterates that Xi Jinping urged authorities in Hong Kong to extinguish the blaze, which is already expressed in existing belief [6].",
+        "normalized_claim": "Xi Jinping urged authorities in Hong Kong to extinguish the blaze."
+      }
+    },
+    {
+      "claim": "[2025-11-26 12:00] [observation] [conf:0.50] The fire at Wang Fuk Court injured dozens of people.",
+      "source": "christianitytoday.com",
+      "result": {
+        "relation": "REDUNDANT",
+        "affected_belief_index": 12,
+        "reasoning": "The new claim about the fire injuring dozens of people is already covered by the existing belief that states 76 others were injured in the fire.",
+        "normalized_claim": "The fire at Wang Fuk Court injured dozens of people."
+      }
+    },
+    {
+      "claim": "[2025-11-26 12:00] [observation] [conf:0.50] Seven of the eight 32-storey towers in Wang Fuk Court were engulfed in flames.",
+      "source": "dailymail.co.uk",
+      "result": {
+        "relation": "REFINES",
+        "affected_belief_index": 4,
+        "reasoning": "The new claim specifies that seven of the eight towers in Wang Fuk Court were engulfed in flames, which refines the existing belief that the fire engulfed several residential tower blocks in Hong Kong.",
+        "normalized_claim": "Seven of the eight 32-storey towers in Wang Fuk Court were engulfed in flames."
+      }
+    },
+    {
+      "claim": "[2025-11-26 12:00] [observation] [conf:0.50] The fire at Wang Fuk Court started on November 26, 2025.",
+      "source": "dailymail.co.uk",
+      "result": {
+        "relation": "REDUNDANT",
+        "affected_belief_index": null,
+        "reasoning": "The new claim states that the fire at Wang Fuk Court started on November 26, 2025, which is not covered by any existing beliefs, making it a new assertion.",
+        "normalized_claim": "The fire at Wang Fuk Court started on November 26, 2025."
+      }
+    },
+    {
+      "claim": "[2025-11-26 12:00] [observation] [conf:0.50] A fire broke out at the Wang Fuk Court apartment towers.",
+      "source": "christianitytoday.com",
+      "result": {
+        "relation": "REDUNDANT",
+        "affected_belief_index": null,
+        "reasoning": "The new claim that a fire broke out at the Wang Fuk Court apartment towers is already covered by existing beliefs regarding the fire at Wang Fuk Court.",
+        "normalized_claim": "A fire broke out at the Wang Fuk Court apartment towers."
+      }
+    },
+    {
+      "claim": "[2025-11-26 12:00] [reported_speech] [conf:0.50] At least 83 people, including a firefighter, have died in the fire",
+      "source": "trtworld.com",
+      "result": {
+        "relation": "SUPERSEDES",
+        "affected_belief_index": 7,
+        "reasoning": "The new claim states that at least 83 people have died, which is a lower number than the existing belief that at least 128 people were killed, indicating an update to the death toll.",
+        "normalized_claim": "At least 83 people, including a firefighter, have died in the fire."
+      }
+    },
+    {
+      "claim": "[2025-11-26 12:00] [observation] [conf:0.74] The fire at Wang Fuk Court killed at least 156 people.",
+      "source": "christianitytoday.com",
+      "result": {
+        "relation": "SUPERSEDES",
+        "affected_belief_index": 7,
+        "reasoning": "The new claim states that at least 156 people died in the fire, which updates the previous belief that at least 83 people died.",
+        "normalized_claim": "The fire at Wang Fuk Court killed at least 156 people."
+      }
+    },
+    {
+      "claim": "[2025-11-26 12:00] [reported_speech] [conf:0.50] The fire-alarm system in the buildings was not working effectively.",
+      "source": "christianitytoday.com",
+      "result": {
+        "relation": "REDUNDANT",
+        "affected_belief_index": 3,
+        "reasoning": "The new claim about the fire-alarm system not working effectively is already expressed in belief [3], which states that the fire alarm systems at Wang Fuk Court were not functioning during the fire.",
+        "normalized_claim": "The fire-alarm system in the buildings was not working effectively."
+      }
+    },
+    {
+      "claim": "[2025-11-26 12:00] [observation] [conf:0.50] The fire at Wang Fuk Court displaced thousands of residents.",
+      "source": "christianitytoday.com",
+      "result": {
+        "relation": "REDUNDANT",
+        "affected_belief_index": 2,
+        "reasoning": "The new claim about the fire displacing thousands of residents is already expressed in the existing belief that hundreds of people were evacuated from the complex of almost 2,000 apartments.",
+        "normalized_claim": "The fire at Wang Fuk Court displaced thousands of residents."
+      }
+    },
+    {
+      "claim": "[2025-11-26 12:00] [reported_speech] [conf:0.50] 29 people were still hospitalised, with seven of them in critical condition",
+      "source": "dw.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about 29 people still hospitalized, with seven in critical condition, does not conflict with existing beliefs and provides additional information about the aftermath of the fire.",
+        "normalized_claim": "29 people were still hospitalized, with seven of them in critical condition."
+      }
+    },
+    {
+      "claim": "[2025-11-26 14:52] [observation] [conf:0.60] The fire was first reported at Wang Fuk Court in Tai Po.",
+      "source": "theguardian.com",
+      "result": {
+        "relation": "REDUNDANT",
+        "affected_belief_index": 9,
+        "reasoning": "The new claim about the fire being first reported at Wang Fuk Court is already covered by the existing belief that the fire department received reports of a fire in the residential complex at 2:51 p.m.",
+        "normalized_claim": "The fire was first reported at Wang Fuk Court in Tai Po."
+      }
+    },
+    {
+      "claim": "[2025-11-27 12:00] [reported_speech] [conf:0.50] Many are still missing as fire teams continue operations",
+      "source": "trtworld.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The claim about many people still being missing is compatible with existing beliefs, as it does not contradict any current information and reflects the ongoing situation.",
+        "normalized_claim": "Many people are still missing as fire teams continue operations."
+      }
+    },
+    {
+      "claim": "[2025-11-27 12:00] [reported_speech] [conf:0.50] Ankara is \u201cdeeply saddened\u201d by the loss of lives caused by the fire",
+      "source": "trtworld.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The claim about Ankara being deeply saddened by the loss of lives caused by the fire does not conflict with or duplicate any existing beliefs, as it expresses a sentiment rather than a factual statement about the incident.",
+        "normalized_claim": "Ankara is deeply saddened by the loss of lives caused by the fire."
+      }
+    },
+    {
+      "claim": "[2025-11-27 12:00] [reported_speech] [conf:0.50] T\u00fcrkiye has extended condolences to Hong Kong",
+      "source": "trtworld.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about T\u00fcrkiye extending condolences to Hong Kong does not conflict with or duplicate any existing beliefs and can coexist with them.",
+        "normalized_claim": "T\u00fcrkiye has extended condolences to Hong Kong."
+      }
+    },
+    {
+      "claim": "[2025-11-27 12:00] [observation] [conf:0.50] The fire swept through seven high-rise residential towers in Hong Kong.",
+      "source": "news.az",
+      "result": {
+        "relation": "REDUNDANT",
+        "affected_belief_index": 4,
+        "reasoning": "The new claim that the fire swept through seven high-rise residential towers in Hong Kong is already expressed in existing belief [4], which states that seven of the eight 32-storey towers in Wang Fuk Court were engulfed in flames.",
+        "normalized_claim": "The fire swept through seven high-rise residential towers in Hong Kong."
+      }
+    },
+    {
+      "claim": "[2025-11-27 12:00] [observation] [conf:0.50] The fire killed at least 160 people.",
+      "source": "news.az",
+      "result": {
+        "relation": "SUPERSEDES",
+        "affected_belief_index": 7,
+        "reasoning": "The new claim states that the fire killed at least 160 people, which updates the previous belief that the fire killed at least 156 people.",
+        "normalized_claim": "The fire killed at least 160 people."
+      }
+    },
+    {
+      "claim": "[2025-11-27 12:00] [reported_speech] [conf:0.60] John Lee said more than 900 people had sought refuge at temporary shelters.",
+      "source": "theguardian.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about more than 900 people seeking refuge at temporary shelters does not conflict with or refine any existing beliefs, as it introduces new information regarding the number of people in temporary shelters after the fire.",
+        "normalized_claim": "More than 900 people had sought refuge at temporary shelters."
+      }
+    },
+    {
+      "claim": "[2025-11-28 12:00] [reported_speech] [conf:0.50] John Lee said the government would set up a task force to investigate the fire.",
+      "source": "dailymail.co.uk",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about the government setting up a task force to investigate the fire does not conflict with any existing beliefs and can coexist with them.",
+        "normalized_claim": "The government will set up a task force to investigate the fire."
+      }
+    },
+    {
+      "claim": "[2025-11-28 12:00] [observation] [conf:0.50] People attend a vigil near the scene of the deadly fire at the Wang Fuk Court housing complex in Hong Kong on Nov. 28.",
+      "source": "asia.nikkei.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about people attending a vigil near the scene of the fire does not conflict with or refine any existing beliefs, as it introduces a new event related to the aftermath of the fire.",
+        "normalized_claim": "People attend a vigil near the scene of the deadly fire at the Wang Fuk Court housing complex in Hong Kong on Nov. 28."
+      }
+    },
+    {
+      "claim": "[2025-11-28 12:00] [reported_speech] [conf:0.50] Lee Jae Myung extended his condolences following the deadly fire at an apartment complex in Hong Kong.",
+      "source": "koreajoongangdaily.joins.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about Lee Jae Myung extending condolences does not conflict with or duplicate any existing beliefs, as it introduces a new figure expressing sympathy regarding the fire incident.",
+        "normalized_claim": "Lee Jae Myung extended his condolences following the deadly fire at an apartment complex in Hong Kong."
+      }
+    },
+    {
+      "claim": "[2025-11-28 12:00] [reported_speech] [conf:0.50] Derek Armstrong Chan stated that firefighters struggled to bring the blaze under control.",
+      "source": "dailymail.co.uk",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about firefighters struggling to control the blaze does not conflict with or duplicate any existing beliefs and can coexist with them.",
+        "normalized_claim": "Firefighters struggled to bring the blaze under control."
+      }
+    },
+    {
+      "claim": "[2025-11-28 12:00] [observation] [conf:0.64] People attend a vigil near the scene of the deadly fire at the Wang Fuk Court housing complex in Hong Kong on Nov. 28",
+      "source": "asia.nikkei.com",
+      "result": {
+        "relation": "REDUNDANT",
+        "affected_belief_index": 24,
+        "reasoning": "The new claim about people attending a vigil near the scene of the fire on Nov. 28 is already expressed in the existing belief that mentions a vigil occurring at the same location and date.",
+        "normalized_claim": "People attend a vigil near the scene of the deadly fire at the Wang Fuk Court housing complex in Hong Kong on Nov. 28."
+      }
+    },
+    {
+      "claim": "[2025-11-28 12:00] [reported_speech] [conf:0.50] Eight people have been arrested over the Wang Fuk Court fire.",
+      "source": "dailymail.co.uk",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The claim about eight people being arrested over the Wang Fuk Court fire does not conflict with any existing beliefs and can coexist with them.",
+        "normalized_claim": "Eight people have been arrested over the Wang Fuk Court fire."
+      }
+    },
+    {
+      "claim": "[2025-11-28 12:00] [reported_speech] [conf:0.60] Andy Yeung confirmed that no fire alarms went off in any of the eight towers.",
+      "source": "theguardian.com",
+      "result": {
+        "relation": "REDUNDANT",
+        "affected_belief_index": 3,
+        "reasoning": "The new claim that no fire alarms went off in any of the eight towers is already expressed in the existing belief that the fire alarm systems at Wang Fuk Court were not functioning during the fire.",
+        "normalized_claim": "No fire alarms went off in any of the eight towers of Wang Fuk Court."
+      }
+    },
+    {
+      "claim": "[2025-11-30 12:00] [reported_speech] [conf:0.50] National security police reportedly arrested three people over the weekend for alleged sedition in relation to the fatal fire.",
+      "source": "hongkongfp.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about the arrest of three people for alleged sedition in relation to the fatal fire does not conflict with any existing beliefs and introduces new information regarding the legal actions taken following the incident.",
+        "normalized_claim": "National security police reportedly arrested three people over the weekend for alleged sedition in relation to the fatal fire."
+      }
+    },
+    {
+      "claim": "[2025-11-30 12:00] [reported_speech] [conf:0.50] Miles Kwan organized a petition calling for an independent probe into the blaze.",
+      "source": "hongkongfp.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about Miles Kwan organizing a petition for an independent probe into the blaze does not conflict with or duplicate any existing beliefs, as it introduces a new action related to the incident.",
+        "normalized_claim": "Miles Kwan organized a petition calling for an independent probe into the blaze."
+      }
+    },
+    {
+      "claim": "[2025-12-01 12:00] [reported_speech] [conf:0.50] The death toll in the Hong Kong blaze rises as authorities say another 100 people remain unaccounted-for.",
+      "source": "abc.net.au",
+      "result": {
+        "relation": "SUPERSEDES",
+        "affected_belief_index": 7,
+        "reasoning": "The new claim updates the death toll from the fire, indicating that it has risen and that another 100 people remain unaccounted-for, which supersedes the previous count of at least 160 deaths.",
+        "normalized_claim": "The death toll in the Hong Kong blaze rises as authorities say another 100 people remain unaccounted-for."
+      }
+    },
+    {
+      "claim": "[2025-12-01 12:00] [reported_speech] [conf:0.50] Chris Tang said that seven out of 20 safety netting samples from the Tai Po housing estate did not pass fire safety tests.",
+      "source": "hongkongfp.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about safety netting samples not passing fire safety tests does not conflict with or refine any existing beliefs, as it introduces a new aspect of fire safety related to the housing estate.",
+        "normalized_claim": "Seven out of 20 safety netting samples from the Tai Po housing estate did not pass fire safety tests."
+      }
+    },
+    {
+      "claim": "[2025-12-01 12:00] [reported_speech] [conf:0.50] HKCNP convened a Zoom meeting to connect its affiliated pastors with Tai Po pastors.",
+      "source": "christianitytoday.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about HKCNP convening a Zoom meeting to connect its affiliated pastors with Tai Po pastors does not conflict with or refine any existing beliefs, as it pertains to a separate event related to community support following the fire.",
+        "normalized_claim": "HKCNP convened a Zoom meeting to connect its affiliated pastors with Tai Po pastors."
+      }
+    },
+    {
+      "claim": "[2025-12-01 12:00] [reported_speech] [conf:0.50] HKCNP partnered with Hung Fook Tong to place donation boxes at the retailer's stores.",
+      "source": "christianitytoday.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about HKCNP partnering with Hung Fook Tong to place donation boxes is a separate initiative related to the aftermath of the fire and does not conflict with or overlap with existing beliefs.",
+        "normalized_claim": "HKCNP partnered with Hung Fook Tong to place donation boxes at the retailer's stores."
+      }
+    },
+    {
+      "claim": "[2025-12-01 12:00] [observation] [conf:0.50] The alarms failed to sound and the flames climbed from the lower floors to the roof within minutes.",
+      "source": "abc.net.au",
+      "result": {
+        "relation": "REDUNDANT",
+        "affected_belief_index": 3,
+        "reasoning": "The new claim about the alarms failing to sound is already covered by the existing belief that the fire alarm systems at Wang Fuk Court were not functioning during the fire.",
+        "normalized_claim": "The fire alarm systems at Wang Fuk Court failed to sound, allowing flames to climb from the lower floors to the roof within minutes."
+      }
+    },
+    {
+      "claim": "[2025-12-01 12:00] [reported_speech] [conf:0.50] Authorities have arrested 14 people linked to the renovation project at the Tai Po housing estate on suspicion of manslaughter and corruption.",
+      "source": "hongkongfp.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about the arrest of 14 people linked to the renovation project does not conflict with or refine any existing beliefs, as it introduces new information regarding potential legal actions related to the fire incident.",
+        "normalized_claim": "Authorities have arrested 14 people linked to the renovation project at the Tai Po housing estate on suspicion of manslaughter and corruption."
+      }
+    },
+    {
+      "claim": "[2025-12-01 12:00] [observation] [conf:0.50] In Tai Po, the nets were reduced to ash while the bamboo frame remained almost unscathed.",
+      "source": "abc.net.au",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about the nets being reduced to ash while the bamboo frame remained unscathed does not conflict with or refine any existing beliefs, as it provides additional detail about the fire's impact on the construction materials.",
+        "normalized_claim": "In Tai Po, the nets were reduced to ash while the bamboo frame remained almost unscathed."
+      }
+    },
+    {
+      "claim": "[2025-12-01 12:00] [reported_speech] [conf:0.50] Some residents had long questioned whether the scaffolding nets used during a renovation met flame-retardant standards.",
+      "source": "abc.net.au",
+      "result": {
+        "relation": "REDUNDANT",
+        "affected_belief_index": 30,
+        "reasoning": "The new claim about residents questioning the scaffolding nets' compliance with flame-retardant standards is already implied by the existing belief that seven out of 20 safety netting samples did not pass fire safety tests.",
+        "normalized_claim": "Some residents had long questioned whether the scaffolding nets used during a renovation met flame-retardant standards."
+      }
+    },
+    {
+      "claim": "[2025-12-01 12:00] [reported_speech] [conf:0.50] Volunteers and NGOs who rushed to help the displaced were abruptly ordered to leave the site.",
+      "source": "abc.net.au",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about volunteers and NGOs being ordered to leave the site does not conflict with or refine any existing beliefs, as it introduces a new aspect of the response to the fire.",
+        "normalized_claim": "Volunteers and NGOs who rushed to help the displaced were abruptly ordered to leave the site."
+      }
+    },
+    {
+      "claim": "[2025-12-01 12:00] [reported_speech] [conf:0.50] Beijing issued a warning not to let 'a disaster disrupt Hong Kong'.",
+      "source": "abc.net.au",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about Beijing issuing a warning not to let 'a disaster disrupt Hong Kong' does not conflict with or refine any existing beliefs, and it introduces a new perspective on the response to the disaster.",
+        "normalized_claim": "Beijing issued a warning not to let 'a disaster disrupt Hong Kong'."
+      }
+    },
+    {
+      "claim": "[2025-12-01 12:00] [reported_speech] [conf:0.50] A 24-year-old university student launched a petition demanding an independent investigation.",
+      "source": "abc.net.au",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about a 24-year-old university student launching a petition for an independent investigation does not conflict with or duplicate any existing beliefs and can coexist with them.",
+        "normalized_claim": "A 24-year-old university student launched a petition demanding an independent investigation."
+      }
+    },
+    {
+      "claim": "[2025-12-02 12:00] [reported_speech] [conf:0.50] The press conference was cancelled due to notification from relevant departments.",
+      "source": "hongkongfp.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about the cancellation of a press conference due to notification from relevant departments does not conflict with or refine any existing beliefs, and it introduces a new piece of information.",
+        "normalized_claim": "The press conference was cancelled due to notification from relevant departments."
+      }
+    },
+    {
+      "claim": "[2025-12-02 12:00] [reported_speech] [conf:0.50] The press conference would have covered topics including support for affected residents and the establishment of a commission of inquiry.",
+      "source": "hongkongfp.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about the press conference covering support for affected residents and the establishment of a commission of inquiry does not conflict with any existing beliefs and can coexist with them.",
+        "normalized_claim": "The press conference would have covered topics including support for affected residents and the establishment of a commission of inquiry."
+      }
+    },
+    {
+      "claim": "[2025-12-02 12:00] [reported_speech] [conf:0.50] John Lee ordered an independent committee, chaired by a judge, to be set up to probe the Tai Po blaze.",
+      "source": "hongkongfp.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about John Lee ordering an independent committee to probe the Tai Po blaze does not conflict with or refine any existing beliefs, as there is no current belief regarding the establishment of such a committee.",
+        "normalized_claim": "John Lee ordered an independent committee, chaired by a judge, to be set up to probe the Tai Po blaze."
+      }
+    },
+    {
+      "claim": "[2025-12-02 12:00] [reported_speech] [conf:0.50] Bruce Liu was set to speak at a cancelled civil society-led press conference.",
+      "source": "hongkongfp.com",
+      "result": {
+        "relation": "REDUNDANT",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about Bruce Liu speaking at a cancelled press conference does not directly relate to any existing beliefs, as there are no current beliefs regarding a press conference or Bruce Liu's involvement.",
+        "normalized_claim": "Bruce Liu was set to speak at a cancelled civil society-led press conference."
+      }
+    },
+    {
+      "claim": "[2025-12-02 12:00] [reported_speech] [conf:0.60] The press conference was cancelled after some speakers, including Wong Kwok-ngon and Bruce Liu, were taken in by national security police.",
+      "source": "hongkongfp.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about the cancellation of the press conference due to the involvement of national security police does not conflict with or refine any existing beliefs, as it introduces new information regarding the circumstances surrounding the press conference.",
+        "normalized_claim": "The press conference was cancelled after some speakers, including Wong Kwok-ngon and Bruce Liu, were taken in by national security police."
+      }
+    },
+    {
+      "claim": "[2025-12-02 12:00] [reported_speech] [conf:0.50] Hong Kong national security police have taken in Bruce Liu.",
+      "source": "hongkongfp.com",
+      "result": {
+        "relation": "REDUNDANT",
+        "affected_belief_index": 41,
+        "reasoning": "The new claim that Hong Kong national security police have taken in Bruce Liu is already expressed in existing belief 41, which states that Bruce Liu was taken in by national security police.",
+        "normalized_claim": "Hong Kong national security police have taken in Bruce Liu."
+      }
+    },
+    {
+      "claim": "[2025-12-02 12:00] [reported_speech] [conf:0.60] Wong Kwok-ngon was among those slated to appear at a press conference about the Wang Fuk Court fire.",
+      "source": "hongkongfp.com",
+      "result": {
+        "relation": "REDUNDANT",
+        "affected_belief_index": 41,
+        "reasoning": "The new claim about Wong Kwok-ngon being slated to appear at a press conference is already implied in the existing belief that mentions he was taken in by national security police, which suggests he was involved in the press conference.",
+        "normalized_claim": "Wong Kwok-ngon was among those slated to appear at a press conference about the Wang Fuk Court fire."
+      }
+    },
+    {
+      "claim": "[2025-12-02 12:00] [reported_speech] [conf:0.50] John Lee said that the government would not tolerate those who exploit the fatal Tai Po fire.",
+      "source": "hongkongfp.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about John Lee stating that the government would not tolerate those who exploit the fatal Tai Po fire does not conflict with or refine any existing beliefs, but rather adds a new perspective on the government's stance regarding the incident.",
+        "normalized_claim": "John Lee said that the government would not tolerate those who exploit the fatal Tai Po fire."
+      }
+    },
+    {
+      "claim": "[2025-12-03 12:00] [reported_speech] [conf:0.50] Authorities found that some of the netting at Wang Fuk Court had failed to meet fire safety standards.",
+      "source": "christianitytoday.com",
+      "result": {
+        "relation": "REFINES",
+        "affected_belief_index": 30,
+        "reasoning": "The new claim specifies that some of the netting at Wang Fuk Court failed to meet fire safety standards, which refines the existing belief that seven out of 20 safety netting samples did not pass fire safety tests.",
+        "normalized_claim": "Authorities found that some of the netting at Wang Fuk Court had failed to meet fire safety standards."
+      }
+    },
+    {
+      "claim": "[2025-12-03 12:00] [observation] [conf:0.50] More than 30 people remain missing after the fire at Wang Fuk Court.",
+      "source": "christianitytoday.com",
+      "result": {
+        "relation": "SUPERSEDES",
+        "affected_belief_index": 19,
+        "reasoning": "The new claim states that more than 30 people remain missing, which updates the existing belief that states another 100 people remain unaccounted-for, indicating a more precise count of those missing.",
+        "normalized_claim": "More than 30 people remain missing after the fire at Wang Fuk Court."
+      }
+    },
+    {
+      "claim": "[2025-12-03 12:00] [reported_speech] [conf:0.50] Police have arrested at least 13 people involved with the renovations for suspected manslaughter.",
+      "source": "christianitytoday.com",
+      "result": {
+        "relation": "SUPERSEDES",
+        "affected_belief_index": 33,
+        "reasoning": "The new claim updates the number of arrests related to the renovations from 14 to at least 13, indicating a correction or refinement of the previous belief about the number of arrests.",
+        "normalized_claim": "Police have arrested at least 13 people involved with the renovations for suspected manslaughter."
+      }
+    },
+    {
+      "claim": "[2025-12-03 12:00] [reported_speech] [conf:0.50] Hong Kong's Independent Commission Against Corruption is investigating possible graft connected to Wang Fuk Court's renovation project.",
+      "source": "christianitytoday.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about the investigation by Hong Kong's Independent Commission Against Corruption into possible graft related to the renovation project does not conflict with or duplicate any existing beliefs, as it introduces a new aspect of the situation.",
+        "normalized_claim": "Hong Kong's Independent Commission Against Corruption is investigating possible graft connected to Wang Fuk Court's renovation project."
+      }
+    },
+    {
+      "claim": "[2025-12-04 12:00] [observation] [conf:0.50] Jimmy Lai has been held for 1,800 days in solitary confinement in Hong Kong.",
+      "source": "rsf.org",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The claim about Jimmy Lai being held for 1,800 days in solitary confinement does not relate to any existing beliefs about the fire incident in Hong Kong and can coexist with them.",
+        "normalized_claim": "Jimmy Lai has been held for 1,800 days in solitary confinement in Hong Kong."
+      }
+    },
+    {
+      "claim": "[2025-12-06 12:00] [reported_speech] [conf:0.50] China\u2019s national security office summoned foreign media to warn them about spreading false information regarding the Wang Fuk Court fire.",
+      "source": "dominotheory.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about China's national security office summoning foreign media to warn them about spreading false information regarding the Wang Fuk Court fire does not conflict with or refine any existing beliefs, but rather adds a new dimension to the narrative surrounding the incident.",
+        "normalized_claim": "China\u2019s national security office summoned foreign media to warn them about spreading false information regarding the Wang Fuk Court fire."
+      }
+    },
+    {
+      "claim": "[2025-12-07 12:00] [reported_speech] [conf:0.70] The Indonesian consulate general said that nine migrant domestic workers died in the fire, and one was missing.",
+      "source": "hongkongfp.com",
+      "result": {
+        "relation": "SUPERSEDES",
+        "affected_belief_index": 7,
+        "reasoning": "The new claim specifies that nine migrant domestic workers died in the fire, which updates the existing belief about the death toll, indicating a more precise count of fatalities.",
+        "normalized_claim": "Nine migrant domestic workers died in the fire, and one was missing."
+      }
+    },
+    {
+      "claim": "[2025-12-08 12:00] [observation] [conf:0.60] Jimmy Lai turned 78 in a Hong Kong prison.",
+      "source": "independent.co.uk",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The claim about Jimmy Lai turning 78 in a Hong Kong prison does not conflict with or overlap any existing beliefs, as they pertain to different subjects.",
+        "normalized_claim": "Jimmy Lai turned 78 in a Hong Kong prison."
+      }
+    },
+    {
+      "claim": "[2025-12-09 12:00] [reported_speech] [conf:0.70] The number of people missing in the fire had dropped from 31 to six.",
+      "source": "hongkongfp.com",
+      "result": {
+        "relation": "SUPERSEDES",
+        "affected_belief_index": 19,
+        "reasoning": "The new claim updates the number of missing persons from 31 to 6, which supersedes the previous belief that more than 30 people remain missing.",
+        "normalized_claim": "The number of people missing in the fire had dropped from 31 to six."
+      }
+    },
+    {
+      "claim": "[2025-12-09 12:00] [reported_speech] [conf:0.70] Eight of the 31 people previously unaccounted for were confirmed to have died in the fire.",
+      "source": "hongkongfp.com",
+      "result": {
+        "relation": "SUPERSEDES",
+        "affected_belief_index": 19,
+        "reasoning": "The new claim updates the number of people confirmed to have died in the fire, which supersedes the previous count of missing persons.",
+        "normalized_claim": "Eight of the 31 people previously unaccounted for were confirmed to have died in the fire."
+      }
+    },
+    {
+      "claim": "[2025-12-09 12:00] [observation] [conf:0.70] The death toll in the Wang Fuk Court blaze has risen to 160 after DNA tests found one additional fatality.",
+      "source": "hongkongfp.com",
+      "result": {
+        "relation": "SUPERSEDES",
+        "affected_belief_index": 7,
+        "reasoning": "The new claim updates the death toll from the fire at Wang Fuk Court to 160, which supersedes the previous count of nine migrant domestic workers who died.",
+        "normalized_claim": "The death toll in the Wang Fuk Court blaze has risen to 160 after DNA tests found one additional fatality."
+      }
+    },
+    {
+      "claim": "[2025-12-09 12:00] [observation] [conf:0.70] Four people were found to have died before the fire.",
+      "source": "hongkongfp.com",
+      "result": {
+        "relation": "CONFLICTS",
+        "affected_belief_index": 7,
+        "reasoning": "The new claim states that four people died before the fire, which contradicts the existing belief that the death toll from the fire has risen to 160, implying that all fatalities occurred during the fire itself.",
+        "normalized_claim": "Four people were found to have died before the fire."
+      }
+    },
+    {
+      "claim": "[2025-12-09 12:00] [reported_speech] [conf:0.70] Police Commissioner Joe Chow told reporters that human remains previously believed to belong to one person were revealed to be from two individuals.",
+      "source": "hongkongfp.com",
+      "result": {
+        "relation": "SUPERSEDES",
+        "affected_belief_index": 7,
+        "reasoning": "The new claim updates the information about the death toll by indicating that human remains previously thought to belong to one person are actually from two individuals, suggesting an increase in the death count.",
+        "normalized_claim": "Human remains previously believed to belong to one person were revealed to be from two individuals."
+      }
+    },
+    {
+      "claim": "[2025-12-12 12:00] [reported_speech] [conf:0.50] A report on the Wang Fuk Court fire is due in 9 months.",
+      "source": "aastocks.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about a report on the Wang Fuk Court fire being due in 9 months does not conflict with or refine any existing beliefs, as it introduces a new timeline for reporting without contradicting any current information.",
+        "normalized_claim": "A report on the Wang Fuk Court fire is due in 9 months."
+      }
+    },
+    {
+      "claim": "[2025-12-12 12:00] [reported_speech] [conf:0.50] John Lee appointed Judge David Lok as Independent Commission Chair for the Wang Fuk Court fire.",
+      "source": "aastocks.com",
+      "result": {
+        "relation": "REFINES",
+        "affected_belief_index": 40,
+        "reasoning": "The new claim specifies that Judge David Lok has been appointed as the chair of the independent commission to investigate the Wang Fuk Court fire, refining the existing belief that an independent committee was ordered to be set up by John Lee.",
+        "normalized_claim": "John Lee appointed Judge David Lok as Independent Commission Chair for the Wang Fuk Court fire."
+      }
+    },
+    {
+      "claim": "[2025-12-12 12:00] [reported_speech] [conf:0.50] The investigation is expected to provide clarity on the circumstances of the fire and measures to prevent future incidents.",
+      "source": "news.az",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about the investigation providing clarity on the fire and preventive measures does not conflict with or duplicate any existing beliefs, as it introduces a forward-looking perspective on the investigation's purpose.",
+        "normalized_claim": "The investigation is expected to provide clarity on the circumstances of the fire and measures to prevent future incidents."
+      }
+    },
+    {
+      "claim": "[observation] [conf:0.50] The fire in Tai Po District left 128 people dead.",
+      "source": "mylondon.news",
+      "result": {
+        "relation": "SUPERSEDES",
+        "affected_belief_index": 19,
+        "reasoning": "The new claim states that 128 people died in the fire, which updates the previous belief that eight of the 31 people unaccounted for were confirmed to have died, indicating a higher death toll.",
+        "normalized_claim": "The fire in Tai Po District left 128 people dead."
+      }
+    },
+    {
+      "claim": "[reported_speech] [conf:0.50] Hong Kong and Beijing rush to tamp down anger over deadly fire.",
+      "source": "asia.nikkei.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about Hong Kong and Beijing rushing to tamp down anger over the deadly fire does not conflict with or refine any existing beliefs, but rather adds context to the situation following the fire.",
+        "normalized_claim": "Hong Kong and Beijing are taking measures to address public anger in response to the deadly fire."
+      }
+    },
+    {
+      "claim": "[observation] [conf:0.50] At least 160 people were killed in the blaze at the Wang Fung Court complex, Tai Po district.",
+      "source": "news.un.org",
+      "result": {
+        "relation": "SUPERSEDES",
+        "affected_belief_index": 19,
+        "reasoning": "The new claim states that at least 160 people were killed, which updates the previously reported death toll of 128, indicating an increase in the number of fatalities.",
+        "normalized_claim": "At least 160 people were killed in the blaze at the Wang Fung Court complex, Tai Po district."
+      }
+    },
+    {
+      "claim": "[opinion] [conf:0.50] Jimmy Lai's trial represents a test for press freedom and judicial independence in Hong Kong.",
+      "source": "independent.co.uk",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The claim about Jimmy Lai's trial being a test for press freedom and judicial independence in Hong Kong does not overlap with any existing beliefs and can coexist with them.",
+        "normalized_claim": "Jimmy Lai's trial represents a test for press freedom and judicial independence in Hong Kong."
+      }
+    },
+    {
+      "claim": "[reported_speech] [conf:0.64] Hong Kong apartment fire death toll hits 128 as city rushes to quell anger",
+      "source": "asia.nikkei.com",
+      "result": {
+        "relation": "SUPERSEDES",
+        "affected_belief_index": 19,
+        "reasoning": "The new claim updates the death toll from the fire at Wang Fuk Court, which was previously reported as at least 160, now stating it has hit 128, indicating a revision of the count.",
+        "normalized_claim": "The death toll from the Hong Kong apartment fire has reached 128."
+      }
+    },
+    {
+      "claim": "[observation] [conf:0.60] Hong Yip Service Co. Ltd. was involved in the renovation project at Wang Fuk Court.",
+      "source": "hk.news.yahoo.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about Hong Yip Service Co. Ltd. being involved in the renovation project at Wang Fuk Court does not conflict with or refine any existing beliefs, as there is no current belief regarding the specific companies involved in the renovations.",
+        "normalized_claim": "Hong Yip Service Co. Ltd. was involved in the renovation project at Wang Fuk Court."
+      }
+    },
+    {
+      "claim": "[reported_speech] [conf:0.60] Residents of Wang Fuk Court had been warning about safety issues since last year.",
+      "source": "hk.news.yahoo.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about residents warning of safety issues aligns with the existing concerns regarding fire safety at Wang Fuk Court, but it does not directly overlap with any specific existing belief.",
+        "normalized_claim": "Residents of Wang Fuk Court had been warning about safety issues since last year."
+      }
+    },
+    {
+      "claim": "[reported_speech] [conf:0.60] Hong Kong leader John Lee announced a judge-led 'independent committee' last week to investigate the fire.",
+      "source": "ndtv.com",
+      "result": {
+        "relation": "REFINES",
+        "affected_belief_index": 40,
+        "reasoning": "The new claim specifies that the independent committee announced by John Lee is judge-led, providing more detail than the existing belief about the establishment of an independent commission to investigate the fire.",
+        "normalized_claim": "Hong Kong leader John Lee announced a judge-led independent committee to investigate the fire."
+      }
+    },
+    {
+      "claim": "[reported_speech] [conf:0.50] Hong Kong authorities accused AFP of smearing Hong Kong and misleading the public.",
+      "source": "rsf.org",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about Hong Kong authorities accusing AFP of smearing Hong Kong does not conflict with or refine any existing beliefs, as it addresses a separate issue regarding media relations and public perception.",
+        "normalized_claim": "Hong Kong authorities accused AFP of smearing Hong Kong and misleading the public."
+      }
+    },
+    {
+      "claim": "[observation] [conf:0.50] The Independent Commission Against Corruption is investigating the cause of the Wang Fuk Court fire.",
+      "source": "dominotheory.com",
+      "result": {
+        "relation": "REDUNDANT",
+        "affected_belief_index": 43,
+        "reasoning": "The new claim about the Independent Commission Against Corruption investigating the cause of the Wang Fuk Court fire is already covered by the existing belief that states the commission is investigating possible graft connected to the renovation project at Wang Fuk Court.",
+        "normalized_claim": "The Independent Commission Against Corruption is investigating the cause of the Wang Fuk Court fire."
+      }
+    },
+    {
+      "claim": "[reported_speech] [conf:0.50] Chinese media has decried the politicization of the Wang Fuk Court fire.",
+      "source": "dominotheory.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about Chinese media decrying the politicization of the Wang Fuk Court fire does not conflict with or duplicate any existing beliefs, and it can coexist with them.",
+        "normalized_claim": "Chinese media has decried the politicization of the Wang Fuk Court fire."
+      }
+    },
+    {
+      "claim": "[observation] [conf:0.50] Many people are still unaccounted for following the fire in Tai Po District.",
+      "source": "mylondon.news",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The claim about many people still being unaccounted for following the fire in Tai Po District does not conflict with existing beliefs and can coexist with them, as there is no current belief specifically addressing the status of unaccounted individuals.",
+        "normalized_claim": "Many people are still unaccounted for following the fire in Tai Po District."
+      }
+    },
+    {
+      "claim": "[reported_speech] [conf:0.50] Sir Iain Duncan Smith said Jimmy Lai was in prison on trumped-up charges under the new oppressive Chinese National Security Law in Hong Kong.",
+      "source": "independent.co.uk",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about Jimmy Lai being imprisoned on trumped-up charges under the Chinese National Security Law does not conflict with any existing beliefs and can coexist with them.",
+        "normalized_claim": "Sir Iain Duncan Smith said Jimmy Lai was in prison on trumped-up charges under the new oppressive Chinese National Security Law in Hong Kong."
+      }
+    },
+    {
+      "claim": "[reported_speech] [conf:0.50] The people of Hong Kong want answers and accountability.",
+      "source": "news.un.org",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The claim about the people of Hong Kong wanting answers and accountability aligns with the ongoing public concern and response to the fire, but it is not directly covered by any existing belief.",
+        "normalized_claim": "The people of Hong Kong want answers and accountability."
+      }
+    },
+    {
+      "claim": "[reported_speech] [conf:0.50] Authorities have arrested some 20 people as part of a criminal investigation into the fire.",
+      "source": "theatlantic.com",
+      "result": {
+        "relation": "REDUNDANT",
+        "affected_belief_index": 33,
+        "reasoning": "The new claim about authorities arresting around 20 people is redundant as existing belief [33] states that police have arrested at least 13 people involved with the renovations for suspected manslaughter, indicating ongoing arrests related to the fire investigation.",
+        "normalized_claim": "Authorities have arrested some 20 people as part of a criminal investigation into the fire."
+      }
+    },
+    {
+      "claim": "[reported_speech] [conf:0.60] Another six people were arrested in connection to fire alarms that failed to sound.",
+      "source": "ndtv.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about six additional arrests related to the failure of fire alarms does not conflict with existing beliefs and adds new information about the investigation into the fire alarm systems.",
+        "normalized_claim": "Another six people were arrested in connection to fire alarms that failed to sound."
+      }
+    },
+    {
+      "claim": "[observation] [conf:0.50] The fire at Wang Fuk Court killed at least 160 people.",
+      "source": "theatlantic.com",
+      "result": {
+        "relation": "SUPERSEDES",
+        "affected_belief_index": 19,
+        "reasoning": "The new claim states that the fire at Wang Fuk Court killed at least 160 people, which updates the previously reported death toll of 128.",
+        "normalized_claim": "The fire at Wang Fuk Court killed at least 160 people."
+      }
+    },
+    {
+      "claim": "[observation] [conf:0.60] The Hong Kong Housing Authority is responsible for overseeing public housing developments.",
+      "source": "hk.news.yahoo.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about the Hong Kong Housing Authority's responsibility for overseeing public housing developments does not conflict with or duplicate any existing beliefs, as it introduces a new aspect of governance related to public housing.",
+        "normalized_claim": "The Hong Kong Housing Authority is responsible for overseeing public housing developments."
+      }
+    },
+    {
+      "claim": "[reported_speech] [conf:0.50] The massive fire in Hong Kong has resulted in a great loss of life.",
+      "source": "koreajoongangdaily.joins.com",
+      "result": {
+        "relation": "REDUNDANT",
+        "affected_belief_index": 19,
+        "reasoning": "The new claim about the massive fire resulting in a great loss of life is already expressed by the existing belief that at least 160 people were killed in the fire.",
+        "normalized_claim": "The massive fire in Hong Kong has resulted in a great loss of life."
+      }
+    },
+    {
+      "claim": "[reported_speech] [conf:0.60] Police were relatively sure that three of those people lived at Wang Fuk Court complex.",
+      "source": "ndtv.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about police being relatively sure that three of the deceased lived at Wang Fuk Court does not conflict with or refine any existing beliefs, as it introduces new information regarding the identities of the deceased.",
+        "normalized_claim": "Police were relatively sure that three of those people lived at Wang Fuk Court complex."
+      }
+    },
+    {
+      "claim": "[reported_speech] [conf:0.50] Volker T\u00fcrk insisted that there is an opportunity to restore meaningful civic space in Hong Kong.",
+      "source": "news.un.org",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about restoring civic space in Hong Kong does not conflict with or overlap any existing beliefs, as it addresses a broader political context rather than the specific events surrounding the fire.",
+        "normalized_claim": "Volker T\u00fcrk insisted that there is an opportunity to restore meaningful civic space in Hong Kong."
+      }
+    },
+    {
+      "claim": "[reported_speech] [conf:0.50] The cumulative impacts of these laws reflect a systemic erosion in enjoyment of human rights in Hong Kong.",
+      "source": "news.un.org",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about the systemic erosion of human rights in Hong Kong is a separate assertion that does not directly overlap with the existing beliefs regarding the fire incident at Wang Fuk Court.",
+        "normalized_claim": "The cumulative impacts of these laws reflect a systemic erosion in enjoyment of human rights in Hong Kong."
+      }
+    },
+    {
+      "claim": "[allegation] [conf:0.50] Hong Kong authorities allege that the construction company used unsafe materials in the renovation of Wang Fuk Court.",
+      "source": "theatlantic.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about unsafe materials used in the renovation of Wang Fuk Court does not conflict with existing beliefs and can coexist with them, as there is no current belief specifically addressing the safety of materials used in the renovations.",
+        "normalized_claim": "Hong Kong authorities allege that the construction company used unsafe materials in the renovation of Wang Fuk Court."
+      }
+    },
+    {
+      "claim": "[reported_speech] [conf:0.60] The Housing Bureau's independent review team did not find any non-compliance with flame-retardant standards during their inspection at Wang Fuk Court.",
+      "source": "hk.news.yahoo.com",
+      "result": {
+        "relation": "CONFLICTS",
+        "affected_belief_index": 30,
+        "reasoning": "The new claim asserts that the Housing Bureau's independent review team found no non-compliance with flame-retardant standards, which conflicts with existing belief [30] that some netting at Wang Fuk Court failed to meet fire safety standards.",
+        "normalized_claim": "The Housing Bureau's independent review team did not find any non-compliance with flame-retardant standards during their inspection at Wang Fuk Court."
+      }
+    },
+    {
+      "claim": "[reported_speech] [conf:0.64] Hong Kong and Beijing rush to tamp down anger over deadly fire",
+      "source": "asia.nikkei.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about Hong Kong and Beijing rushing to tamp down anger over the deadly fire is compatible with existing beliefs regarding the government's response to the incident, but it does not directly overlap with any specific existing belief.",
+        "normalized_claim": "Hong Kong and Beijing are taking measures to address public anger in response to the deadly fire."
+      }
+    },
+    {
+      "claim": "[reported_speech] [conf:0.50] Antony Dapiran noted that accountability for local officials in China can be brutal and short.",
+      "source": "dominotheory.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The claim about accountability for local officials in China being brutal and short does not conflict with or refine any existing beliefs, as it addresses a broader context of governance and accountability rather than specific events related to the fire.",
+        "normalized_claim": "Antony Dapiran noted that accountability for local officials in China can be brutal and short."
+      }
+    },
+    {
+      "claim": "[reported_speech] [conf:0.50] China might blame Hong Kong\u2019s laissez-faire regulatory system for the Wang Fuk Court fire.",
+      "source": "dominotheory.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim suggests that China might attribute the fire to Hong Kong's regulatory system, which does not conflict with existing beliefs about the fire and its aftermath but rather adds a potential perspective on the causes.",
+        "normalized_claim": "China might blame Hong Kong\u2019s laissez-faire regulatory system for the Wang Fuk Court fire."
+      }
+    },
+    {
+      "claim": "[reported_speech] [conf:0.50] Peggy Wong has been criticized for failing to respond to resident concerns about the Wang Fuk Court renovations.",
+      "source": "dominotheory.com",
+      "result": {
+        "relation": "REDUNDANT",
+        "affected_belief_index": 52,
+        "reasoning": "The new claim about Peggy Wong being criticized for failing to respond to resident concerns about the renovations is already implied by the existing belief that residents had been warning about safety issues since last year.",
+        "normalized_claim": "Peggy Wong has been criticized for failing to respond to resident concerns about the Wang Fuk Court renovations."
+      }
+    },
+    {
+      "claim": "[observation] [conf:0.50] Residents were aware of the flammability of the styrofoam panels at Wang Fuk Court as early as September 2024.",
+      "source": "dominotheory.com",
+      "result": {
+        "relation": "REDUNDANT",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about residents being aware of the flammability of the styrofoam panels does not directly relate to any existing beliefs, which focus on the fire's impact and safety issues but do not specify residents' awareness of specific materials.",
+        "normalized_claim": "Residents were aware of the flammability of the styrofoam panels at Wang Fuk Court as early as September 2024."
+      }
+    },
+    {
+      "claim": "[observation] [conf:0.50] Officials conducted safety inspections at Wang Fuk Court 16 times between July 2024 and November 2025.",
+      "source": "dominotheory.com",
+      "result": {
+        "relation": "REDUNDANT",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about safety inspections at Wang Fuk Court does not directly relate to any existing beliefs, as none mention safety inspections specifically.",
+        "normalized_claim": "Officials conducted safety inspections at Wang Fuk Court 16 times between July 2024 and November 2025."
+      }
+    },
+    {
+      "claim": "[reported_speech] [conf:0.50] John Lee was questioned about his leadership in light of the Wang Fuk Court fire.",
+      "source": "dominotheory.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The claim about John Lee being questioned about his leadership in light of the Wang Fuk Court fire does not conflict with or duplicate any existing beliefs, as it introduces a new aspect of public and political response to the incident.",
+        "normalized_claim": "John Lee was questioned about his leadership in light of the Wang Fuk Court fire."
+      }
+    },
+    {
+      "claim": "[observation] [conf:0.50] Hong Kong police arrested 15 people on suspicion of manslaughter related to the Wang Fuk Court fire.",
+      "source": "dominotheory.com",
+      "result": {
+        "relation": "SUPERSEDES",
+        "affected_belief_index": 33,
+        "reasoning": "The new claim updates the number of arrests related to the Wang Fuk Court fire from at least 13 to 15, indicating a higher count of individuals arrested for suspected manslaughter.",
+        "normalized_claim": "Hong Kong police arrested 15 people on suspicion of manslaughter related to the Wang Fuk Court fire."
+      }
+    },
+    {
+      "claim": "[observation] [conf:0.50] Shoddy construction materials installed by Prestige accelerated the Wang Fuk Court fire.",
+      "source": "dominotheory.com",
+      "result": {
+        "relation": "REDUNDANT",
+        "affected_belief_index": 63,
+        "reasoning": "The new claim about shoddy construction materials accelerating the fire is already covered by the existing belief that Hong Kong authorities allege the construction company used unsafe materials in the renovation of Wang Fuk Court.",
+        "normalized_claim": "Shoddy construction materials installed by Prestige accelerated the Wang Fuk Court fire."
+      }
+    },
+    {
+      "claim": "[observation] [conf:0.50] Investigators found that samples of netting at Wang Fuk Court did not meet legal standards of flame retardancy.",
+      "source": "dominotheory.com",
+      "result": {
+        "relation": "REDUNDANT",
+        "affected_belief_index": 30,
+        "reasoning": "The new claim about the netting not meeting legal standards of flame retardancy is already covered by existing belief [30], which states that some of the netting at Wang Fuk Court had failed to meet fire safety standards.",
+        "normalized_claim": "Investigators found that samples of netting at Wang Fuk Court did not meet legal standards of flame retardancy."
+      }
+    },
+    {
+      "claim": "[reported_speech] [conf:0.50] Hong Kong security chief Chris Tang urged society to stand united in dealing with the aftermath of the Wang Fuk Court fire.",
+      "source": "dominotheory.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about Hong Kong security chief Chris Tang urging society to stand united in dealing with the aftermath of the fire does not conflict with or duplicate any existing beliefs, as it addresses a call for unity rather than specific details about the fire itself.",
+        "normalized_claim": "Hong Kong security chief Chris Tang urged society to stand united in dealing with the aftermath of the Wang Fuk Court fire."
+      }
+    },
+    {
+      "claim": "[reported_speech] [conf:0.50] The Hong Kong government, led by John Lee, has denied accusations against Jimmy Lai.",
+      "source": "independent.co.uk",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about the Hong Kong government denying accusations against Jimmy Lai does not conflict with or overlap any existing beliefs, as it addresses a different aspect of the situation.",
+        "normalized_claim": "The Hong Kong government, led by John Lee, has denied accusations against Jimmy Lai."
+      }
+    },
+    {
+      "claim": "[reported_speech] [conf:0.60] Hong Kong apartment fire death toll rises as police allege negligence",
+      "source": "asia.nikkei.com",
+      "result": {
+        "relation": "SUPERSEDES",
+        "affected_belief_index": 19,
+        "reasoning": "The new claim indicates that the death toll from the fire has risen, which updates the previously reported figure of at least 160 deaths.",
+        "normalized_claim": "The death toll from the Hong Kong apartment fire has risen as police allege negligence."
+      }
+    },
+    {
+      "claim": "[reported_speech] [conf:0.60] The death count in Hong Kong's worst fire in decades rose to 160.",
+      "source": "ndtv.com",
+      "result": {
+        "relation": "SUPERSEDES",
+        "affected_belief_index": 19,
+        "reasoning": "The new claim updates the death toll from the fire, which previously indicated a lower number, thus superseding the existing belief about the death toll.",
+        "normalized_claim": "The death count in Hong Kong's worst fire in decades rose to 160."
+      }
+    },
+    {
+      "claim": "[observation] [conf:0.50] Hong Kong has set up a judge-led independent committee to investigate the cause of the Wang Fuk Court fire.",
+      "source": "dominotheory.com",
+      "result": {
+        "relation": "REDUNDANT",
+        "affected_belief_index": 40,
+        "reasoning": "The new claim about Hong Kong setting up a judge-led independent committee to investigate the fire is already expressed in belief [40].",
+        "normalized_claim": "Hong Kong has set up a judge-led independent committee to investigate the cause of the Wang Fuk Court fire."
+      }
+    },
+    {
+      "claim": "[reported_speech] [conf:0.50] The identities of 120 out of the 160 dead have been identified via DNA or fingerprint testing.",
+      "source": "ndtv.com",
+      "result": {
+        "relation": "REFINES",
+        "affected_belief_index": 19,
+        "reasoning": "The new claim specifies that 120 out of the 160 dead have been identified, providing more detail about the death toll mentioned in belief [19].",
+        "normalized_claim": "The identities of 120 out of the 160 dead have been identified via DNA or fingerprint testing."
+      }
+    },
+    {
+      "claim": "[reported_speech] [conf:0.60] The Labour Department received complaints about the quality of the scaffolding netting at Wang Fuk Court in September last year.",
+      "source": "hk.news.yahoo.com",
+      "result": {
+        "relation": "COMPATIBLE",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about the Labour Department receiving complaints regarding the quality of scaffolding netting at Wang Fuk Court adds information about prior concerns without contradicting or overlapping with existing beliefs.",
+        "normalized_claim": "The Labour Department received complaints about the quality of the scaffolding netting at Wang Fuk Court in September last year."
+      }
+    },
+    {
+      "claim": "[reported_speech] [conf:0.50] Hong Kong apartment fire death toll hits 128 as city rushes to quell anger.",
+      "source": "asia.nikkei.com",
+      "result": {
+        "relation": "SUPERSEDES",
+        "affected_belief_index": 19,
+        "reasoning": "The new claim updates the death toll from the fire to 128, which supersedes the previous belief that identified 160 dead with 120 identified, indicating a more accurate count as information has evolved.",
+        "normalized_claim": "The death toll from the Hong Kong apartment fire has reached 128."
+      }
+    },
+    {
+      "claim": "[observation] [conf:0.50] At least 160 people have died due to a series of events and decisions related to the Wang Fuk Court fire.",
+      "source": "dominotheory.com",
+      "result": {
+        "relation": "SUPERSEDES",
+        "affected_belief_index": 19,
+        "reasoning": "The new claim of at least 160 deaths updates the previously reported death toll of 128, indicating an increase in the number of fatalities related to the Wang Fuk Court fire.",
+        "normalized_claim": "At least 160 people have died due to a series of events and decisions related to the Wang Fuk Court fire."
+      }
+    },
+    {
+      "claim": "[reported_speech] [conf:0.60] The Urban Renewal Authority gave a perfect project management score to the contractor involved in Wang Fuk Court's renovation.",
+      "source": "hk.news.yahoo.com",
+      "result": {
+        "relation": "REDUNDANT",
+        "affected_belief_index": null,
+        "reasoning": "The new claim about the Urban Renewal Authority giving a perfect project management score to the contractor does not directly relate to any existing beliefs, which focus on the fire incident and its aftermath rather than project management evaluations.",
+        "normalized_claim": "The Urban Renewal Authority gave a perfect project management score to the contractor involved in Wang Fuk Court's renovation."
+      }
+    }
+  ]
+}

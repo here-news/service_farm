@@ -1,0 +1,1791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Participatory Epistemic Engine - Wang Fuk Court Fire</title>
+    <style>
+        :root {
+            --bg: #0a0a0f;
+            --surface: #12121a;
+            --surface-2: #1a1a24;
+            --surface-3: #222230;
+            --border: #2a2a3a;
+            --text: #e0e0e8;
+            --text-dim: #8888a0;
+            --text-body: #c8c8d4;
+            --accent: #6366f1;
+            --green: #22c55e;
+            --green-dim: rgba(34, 197, 94, 0.15);
+            --red: #ef4444;
+            --red-dim: rgba(239, 68, 68, 0.15);
+            --yellow: #eab308;
+            --yellow-dim: rgba(234, 179, 8, 0.15);
+            --blue: #3b82f6;
+            --blue-dim: rgba(59, 130, 246, 0.15);
+            --purple: #a855f7;
+            --purple-dim: rgba(168, 85, 247, 0.15);
+            --orange: #f97316;
+            --orange-dim: rgba(249, 115, 22, 0.15);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 1.5rem;
+        }
+
+        /* Header */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 1.5rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            margin-bottom: 1.5rem;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .logo {
+            font-size: 1.1rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, var(--accent), var(--purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .event-title {
+            font-size: 1rem;
+            color: var(--text-dim);
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .user-badge {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.4rem 0.75rem;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            font-size: 0.85rem;
+        }
+
+        .user-credits {
+            color: var(--yellow);
+            font-weight: 600;
+        }
+
+        /* Phase Indicator */
+        .phase-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+        }
+
+        .phase-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.3rem 0.75rem;
+            border-radius: 2rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .phase-badge.contested { background: var(--red-dim); border: 1px solid var(--red); color: var(--red); }
+        .phase-badge.converging { background: var(--blue-dim); border: 1px solid var(--blue); color: var(--blue); }
+        .phase-badge.stable { background: var(--green-dim); border: 1px solid var(--green); color: var(--green); }
+
+        .phase-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: currentColor;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .phase-stats {
+            display: flex;
+            gap: 1.5rem;
+            margin-left: auto;
+            font-size: 0.85rem;
+        }
+
+        .phase-stat {
+            color: var(--text-dim);
+        }
+
+        .phase-stat span {
+            color: var(--text);
+            font-weight: 600;
+        }
+
+        /* Main Grid */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 1.5rem;
+        }
+
+        /* Cards */
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 1.5rem;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            background: var(--surface-2);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .card-title {
+            font-weight: 600;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .card-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .card-content {
+            padding: 1rem;
+        }
+
+        /* Buttons */
+        button {
+            font-family: inherit;
+            font-size: 0.8rem;
+            padding: 0.4rem 0.75rem;
+            border-radius: 6px;
+            cursor: pointer;
+            border: none;
+            transition: all 0.15s;
+        }
+
+        button.primary {
+            background: var(--accent);
+            color: white;
+        }
+
+        button.primary:hover {
+            filter: brightness(1.1);
+        }
+
+        button.secondary {
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            color: var(--text);
+        }
+
+        button.secondary:hover {
+            background: var(--surface-3);
+        }
+
+        button.ghost {
+            background: transparent;
+            color: var(--text-dim);
+        }
+
+        button.ghost:hover {
+            color: var(--text);
+            background: var(--surface-2);
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 0.25rem;
+            padding: 0.5rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            margin-bottom: 1.5rem;
+        }
+
+        .tab {
+            padding: 0.6rem 1rem;
+            background: transparent;
+            border: none;
+            color: var(--text-dim);
+            font-size: 0.85rem;
+            font-weight: 500;
+            border-radius: 6px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .tab.active {
+            background: var(--accent);
+            color: white;
+        }
+
+        .tab-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 18px;
+            height: 18px;
+            padding: 0 0.4rem;
+            border-radius: 9px;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+
+        .tab .tab-badge {
+            background: var(--surface-2);
+        }
+
+        .tab.active .tab-badge {
+            background: rgba(255,255,255,0.2);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* === MODALITY LABELS === */
+        .modality-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.15rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.65rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .modality-badge.primary { background: var(--green-dim); color: var(--green); border: 1px solid var(--green); }
+        .modality-badge.reported { background: var(--blue-dim); color: var(--blue); border: 1px solid var(--blue); }
+        .modality-badge.derivative { background: var(--purple-dim); color: var(--purple); border: 1px solid var(--purple); }
+        .modality-badge.accountability { background: var(--orange-dim); color: var(--orange); border: 1px solid var(--orange); }
+
+        /* === FACT ITEMS === */
+        .fact-item {
+            padding: 1rem;
+            background: var(--surface-2);
+            border-radius: 8px;
+            margin-bottom: 0.75rem;
+            border-left: 3px solid var(--border);
+        }
+
+        .fact-item.high-confidence { border-left-color: var(--green); }
+        .fact-item.medium-confidence { border-left-color: var(--blue); }
+        .fact-item.low-confidence { border-left-color: var(--yellow); }
+        .fact-item.needs-attention { border-left-color: var(--red); }
+
+        .fact-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 0.5rem;
+        }
+
+        .fact-text {
+            font-size: 0.95rem;
+            color: var(--text-body);
+            line-height: 1.6;
+        }
+
+        .fact-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            margin-top: 0.75rem;
+            font-size: 0.75rem;
+            color: var(--text-dim);
+        }
+
+        .fact-sources {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .fact-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+        }
+
+        /* === DIVERGENT VALUES === */
+        .divergent-card {
+            background: var(--red-dim);
+            border: 1px solid var(--red);
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 1rem;
+        }
+
+        .divergent-header {
+            padding: 0.75rem 1rem;
+            background: rgba(239, 68, 68, 0.2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .divergent-topic {
+            font-weight: 600;
+            color: var(--red);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .divergent-status {
+            font-size: 0.7rem;
+            padding: 0.2rem 0.5rem;
+            background: var(--red);
+            color: white;
+            border-radius: 4px;
+            text-transform: uppercase;
+        }
+
+        .divergent-content {
+            padding: 1rem;
+        }
+
+        .divergent-timeline {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .timeline-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem;
+            background: var(--surface);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .timeline-item:hover {
+            background: var(--surface-2);
+        }
+
+        .timeline-item.selected {
+            background: var(--green-dim);
+            border: 1px solid var(--green);
+        }
+
+        .timeline-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            min-width: 60px;
+        }
+
+        .timeline-info {
+            flex: 1;
+        }
+
+        .timeline-source {
+            font-size: 0.8rem;
+            color: var(--text-dim);
+        }
+
+        .timeline-date {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+        }
+
+        .timeline-votes {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .vote-btn {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .vote-btn:hover {
+            background: var(--green-dim);
+            border-color: var(--green);
+        }
+
+        .vote-btn.voted {
+            background: var(--green);
+            border-color: var(--green);
+            color: white;
+        }
+
+        .vote-count {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+        }
+
+        .divergent-resolution {
+            padding: 0.75rem;
+            background: var(--surface-2);
+            border-radius: 8px;
+        }
+
+        .resolution-prompt {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            margin-bottom: 0.75rem;
+        }
+
+        .resolution-input {
+            width: 100%;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text);
+            padding: 0.75rem;
+            font-size: 0.85rem;
+            resize: vertical;
+            min-height: 60px;
+        }
+
+        .resolution-input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        /* === ACCOUNTABILITY CHAINS === */
+        .accountability-card {
+            background: var(--orange-dim);
+            border: 1px solid var(--orange);
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 1rem;
+        }
+
+        .accountability-header {
+            padding: 0.75rem 1rem;
+            background: rgba(249, 115, 22, 0.2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .accountability-title {
+            font-weight: 600;
+            color: var(--orange);
+        }
+
+        .accountability-content {
+            padding: 1rem;
+        }
+
+        .chain-steps {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+        }
+
+        .chain-step {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            position: relative;
+        }
+
+        .chain-connector {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 24px;
+        }
+
+        .chain-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--border);
+            flex-shrink: 0;
+        }
+
+        .chain-dot.completed { background: var(--green); }
+        .chain-dot.pending { background: var(--yellow); }
+        .chain-dot.unknown { background: var(--text-dim); }
+
+        .chain-line {
+            width: 2px;
+            height: 40px;
+            background: var(--border);
+        }
+
+        .chain-step:last-child .chain-line {
+            display: none;
+        }
+
+        .chain-info {
+            flex: 1;
+            padding-bottom: 1rem;
+        }
+
+        .chain-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            color: var(--text-dim);
+            margin-bottom: 0.25rem;
+        }
+
+        .chain-text {
+            font-size: 0.9rem;
+            color: var(--text-body);
+        }
+
+        .chain-action {
+            margin-top: 0.5rem;
+        }
+
+        /* === QUESTS/GAPS === */
+        .quest-item {
+            padding: 1rem;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-bottom: 0.75rem;
+            position: relative;
+        }
+
+        .quest-item.high-priority {
+            border-color: var(--red);
+            background: var(--red-dim);
+        }
+
+        .quest-item.medium-priority {
+            border-color: var(--yellow);
+            background: var(--yellow-dim);
+        }
+
+        .quest-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 0.5rem;
+        }
+
+        .quest-type {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            padding: 0.15rem 0.4rem;
+            background: var(--surface);
+            border-radius: 3px;
+            color: var(--text-dim);
+        }
+
+        .quest-bounty {
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+            font-size: 0.8rem;
+            color: var(--yellow);
+            font-weight: 600;
+        }
+
+        .quest-description {
+            font-size: 0.9rem;
+            color: var(--text-body);
+            margin-bottom: 0.75rem;
+        }
+
+        .quest-action {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        /* === CONTRIBUTION PANEL === */
+        .contribution-panel {
+            position: sticky;
+            top: 1rem;
+        }
+
+        .contribution-form {
+            padding: 1rem;
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            margin-bottom: 0.35rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .form-input, .form-textarea, .form-select {
+            width: 100%;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text);
+            padding: 0.75rem;
+            font-size: 0.9rem;
+            font-family: inherit;
+        }
+
+        .form-input:focus, .form-textarea:focus, .form-select:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .form-textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        /* === LEADERBOARD === */
+        .leaderboard-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .leaderboard-item:last-child {
+            border-bottom: none;
+        }
+
+        .leaderboard-rank {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: var(--surface-2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .leaderboard-rank.gold { background: linear-gradient(135deg, #fbbf24, #d97706); color: #000; }
+        .leaderboard-rank.silver { background: linear-gradient(135deg, #94a3b8, #64748b); color: #fff; }
+        .leaderboard-rank.bronze { background: linear-gradient(135deg, #f97316, #c2410c); color: #fff; }
+
+        .leaderboard-name {
+            flex: 1;
+            font-size: 0.85rem;
+        }
+
+        .leaderboard-score {
+            font-weight: 600;
+            color: var(--yellow);
+        }
+
+        /* === ACTIVITY FEED === */
+        .activity-item {
+            display: flex;
+            gap: 0.75rem;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .activity-item:last-child {
+            border-bottom: none;
+        }
+
+        .activity-icon {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+            background: var(--surface-2);
+            flex-shrink: 0;
+        }
+
+        .activity-icon.verify { background: var(--green-dim); }
+        .activity-icon.challenge { background: var(--red-dim); }
+        .activity-icon.source { background: var(--blue-dim); }
+        .activity-icon.resolve { background: var(--purple-dim); }
+
+        .activity-content {
+            flex: 1;
+        }
+
+        .activity-text {
+            font-size: 0.85rem;
+            color: var(--text-body);
+        }
+
+        .activity-time {
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            margin-top: 0.25rem;
+        }
+
+        /* === MODALS === */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.7);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-overlay.visible {
+            display: flex;
+        }
+
+        .modal {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            width: 500px;
+            max-width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .modal-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-dim);
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+
+        .modal-body {
+            margin-bottom: 1rem;
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.5rem;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--surface);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <div class="header-left">
+                <div class="logo">Participatory Epistemic Engine</div>
+                <div class="event-title">Wang Fuk Court Fire</div>
+            </div>
+            <div class="header-right">
+                <div class="user-badge">
+                    <span>@journalist_alice</span>
+                    <span class="user-credits">+142</span>
+                </div>
+                <button class="primary" onclick="showContributeModal()">+ Contribute</button>
+            </div>
+        </header>
+
+        <!-- Phase Indicator -->
+        <div class="phase-indicator">
+            <span class="phase-badge converging">
+                <span class="phase-dot"></span>
+                Converging
+            </span>
+            <div class="phase-stats">
+                <div class="phase-stat">Claims: <span>100</span></div>
+                <div class="phase-stat">Sources: <span>20+</span></div>
+                <div class="phase-stat">Divergent: <span id="divergent-count">4</span></div>
+                <div class="phase-stat">Open Quests: <span id="quest-count">7</span></div>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('synthesis')">
+                Synthesis
+            </button>
+            <button class="tab" onclick="showTab('divergent')">
+                Divergent Values
+                <span class="tab-badge" style="background: var(--red-dim); color: var(--red);">4</span>
+            </button>
+            <button class="tab" onclick="showTab('accountability')">
+                Accountability
+                <span class="tab-badge" style="background: var(--orange-dim); color: var(--orange);">3</span>
+            </button>
+            <button class="tab" onclick="showTab('quests')">
+                Quests
+                <span class="tab-badge" style="background: var(--yellow-dim); color: var(--yellow);">7</span>
+            </button>
+            <button class="tab" onclick="showTab('activity')">
+                Activity
+            </button>
+        </div>
+
+        <!-- Main Grid -->
+        <div class="main-grid">
+            <!-- Main Content -->
+            <div class="main-content">
+                <!-- SYNTHESIS TAB -->
+                <div class="tab-content active" id="tab-synthesis">
+                    <!-- Confirmed Facts Section -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">
+                                <span>Confirmed Facts</span>
+                                <span class="modality-badge primary">HIGH CONFIDENCE</span>
+                            </div>
+                        </div>
+                        <div class="card-content">
+                            <div class="fact-item high-confidence">
+                                <div class="fact-header">
+                                    <span class="modality-badge primary">PRIMARY</span>
+                                </div>
+                                <div class="fact-text">
+                                    Fire broke out at Wang Fuk Court housing complex in Tai Po District, Hong Kong on November 26, 2025 at 2:51 PM. Upgraded to Number 4 alarm at 3:34 PM.
+                                </div>
+                                <div class="fact-meta">
+                                    <span class="fact-sources">8 sources</span>
+                                    <span>Observable event</span>
+                                </div>
+                                <div class="fact-actions">
+                                    <button class="ghost" onclick="verifyFact(this)">Verify</button>
+                                    <button class="ghost" onclick="showSourcesModal()">View Sources</button>
+                                </div>
+                            </div>
+
+                            <div class="fact-item high-confidence">
+                                <div class="fact-header">
+                                    <span class="modality-badge primary">PRIMARY</span>
+                                </div>
+                                <div class="fact-text">
+                                    Fire alarm systems were not functioning during the incident. Confirmed by Fire Services Department and witness Andy Yeung.
+                                </div>
+                                <div class="fact-meta">
+                                    <span class="fact-sources">3 sources</span>
+                                    <span>Official statement + witness</span>
+                                </div>
+                                <div class="fact-actions">
+                                    <button class="ghost" onclick="verifyFact(this)">Verify</button>
+                                    <button class="ghost" onclick="challengeFact(this)">Challenge</button>
+                                </div>
+                            </div>
+
+                            <div class="fact-item medium-confidence">
+                                <div class="fact-header">
+                                    <span class="modality-badge reported">REPORTED</span>
+                                </div>
+                                <div class="fact-text">
+                                    7 of 20 scaffolding safety netting samples did not pass fire safety tests, according to Security Secretary Chris Tang.
+                                </div>
+                                <div class="fact-meta">
+                                    <span class="fact-sources">2 sources</span>
+                                    <span>Needs: original test report</span>
+                                </div>
+                                <div class="fact-actions">
+                                    <button class="ghost">Verify</button>
+                                    <button class="primary" onclick="showAddSourceModal()">+ Add Source</button>
+                                </div>
+                            </div>
+
+                            <div class="fact-item medium-confidence">
+                                <div class="fact-header">
+                                    <span class="modality-badge reported">REPORTED</span>
+                                </div>
+                                <div class="fact-text">
+                                    9 Indonesian migrant domestic workers died, 1 missing. Pastor Jenny Lam Yat-kwan lost 3 family members.
+                                </div>
+                                <div class="fact-meta">
+                                    <span class="fact-sources">4 sources</span>
+                                    <span>christianitytoday.com, others</span>
+                                </div>
+                                <div class="fact-actions">
+                                    <button class="ghost">Verify</button>
+                                    <button class="ghost">View Sources</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Current Best Understanding -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">Current Best Understanding</div>
+                            <div class="card-actions">
+                                <button class="secondary" onclick="regenerateNarrative()">Regenerate</button>
+                            </div>
+                        </div>
+                        <div class="card-content">
+                            <div style="font-size: 0.95rem; line-height: 1.8; color: var(--text-body);">
+                                <p style="margin-bottom: 1rem;">
+                                    On November 26, 2025, a fire broke out on the external scaffolding of Wang Fuk Court in Hong Kong's Tai Po district, rapidly engulfing 7 of 8 residential towers. The fire killed
+                                    <span style="background: var(--red-dim); padding: 0.1rem 0.4rem; border-radius: 4px; cursor: pointer;" onclick="showTab('divergent')">at least 160 people</span>
+                                    (confirmed via DNA testing) and injured 76+, making it Hong Kong's deadliest fire in decades.
+                                </p>
+                                <p style="margin-bottom: 1rem;">
+                                    Contributing factors included non-functional fire alarms and scaffolding netting that failed fire safety standards. Between 128-200 fire trucks and 57-100+ ambulances responded.
+                                </p>
+                                <p style="margin-bottom: 1rem;">
+                                    The government has established a
+                                    <span style="background: var(--orange-dim); padding: 0.1rem 0.4rem; border-radius: 4px; cursor: pointer;" onclick="showTab('accountability')">HK$300m relief fund</span>
+                                    and a judge-led independent investigation. As of latest reports, 6 people remain unaccounted for, 14 people connected to the renovation have been arrested for manslaughter/corruption, and the ICAC is investigating.
+                                </p>
+                                <p style="color: var(--text-dim); font-size: 0.85rem;">
+                                    Note: Values marked in red have divergent reports. Values marked in orange require accountability tracking.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- DIVERGENT VALUES TAB -->
+                <div class="tab-content" id="tab-divergent">
+                    <div class="divergent-card">
+                        <div class="divergent-header">
+                            <div class="divergent-topic">
+                                <span>Death Toll</span>
+                            </div>
+                            <span class="divergent-status">Needs Resolution</span>
+                        </div>
+                        <div class="divergent-content">
+                            <p style="font-size: 0.85rem; color: var(--text-dim); margin-bottom: 1rem;">
+                                Multiple sources report different values. Vote for the value you believe is most current, or provide temporal context.
+                            </p>
+
+                            <div class="divergent-timeline">
+                                <div class="timeline-item" onclick="selectValue(this)">
+                                    <div class="timeline-value" style="color: var(--text-dim);">36</div>
+                                    <div class="timeline-info">
+                                        <div class="timeline-source">dw.com (early report)</div>
+                                        <div class="timeline-date">Nov 26, ~4:00 PM</div>
+                                    </div>
+                                    <div class="timeline-votes">
+                                        <button class="vote-btn" onclick="vote(event, this)"></button>
+                                        <span class="vote-count">0</span>
+                                    </div>
+                                </div>
+
+                                <div class="timeline-item" onclick="selectValue(this)">
+                                    <div class="timeline-value" style="color: var(--text-dim);">83</div>
+                                    <div class="timeline-info">
+                                        <div class="timeline-source">trtworld.com</div>
+                                        <div class="timeline-date">Nov 26, ~8:00 PM</div>
+                                    </div>
+                                    <div class="timeline-votes">
+                                        <button class="vote-btn" onclick="vote(event, this)"></button>
+                                        <span class="vote-count">2</span>
+                                    </div>
+                                </div>
+
+                                <div class="timeline-item" onclick="selectValue(this)">
+                                    <div class="timeline-value" style="color: var(--yellow);">128</div>
+                                    <div class="timeline-info">
+                                        <div class="timeline-source">dailymail.co.uk, asia.nikkei.com, mylondon.news</div>
+                                        <div class="timeline-date">Nov 27</div>
+                                    </div>
+                                    <div class="timeline-votes">
+                                        <button class="vote-btn" onclick="vote(event, this)"></button>
+                                        <span class="vote-count">5</span>
+                                    </div>
+                                </div>
+
+                                <div class="timeline-item selected" onclick="selectValue(this)">
+                                    <div class="timeline-value" style="color: var(--green);">160</div>
+                                    <div class="timeline-info">
+                                        <div class="timeline-source">hongkongfp.com, news.un.org (after DNA tests)</div>
+                                        <div class="timeline-date">Dec 2 (most recent)</div>
+                                    </div>
+                                    <div class="timeline-votes">
+                                        <button class="vote-btn voted" onclick="vote(event, this)"></button>
+                                        <span class="vote-count">12</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="divergent-resolution">
+                                <div class="resolution-prompt">
+                                    Provide temporal context to help resolve this divergence:
+                                </div>
+                                <textarea class="resolution-input" placeholder="e.g., 'The 160 figure was confirmed after DNA testing was completed on Dec 2. Earlier figures were preliminary estimates.'"></textarea>
+                                <div style="margin-top: 0.75rem; display: flex; gap: 0.5rem;">
+                                    <button class="primary">Submit Resolution</button>
+                                    <button class="secondary">Mark as Temporal Update</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="divergent-card">
+                        <div class="divergent-header">
+                            <div class="divergent-topic">
+                                <span>Fire Trucks Deployed</span>
+                            </div>
+                            <span class="divergent-status">Needs Resolution</span>
+                        </div>
+                        <div class="divergent-content">
+                            <div class="divergent-timeline">
+                                <div class="timeline-item" onclick="selectValue(this)">
+                                    <div class="timeline-value">128</div>
+                                    <div class="timeline-info">
+                                        <div class="timeline-source">dw.com</div>
+                                        <div class="timeline-date">Initial deployment</div>
+                                    </div>
+                                    <div class="timeline-votes">
+                                        <button class="vote-btn" onclick="vote(event, this)"></button>
+                                        <span class="vote-count">3</span>
+                                    </div>
+                                </div>
+
+                                <div class="timeline-item" onclick="selectValue(this)">
+                                    <div class="timeline-value">200</div>
+                                    <div class="timeline-info">
+                                        <div class="timeline-source">theguardian.com</div>
+                                        <div class="timeline-date">Peak deployment?</div>
+                                    </div>
+                                    <div class="timeline-votes">
+                                        <button class="vote-btn" onclick="vote(event, this)"></button>
+                                        <span class="vote-count">4</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div style="background: var(--surface-2); padding: 0.75rem; border-radius: 8px; font-size: 0.85rem; color: var(--text-dim);">
+                                <strong>Hypothesis:</strong> Both values may be correct at different times (initial vs peak). Need official fire department statement to clarify.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="divergent-card">
+                        <div class="divergent-header">
+                            <div class="divergent-topic">
+                                <span>Arrests</span>
+                            </div>
+                            <span class="divergent-status">Temporal Update</span>
+                        </div>
+                        <div class="divergent-content">
+                            <div class="divergent-timeline">
+                                <div class="timeline-item" onclick="selectValue(this)">
+                                    <div class="timeline-value" style="color: var(--text-dim);">8</div>
+                                    <div class="timeline-info">
+                                        <div class="timeline-source">dailymail.co.uk</div>
+                                    </div>
+                                </div>
+                                <div class="timeline-item" onclick="selectValue(this)">
+                                    <div class="timeline-value" style="color: var(--text-dim);">13</div>
+                                    <div class="timeline-info">
+                                        <div class="timeline-source">christianitytoday.com</div>
+                                    </div>
+                                </div>
+                                <div class="timeline-item selected" onclick="selectValue(this)">
+                                    <div class="timeline-value" style="color: var(--green);">14</div>
+                                    <div class="timeline-info">
+                                        <div class="timeline-source">hongkongfp.com (latest)</div>
+                                    </div>
+                                    <div class="timeline-votes">
+                                        <button class="vote-btn voted"></button>
+                                        <span class="vote-count">8</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div style="background: var(--green-dim); padding: 0.75rem; border-radius: 8px; font-size: 0.85rem; color: var(--green);">
+                                <strong>Resolved:</strong> Cumulative arrests over time. Current: 14+
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ACCOUNTABILITY TAB -->
+                <div class="tab-content" id="tab-accountability">
+                    <div class="accountability-card">
+                        <div class="accountability-header">
+                            <div class="accountability-title">HK$300m Relief Fund</div>
+                            <span class="modality-badge accountability">NEEDS TRACKING</span>
+                        </div>
+                        <div class="accountability-content">
+                            <div class="chain-steps">
+                                <div class="chain-step">
+                                    <div class="chain-connector">
+                                        <div class="chain-dot completed"></div>
+                                        <div class="chain-line"></div>
+                                    </div>
+                                    <div class="chain-info">
+                                        <div class="chain-label">Promise</div>
+                                        <div class="chain-text">John Lee announced HK$300m fund for residents</div>
+                                        <div style="font-size: 0.75rem; color: var(--text-dim); margin-top: 0.25rem;">
+                                            Source: theguardian.com | Nov 27
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="chain-step">
+                                    <div class="chain-connector">
+                                        <div class="chain-dot pending"></div>
+                                        <div class="chain-line"></div>
+                                    </div>
+                                    <div class="chain-info">
+                                        <div class="chain-label">Action</div>
+                                        <div class="chain-text" style="color: var(--text-dim);">Fund legislation passed?</div>
+                                        <div class="chain-action">
+                                            <button class="primary" onclick="showAddSourceModal()">+ Add Evidence</button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="chain-step">
+                                    <div class="chain-connector">
+                                        <div class="chain-dot unknown"></div>
+                                        <div class="chain-line"></div>
+                                    </div>
+                                    <div class="chain-info">
+                                        <div class="chain-label">Outcome</div>
+                                        <div class="chain-text" style="color: var(--text-dim);">Funds disbursed to residents?</div>
+                                    </div>
+                                </div>
+
+                                <div class="chain-step">
+                                    <div class="chain-connector">
+                                        <div class="chain-dot unknown"></div>
+                                    </div>
+                                    <div class="chain-info">
+                                        <div class="chain-label">Verification</div>
+                                        <div class="chain-text" style="color: var(--text-dim);">Recipients verified?</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="accountability-card">
+                        <div class="accountability-header">
+                            <div class="accountability-title">Independent Investigation (Judge David Lok)</div>
+                            <span class="modality-badge accountability">IN PROGRESS</span>
+                        </div>
+                        <div class="accountability-content">
+                            <div class="chain-steps">
+                                <div class="chain-step">
+                                    <div class="chain-connector">
+                                        <div class="chain-dot completed"></div>
+                                        <div class="chain-line"></div>
+                                    </div>
+                                    <div class="chain-info">
+                                        <div class="chain-label">Announced</div>
+                                        <div class="chain-text">Judge David Lok appointed to lead independent committee</div>
+                                        <div style="font-size: 0.75rem; color: var(--text-dim); margin-top: 0.25rem;">
+                                            Source: hongkongfp.com, aastocks.com
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="chain-step">
+                                    <div class="chain-connector">
+                                        <div class="chain-dot pending"></div>
+                                        <div class="chain-line"></div>
+                                    </div>
+                                    <div class="chain-info">
+                                        <div class="chain-label">Progress</div>
+                                        <div class="chain-text" style="color: var(--text-dim);">Committee convened? Investigation ongoing?</div>
+                                        <div class="chain-action">
+                                            <button class="primary" onclick="showAddSourceModal()">+ Add Evidence</button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="chain-step">
+                                    <div class="chain-connector">
+                                        <div class="chain-dot unknown"></div>
+                                    </div>
+                                    <div class="chain-info">
+                                        <div class="chain-label">Report</div>
+                                        <div class="chain-text" style="color: var(--text-dim);">Report due in 9 months (approx. Aug 2026)</div>
+                                        <div style="font-size: 0.75rem; color: var(--yellow); margin-top: 0.25rem;">
+                                            Set reminder
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="accountability-card">
+                        <div class="accountability-header">
+                            <div class="accountability-title">Criminal Prosecution (14 Arrested)</div>
+                            <span class="modality-badge accountability">NEEDS TRACKING</span>
+                        </div>
+                        <div class="accountability-content">
+                            <div class="chain-steps">
+                                <div class="chain-step">
+                                    <div class="chain-connector">
+                                        <div class="chain-dot completed"></div>
+                                        <div class="chain-line"></div>
+                                    </div>
+                                    <div class="chain-info">
+                                        <div class="chain-label">Arrest</div>
+                                        <div class="chain-text">14 arrested for manslaughter/corruption (Hong Yip Service Co. Ltd.)</div>
+                                    </div>
+                                </div>
+
+                                <div class="chain-step">
+                                    <div class="chain-connector">
+                                        <div class="chain-dot pending"></div>
+                                        <div class="chain-line"></div>
+                                    </div>
+                                    <div class="chain-info">
+                                        <div class="chain-label">Charges</div>
+                                        <div class="chain-text" style="color: var(--text-dim);">Were formal charges filed?</div>
+                                        <div class="chain-action">
+                                            <button class="primary" onclick="showAddSourceModal()">+ Add Evidence</button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="chain-step">
+                                    <div class="chain-connector">
+                                        <div class="chain-dot unknown"></div>
+                                        <div class="chain-line"></div>
+                                    </div>
+                                    <div class="chain-info">
+                                        <div class="chain-label">Trial</div>
+                                        <div class="chain-text" style="color: var(--text-dim);">Trial scheduled?</div>
+                                    </div>
+                                </div>
+
+                                <div class="chain-step">
+                                    <div class="chain-connector">
+                                        <div class="chain-dot unknown"></div>
+                                    </div>
+                                    <div class="chain-info">
+                                        <div class="chain-label">Verdict</div>
+                                        <div class="chain-text" style="color: var(--text-dim);">Conviction/acquittal?</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- QUESTS TAB -->
+                <div class="tab-content" id="tab-quests">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">Priority 1: Fact-Check</div>
+                        </div>
+                        <div class="card-content">
+                            <div class="quest-item high-priority">
+                                <div class="quest-header">
+                                    <span class="quest-type">Missing Source</span>
+                                    <span class="quest-bounty">+50</span>
+                                </div>
+                                <div class="quest-description">
+                                    Find the original Fire Services Department statement confirming disabled alarm systems.
+                                </div>
+                                <div class="quest-action">
+                                    <button class="primary" onclick="showAddSourceModal()">Submit Source</button>
+                                    <button class="secondary">Claim Quest</button>
+                                </div>
+                            </div>
+
+                            <div class="quest-item high-priority">
+                                <div class="quest-header">
+                                    <span class="quest-type">Temporal Gap</span>
+                                    <span class="quest-bounty">+40</span>
+                                </div>
+                                <div class="quest-description">
+                                    Reconcile death toll discrepancies (36 - 160). Create timeline of official announcements.
+                                </div>
+                                <div class="quest-action">
+                                    <button class="primary">Submit Timeline</button>
+                                </div>
+                            </div>
+
+                            <div class="quest-item medium-priority">
+                                <div class="quest-header">
+                                    <span class="quest-type">Conflicting Info</span>
+                                    <span class="quest-bounty">+30</span>
+                                </div>
+                                <div class="quest-description">
+                                    Verify fire truck/ambulance counts from official sources. Initial vs peak deployment?
+                                </div>
+                                <div class="quest-action">
+                                    <button class="primary" onclick="showAddSourceModal()">Submit Source</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">Priority 2: Investigate</div>
+                        </div>
+                        <div class="card-content">
+                            <div class="quest-item medium-priority">
+                                <div class="quest-header">
+                                    <span class="quest-type">Unanswered Question</span>
+                                    <span class="quest-bounty">+60</span>
+                                </div>
+                                <div class="quest-description">
+                                    Who approved the renovation contractor selection? Find the approval chain.
+                                </div>
+                                <div class="quest-action">
+                                    <button class="primary">Investigate</button>
+                                </div>
+                            </div>
+
+                            <div class="quest-item">
+                                <div class="quest-header">
+                                    <span class="quest-type">Unanswered Question</span>
+                                    <span class="quest-bounty">+40</span>
+                                </div>
+                                <div class="quest-description">
+                                    Why weren't alarm systems restored before fire? Who authorized keeping them off?
+                                </div>
+                                <div class="quest-action">
+                                    <button class="primary">Investigate</button>
+                                </div>
+                            </div>
+
+                            <div class="quest-item">
+                                <div class="quest-header">
+                                    <span class="quest-type">Missing Perspective</span>
+                                    <span class="quest-bounty">+35</span>
+                                </div>
+                                <div class="quest-description">
+                                    What were the specific safety warnings residents raised last year? Find resident statements.
+                                </div>
+                                <div class="quest-action">
+                                    <button class="primary" onclick="showAddSourceModal()">Submit Source</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">Priority 3: Follow Up</div>
+                        </div>
+                        <div class="card-content">
+                            <div class="quest-item">
+                                <div class="quest-header">
+                                    <span class="quest-type">Accountability</span>
+                                    <span class="quest-bounty">+25</span>
+                                </div>
+                                <div class="quest-description">
+                                    Track independent commission progress. Has it convened? What's the status?
+                                </div>
+                                <div class="quest-action">
+                                    <button class="primary">Update Status</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ACTIVITY TAB -->
+                <div class="tab-content" id="tab-activity">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-title">Recent Activity</div>
+                        </div>
+                        <div class="card-content">
+                            <div class="activity-item">
+                                <div class="activity-icon verify"></div>
+                                <div class="activity-content">
+                                    <div class="activity-text">
+                                        <strong>@journalist_bob</strong> verified "160 killed" as current death toll with DNA test source
+                                    </div>
+                                    <div class="activity-time">2 hours ago</div>
+                                </div>
+                            </div>
+
+                            <div class="activity-item">
+                                <div class="activity-icon source"></div>
+                                <div class="activity-content">
+                                    <div class="activity-text">
+                                        <strong>@researcher_chen</strong> added source from hongkongfp.com about arrests
+                                    </div>
+                                    <div class="activity-time">4 hours ago</div>
+                                </div>
+                            </div>
+
+                            <div class="activity-item">
+                                <div class="activity-icon resolve"></div>
+                                <div class="activity-content">
+                                    <div class="activity-text">
+                                        <strong>@editor_wong</strong> resolved "arrests" divergence as temporal update (8 - 13 - 14)
+                                    </div>
+                                    <div class="activity-time">6 hours ago</div>
+                                </div>
+                            </div>
+
+                            <div class="activity-item">
+                                <div class="activity-icon challenge"></div>
+                                <div class="activity-content">
+                                    <div class="activity-text">
+                                        <strong>@analyst_kim</strong> challenged "200 fire trucks" claim - requested clarification
+                                    </div>
+                                    <div class="activity-time">8 hours ago</div>
+                                </div>
+                            </div>
+
+                            <div class="activity-item">
+                                <div class="activity-icon source"></div>
+                                <div class="activity-content">
+                                    <div class="activity-text">
+                                        <strong>@journalist_alice</strong> submitted source for HK$300m fund announcement
+                                    </div>
+                                    <div class="activity-time">1 day ago</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sidebar -->
+            <div class="sidebar">
+                <!-- Contribution Panel -->
+                <div class="card contribution-panel">
+                    <div class="card-header">
+                        <div class="card-title">Quick Contribute</div>
+                    </div>
+                    <div class="contribution-form">
+                        <div class="form-group">
+                            <label class="form-label">Contribution Type</label>
+                            <select class="form-select" id="contribution-type">
+                                <option value="source">Add Source</option>
+                                <option value="verify">Verify Claim</option>
+                                <option value="challenge">Challenge Claim</option>
+                                <option value="context">Add Context</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">URL or Evidence</label>
+                            <input type="text" class="form-input" placeholder="https://..." id="contribution-url">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Note</label>
+                            <textarea class="form-textarea" placeholder="Explain your contribution..." id="contribution-note"></textarea>
+                        </div>
+                        <button class="primary" style="width: 100%;" onclick="submitContribution()">Submit</button>
+                    </div>
+                </div>
+
+                <!-- Leaderboard -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">Top Contributors</div>
+                    </div>
+                    <div class="card-content">
+                        <div class="leaderboard-item">
+                            <div class="leaderboard-rank gold">1</div>
+                            <div class="leaderboard-name">@journalist_bob</div>
+                            <div class="leaderboard-score">+245</div>
+                        </div>
+                        <div class="leaderboard-item">
+                            <div class="leaderboard-rank silver">2</div>
+                            <div class="leaderboard-name">@researcher_chen</div>
+                            <div class="leaderboard-score">+198</div>
+                        </div>
+                        <div class="leaderboard-item">
+                            <div class="leaderboard-rank bronze">3</div>
+                            <div class="leaderboard-name">@journalist_alice</div>
+                            <div class="leaderboard-score">+142</div>
+                        </div>
+                        <div class="leaderboard-item">
+                            <div class="leaderboard-rank">4</div>
+                            <div class="leaderboard-name">@editor_wong</div>
+                            <div class="leaderboard-score">+87</div>
+                        </div>
+                        <div class="leaderboard-item">
+                            <div class="leaderboard-rank">5</div>
+                            <div class="leaderboard-name">@analyst_kim</div>
+                            <div class="leaderboard-score">+65</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Modality Legend -->
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">Claim Modalities</div>
+                    </div>
+                    <div class="card-content" style="font-size: 0.8rem;">
+                        <div style="margin-bottom: 0.75rem;">
+                            <span class="modality-badge primary">PRIMARY</span>
+                            <div style="color: var(--text-dim); margin-top: 0.25rem;">Direct observation, official document</div>
+                        </div>
+                        <div style="margin-bottom: 0.75rem;">
+                            <span class="modality-badge reported">REPORTED</span>
+                            <div style="color: var(--text-dim); margin-top: 0.25rem;">Claim attributed to source by media</div>
+                        </div>
+                        <div style="margin-bottom: 0.75rem;">
+                            <span class="modality-badge derivative">DERIVATIVE</span>
+                            <div style="color: var(--text-dim); margin-top: 0.25rem;">Inference from multiple reports</div>
+                        </div>
+                        <div>
+                            <span class="modality-badge accountability">ACCOUNTABILITY</span>
+                            <div style="color: var(--text-dim); margin-top: 0.25rem;">Requires follow-up verification</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Source Modal -->
+    <div class="modal-overlay" id="modal-add-source">
+        <div class="modal">
+            <div class="modal-header">
+                <div class="modal-title">Add Source</div>
+                <button class="modal-close" onclick="hideModal('modal-add-source')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label class="form-label">Source URL</label>
+                    <input type="text" class="form-input" placeholder="https://..." id="source-url">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">What does this source prove?</label>
+                    <textarea class="form-textarea" placeholder="Explain what claim this source supports..." id="source-claim"></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Publication Date (if known)</label>
+                    <input type="text" class="form-input" placeholder="e.g., Nov 27, 2025" id="source-date">
+                </div>
+            </div>
+            <div class="modal-actions">
+                <button class="secondary" onclick="hideModal('modal-add-source')">Cancel</button>
+                <button class="primary" onclick="submitSource()">Submit Source</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contribute Modal -->
+    <div class="modal-overlay" id="modal-contribute">
+        <div class="modal">
+            <div class="modal-header">
+                <div class="modal-title">Contribute to Truth</div>
+                <button class="modal-close" onclick="hideModal('modal-contribute')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="color: var(--text-dim); margin-bottom: 1rem; font-size: 0.9rem;">
+                    Choose how you want to contribute to the epistemic understanding of this event.
+                </p>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                    <button class="secondary" style="padding: 1rem; text-align: left;" onclick="hideModal('modal-contribute'); showAddSourceModal();">
+                        <div style="font-weight: 600; margin-bottom: 0.25rem;">Add Source</div>
+                        <div style="font-size: 0.75rem; color: var(--text-dim);">Submit new evidence</div>
+                    </button>
+                    <button class="secondary" style="padding: 1rem; text-align: left;">
+                        <div style="font-weight: 600; margin-bottom: 0.25rem;">Verify Claim</div>
+                        <div style="font-size: 0.75rem; color: var(--text-dim);">Confirm a fact</div>
+                    </button>
+                    <button class="secondary" style="padding: 1rem; text-align: left;">
+                        <div style="font-weight: 600; margin-bottom: 0.25rem;">Challenge Claim</div>
+                        <div style="font-size: 0.75rem; color: var(--text-dim);">Report inaccuracy</div>
+                    </button>
+                    <button class="secondary" style="padding: 1rem; text-align: left;" onclick="hideModal('modal-contribute'); showTab('divergent');">
+                        <div style="font-weight: 600; margin-bottom: 0.25rem;">Resolve Divergence</div>
+                        <div style="font-size: 0.75rem; color: var(--text-dim);">Clarify conflicting values</div>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Tab switching
+        function showTab(tabName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+
+            event.target.closest('.tab')?.classList.add('active');
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+        }
+
+        // Modal functions
+        function showModal(modalId) {
+            document.getElementById(modalId).classList.add('visible');
+        }
+
+        function hideModal(modalId) {
+            document.getElementById(modalId).classList.remove('visible');
+        }
+
+        function showAddSourceModal() {
+            showModal('modal-add-source');
+        }
+
+        function showContributeModal() {
+            showModal('modal-contribute');
+        }
+
+        function showSourcesModal() {
+            alert('Sources modal would show all sources for this claim');
+        }
+
+        // Voting
+        function vote(e, btn) {
+            e.stopPropagation();
+            btn.classList.toggle('voted');
+            const countSpan = btn.parentElement.querySelector('.vote-count');
+            let count = parseInt(countSpan.textContent);
+            if (btn.classList.contains('voted')) {
+                countSpan.textContent = count + 1;
+            } else {
+                countSpan.textContent = count - 1;
+            }
+        }
+
+        function selectValue(item) {
+            const container = item.closest('.divergent-timeline');
+            container.querySelectorAll('.timeline-item').forEach(i => i.classList.remove('selected'));
+            item.classList.add('selected');
+        }
+
+        // Actions
+        function verifyFact(btn) {
+            btn.textContent = 'Verified';
+            btn.disabled = true;
+            btn.style.color = 'var(--green)';
+        }
+
+        function challengeFact(btn) {
+            const reason = prompt('Why are you challenging this claim?');
+            if (reason) {
+                alert('Challenge submitted. Thank you for your contribution!');
+            }
+        }
+
+        function submitSource() {
+            const url = document.getElementById('source-url').value;
+            const claim = document.getElementById('source-claim').value;
+
+            if (!url || !claim) {
+                alert('Please fill in URL and claim description');
+                return;
+            }
+
+            alert('Source submitted! You earned +15 credits.');
+            hideModal('modal-add-source');
+            document.getElementById('source-url').value = '';
+            document.getElementById('source-claim').value = '';
+        }
+
+        function submitContribution() {
+            const type = document.getElementById('contribution-type').value;
+            const url = document.getElementById('contribution-url').value;
+            const note = document.getElementById('contribution-note').value;
+
+            if (!url) {
+                alert('Please provide URL or evidence');
+                return;
+            }
+
+            alert(`${type.charAt(0).toUpperCase() + type.slice(1)} submitted! You earned +10 credits.`);
+            document.getElementById('contribution-url').value = '';
+            document.getElementById('contribution-note').value = '';
+        }
+
+        function regenerateNarrative() {
+            alert('Regenerating narrative with latest verified facts...');
+        }
+
+        // Close modals on overlay click
+        document.querySelectorAll('.modal-overlay').forEach(overlay => {
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) {
+                    overlay.classList.remove('visible');
+                }
+            });
+        });
+    </script>
+</body>
+</html>

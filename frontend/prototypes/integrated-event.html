@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Event Page - Integrated</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .section-card { transition: all 0.2s; }
+        .section-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .section-card.active { box-shadow: 0 0 0 2px #6366f1; }
+        .status-bar { width: 3px; border-radius: 2px; }
+        .voice-dot { width: 8px; height: 8px; border-radius: 50%; }
+        .diff-add { background: #dcfce7; }
+        .diff-remove { background: #fee2e2; text-decoration: line-through; }
+        .pulse { animation: pulse 2s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .tab-active { background: #e2e8f0; color: #334155; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+    <!-- Header -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+            <span class="text-xl font-bold text-indigo-600">HERE.news</span>
+            <div class="flex items-center gap-3">
+                <select id="event-selector" class="text-sm border border-slate-300 rounded-lg px-3 py-1.5">
+                    <option>Wang Fuk Court Fire</option>
+                    <option>Jimmy Lai Trial</option>
+                </select>
+                <span class="px-2 py-1 bg-amber-100 text-amber-700 rounded text-sm flex items-center gap-1">
+                    <span class="w-2 h-2 bg-amber-500 rounded-full pulse"></span> Live
+                </span>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 py-6">
+        <!-- Title Row -->
+        <div class="flex items-start justify-between mb-6">
+            <div>
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="px-2 py-0.5 bg-red-100 text-red-700 text-xs rounded-full uppercase">Fire</span>
+                    <span class="text-slate-400 text-sm">Nov 26, 2024 - Ongoing</span>
+                </div>
+                <div class="flex items-center gap-3">
+                    <h1 class="text-3xl font-bold text-slate-900">Wang Fuk Court Fire</h1>
+                    <!-- Version Badge -->
+                    <button onclick="showPanel('versions')" class="flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 hover:bg-slate-200 rounded-lg text-sm">
+                        <span class="font-medium text-slate-700">v14</span>
+                        <span class="text-slate-400">·</span>
+                        <span class="text-amber-600 font-medium">3 pending</span>
+                    </button>
+                </div>
+            </div>
+            <!-- Contributors -->
+            <div class="flex items-center gap-2">
+                <div class="flex -space-x-2">
+                    <div class="w-7 h-7 rounded-full bg-indigo-500 text-white text-xs flex items-center justify-center border-2 border-white" title="System">AI</div>
+                    <div class="w-7 h-7 rounded-full bg-green-500 text-white text-xs flex items-center justify-center border-2 border-white" title="@HKWatcher">HK</div>
+                    <div class="w-7 h-7 rounded-full bg-purple-500 text-white text-xs flex items-center justify-center border-2 border-white" title="@LocalReporter">LR</div>
+                    <div class="w-7 h-7 rounded-full bg-slate-200 text-slate-600 text-xs flex items-center justify-center border-2 border-white">+4</div>
+                </div>
+                <span class="text-xs text-slate-400">7 contributors</span>
+            </div>
+        </div>
+
+        <!-- Story Health Bar -->
+        <div class="bg-white rounded-xl border border-slate-200 p-4 mb-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-6">
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm text-slate-500">Voices:</span>
+                        <div class="flex gap-1">
+                            <span class="voice-dot bg-blue-500" title="Wire: Reuters, AP"></span>
+                            <span class="voice-dot bg-green-500" title="International: BBC, Guardian"></span>
+                            <span class="voice-dot bg-purple-500" title="Local: SCMP, RTHK"></span>
+                            <span class="voice-dot bg-orange-300" title="Official: missing"></span>
+                            <span class="voice-dot bg-rose-500" title="NGO: RSF"></span>
+                        </div>
+                        <span class="text-xs text-slate-400">4/5</span>
+                    </div>
+                    <div class="text-sm text-slate-500">
+                        <span class="font-medium text-slate-700">130</span> claims ·
+                        <span class="font-medium text-green-600">87%</span> confidence
+                    </div>
+                </div>
+                <div class="flex items-center gap-2 text-xs text-slate-400">
+                    <span class="text-amber-500">⚡</span> contested
+                    <span class="text-slate-400 ml-2">?</span> needs sources
+                </div>
+            </div>
+        </div>
+
+        <!-- Two Pane -->
+        <div class="flex gap-6">
+            <!-- LEFT: Narrative -->
+            <div class="flex-1 min-w-0 space-y-3">
+                <!-- Section 1 -->
+                <div class="section-card bg-white rounded-xl border border-slate-200 overflow-hidden cursor-pointer" onclick="selectSection(0)">
+                    <div class="flex">
+                        <div class="status-bar bg-green-500 flex-shrink-0"></div>
+                        <div class="p-4 flex-1">
+                            <div class="flex items-center gap-2 mb-2">
+                                <h3 class="font-medium text-slate-800">The Incident</h3>
+                                <span class="text-xs text-green-600">Established</span>
+                            </div>
+                            <p class="text-slate-600 text-sm leading-relaxed">
+                                A devastating fire broke out at the Wang Fuk Court public housing estate in Tai Po
+                                on November 26, 2024, killing at least 17 people and injuring over 50. The blaze
+                                started around 11pm and spread rapidly through scaffolding and protective netting
+                                during renovation work.
+                            </p>
+                            <div class="flex items-center gap-2 mt-3 text-xs text-slate-400">
+                                <span class="px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded">Wire</span>
+                                <span class="px-1.5 py-0.5 bg-green-50 text-green-600 rounded">Intl</span>
+                                <span class="px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded">Local</span>
+                                <span class="ml-auto">6 sources</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 2 - Has pending CR -->
+                <div class="section-card bg-white rounded-xl border border-slate-200 overflow-hidden cursor-pointer" onclick="selectSection(1)">
+                    <div class="flex">
+                        <div class="status-bar bg-amber-500 flex-shrink-0"></div>
+                        <div class="p-4 flex-1">
+                            <div class="flex items-center gap-2 mb-2">
+                                <h3 class="font-medium text-slate-800">Death Toll</h3>
+                                <span class="text-xs text-amber-600">Contested</span>
+                                <span class="text-xs px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded ml-auto">1 pending edit</span>
+                            </div>
+                            <p class="text-slate-600 text-sm leading-relaxed">
+                                The death toll has varied across reports, with confirmed deaths at 17<sup class="text-amber-500">⚡</sup>
+                                though some sources report figures as high as 160. DNA testing continues to identify
+                                victims. Nine Indonesian domestic workers were confirmed among the dead.
+                            </p>
+                            <div class="flex items-center gap-2 mt-3 text-xs text-slate-400">
+                                <span class="px-1.5 py-0.5 bg-green-50 text-green-600 rounded">Intl</span>
+                                <span class="px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded">Local</span>
+                                <span class="ml-auto">4 sources</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 3 -->
+                <div class="section-card bg-white rounded-xl border border-slate-200 overflow-hidden cursor-pointer" onclick="selectSection(2)">
+                    <div class="flex">
+                        <div class="status-bar bg-green-500 flex-shrink-0"></div>
+                        <div class="p-4 flex-1">
+                            <div class="flex items-center gap-2 mb-2">
+                                <h3 class="font-medium text-slate-800">Investigation</h3>
+                                <span class="text-xs text-green-600">Established</span>
+                            </div>
+                            <p class="text-slate-600 text-sm leading-relaxed">
+                                Chief Executive John Lee announced a judge-led independent committee to investigate.
+                                Police arrested 13 individuals connected to the renovation on suspicion of manslaughter.
+                                The ICAC is examining potential graft related to the project.
+                            </p>
+                            <div class="flex items-center gap-2 mt-3 text-xs text-slate-400">
+                                <span class="px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded">Wire</span>
+                                <span class="px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded">Local</span>
+                                <span class="ml-auto">5 sources</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 4 - Gap -->
+                <div class="section-card bg-white rounded-xl border border-slate-200 overflow-hidden cursor-pointer" onclick="selectSection(3)">
+                    <div class="flex">
+                        <div class="status-bar bg-slate-300 flex-shrink-0"></div>
+                        <div class="p-4 flex-1">
+                            <div class="flex items-center gap-2 mb-2">
+                                <h3 class="font-medium text-slate-800">Government Response</h3>
+                                <span class="text-xs text-slate-500">Incomplete</span>
+                                <span class="text-xs px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded ml-auto">Gap: official statement</span>
+                            </div>
+                            <p class="text-slate-600 text-sm leading-relaxed">
+                                Security chief Chris Tang called for unity. Beijing authorities are reportedly
+                                working with local government on the response<sup class="text-slate-400">?</sup>.
+                                No official statement from the Housing Authority has been included yet.
+                            </p>
+                            <div class="flex items-center gap-2 mt-3 text-xs text-slate-400">
+                                <span class="px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded">Local</span>
+                                <span class="ml-auto">2 sources</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT: Context Panel -->
+            <div class="w-96 flex-shrink-0 space-y-4">
+                <!-- Tab Panel -->
+                <div class="bg-white rounded-xl border border-slate-200 overflow-hidden sticky top-20">
+                    <!-- Tabs -->
+                    <div class="flex border-b border-slate-200">
+                        <button onclick="showPanel('context')" id="tab-context" class="flex-1 px-4 py-2.5 text-sm font-medium tab-active">
+                            Context
+                        </button>
+                        <button onclick="showPanel('versions')" id="tab-versions" class="flex-1 px-4 py-2.5 text-sm font-medium text-slate-500 hover:bg-slate-50">
+                            Versions
+                            <span class="ml-1 text-xs text-amber-600">(3)</span>
+                        </button>
+                        <button onclick="showPanel('activity')" id="tab-activity" class="flex-1 px-4 py-2.5 text-sm font-medium text-slate-500 hover:bg-slate-50">
+                            Activity
+                        </button>
+                    </div>
+
+                    <!-- Context Panel -->
+                    <div id="panel-context" class="p-4">
+                        <div id="context-placeholder" class="text-center py-6 text-slate-400">
+                            <p class="text-sm">Click a section to see sources</p>
+                        </div>
+                        <div id="context-detail" class="hidden space-y-4">
+                            <div id="context-sources"></div>
+                            <div class="pt-3 border-t border-slate-100 space-y-2">
+                                <button onclick="showProposeModal()" class="w-full py-2 px-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-sm rounded-lg text-left flex items-center gap-2">
+                                    <span>✏️</span> Propose edit to this section
+                                </button>
+                                <button class="w-full py-2 px-3 bg-slate-50 hover:bg-slate-100 text-slate-600 text-sm rounded-lg text-left flex items-center gap-2">
+                                    <span>📎</span> Add a source
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Versions Panel -->
+                    <div id="panel-versions" class="hidden">
+                        <!-- Sub-tabs -->
+                        <div class="flex gap-1 p-2 border-b border-slate-100">
+                            <button onclick="showVersionTab('pending')" id="vtab-pending" class="text-xs px-2 py-1 rounded tab-active">
+                                Pending (3)
+                            </button>
+                            <button onclick="showVersionTab('history')" id="vtab-history" class="text-xs px-2 py-1 rounded text-slate-500 hover:bg-slate-100">
+                                History
+                            </button>
+                        </div>
+
+                        <!-- Pending CRs -->
+                        <div id="version-pending" class="p-3 space-y-2 max-h-72 overflow-y-auto">
+                            <div class="p-3 bg-amber-50 border border-amber-100 rounded-lg cursor-pointer hover:border-amber-300" onclick="showCR(1)">
+                                <div class="flex items-center justify-between mb-1">
+                                    <span class="text-sm font-medium text-slate-700">#47 Correction</span>
+                                    <span class="text-xs text-slate-400">3h ago</span>
+                                </div>
+                                <p class="text-xs text-slate-600">"Death toll should clarify confirmed vs reported"</p>
+                                <p class="text-xs text-slate-400 mt-1">by @FactChecker</p>
+                            </div>
+                            <div class="p-3 bg-indigo-50 border border-indigo-100 rounded-lg cursor-pointer hover:border-indigo-300" onclick="showCR(2)">
+                                <div class="flex items-center justify-between mb-1">
+                                    <span class="text-sm font-medium text-slate-700">#46 System</span>
+                                    <span class="text-xs text-slate-400">4h ago</span>
+                                </div>
+                                <p class="text-xs text-slate-600">"3 new claims from Reuters, BBC available"</p>
+                                <p class="text-xs text-slate-400 mt-1">auto-generated</p>
+                            </div>
+                            <div class="p-3 bg-purple-50 border border-purple-100 rounded-lg cursor-pointer hover:border-purple-300" onclick="showCR(3)">
+                                <div class="flex items-center justify-between mb-1">
+                                    <span class="text-sm font-medium text-slate-700">#45 Reframe</span>
+                                    <span class="text-xs text-slate-400">6h ago</span>
+                                </div>
+                                <p class="text-xs text-slate-600">"Suggest neutral wording for 'allege'"</p>
+                                <p class="text-xs text-slate-400 mt-1">by @NeutralNews</p>
+                            </div>
+                        </div>
+
+                        <!-- History -->
+                        <div id="version-history" class="hidden p-3 space-y-2 max-h-72 overflow-y-auto">
+                            <div class="flex items-start gap-2 p-2">
+                                <div class="w-6 h-6 rounded-full bg-indigo-500 text-white text-xs flex items-center justify-center flex-shrink-0">14</div>
+                                <div>
+                                    <p class="text-sm text-slate-700">System update</p>
+                                    <p class="text-xs text-slate-500">Added ICAC details · 2h ago</p>
+                                </div>
+                            </div>
+                            <div class="flex items-start gap-2 p-2">
+                                <div class="w-6 h-6 rounded-full bg-green-500 text-white text-xs flex items-center justify-center flex-shrink-0">13</div>
+                                <div>
+                                    <p class="text-sm text-slate-700">@HKWatcher</p>
+                                    <p class="text-xs text-slate-500">Corrected arrest count · 5h ago</p>
+                                </div>
+                            </div>
+                            <div class="flex items-start gap-2 p-2">
+                                <div class="w-6 h-6 rounded-full bg-slate-300 text-white text-xs flex items-center justify-center flex-shrink-0">12</div>
+                                <div>
+                                    <p class="text-sm text-slate-700">System update</p>
+                                    <p class="text-xs text-slate-500">Synthesized 15 new claims · 1d ago</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Activity Panel -->
+                    <div id="panel-activity" class="hidden p-3 space-y-2 max-h-80 overflow-y-auto">
+                        <div class="p-2 hover:bg-slate-50 rounded">
+                            <div class="flex items-start gap-2">
+                                <span>📎</span>
+                                <div>
+                                    <p class="text-sm text-slate-700"><strong>@NewsHunter</strong> added source</p>
+                                    <p class="text-xs text-slate-500">BBC article on investigation · 5m ago</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="p-2 hover:bg-slate-50 rounded">
+                            <div class="flex items-start gap-2">
+                                <span>✏️</span>
+                                <div>
+                                    <p class="text-sm text-slate-700"><strong>@FactChecker</strong> proposed edit</p>
+                                    <p class="text-xs text-slate-500">CR #47: Death toll clarification · 3h ago</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="p-2 hover:bg-slate-50 rounded">
+                            <div class="flex items-start gap-2">
+                                <span>✅</span>
+                                <div>
+                                    <p class="text-sm text-slate-700">CR #44 merged</p>
+                                    <p class="text-xs text-slate-500">Arrest count correction → v13 · 5h ago</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="p-2 hover:bg-slate-50 rounded">
+                            <div class="flex items-start gap-2">
+                                <span>🤖</span>
+                                <div>
+                                    <p class="text-sm text-slate-700">System proposed update</p>
+                                    <p class="text-xs text-slate-500">CR #46: New claims available · 4h ago</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="p-2 hover:bg-slate-50 rounded">
+                            <div class="flex items-start gap-2">
+                                <span>🎯</span>
+                                <div>
+                                    <p class="text-sm text-slate-700">Gap filled</p>
+                                    <p class="text-xs text-slate-500">"Indonesian workers" +8 credits · 1d ago</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Gaps / Can You Help -->
+                <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+                    <div class="px-4 py-3 border-b border-slate-100">
+                        <h3 class="font-semibold text-slate-800 flex items-center gap-2">
+                            🙋 Can you help?
+                        </h3>
+                    </div>
+                    <div class="p-3 space-y-2">
+                        <div class="p-3 bg-amber-50 border border-amber-200 rounded-lg cursor-pointer hover:bg-amber-100">
+                            <p class="text-sm text-slate-700 font-medium">Official Housing Authority statement?</p>
+                            <div class="flex items-center justify-between mt-2">
+                                <span class="text-xs text-amber-600">High priority</span>
+                                <span class="text-xs font-medium text-amber-700">+15 credits</span>
+                            </div>
+                        </div>
+                        <div class="p-3 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-100">
+                            <p class="text-sm text-slate-700 font-medium">Building inspection history?</p>
+                            <div class="flex items-center justify-between mt-2">
+                                <span class="text-xs text-slate-500">Medium</span>
+                                <span class="text-xs font-medium text-amber-700">+10 credits</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- CR Detail Modal -->
+    <div id="cr-modal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-xl w-full max-w-lg mx-4 overflow-hidden">
+            <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+                <h3 class="font-semibold text-slate-800">Change Request #47</h3>
+                <button onclick="hideCR()" class="text-slate-400 hover:text-slate-600">✕</button>
+            </div>
+            <div class="p-5 space-y-4">
+                <div class="flex items-center justify-between">
+                    <span class="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs rounded">Correction</span>
+                    <span class="text-sm text-slate-500">by @FactChecker · 3h ago</span>
+                </div>
+                <div>
+                    <div class="text-xs text-slate-500 uppercase tracking-wide mb-1">Section</div>
+                    <p class="text-sm text-slate-700">Death Toll</p>
+                </div>
+                <div>
+                    <div class="text-xs text-slate-500 uppercase tracking-wide mb-1">Reason</div>
+                    <p class="text-sm text-slate-600">Sources report conflicting numbers (17-160). Should clarify this is confirmed count.</p>
+                </div>
+                <div>
+                    <div class="text-xs text-slate-500 uppercase tracking-wide mb-2">Proposed change</div>
+                    <div class="text-sm p-3 bg-slate-50 rounded-lg space-y-1">
+                        <p class="diff-remove">killing at least 17 people</p>
+                        <p class="diff-add">killing at least 17 confirmed, with some reports citing higher tolls</p>
+                    </div>
+                </div>
+                <div>
+                    <div class="text-xs text-slate-500 uppercase tracking-wide mb-1">Sources</div>
+                    <div class="flex gap-1">
+                        <span class="text-xs px-2 py-0.5 bg-slate-100 rounded">Reuters</span>
+                        <span class="text-xs px-2 py-0.5 bg-slate-100 rounded">SCMP</span>
+                    </div>
+                </div>
+            </div>
+            <div class="px-5 py-4 border-t border-slate-200 flex gap-2">
+                <button class="flex-1 py-2 bg-green-500 hover:bg-green-600 text-white text-sm rounded-lg">Approve</button>
+                <button class="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm rounded-lg">Comment</button>
+                <button class="py-2 px-4 bg-red-100 hover:bg-red-200 text-red-700 text-sm rounded-lg">Reject</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Propose Edit Modal -->
+    <div id="propose-modal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-xl w-full max-w-lg mx-4 overflow-hidden">
+            <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+                <h3 class="font-semibold text-slate-800">Propose Edit</h3>
+                <button onclick="hideProposeModal()" class="text-slate-400 hover:text-slate-600">✕</button>
+            </div>
+            <div class="p-5 space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Type</label>
+                    <select class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm">
+                        <option>Correction</option>
+                        <option>Addition</option>
+                        <option>Reframe</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Current text</label>
+                    <textarea class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm h-16" placeholder="Select text to change..."></textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Your version</label>
+                    <textarea class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm h-16" placeholder="Proposed text..."></textarea>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Reason & sources</label>
+                    <textarea class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm h-14" placeholder="Why? Link sources..."></textarea>
+                </div>
+            </div>
+            <div class="px-5 py-4 border-t border-slate-200 flex justify-end gap-2">
+                <button onclick="hideProposeModal()" class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">Cancel</button>
+                <button class="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg">Submit</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const sections = [
+            { title: 'The Incident', status: 'established', sources: [
+                { type: 'Wire', names: ['Reuters', 'AP'] },
+                { type: 'International', names: ['BBC', 'Guardian'] },
+                { type: 'Local', names: ['SCMP', 'RTHK'] }
+            ]},
+            { title: 'Death Toll', status: 'contested', sources: [
+                { type: 'International', names: ['BBC', 'DW'] },
+                { type: 'Local', names: ['SCMP', 'HKFP'] }
+            ]},
+            { title: 'Investigation', status: 'established', sources: [
+                { type: 'Wire', names: ['Reuters'] },
+                { type: 'Local', names: ['SCMP', 'RTHK', 'HK01'] }
+            ]},
+            { title: 'Government Response', status: 'incomplete', sources: [
+                { type: 'Local', names: ['SCMP', 'RTHK'] }
+            ], gap: 'Official statement needed' }
+        ];
+
+        function selectSection(idx) {
+            document.querySelectorAll('.section-card').forEach((el, i) => {
+                el.classList.toggle('active', i === idx);
+            });
+            showPanel('context');
+            renderContext(sections[idx]);
+        }
+
+        function renderContext(section) {
+            document.getElementById('context-placeholder').classList.add('hidden');
+            document.getElementById('context-detail').classList.remove('hidden');
+
+            const colors = { Wire: 'blue', International: 'green', Local: 'purple', Official: 'orange', NGO: 'rose' };
+
+            let html = `<div class="mb-3">
+                <h4 class="font-medium text-slate-800">${section.title}</h4>
+                <span class="text-xs text-slate-500">${section.status}</span>
+            </div>`;
+
+            html += '<div class="space-y-2">';
+            section.sources.forEach(s => {
+                const c = colors[s.type] || 'slate';
+                html += `<div class="flex items-start gap-2">
+                    <span class="voice-dot bg-${c}-500 mt-1 flex-shrink-0"></span>
+                    <div>
+                        <div class="text-xs text-slate-500">${s.type}</div>
+                        <div class="flex flex-wrap gap-1">
+                            ${s.names.map(n => `<span class="text-xs px-1.5 py-0.5 bg-${c}-50 text-${c}-700 rounded">${n}</span>`).join('')}
+                        </div>
+                    </div>
+                </div>`;
+            });
+            html += '</div>';
+
+            if (section.gap) {
+                html += `<div class="mt-3 p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-700">
+                    Gap: ${section.gap}
+                </div>`;
+            }
+
+            document.getElementById('context-sources').innerHTML = html;
+        }
+
+        function showPanel(panel) {
+            ['context', 'versions', 'activity'].forEach(p => {
+                document.getElementById(`panel-${p}`).classList.toggle('hidden', p !== panel);
+                document.getElementById(`tab-${p}`).classList.toggle('tab-active', p === panel);
+                document.getElementById(`tab-${p}`).classList.toggle('text-slate-500', p !== panel);
+            });
+        }
+
+        function showVersionTab(tab) {
+            document.getElementById('version-pending').classList.toggle('hidden', tab !== 'pending');
+            document.getElementById('version-history').classList.toggle('hidden', tab !== 'history');
+            document.getElementById('vtab-pending').classList.toggle('tab-active', tab === 'pending');
+            document.getElementById('vtab-history').classList.toggle('tab-active', tab === 'history');
+            document.getElementById('vtab-pending').classList.toggle('text-slate-500', tab !== 'pending');
+            document.getElementById('vtab-history').classList.toggle('text-slate-500', tab !== 'history');
+        }
+
+        function showCR(id) { document.getElementById('cr-modal').classList.remove('hidden'); }
+        function hideCR() { document.getElementById('cr-modal').classList.add('hidden'); }
+        function showProposeModal() { document.getElementById('propose-modal').classList.remove('hidden'); }
+        function hideProposeModal() { document.getElementById('propose-modal').classList.add('hidden'); }
+    </script>
+</body>
+</html>

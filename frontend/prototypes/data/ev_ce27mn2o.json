@@ -1,0 +1,319 @@
+{
+  "id": "ev_ce27mn2o",
+  "title": "Jimmy Lai Imprisonment",
+  "event_type": "LEGAL",
+  "date_range": "2020-12-01T00:00 - 2025-12-16T22:16:04.974358Z",
+  "claim_count": 117,
+  "source_count": 13,
+  "sources_by_type": {
+    "other": [
+      "HKLABOURRIGHTS",
+      "DOMINOTHEORY",
+      "CTVNEWS",
+      "NCREGISTER",
+      "THEFP",
+      "CNBC"
+    ],
+    "wire": [
+      "Reuters"
+    ],
+    "international": [
+      "Independent",
+      "Guardian",
+      "DW"
+    ],
+    "ngo": [
+      "RSF"
+    ],
+    "local": [
+      "The Standard",
+      "SCMP"
+    ]
+  },
+  "narrative_blocks": [
+    {
+      "type": "paragraph",
+      "content": "Jimmy Lai has pleaded not guilty to two counts of conspiracy to collude with foreign forces and one count of sedition.",
+      "voice": "international",
+      "sources": [
+        "HKLABOURRIGHTS",
+        "DW",
+        "Independent"
+      ],
+      "source_type": "corroborated",
+      "timestamp": "2025-12-15T12:00:00+00:00",
+      "metadata": {
+        "corroboration_count": 3
+      }
+    },
+    {
+      "type": "paragraph",
+      "content": "Jimmy Lai has been in prison for more than five years",
+      "voice": "international",
+      "sources": [
+        "THEFP",
+        "DW",
+        "Independent"
+      ],
+      "source_type": "corroborated",
+      "timestamp": "2025-12-15T12:00:00+00:00",
+      "metadata": {
+        "corroboration_count": 3
+      }
+    },
+    {
+      "type": "tension",
+      "content": "Framing of events",
+      "voice": null,
+      "sources": [],
+      "source_type": null,
+      "timestamp": null,
+      "metadata": {
+        "pole_a": {
+          "label": "Prosecution",
+          "quote": "Sir Iain Duncan Smith said Jimmy Lai was in prison on trumped-up charges under the new oppressive Chinese National Security Law in Hong Kong.",
+          "sources": [
+            "CNBC",
+            "SCMP",
+            "THEFP",
+            "HKLABOURRIGHTS",
+            "DW"
+          ]
+        },
+        "pole_b": {
+          "label": "Defense",
+          "quote": "Hong Kong authorities and political figures have rejected foreign allegations of unfair treatment in Jimmy Lai Chee-ying's trial.",
+          "sources": [
+            "The Standard",
+            "Guardian",
+            "DW",
+            "DOMINOTHEORY",
+            "Independent"
+          ]
+        }
+      }
+    },
+    {
+      "type": "paragraph",
+      "content": "Reporters Without Borders warns that China has further tightened its grip on media and free expression over the past year.",
+      "voice": "other",
+      "sources": [
+        "HKLABOURRIGHTS"
+      ],
+      "source_type": "single",
+      "timestamp": null,
+      "metadata": null
+    },
+    {
+      "type": "paragraph",
+      "content": "Anti-China organizations like the Hong Kong Free Press Committee and Hong Kong Watch have been involved in attacks on the trial.",
+      "voice": "local",
+      "sources": [
+        "The Standard"
+      ],
+      "source_type": "single",
+      "timestamp": null,
+      "metadata": null
+    },
+    {
+      "type": "paragraph",
+      "content": "Sebastien Lai urged U.S. President Donald Trump and U.K. Prime Minister Keir Starmer to press China on his father's case.",
+      "voice": "other",
+      "sources": [
+        "DOMINOTHEORY"
+      ],
+      "source_type": "single",
+      "timestamp": null,
+      "metadata": null
+    },
+    {
+      "type": "paragraph",
+      "content": "Jimmy Lai converted to Catholicism the year of the handover of Hong Kong from the U.K. back to China.",
+      "voice": "other",
+      "sources": [
+        "NCREGISTER"
+      ],
+      "source_type": "single",
+      "timestamp": null,
+      "metadata": null
+    },
+    {
+      "type": "paragraph",
+      "content": "Antoine Bernard called on leaders to demand that the Chinese regime release Jimmy Lai immediately on medical grounds.",
+      "voice": "international",
+      "sources": [
+        "Independent"
+      ],
+      "source_type": "single",
+      "timestamp": null,
+      "metadata": null
+    },
+    {
+      "type": "paragraph",
+      "content": "The judges said evidence could prove Jimmy Lai's intent to continue his push for foreign intervention.",
+      "voice": "local",
+      "sources": [
+        "SCMP"
+      ],
+      "source_type": "single",
+      "timestamp": null,
+      "metadata": null
+    },
+    {
+      "type": "paragraph",
+      "content": "Alicia Kearns said Jimmy Lai had been languishing in prison for over 1,800 days, mostly in solitary confinement.",
+      "voice": "international",
+      "sources": [
+        "Independent"
+      ],
+      "source_type": "single",
+      "timestamp": null,
+      "metadata": null
+    },
+    {
+      "type": "paragraph",
+      "content": "Jimmy Lai continued to promote an anti-China stance and call for foreign sanctions even after the national security law was imposed.",
+      "voice": "local",
+      "sources": [
+        "SCMP"
+      ],
+      "source_type": "single",
+      "timestamp": null,
+      "metadata": null
+    },
+    {
+      "type": "paragraph",
+      "content": "Jimmy Lai's children claimed he had lost a significant amount of weight and that his teeth were rotting and nails were falling out.",
+      "voice": "international",
+      "sources": [
+        "Independent"
+      ],
+      "source_type": "single",
+      "timestamp": null,
+      "metadata": null
+    }
+  ],
+  "corroborations": [
+    {
+      "claim_text": "Jimmy Lai has pleaded not guilty to two counts of conspiracy to collude with foreign forces and one count of sedition.",
+      "sources": [
+        "HKLABOURRIGHTS",
+        "DW",
+        "Independent"
+      ],
+      "count": 3,
+      "first_reported": "2025-12-15T12:00:00+00:00",
+      "claim_ids": [
+        "cl_w819smp4",
+        "cl_1o62xsm3",
+        "cl_ysnink31"
+      ]
+    },
+    {
+      "claim_text": "Jimmy Lai has been in prison for more than five years",
+      "sources": [
+        "THEFP",
+        "DW",
+        "Independent"
+      ],
+      "count": 3,
+      "first_reported": "2025-12-15T12:00:00+00:00",
+      "claim_ids": [
+        "cl_3r2g0vpt",
+        "cl_uwj30owl",
+        "cl_2r2ypbnn"
+      ]
+    },
+    {
+      "claim_text": "Donald Trump reportedly raised Jimmy Lai\u2019s case with Xi Jinping during their meeting in South Korea.",
+      "sources": [
+        "CTVNEWS",
+        "Independent"
+      ],
+      "count": 2,
+      "first_reported": "Unknown",
+      "claim_ids": [
+        "cl_2d4dfv6c",
+        "cl_ktx3c2yq"
+      ]
+    },
+    {
+      "claim_text": "Jimmy Lai has been jailed for more than 1,800 days.",
+      "sources": [
+        "CTVNEWS",
+        "DOMINOTHEORY"
+      ],
+      "count": 2,
+      "first_reported": "Unknown",
+      "claim_ids": [
+        "cl_ncn3ffsy",
+        "cl_koydfly1"
+      ]
+    },
+    {
+      "claim_text": "Jimmy Lai was found guilty of sedition and collusion with foreign countries by a Hong Kong court.",
+      "sources": [
+        "THEFP",
+        "CNBC"
+      ],
+      "count": 2,
+      "first_reported": "2025-12-15T12:00:00+00:00",
+      "claim_ids": [
+        "cl_mzl0fxly",
+        "cl_4sk9w5w6"
+      ]
+    }
+  ],
+  "tensions": [
+    {
+      "topic": "Framing of events",
+      "pole_a": {
+        "label": "Prosecution",
+        "quote": "Sir Iain Duncan Smith said Jimmy Lai was in prison on trumped-up charges under the new oppressive Chinese National Security Law in Hong Kong.",
+        "sources": [
+          "CNBC",
+          "SCMP",
+          "THEFP",
+          "HKLABOURRIGHTS",
+          "DW"
+        ]
+      },
+      "pole_b": {
+        "label": "Defense",
+        "quote": "Hong Kong authorities and political figures have rejected foreign allegations of unfair treatment in Jimmy Lai Chee-ying's trial.",
+        "sources": [
+          "The Standard",
+          "Guardian",
+          "DW",
+          "DOMINOTHEORY",
+          "Independent"
+        ]
+      },
+      "claim_ids": [
+        "cl_espf5k9b",
+        "cl_z4l83io9"
+      ]
+    }
+  ],
+  "gaps": [
+    {
+      "type": "missing_source",
+      "description": "No official government statements found",
+      "priority": "high",
+      "bounty": 15
+    }
+  ],
+  "live_activity": [
+    {
+      "type": "source_added",
+      "text": "New source: HKLABOURRIGHTS",
+      "time": "5 min ago"
+    },
+    {
+      "type": "corroboration",
+      "text": "Claim corroborated by 3 sources",
+      "time": "12 min ago"
+    }
+  ],
+  "completeness": 0.8
+}

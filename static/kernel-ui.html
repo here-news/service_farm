@@ -621,7 +621,7 @@
 
             try {
                 // For demo, load from local JSON files
-                const response = await fetch(`/prototypes/test_eu/results/topology_${eventId}.json`);
+                const response = await fetch(`/test_eu/results/topology_${eventId}.json`);
                 if (!response.ok) throw new Error('Topology not found');
                 currentTopology = await response.json();
 

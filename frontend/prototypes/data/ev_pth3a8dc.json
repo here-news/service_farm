@@ -1,0 +1,323 @@
+{
+  "id": "ev_pth3a8dc",
+  "title": "Wang Fuk Court Fire",
+  "event_type": "FIRE",
+  "date_range": "2025-11-26T00:00 - 2025-12-14T00:38:31.110734Z",
+  "claim_count": 130,
+  "source_count": 18,
+  "sources_by_type": {
+    "other": [
+      "MYLONDON",
+      "ASIA",
+      "NEWS",
+      "HK",
+      "NDTV",
+      "DOMINOTHEORY",
+      "THEATLANTIC",
+      "KOREAJOONGANGDAILY",
+      "AASTOCKS",
+      "CHRISTIANITYTODAY",
+      "DAILYMAIL",
+      "TRTWORLD"
+    ],
+    "international": [
+      "Independent",
+      "ABC Australia",
+      "Guardian",
+      "DW"
+    ],
+    "ngo": [
+      "RSF"
+    ],
+    "local": [
+      "HKFP"
+    ]
+  },
+  "narrative_blocks": [
+    {
+      "type": "paragraph",
+      "content": "The fire at Wang Fuk Court killed at least 160 people.",
+      "voice": "international",
+      "sources": [
+        "CHRISTIANITYTODAY",
+        "THEATLANTIC",
+        "NEWS"
+      ],
+      "source_type": "corroborated",
+      "timestamp": "2025-11-26T12:00:00+00:00",
+      "metadata": {
+        "corroboration_count": 3
+      }
+    },
+    {
+      "type": "tension",
+      "content": "Framing of events",
+      "voice": null,
+      "sources": [],
+      "source_type": null,
+      "timestamp": null,
+      "metadata": {
+        "pole_a": {
+          "label": "Official",
+          "quote": "The investigation is expected to provide clarity on the circumstances of the fire and measures to prevent future incidents.",
+          "sources": [
+            "DOMINOTHEORY",
+            "HKFP",
+            "ABC Australia",
+            "HK",
+            "THEATLANTIC"
+          ]
+        },
+        "pole_b": {
+          "label": "Victim",
+          "quote": "Hong Kong apartment fire death toll rises as police allege negligence",
+          "sources": [
+            "CHRISTIANITYTODAY",
+            "ASIA"
+          ]
+        }
+      }
+    },
+    {
+      "type": "paragraph",
+      "content": "Hong Kong leader John Lee announced a judge-led 'independent committee' last week to investigate the fire.",
+      "voice": "other",
+      "sources": [
+        "NDTV"
+      ],
+      "source_type": "single",
+      "timestamp": null,
+      "metadata": null
+    },
+    {
+      "type": "paragraph",
+      "content": "Sir Iain Duncan Smith said Jimmy Lai was in prison on trumped-up charges under the new oppressive Chinese National Security Law in Hong Kong.",
+      "voice": "international",
+      "sources": [
+        "Independent"
+      ],
+      "source_type": "single",
+      "timestamp": null,
+      "metadata": null
+    },
+    {
+      "type": "paragraph",
+      "content": "The cumulative impacts of these laws reflect a systemic erosion in enjoyment of human rights in Hong Kong.",
+      "voice": "other",
+      "sources": [
+        "NEWS"
+      ],
+      "source_type": "single",
+      "timestamp": null,
+      "metadata": null
+    },
+    {
+      "type": "paragraph",
+      "content": "Hong Kong authorities allege that the construction company used unsafe materials in the renovation of Wang Fuk Court.",
+      "voice": "other",
+      "sources": [
+        "THEATLANTIC"
+      ],
+      "source_type": "single",
+      "timestamp": null,
+      "metadata": null
+    },
+    {
+      "type": "paragraph",
+      "content": "The Housing Bureau's independent review team did not find any non-compliance with flame-retardant standards during their inspection at Wang Fuk Court.",
+      "voice": "other",
+      "sources": [
+        "HK"
+      ],
+      "source_type": "single",
+      "timestamp": null,
+      "metadata": null
+    },
+    {
+      "type": "paragraph",
+      "content": "Peggy Wong has been criticized for failing to respond to resident concerns about the Wang Fuk Court renovations.",
+      "voice": "other",
+      "sources": [
+        "DOMINOTHEORY"
+      ],
+      "source_type": "single",
+      "timestamp": null,
+      "metadata": null
+    },
+    {
+      "type": "paragraph",
+      "content": "Residents were aware of the flammability of the styrofoam panels at Wang Fuk Court as early as September 2024.",
+      "voice": "other",
+      "sources": [
+        "DOMINOTHEORY"
+      ],
+      "source_type": "single",
+      "timestamp": null,
+      "metadata": null
+    },
+    {
+      "type": "paragraph",
+      "content": "Officials conducted safety inspections at Wang Fuk Court 16 times between July 2024 and November 2025.",
+      "voice": "other",
+      "sources": [
+        "DOMINOTHEORY"
+      ],
+      "source_type": "single",
+      "timestamp": null,
+      "metadata": null
+    },
+    {
+      "type": "paragraph",
+      "content": "Investigators found that samples of netting at Wang Fuk Court did not meet legal standards of flame retardancy.",
+      "voice": "other",
+      "sources": [
+        "DOMINOTHEORY"
+      ],
+      "source_type": "single",
+      "timestamp": null,
+      "metadata": null
+    },
+    {
+      "type": "paragraph",
+      "content": "Hong Kong security chief Chris Tang urged society to stand united in dealing with the aftermath of the Wang Fuk Court fire.",
+      "voice": "other",
+      "sources": [
+        "DOMINOTHEORY"
+      ],
+      "source_type": "single",
+      "timestamp": null,
+      "metadata": null
+    }
+  ],
+  "corroborations": [
+    {
+      "claim_text": "The fire at Wang Fuk Court killed at least 160 people.",
+      "sources": [
+        "CHRISTIANITYTODAY",
+        "THEATLANTIC",
+        "NEWS"
+      ],
+      "count": 3,
+      "first_reported": "2025-11-26T12:00:00+00:00",
+      "claim_ids": [
+        "cl_wos80gkg",
+        "cl_tyhl2cjz",
+        "cl_72g3mcd0",
+        "cl_hs5xqr7d"
+      ]
+    },
+    {
+      "claim_text": "At least 160 people were killed in the blaze at the Wang Fung Court complex, Tai Po district.",
+      "sources": [
+        "DAILYMAIL",
+        "NEWS"
+      ],
+      "count": 2,
+      "first_reported": "2025-11-26T12:00:00+00:00",
+      "claim_ids": [
+        "cl_00pvag62",
+        "cl_kn2zrdt9"
+      ]
+    },
+    {
+      "claim_text": "The Independent Commission Against Corruption is investigating the cause of the Wang Fuk Court fire.",
+      "sources": [
+        "CHRISTIANITYTODAY",
+        "DOMINOTHEORY"
+      ],
+      "count": 2,
+      "first_reported": "2025-12-03T12:00:00+00:00",
+      "claim_ids": [
+        "cl_x516wooc",
+        "cl_x8dk0jup"
+      ]
+    },
+    {
+      "claim_text": "The fire swept through seven high-rise residential towers in Hong Kong.",
+      "sources": [
+        "Guardian",
+        "NEWS"
+      ],
+      "count": 2,
+      "first_reported": "2025-11-26T12:00:00+00:00",
+      "claim_ids": [
+        "cl_aho5p56o",
+        "cl_uzsungmr"
+      ]
+    },
+    {
+      "claim_text": "Firefighters deployed 128 fire trucks and 57 ambulances to the scene",
+      "sources": [
+        "DW",
+        "Guardian"
+      ],
+      "count": 2,
+      "first_reported": "2025-11-25T12:00:00+00:00",
+      "claim_ids": [
+        "cl_up1vg585",
+        "cl_pidrmmjz"
+      ]
+    }
+  ],
+  "tensions": [
+    {
+      "topic": "Framing of events",
+      "pole_a": {
+        "label": "Official",
+        "quote": "The investigation is expected to provide clarity on the circumstances of the fire and measures to prevent future incidents.",
+        "sources": [
+          "DOMINOTHEORY",
+          "HKFP",
+          "ABC Australia",
+          "HK",
+          "THEATLANTIC"
+        ]
+      },
+      "pole_b": {
+        "label": "Victim",
+        "quote": "Hong Kong apartment fire death toll rises as police allege negligence",
+        "sources": [
+          "CHRISTIANITYTODAY",
+          "ASIA"
+        ]
+      },
+      "claim_ids": [
+        "cl_ur7ohiux",
+        "cl_tqhpnrvf"
+      ]
+    }
+  ],
+  "gaps": [
+    {
+      "type": "missing_source",
+      "description": "No official government statements found",
+      "priority": "high",
+      "bounty": 15
+    },
+    {
+      "type": "missing_source",
+      "description": "No wire service coverage (Reuters, AP, AFP)",
+      "priority": "medium",
+      "bounty": 10
+    },
+    {
+      "type": "missing_source",
+      "description": "Limited local news coverage",
+      "priority": "low",
+      "bounty": 8
+    }
+  ],
+  "live_activity": [
+    {
+      "type": "source_added",
+      "text": "New source: MYLONDON",
+      "time": "5 min ago"
+    },
+    {
+      "type": "corroboration",
+      "text": "Claim corroborated by 3 sources",
+      "time": "12 min ago"
+    }
+  ],
+  "completeness": 0.6
+}

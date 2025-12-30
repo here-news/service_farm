@@ -1,0 +1,27 @@
+{
+  "generated_at": "2025-12-22T19:01:51.502085",
+  "type": "epistemic_narratives",
+  "events": [
+    {
+      "id": "ev_pth3a8dc",
+      "title": "Wang Fuk Court Fire",
+      "total_claims": 130,
+      "sections": 6,
+      "confidence": 0.8666666666666667
+    },
+    {
+      "id": "ev_ce27mn2o",
+      "title": "Jimmy Lai Imprisonment",
+      "total_claims": 117,
+      "sections": 6,
+      "confidence": 0.9
+    },
+    {
+      "id": "ev_txweimez",
+      "title": "Brown University Shooting",
+      "total_claims": 58,
+      "sections": 7,
+      "confidence": 0.7142857142857143
+    }
+  ]
+}

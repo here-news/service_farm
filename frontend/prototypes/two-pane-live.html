@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Two-Pane Event Page - Live Data</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .marker { cursor: pointer; transition: all 0.2s; }
+        .marker:hover { transform: scale(1.05); background: rgba(99, 102, 241, 0.1); }
+        .marker.active { background: rgba(99, 102, 241, 0.15); }
+        .context-card { transition: all 0.3s; }
+        .context-card.highlight { box-shadow: 0 0 0 2px #6366f1; }
+        .narrative-block.highlight { background: linear-gradient(90deg, #eef2ff 0%, transparent 100%); }
+        .voice-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+        .loading { animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    </style>
+</head>
+<body class="bg-slate-50">
+    <!-- Header -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+            <div class="flex items-center gap-4">
+                <span class="text-xl font-bold text-indigo-600">HERE.news</span>
+                <span class="text-slate-300">|</span>
+                <span class="text-sm text-slate-500">Prototype: Live Data</span>
+            </div>
+            <div class="flex items-center gap-3">
+                <select id="event-selector" class="text-sm border border-slate-300 rounded-lg px-3 py-1.5 bg-white">
+                    <option value="">Loading events...</option>
+                </select>
+                <span id="live-badge" class="px-2 py-1 bg-amber-100 text-amber-700 rounded text-sm hidden">Live</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 py-6">
+        <!-- Loading State -->
+        <div id="loading" class="text-center py-12">
+            <div class="text-4xl mb-4 loading">...</div>
+            <p class="text-slate-500">Loading epistemic data...</p>
+        </div>
+
+        <!-- Event Content (hidden until loaded) -->
+        <div id="event-content" class="hidden">
+            <!-- Event Title -->
+            <div class="mb-6">
+                <div class="flex items-center gap-2 mb-2">
+                    <span id="event-type" class="px-2 py-0.5 bg-red-100 text-red-700 text-xs rounded-full uppercase font-medium"></span>
+                    <span id="event-dates" class="text-slate-400 text-sm"></span>
+                </div>
+                <h1 id="event-title" class="text-3xl font-bold text-slate-900 mb-2"></h1>
+                <p id="event-summary" class="text-slate-500"></p>
+            </div>
+
+            <!-- Two Pane Layout -->
+            <div class="flex gap-6">
+                <!-- LEFT PANE: Narrative -->
+                <div class="flex-1 min-w-0">
+                    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        <!-- Story Health Bar -->
+                        <div class="px-6 py-4 bg-gradient-to-r from-slate-50 to-white border-b border-slate-100">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-4">
+                                    <span class="text-sm font-medium text-slate-700">Voices heard:</span>
+                                    <div id="voice-dots" class="flex items-center gap-1"></div>
+                                    <span id="voice-count" class="text-xs text-slate-400"></span>
+                                </div>
+                                <div class="text-sm text-slate-500">
+                                    <span id="claim-count" class="font-medium text-indigo-600"></span> claims from
+                                    <span id="source-count" class="font-medium text-indigo-600"></span> sources
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Narrative Content -->
+                        <div id="narrative" class="p-6 prose prose-slate max-w-none">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- RIGHT PANE: Community & Context -->
+                <div class="w-96 flex-shrink-0 space-y-4">
+                    <!-- Active Context Card -->
+                    <div id="context-panel" class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden sticky top-20">
+                        <div class="px-4 py-3 bg-gradient-to-r from-indigo-50 to-purple-50 border-b border-indigo-100">
+                            <h3 class="font-semibold text-slate-800 flex items-center gap-2">
+                                <span id="context-icon">...</span>
+                                <span id="context-title">Click any marker to see details</span>
+                            </h3>
+                        </div>
+                        <div id="context-content" class="p-4">
+                            <div class="text-center py-8 text-slate-400">
+                                <div class="text-4xl mb-2">...</div>
+                                <p>Click on highlighted text to see sources and context</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Corroborations Summary -->
+                    <div id="corroborations-panel" class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div class="px-4 py-3 bg-gradient-to-r from-green-50 to-emerald-50 border-b border-green-100">
+                            <h3 class="font-semibold text-slate-800 flex items-center gap-2">
+                                <span>...</span>
+                                Corroborated Facts
+                            </h3>
+                        </div>
+                        <div id="corroborations-list" class="divide-y divide-slate-100 max-h-48 overflow-y-auto">
+                        </div>
+                    </div>
+
+                    <!-- Open Gaps -->
+                    <div id="gaps-panel" class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div class="px-4 py-3 border-b border-slate-100">
+                            <h3 class="font-semibold text-slate-800 flex items-center gap-2">
+                                <span>?</span>
+                                Can you help?
+                            </h3>
+                        </div>
+                        <div id="gaps-list" class="p-4 space-y-3">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const VOICE_TYPES = {
+            wire: { color: 'bg-blue-500', label: 'Wire services' },
+            international: { color: 'bg-green-500', label: 'International' },
+            local: { color: 'bg-purple-500', label: 'Local' },
+            official: { color: 'bg-orange-500', label: 'Official' },
+            ngo: { color: 'bg-rose-500', label: 'NGO' },
+            other: { color: 'bg-slate-400', label: 'Other' }
+        };
+
+        let currentEvent = null;
+        let currentContexts = {};
+
+        // Load event index
+        async function loadIndex() {
+            try {
+                const res = await fetch('/prototypes/data/index.json');
+                const index = await res.json();
+
+                const selector = document.getElementById('event-selector');
+                selector.innerHTML = '<option value="">Select an event...</option>';
+
+                index.events.forEach(e => {
+                    const opt = document.createElement('option');
+                    opt.value = e.id;
+                    opt.textContent = `${e.title} (${e.claim_count} claims)`;
+                    selector.appendChild(opt);
+                });
+
+                // Auto-load first event
+                if (index.events.length > 0) {
+                    selector.value = index.events[0].id;
+                    loadEvent(index.events[0].id);
+                }
+            } catch (err) {
+                console.error('Failed to load index:', err);
+                document.getElementById('loading').innerHTML =
+                    '<div class="text-red-500">Failed to load events. Run generate_epistemic_data.py first.</div>';
+            }
+        }
+
+        // Load event data
+        async function loadEvent(eventId) {
+            if (!eventId) return;
+
+            document.getElementById('loading').classList.remove('hidden');
+            document.getElementById('event-content').classList.add('hidden');
+
+            try {
+                const res = await fetch(`/prototypes/data/${eventId}.json`);
+                currentEvent = await res.json();
+                renderEvent(currentEvent);
+            } catch (err) {
+                console.error('Failed to load event:', err);
+            }
+        }
+
+        // Render event
+        function renderEvent(event) {
+            // Header
+            document.getElementById('event-title').textContent = event.title;
+            document.getElementById('event-type').textContent = event.event_type || 'Event';
+            document.getElementById('event-dates').textContent = formatDateRange(event.date_range);
+            document.getElementById('event-summary').textContent =
+                `${event.claim_count} claims from ${event.source_count} sources`;
+
+            // Voice dots
+            renderVoiceDots(event.sources_by_type);
+
+            // Stats
+            document.getElementById('claim-count').textContent = event.claim_count;
+            document.getElementById('source-count').textContent = event.source_count;
+
+            // Narrative
+            renderNarrative(event.narrative_blocks);
+
+            // Corroborations
+            renderCorroborations(event.corroborations);
+
+            // Gaps
+            renderGaps(event.gaps);
+
+            // Show content
+            document.getElementById('loading').classList.add('hidden');
+            document.getElementById('event-content').classList.remove('hidden');
+            document.getElementById('live-badge').classList.remove('hidden');
+        }
+
+        function formatDateRange(range) {
+            if (!range) return '';
+            // Simplify date display
+            const parts = range.split(' - ');
+            if (parts.length === 2) {
+                const start = parts[0].split('T')[0];
+                const end = parts[1].includes('Ongoing') ? 'Ongoing' : parts[1].split('T')[0];
+                return `${start} - ${end}`;
+            }
+            return range;
+        }
+
+        function renderVoiceDots(sourcesByType) {
+            const container = document.getElementById('voice-dots');
+            const expectedTypes = ['wire', 'international', 'local', 'official', 'ngo'];
+            let present = 0;
+
+            container.innerHTML = expectedTypes.map(type => {
+                const hasType = sourcesByType[type] && sourcesByType[type].length > 0;
+                if (hasType) present++;
+                const config = VOICE_TYPES[type];
+                const color = hasType ? config.color : 'bg-slate-300';
+                return `<span class="voice-dot ${color}" title="${config.label}${hasType ? ': ' + sourcesByType[type].join(', ') : ' - missing'}"></span>`;
+            }).join('');
+
+            document.getElementById('voice-count').textContent = `${present} of ${expectedTypes.length}`;
+        }
+
+        function renderNarrative(blocks) {
+            const container = document.getElementById('narrative');
+            currentContexts = {};
+            let blockIndex = 0;
+
+            container.innerHTML = blocks.map(block => {
+                blockIndex++;
+                const blockId = `block-${blockIndex}`;
+
+                if (block.type === 'tension') {
+                    currentContexts[blockId] = {
+                        type: 'tension',
+                        icon: '!',
+                        title: 'Competing Perspectives',
+                        data: block.metadata
+                    };
+                    return `
+                        <div id="${blockId}" class="narrative-block p-4 -mx-4 rounded-lg mb-4 bg-amber-50 border border-amber-200">
+                            <div class="flex items-start gap-3">
+                                <span class="text-xl">!</span>
+                                <div class="flex-1">
+                                    <div class="font-medium text-amber-800 mb-2">Competing Perspectives</div>
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <div class="p-2 bg-white rounded text-sm">
+                                            <div class="font-medium text-slate-700">${block.metadata.pole_a.label}</div>
+                                            <p class="text-slate-600 text-xs mt-1">"${truncate(block.metadata.pole_a.quote, 100)}"</p>
+                                            <div class="text-xs text-slate-400 mt-1">${block.metadata.pole_a.sources.slice(0, 3).join(', ')}</div>
+                                        </div>
+                                        <div class="p-2 bg-white rounded text-sm">
+                                            <div class="font-medium text-slate-700">${block.metadata.pole_b.label}</div>
+                                            <p class="text-slate-600 text-xs mt-1">"${truncate(block.metadata.pole_b.quote, 100)}"</p>
+                                            <div class="text-xs text-slate-400 mt-1">${block.metadata.pole_b.sources.slice(0, 3).join(', ')}</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+
+                // Regular paragraph
+                const sourceType = block.source_type;
+                let marker = '';
+                let markerClass = '';
+
+                if (sourceType === 'corroborated' && block.metadata?.corroboration_count) {
+                    marker = `<sup class="text-xs text-green-600">x${block.metadata.corroboration_count}</sup>`;
+                    markerClass = 'text-green-700';
+                    currentContexts[blockId] = {
+                        type: 'corroborated',
+                        icon: 'x',
+                        title: `Confirmed by ${block.metadata.corroboration_count} sources`,
+                        sources: block.sources,
+                        text: block.content
+                    };
+                } else if (sourceType === 'single') {
+                    marker = `<sup class="text-xs text-slate-400">1</sup>`;
+                    markerClass = 'text-slate-600';
+                    currentContexts[blockId] = {
+                        type: 'single',
+                        icon: '1',
+                        title: `Single source: ${block.sources[0] || 'Unknown'}`,
+                        sources: block.sources,
+                        text: block.content
+                    };
+                }
+
+                const voiceBadge = block.voice ?
+                    `<span class="text-xs px-1.5 py-0.5 rounded ${getVoiceColor(block.voice)} mr-2">${block.voice}</span>` : '';
+
+                return `
+                    <div id="${blockId}" class="narrative-block p-3 -mx-3 rounded-lg mb-4 cursor-pointer hover:bg-slate-50"
+                         onclick="showContext('${blockId}')">
+                        <p class="leading-relaxed ${markerClass}">
+                            ${voiceBadge}${block.content}${marker}
+                        </p>
+                        ${block.sources.length ? `<div class="text-xs text-slate-400 mt-1">${block.sources.join(', ')}</div>` : ''}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function getVoiceColor(voice) {
+            const colors = {
+                wire: 'bg-blue-100 text-blue-700',
+                international: 'bg-green-100 text-green-700',
+                local: 'bg-purple-100 text-purple-700',
+                official: 'bg-orange-100 text-orange-700',
+                ngo: 'bg-rose-100 text-rose-700',
+                other: 'bg-slate-100 text-slate-600'
+            };
+            return colors[voice] || colors.other;
+        }
+
+        function renderCorroborations(corroborations) {
+            const container = document.getElementById('corroborations-list');
+
+            if (!corroborations || corroborations.length === 0) {
+                container.innerHTML = '<div class="p-4 text-sm text-slate-400">No corroborations found</div>';
+                return;
+            }
+
+            container.innerHTML = corroborations.slice(0, 5).map((c, i) => `
+                <div class="p-3 hover:bg-slate-50 cursor-pointer" onclick="highlightCorroboration(${i})">
+                    <div class="flex items-start gap-2">
+                        <span class="text-green-600 font-bold text-sm">x${c.count}</span>
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm text-slate-700 truncate">${truncate(c.claim_text, 60)}</p>
+                            <p class="text-xs text-slate-400 mt-1">${c.sources.slice(0, 3).join(', ')}</p>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderGaps(gaps) {
+            const container = document.getElementById('gaps-list');
+
+            if (!gaps || gaps.length === 0) {
+                container.innerHTML = '<div class="text-sm text-green-600">No gaps identified - coverage is comprehensive!</div>';
+                return;
+            }
+
+            container.innerHTML = gaps.map(g => `
+                <div class="p-3 ${g.priority === 'high' ? 'bg-amber-50 border-amber-200' : 'bg-slate-50 border-slate-200'} border rounded-lg">
+                    <p class="text-sm text-slate-700 font-medium">${g.description}</p>
+                    <div class="flex items-center justify-between mt-2">
+                        <span class="text-xs ${g.priority === 'high' ? 'text-amber-600' : 'text-slate-500'}">${g.priority} priority</span>
+                        <span class="text-xs font-bold text-amber-600">+${g.bounty} credits</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function showContext(blockId) {
+            const context = currentContexts[blockId];
+            if (!context) return;
+
+            // Highlight block
+            document.querySelectorAll('.narrative-block').forEach(b => b.classList.remove('highlight'));
+            document.getElementById(blockId)?.classList.add('highlight');
+
+            // Update panel
+            document.getElementById('context-icon').textContent = context.icon;
+            document.getElementById('context-title').textContent = context.title;
+
+            const content = document.getElementById('context-content');
+
+            if (context.type === 'corroborated') {
+                content.innerHTML = `
+                    <div class="space-y-3">
+                        <div class="flex items-center gap-2 text-green-600">
+                            <span class="text-xl">x</span>
+                            <span class="font-medium">Corroborated Fact</span>
+                        </div>
+                        <p class="text-sm text-slate-700">${context.text}</p>
+                        <div class="text-sm text-slate-500">Confirmed by ${context.sources.length} sources:</div>
+                        <div class="flex flex-wrap gap-1">
+                            ${context.sources.map(s => `<span class="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full">${s}</span>`).join('')}
+                        </div>
+                    </div>
+                `;
+            } else if (context.type === 'single') {
+                content.innerHTML = `
+                    <div class="space-y-3">
+                        <div class="flex items-center gap-2 text-slate-500">
+                            <span class="text-xl">1</span>
+                            <span class="font-medium">Single Source</span>
+                        </div>
+                        <p class="text-sm text-slate-700">${context.text}</p>
+                        <div class="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                            <p class="text-sm text-slate-600">This claim has only been reported by one source. Can you find corroboration?</p>
+                            <button class="mt-2 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-sm rounded-lg">
+                                I found a source
+                            </button>
+                        </div>
+                    </div>
+                `;
+            } else if (context.type === 'tension') {
+                content.innerHTML = `
+                    <div class="space-y-3">
+                        <div class="flex items-center gap-2 text-amber-600">
+                            <span class="text-xl">!</span>
+                            <span class="font-medium">Competing Perspectives</span>
+                        </div>
+                        <p class="text-sm text-slate-600">Different sources frame this aspect of the story differently.</p>
+                        <div class="space-y-2">
+                            <div class="p-3 bg-slate-50 rounded-lg">
+                                <div class="text-xs text-slate-500 mb-1">${context.data.pole_a.label}:</div>
+                                <p class="text-sm text-slate-700">"${context.data.pole_a.quote}"</p>
+                            </div>
+                            <div class="p-3 bg-slate-50 rounded-lg">
+                                <div class="text-xs text-slate-500 mb-1">${context.data.pole_b.label}:</div>
+                                <p class="text-sm text-slate-700">"${context.data.pole_b.quote}"</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            document.getElementById('context-panel').classList.add('highlight');
+            setTimeout(() => document.getElementById('context-panel').classList.remove('highlight'), 500);
+        }
+
+        function highlightCorroboration(index) {
+            if (!currentEvent?.corroborations?.[index]) return;
+            const corr = currentEvent.corroborations[index];
+
+            document.getElementById('context-icon').textContent = 'x';
+            document.getElementById('context-title').textContent = `Confirmed by ${corr.count} sources`;
+            document.getElementById('context-content').innerHTML = `
+                <div class="space-y-3">
+                    <p class="text-sm text-slate-700">${corr.claim_text}</p>
+                    <div class="flex flex-wrap gap-1">
+                        ${corr.sources.map(s => `<span class="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full">${s}</span>`).join('')}
+                    </div>
+                    <div class="text-xs text-slate-400">First reported: ${corr.first_reported}</div>
+                </div>
+            `;
+        }
+
+        function truncate(str, len) {
+            if (!str) return '';
+            return str.length > len ? str.substring(0, len) + '...' : str;
+        }
+
+        // Event handlers
+        document.getElementById('event-selector').addEventListener('change', (e) => {
+            loadEvent(e.target.value);
+        });
+
+        // Initialize
+        loadIndex();
+    </script>
+</body>
+</html>

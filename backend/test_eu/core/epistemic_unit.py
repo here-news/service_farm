@@ -98,9 +98,9 @@ class Parameters:
     identity_confidence_threshold: float = 0.5  # min confidence for identity relation
 
     # L3 Event formation (aboutness edges)
-    hub_max_df: int = 3             # anchors in more surfaces than this get zero weight
-    aboutness_min_signals: int = 2   # require N of 3 signals for aboutness edge
-    aboutness_threshold: float = 0.35  # min score to link surfaces into events
+    hub_max_df: int = 5             # anchors in more surfaces than this get zero weight
+    aboutness_min_signals: int = 2   # require 2-of-3 signals for aboutness edge
+    aboutness_threshold: float = 0.15  # min score to link surfaces into events (low for high recall)
 
     # Tension detection
     high_entropy_threshold: float = 0.6  # surface entropy above this triggers meta-claim
@@ -939,12 +939,228 @@ Return JSON:
 # LEVEL 2: EVENT (Virtual, Higher-order emergence)
 # =============================================================================
 
+class MembershipLevel(Enum):
+    """Membership tier for surface→event attachment."""
+    CORE = "core"           # High confidence, multiple strong signals
+    PERIPHERY = "periphery" # Moderate confidence, some evidence
+    QUARANTINE = "quarantine"  # Weak evidence, pending more data
+
+
+@dataclass
+class EventSignature:
+    """
+    Event signature ("self") - the membrane that defines what belongs.
+
+    This is the learnable profile that surfaces are matched against.
+    Unlike pairwise surface↔surface edges, this allows direct
+    surface→event attachment even without bridging surfaces.
+    """
+    # Anchor profile (IDF-weighted distribution)
+    anchor_weights: Dict[str, float] = field(default_factory=dict)
+
+    # Entity profile (non-anchor entities, IDF-weighted)
+    entity_weights: Dict[str, float] = field(default_factory=dict)
+
+    # Semantic profile
+    centroid: Optional[List[float]] = None
+    centroid_dispersion: float = 0.0  # How tight is the semantic cluster
+
+    # Time model
+    time_model: Literal["incident", "case"] = "incident"  # incident=tight, case=broad
+    time_window: Tuple[Optional[datetime], Optional[datetime]] = (None, None)
+
+    # Source profile
+    source_count: int = 0
+    source_diversity: float = 0.0  # 0=single source, 1=many independent
+
+    def match_score(
+        self,
+        surface: 'Surface',
+        anchor_idf: Dict[str, float],
+        entity_idf: Dict[str, float]
+    ) -> Tuple[float, Dict]:
+        """
+        Compute how well a surface matches this event signature.
+
+        Returns (score, evidence_dict).
+        """
+        evidence = {}
+        signals = 0
+
+        # 1. Anchor match (weighted by IDF)
+        anchor_score = 0.0
+        shared_anchors = set(self.anchor_weights.keys()) & surface.anchor_entities
+        if shared_anchors:
+            # Weight by both event's learned weight and global IDF
+            match_weight = sum(
+                self.anchor_weights.get(a, 0) * anchor_idf.get(a, 1.0)
+                for a in shared_anchors
+            )
+            max_weight = sum(self.anchor_weights.values()) or 1.0
+            anchor_score = min(match_weight / max_weight, 1.0)
+            if anchor_score > 0.3:
+                signals += 1
+        evidence['anchor_score'] = anchor_score
+        evidence['shared_anchors'] = list(shared_anchors)
+
+        # 2. Entity match (weighted by IDF)
+        entity_score = 0.0
+        non_anchor_ents = surface.entities - surface.anchor_entities
+        shared_entities = set(self.entity_weights.keys()) & non_anchor_ents
+        if shared_entities:
+            match_weight = sum(
+                self.entity_weights.get(e, 0) * entity_idf.get(e, 1.0)
+                for e in shared_entities
+            )
+            max_weight = sum(self.entity_weights.values()) or 1.0
+            entity_score = min(match_weight / max_weight, 1.0)
+            if entity_score > 0.3:
+                signals += 1
+        evidence['entity_score'] = entity_score
+
+        # 3. Semantic compatibility
+        semantic_score = 0.0
+        if self.centroid and surface.centroid:
+            semantic_score = cosine_similarity(self.centroid, surface.centroid)
+            # Account for event's dispersion - tight clusters need closer matches
+            if self.centroid_dispersion > 0:
+                # Adjust threshold based on how dispersed the event is
+                threshold = max(0.3, 0.5 - self.centroid_dispersion * 0.3)
+                if semantic_score > threshold:
+                    signals += 1
+            elif semantic_score > 0.45:
+                signals += 1
+        evidence['semantic_score'] = semantic_score
+
+        # 4. Time compatibility
+        time_score = 0.0
+        if self.time_window[0] and surface.time_window[0]:
+            time_score = temporal_overlap(self.time_window, surface.time_window)
+            # Incident mode: require tighter time overlap
+            if self.time_model == "incident" and time_score > 0.5:
+                signals += 1
+            elif self.time_model == "case" and time_score > 0.2:
+                signals += 1
+        evidence['time_score'] = time_score
+        evidence['signals'] = signals
+
+        # Composite score
+        score = (
+            0.40 * anchor_score +
+            0.25 * semantic_score +
+            0.20 * entity_score +
+            0.15 * time_score
+        )
+
+        # GATE: Require at least some anchor OR entity overlap
+        # Pure semantic matching is not sufficient for assimilation
+        # This prevents cross-event contamination
+        has_structural_overlap = anchor_score > 0.1 or entity_score > 0.1
+        evidence['has_structural_overlap'] = has_structural_overlap
+
+        if not has_structural_overlap:
+            # No structural overlap - quarantine at best
+            score = min(score, 0.15)  # Cap score below periphery threshold
+
+        return score, evidence
+
+    @classmethod
+    def from_surfaces(
+        cls,
+        surfaces: List['Surface'],
+        anchor_idf: Dict[str, float],
+        entity_idf: Dict[str, float]
+    ) -> 'EventSignature':
+        """Build signature from a set of surfaces."""
+        if not surfaces:
+            return cls()
+
+        # Anchor profile: aggregate and weight by IDF
+        anchor_counts = {}
+        for s in surfaces:
+            for a in s.anchor_entities:
+                anchor_counts[a] = anchor_counts.get(a, 0) + 1
+
+        anchor_weights = {}
+        for a, count in anchor_counts.items():
+            # Weight = frequency in event * global IDF
+            anchor_weights[a] = count * anchor_idf.get(a, 1.0)
+
+        # Entity profile (non-anchors)
+        entity_counts = {}
+        for s in surfaces:
+            for e in (s.entities - s.anchor_entities):
+                entity_counts[e] = entity_counts.get(e, 0) + 1
+
+        entity_weights = {}
+        for e, count in entity_counts.items():
+            entity_weights[e] = count * entity_idf.get(e, 1.0)
+
+        # Semantic centroid and dispersion
+        centroids = [s.centroid for s in surfaces if s.centroid]
+        if centroids:
+            centroid = np.mean(centroids, axis=0).tolist()
+            # Dispersion = average distance from centroid
+            if len(centroids) > 1:
+                distances = [1 - cosine_similarity(c, centroid) for c in centroids]
+                dispersion = np.mean(distances)
+            else:
+                dispersion = 0.0
+        else:
+            centroid = None
+            dispersion = 0.0
+
+        # Time window
+        starts = [s.time_window[0] for s in surfaces if s.time_window[0]]
+        ends = [s.time_window[1] for s in surfaces if s.time_window[1]]
+        time_window = (
+            min(starts) if starts else None,
+            max(ends) if ends else None
+        )
+
+        # Determine time model (incident vs case)
+        time_model = "incident"
+        if time_window[0] and time_window[1]:
+            span = (time_window[1] - time_window[0]).days
+            if span > 7:  # More than a week = case
+                time_model = "case"
+
+        # Source diversity
+        all_sources = set()
+        for s in surfaces:
+            all_sources.update(s.sources)
+        source_count = len(all_sources)
+        source_diversity = min(source_count / 5.0, 1.0)  # Normalize to 5 sources
+
+        return cls(
+            anchor_weights=anchor_weights,
+            entity_weights=entity_weights,
+            centroid=centroid,
+            centroid_dispersion=dispersion,
+            time_model=time_model,
+            time_window=time_window,
+            source_count=source_count,
+            source_diversity=source_diversity
+        )
+
+
+@dataclass
+class SurfaceMembership:
+    """Record of a surface's membership in an event."""
+    surface_id: str
+    level: MembershipLevel
+    score: float
+    evidence: Dict = field(default_factory=dict)
+    attached_at: datetime = field(default_factory=datetime.utcnow)
+
+
 @dataclass
 class Event:
     """
     Higher-level virtual unit. Emergent from surface relationships.
 
-    May group multiple related surfaces into a coherent narrative.
+    Uses metabolic assimilation: surfaces attach to events by matching
+    the event's signature, not by requiring pairwise surface edges.
     """
     id: str
     surface_ids: Set[str] = field(default_factory=set)
@@ -957,10 +1173,93 @@ class Event:
     anchor_entities: Set[str] = field(default_factory=set)
     time_window: Tuple[Optional[datetime], Optional[datetime]] = (None, None)
 
+    # Metabolic state (signature-based assimilation)
+    signature: Optional[EventSignature] = None
+    memberships: Dict[str, SurfaceMembership] = field(default_factory=dict)
+
     # Semantic interpretation
     canonical_title: Optional[str] = None
     narrative: Optional[str] = None
     timeline: List[Dict] = field(default_factory=list)
+
+    def assimilate(
+        self,
+        surface: Surface,
+        anchor_idf: Dict[str, float],
+        entity_idf: Dict[str, float],
+        core_threshold: float = 0.35,
+        periphery_threshold: float = 0.20
+    ) -> Optional[SurfaceMembership]:
+        """
+        Attempt to assimilate a surface into this event.
+
+        Returns SurfaceMembership if accepted, None if rejected.
+
+        Membership levels:
+        - CORE: score >= core_threshold AND signals >= 2
+        - PERIPHERY: score >= periphery_threshold AND signals >= 1
+        - QUARANTINE: periphery_threshold > score >= 0.10 (weak evidence)
+        """
+        if not self.signature:
+            return None
+
+        score, evidence = self.signature.match_score(surface, anchor_idf, entity_idf)
+        signals = evidence.get('signals', 0)
+
+        # Determine membership level
+        level = None
+        if score >= core_threshold and signals >= 2:
+            level = MembershipLevel.CORE
+        elif score >= periphery_threshold and signals >= 1:
+            level = MembershipLevel.PERIPHERY
+        elif score >= 0.10:
+            level = MembershipLevel.QUARANTINE
+
+        if level is None:
+            return None
+
+        membership = SurfaceMembership(
+            surface_id=surface.id,
+            level=level,
+            score=score,
+            evidence=evidence
+        )
+
+        # Add to event
+        self.surface_ids.add(surface.id)
+        self.memberships[surface.id] = membership
+
+        return membership
+
+    def update_signature(
+        self,
+        surfaces: List[Surface],
+        anchor_idf: Dict[str, float],
+        entity_idf: Dict[str, float]
+    ) -> None:
+        """Recompute signature from current surfaces."""
+        self.signature = EventSignature.from_surfaces(surfaces, anchor_idf, entity_idf)
+
+    def core_surfaces(self) -> Set[str]:
+        """Return surface IDs with CORE membership."""
+        return {
+            sid for sid, m in self.memberships.items()
+            if m.level == MembershipLevel.CORE
+        }
+
+    def periphery_surfaces(self) -> Set[str]:
+        """Return surface IDs with PERIPHERY membership."""
+        return {
+            sid for sid, m in self.memberships.items()
+            if m.level == MembershipLevel.PERIPHERY
+        }
+
+    def quarantine_surfaces(self) -> Set[str]:
+        """Return surface IDs with QUARANTINE membership."""
+        return {
+            sid for sid, m in self.memberships.items()
+            if m.level == MembershipLevel.QUARANTINE
+        }
 
     @classmethod
     def from_surfaces(cls, event_id: str, surfaces: List[Surface]) -> 'Event':
@@ -1146,8 +1445,12 @@ class EmergenceEngine:
         relations_found = []
 
         # =====================================================================
-        # PATH A: Claims WITH question_key → bucket → rule-based
+        # PATH A: Claims WITH question_key → bucket → anchor check → rule-based
         # =====================================================================
+        # question_key alone is NOT sufficient for identity — claims about
+        # different events can have the same question_key (e.g., two different
+        # fires both have "death_count" claims). We must also check for
+        # anchor overlap to ensure they're about the SAME event.
         if claim.question_key:
             bucket_claim_ids = self.question_index.get(claim.question_key, [])
             candidates = [
@@ -1156,6 +1459,16 @@ class EmergenceEngine:
             ]
 
             for other in candidates:
+                # ANCHOR CHECK: Claims must share anchors or have high entity overlap
+                # to be about the same event. Without this, we'd conflate
+                # "13 dead in HK fire" with "13 dead in Brown shooting".
+                shared_anchors = claim.anchor_entities & other.anchor_entities
+                shared_entities = claim.entities & other.entities
+
+                # Require either shared anchors OR significant entity overlap
+                if not shared_anchors and len(shared_entities) < 2:
+                    continue  # Different events, skip
+
                 # Within-bucket classification (rule-based, no LLM needed)
                 relation, confidence, reasoning = claim.classify_within_bucket(other)
 
@@ -1303,15 +1616,27 @@ class EmergenceEngine:
             else:
                 anchor_idf[anchor] = math.log(1 + n_surfaces / df)
 
-        # Compute entity IDF across surfaces
+        # Compute entity IDF across surfaces WITH hub penalty
+        # Hub entities (appearing in many surfaces) get zero weight
         entity_df = defaultdict(int)
         for s in surfaces:
             for e in s.entities:
                 entity_df[e] += 1
-        entity_idf = {
-            e: math.log(1 + n_surfaces / df)
-            for e, df in entity_df.items()
+
+        # Hub locations that should always be penalized
+        HUB_ENTITIES = {
+            'Hong Kong', 'China', 'United States', 'US', 'UK',
+            'United Kingdom', 'Beijing', 'Taiwan', 'Europe'
         }
+
+        entity_idf = {}
+        for e, df in entity_df.items():
+            if e in HUB_ENTITIES:
+                entity_idf[e] = 0.0  # Hub penalty: zero weight for known hubs
+            elif df > hub_max_df:
+                entity_idf[e] = 0.0  # Hub penalty: zero weight for frequent entities
+            else:
+                entity_idf[e] = math.log(1 + n_surfaces / df)
 
         aboutness_edges = []
 
@@ -1338,27 +1663,32 @@ class EmergenceEngine:
                 evidence['shared_anchors'] = list(shared_anchors)
 
                 # Signal 2: Semantic similarity (centroid)
+                # Higher threshold (0.45) because semantic alone is not discriminative
                 semantic_score = 0.0
                 if s1.centroid and s2.centroid:
                     semantic_score = cosine_similarity(s1.centroid, s2.centroid)
-                    if semantic_score > 0.5:
+                    if semantic_score > 0.45:  # Raised from 0.4 - need stronger semantic signal
                         signals_met += 1
                 evidence['semantic_score'] = semantic_score
 
-                # Signal 3: Entity overlap (IDF-weighted, excluding anchors)
-                shared_entities = s1.entities & s2.entities
+                # Signal 3: Entity overlap (IDF-weighted, EXCLUDING anchors)
+                # Exclude anchor entities to avoid double-counting
+                non_anchor_entities_1 = s1.entities - s1.anchor_entities
+                non_anchor_entities_2 = s2.entities - s2.anchor_entities
+                shared_entities = non_anchor_entities_1 & non_anchor_entities_2
                 entity_score = 0.0
                 if shared_entities:
                     entity_weight = sum(entity_idf.get(e, 0) for e in shared_entities)
                     max_entity = max(
-                        sum(entity_idf.get(e, 0) for e in s1.entities),
-                        sum(entity_idf.get(e, 0) for e in s2.entities),
+                        sum(entity_idf.get(e, 0) for e in non_anchor_entities_1),
+                        sum(entity_idf.get(e, 0) for e in non_anchor_entities_2),
                         1.0
                     )
                     entity_score = min(entity_weight / max_entity, 1.0)
                     if entity_score > 0.3:
                         signals_met += 1
                 evidence['entity_score'] = entity_score
+                evidence['shared_entities'] = list(shared_entities)[:5]
 
                 # Signal 4: Source diversity (different sources = more evidence)
                 source_overlap = len(s1.sources & s2.sources)
@@ -1369,11 +1699,27 @@ class EmergenceEngine:
                 if signals_met < min_signals:
                     continue
 
+                # Additional gate: if ONLY anchor signal, require semantic confirmation
+                # This prevents hub-figure contamination (e.g., "John Lee" connecting
+                # unrelated Hong Kong events)
+                anchor_only = (anchor_score > 0.3 and semantic_score < 0.5 and entity_score < 0.3)
+                if anchor_only and semantic_score < 0.4:
+                    continue  # Skip: anchor-only without semantic support
+
+                # Additional gate: if ONLY semantic signal, require very high similarity
+                # Semantic similarity alone is not discriminative - two Hong Kong news events
+                # can have 0.6+ semantic similarity without being about the same event
+                semantic_only = (semantic_score > 0.45 and anchor_score < 0.3 and entity_score < 0.3)
+                if semantic_only and semantic_score < 0.85:
+                    continue  # Skip: semantic-only requires very high threshold
+
                 # Compute overall aboutness score
+                # Anchor signal is strongest (non-hub anchors are very specific)
+                # Semantic is weaker because it doesn't discriminate well
                 score = (
-                    0.35 * anchor_score +
-                    0.30 * semantic_score +
-                    0.25 * entity_score +
+                    0.45 * anchor_score +
+                    0.25 * semantic_score +
+                    0.20 * entity_score +
                     0.10 * source_diversity
                 )
 
@@ -1456,6 +1802,296 @@ class EmergenceEngine:
             self.events[event_id] = event
 
         return list(self.events.values())
+
+    def compute_events_metabolic(self) -> List['Event']:
+        """
+        Cluster surfaces into events using metabolic assimilation.
+
+        Unlike connected-components approach, this:
+        1. Seeds events from high-connectivity surfaces
+        2. Assimilates remaining surfaces by signature match
+        3. Runs homeostasis to merge/split events
+
+        This fixes fragmentation because surfaces don't need pairwise edges;
+        they only need to match the event's learned signature.
+        """
+        import math
+        from collections import defaultdict
+
+        if not self.surfaces:
+            return []
+
+        surfaces = list(self.surfaces.values())
+        n_surfaces = len(surfaces)
+
+        # Compute global IDF for anchors and entities
+        anchor_df = defaultdict(int)
+        entity_df = defaultdict(int)
+        for s in surfaces:
+            for a in s.anchor_entities:
+                anchor_df[a] += 1
+            for e in (s.entities - s.anchor_entities):
+                entity_df[e] += 1
+
+        # Standard IDF weighting - no ad-hoc hub lists
+        # The fundamental question: what makes an anchor "event-identifying"?
+        anchor_idf = {}
+        for a, df in anchor_df.items():
+            anchor_idf[a] = math.log(1 + n_surfaces / df)
+
+        entity_idf = {}
+        for e, df in entity_df.items():
+            entity_idf[e] = math.log(1 + n_surfaces / df)
+
+        # Phase 1: Seed events from high-value surfaces
+        # A surface is high-value if it has specific (non-hub) anchors
+        def surface_specificity(s):
+            """Score indicating how "specific" a surface is (good seed)."""
+            anchor_weight = sum(anchor_idf.get(a, 0) for a in s.anchor_entities)
+            # Penalize surfaces with no specific anchors
+            if anchor_weight == 0:
+                return 0.0
+            return anchor_weight
+
+        # Sort surfaces by specificity (best seeds first)
+        sorted_surfaces = sorted(surfaces, key=surface_specificity, reverse=True)
+
+        # Track which surfaces have been assigned
+        assigned = set()
+        self.events = {}
+
+        # Phase 2: Create events from seed surfaces and assimilate others
+        for seed in sorted_surfaces:
+            if seed.id in assigned:
+                continue
+
+            # Only seed from surfaces with non-zero specificity
+            if surface_specificity(seed) == 0:
+                continue
+
+            # Create new event from seed
+            self._event_counter += 1
+            event_id = f"E{self._event_counter:03d}"
+
+            event = Event(id=event_id)
+            event.surface_ids.add(seed.id)
+            event.memberships[seed.id] = SurfaceMembership(
+                surface_id=seed.id,
+                level=MembershipLevel.CORE,
+                score=1.0,
+                evidence={'seed': True}
+            )
+            assigned.add(seed.id)
+
+            # Build initial signature from seed
+            event.update_signature([seed], anchor_idf, entity_idf)
+
+            # Try to assimilate unassigned surfaces
+            changed = True
+            while changed:
+                changed = False
+                for s in surfaces:
+                    if s.id in assigned:
+                        continue
+
+                    membership = event.assimilate(
+                        s, anchor_idf, entity_idf,
+                        core_threshold=0.30,
+                        periphery_threshold=0.18
+                    )
+
+                    if membership and membership.level in (MembershipLevel.CORE, MembershipLevel.PERIPHERY):
+                        assigned.add(s.id)
+                        changed = True
+
+                        # Update signature with new surface
+                        current_surfaces = [
+                            self.surfaces[sid] for sid in event.surface_ids
+                            if sid in self.surfaces
+                        ]
+                        event.update_signature(current_surfaces, anchor_idf, entity_idf)
+
+            # Populate event properties
+            event_surfaces = [self.surfaces[sid] for sid in event.surface_ids]
+            event.centroid = event.signature.centroid if event.signature else None
+            event.total_claims = sum(len(s.claim_ids) for s in event_surfaces)
+            event.entities = set()
+            event.anchor_entities = set()
+            for s in event_surfaces:
+                event.entities.update(s.entities)
+                event.anchor_entities.update(s.anchor_entities)
+            event.time_window = event.signature.time_window if event.signature else (None, None)
+            event.total_sources = event.signature.source_count if event.signature else 0
+
+            self.events[event_id] = event
+
+        # Phase 3: Try to assign remaining surfaces to established events
+        # with STRICT anchor-first rules (no semantic glue)
+        unassigned_surfaces = [s for s in surfaces if s.id not in assigned]
+
+        for s in unassigned_surfaces:
+            # Get surface's specific anchors
+            surface_anchors = {a for a in s.anchor_entities if anchor_idf.get(a, 0) > 0}
+
+            # If surface has specific anchors, it MUST match event's core anchors
+            if surface_anchors:
+                # Find event with matching core anchor
+                best_event = None
+                best_score = 0.0
+                candidates = []
+
+                for event in self.events.values():
+                    if not event.signature:
+                        continue
+                    # Get event's core anchors (top by weight)
+                    event_core = set(event.signature.anchor_weights.keys())
+                    shared = surface_anchors & event_core
+                    if shared:
+                        # Score by IDF-weighted anchor match
+                        score = sum(anchor_idf.get(a, 0) for a in shared)
+                        candidates.append((event, score, shared))
+
+                if len(candidates) == 1:
+                    # Unique match - assign as periphery
+                    best_event, best_score, shared = candidates[0]
+                    assigned.add(s.id)
+                    best_event.surface_ids.add(s.id)
+                    best_event.memberships[s.id] = SurfaceMembership(
+                        surface_id=s.id,
+                        level=MembershipLevel.PERIPHERY,
+                        score=best_score,
+                        evidence={'anchor_match': list(shared)}
+                    )
+                elif len(candidates) > 1:
+                    # AMBIGUOUS - scores similarly against multiple events
+                    # Do NOT assign; leave for quarantine with meta-claim
+                    pass
+                # If no candidates, surface stays unassigned (quarantine)
+
+            else:
+                # Surface has NO specific anchors - cannot reliably assign
+                # These stay as quarantine singletons (better than cross-contamination)
+                pass
+
+        # Phase 4: Create singleton events for still-unassigned surfaces
+        for s in surfaces:
+            if s.id in assigned:
+                continue
+
+            self._event_counter += 1
+            event_id = f"E{self._event_counter:03d}"
+
+            event = Event(id=event_id)
+            event.surface_ids.add(s.id)
+            event.memberships[s.id] = SurfaceMembership(
+                surface_id=s.id,
+                level=MembershipLevel.QUARANTINE,
+                score=0.0,
+                evidence={'singleton': True, 'reason': 'no_specific_anchors'}
+            )
+            event.update_signature([s], anchor_idf, entity_idf)
+            event.centroid = s.centroid
+            event.total_claims = len(s.claim_ids)
+            event.entities = s.entities.copy()
+            event.anchor_entities = s.anchor_entities.copy()
+            event.time_window = s.time_window
+            event.total_sources = len(s.sources)
+
+            self.events[event_id] = event
+            assigned.add(s.id)
+
+        # Phase 5: Homeostasis - try to merge compatible events
+        self._homeostasis_merge(anchor_idf, entity_idf)
+
+        return list(self.events.values())
+
+    def _homeostasis_merge(
+        self,
+        anchor_idf: Dict[str, float],
+        entity_idf: Dict[str, float]
+    ) -> int:
+        """
+        Merge events that are compatible.
+
+        Returns number of merges performed.
+        """
+        merges = 0
+        events = list(self.events.values())
+
+        # Try all pairs
+        merged_ids = set()
+        for i, e1 in enumerate(events):
+            if e1.id in merged_ids:
+                continue
+
+            for e2 in events[i+1:]:
+                if e2.id in merged_ids:
+                    continue
+
+                # Check if events should merge
+                if self._should_merge_events(e1, e2, anchor_idf, entity_idf):
+                    # Merge e2 into e1
+                    for sid in e2.surface_ids:
+                        e1.surface_ids.add(sid)
+                        if sid in e2.memberships:
+                            e1.memberships[sid] = e2.memberships[sid]
+
+                    # Update signature
+                    all_surfaces = [
+                        self.surfaces[sid] for sid in e1.surface_ids
+                        if sid in self.surfaces
+                    ]
+                    e1.update_signature(all_surfaces, anchor_idf, entity_idf)
+
+                    # Update properties
+                    e1.entities.update(e2.entities)
+                    e1.anchor_entities.update(e2.anchor_entities)
+                    e1.total_claims += e2.total_claims
+                    e1.total_sources = e1.signature.source_count if e1.signature else 0
+                    e1.centroid = e1.signature.centroid if e1.signature else None
+                    e1.time_window = e1.signature.time_window if e1.signature else (None, None)
+
+                    merged_ids.add(e2.id)
+                    merges += 1
+
+        # Remove merged events
+        for eid in merged_ids:
+            del self.events[eid]
+
+        return merges
+
+    def _should_merge_events(
+        self,
+        e1: Event,
+        e2: Event,
+        anchor_idf: Dict[str, float],
+        entity_idf: Dict[str, float]
+    ) -> bool:
+        """
+        Determine if two events should merge.
+
+        STRICT: Only merge if they share a HIGH-SPECIFICITY anchor.
+        Semantic similarity is NOT sufficient - it's not event-identifying.
+        """
+        if not e1.signature or not e2.signature:
+            return False
+
+        # Check for shared specific anchors
+        shared_anchors = set(e1.signature.anchor_weights.keys()) & set(e2.signature.anchor_weights.keys())
+        specific_shared = [a for a in shared_anchors if anchor_idf.get(a, 0) > 1.0]  # High IDF only
+
+        if not specific_shared:
+            # No specific shared anchor - do NOT merge
+            return False
+
+        # Have specific shared anchors - require moderate semantic too
+        # (to avoid merging unrelated events that share a moderately common anchor)
+        if e1.signature.centroid and e2.signature.centroid:
+            sim = cosine_similarity(e1.signature.centroid, e2.signature.centroid)
+            if sim > 0.40:
+                return True
+
+        return False
 
     # =========================================================================
     # META-CLAIMS: Tension Detection (INVARIANT 6)

@@ -1,0 +1,1486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Collaborative Epistemic Engine</title>
+    <style>
+        :root {
+            --bg: #0a0a0f;
+            --surface: #12121a;
+            --surface-2: #1a1a24;
+            --surface-3: #222230;
+            --border: #2a2a3a;
+            --text: #e0e0e8;
+            --text-dim: #8888a0;
+            --accent: #6366f1;
+            --green: #22c55e;
+            --green-dim: rgba(34, 197, 94, 0.15);
+            --red: #ef4444;
+            --red-dim: rgba(239, 68, 68, 0.15);
+            --yellow: #eab308;
+            --yellow-dim: rgba(234, 179, 8, 0.15);
+            --blue: #3b82f6;
+            --blue-dim: rgba(59, 130, 246, 0.15);
+            --purple: #a855f7;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 1rem;
+        }
+
+        /* Header */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+
+        .logo {
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        .event-selector {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        select, input, textarea, button {
+            font-family: inherit;
+            font-size: 0.85rem;
+        }
+
+        select {
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+        }
+
+        button {
+            background: var(--accent);
+            border: none;
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        button.secondary {
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 0.25rem;
+            margin-bottom: 1rem;
+            background: var(--surface);
+            padding: 0.5rem;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        .tab {
+            padding: 0.75rem 1.5rem;
+            background: transparent;
+            border: none;
+            color: var(--text-dim);
+            cursor: pointer;
+            border-radius: 6px;
+            font-weight: 500;
+        }
+
+        .tab.active {
+            background: var(--accent);
+            color: white;
+        }
+
+        .tab-count {
+            display: inline-block;
+            min-width: 20px;
+            padding: 0.1rem 0.4rem;
+            background: var(--surface-2);
+            border-radius: 10px;
+            font-size: 0.7rem;
+            margin-left: 0.5rem;
+        }
+
+        .tab.active .tab-count {
+            background: rgba(255,255,255,0.2);
+        }
+
+        /* Main Layout */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 1rem;
+        }
+
+        /* Panel */
+        .panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            background: var(--surface-2);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .panel-title {
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .panel-content {
+            padding: 1rem;
+        }
+
+        /* Status Bar */
+        .status-bar {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+
+        .status-item {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem;
+            text-align: center;
+        }
+
+        .status-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        .status-label {
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+        }
+
+        .green { color: var(--green); }
+        .yellow { color: var(--yellow); }
+        .red { color: var(--red); }
+        .blue { color: var(--blue); }
+
+        /* Phase Badge */
+        .phase-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.3rem 0.75rem;
+            border-radius: 2rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .phase-badge.emerging { background: var(--yellow-dim); color: var(--yellow); }
+        .phase-badge.converging { background: var(--blue-dim); color: var(--blue); }
+        .phase-badge.stable { background: var(--green-dim); color: var(--green); }
+        .phase-badge.contested { background: var(--red-dim); color: var(--red); }
+
+        .phase-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: currentColor;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Tab Content */
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* === EMERGENCE TAB === */
+        .emergence-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .claim-stream {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .claim-item {
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            background: var(--surface-2);
+            border-radius: 6px;
+            border-left: 3px solid var(--border);
+        }
+
+        .claim-item.corroborates { border-left-color: var(--green); }
+        .claim-item.updates { border-left-color: var(--blue); }
+        .claim-item.contradicts { border-left-color: var(--red); }
+        .claim-item.seeds { border-left-color: var(--yellow); }
+
+        .claim-text {
+            font-size: 0.85rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .claim-meta {
+            display: flex;
+            gap: 0.5rem;
+            font-size: 0.7rem;
+            color: var(--text-dim);
+        }
+
+        .claim-relation {
+            padding: 0.1rem 0.4rem;
+            border-radius: 3px;
+            font-weight: 500;
+        }
+
+        .claim-relation.corroborates { background: var(--green-dim); color: var(--green); }
+        .claim-relation.updates { background: var(--blue-dim); color: var(--blue); }
+        .claim-relation.contradicts { background: var(--red-dim); color: var(--red); }
+        .claim-relation.seeds { background: var(--yellow-dim); color: var(--yellow); }
+
+        .claim-actions {
+            margin-top: 0.5rem;
+        }
+
+        .claim-actions button {
+            font-size: 0.7rem;
+            padding: 0.25rem 0.5rem;
+            background: var(--surface);
+        }
+
+        /* Belief States */
+        .belief-state {
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            background: var(--surface-2);
+            border-radius: 6px;
+        }
+
+        .belief-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .belief-name {
+            font-weight: 600;
+        }
+
+        .belief-value {
+            font-size: 1.25rem;
+            font-weight: 700;
+        }
+
+        .belief-entropy {
+            font-size: 0.7rem;
+            padding: 0.15rem 0.4rem;
+            background: var(--surface);
+            border-radius: 3px;
+        }
+
+        .belief-history {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+        }
+
+        /* === CONFLICTS TAB === */
+        .conflict-item {
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            background: var(--red-dim);
+            border: 1px solid var(--red);
+            border-radius: 8px;
+        }
+
+        .conflict-item.resolved {
+            background: var(--green-dim);
+            border-color: var(--green);
+        }
+
+        .conflict-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .conflict-topic {
+            font-weight: 600;
+            text-transform: capitalize;
+        }
+
+        .conflict-status {
+            font-size: 0.7rem;
+            padding: 0.2rem 0.5rem;
+            border-radius: 3px;
+            text-transform: uppercase;
+        }
+
+        .conflict-status.active { background: var(--red); color: white; }
+        .conflict-status.resolved { background: var(--green); color: white; }
+
+        .conflict-values {
+            display: flex;
+            gap: 1rem;
+            margin: 0.75rem 0;
+        }
+
+        .conflict-value {
+            flex: 1;
+            padding: 0.75rem;
+            background: var(--surface);
+            border-radius: 6px;
+            text-align: center;
+        }
+
+        .conflict-value-num {
+            font-size: 1.25rem;
+            font-weight: 700;
+        }
+
+        .conflict-value-support {
+            font-size: 0.7rem;
+            color: var(--text-dim);
+        }
+
+        .conflict-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+        }
+
+        /* === CR TAB === */
+        .cr-item {
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+
+        .cr-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .cr-target {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+        }
+
+        .cr-status {
+            font-size: 0.7rem;
+            padding: 0.2rem 0.5rem;
+            border-radius: 3px;
+            text-transform: uppercase;
+        }
+
+        .cr-status.open { background: var(--yellow); color: black; }
+        .cr-status.accepted { background: var(--green); color: white; }
+        .cr-status.rejected { background: var(--red); color: white; }
+
+        .cr-reason {
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .cr-meta {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+        }
+
+        /* === VERSIONS TAB === */
+        .version-item {
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+        }
+
+        .version-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+
+        .version-num {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        .version-meta {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+        }
+
+        .version-prose {
+            font-size: 0.9rem;
+            line-height: 1.7;
+            padding: 0.75rem;
+            background: var(--surface);
+            border-radius: 6px;
+            margin-bottom: 0.75rem;
+        }
+
+        .version-facts {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .version-fact {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+        }
+
+        .version-fact.certain { background: var(--green-dim); color: var(--green); }
+        .version-fact.likely { background: var(--blue-dim); color: var(--blue); }
+        .version-fact.uncertain { background: var(--yellow-dim); color: var(--yellow); }
+
+        /* === SIDEBAR === */
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        /* Add Claim Form */
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            margin-bottom: 0.25rem;
+        }
+
+        input[type="text"], textarea {
+            width: 100%;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 0.75rem;
+            border-radius: 6px;
+        }
+
+        textarea {
+            min-height: 80px;
+            resize: vertical;
+        }
+
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        /* Convergence Chart */
+        .convergence-chart {
+            height: 120px;
+            position: relative;
+        }
+
+        .chart-canvas {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Audit Log */
+        .audit-item {
+            padding: 0.5rem;
+            margin-bottom: 0.25rem;
+            background: var(--surface-2);
+            border-radius: 4px;
+            font-size: 0.75rem;
+        }
+
+        .audit-action {
+            color: var(--accent);
+        }
+
+        .audit-time {
+            color: var(--text-dim);
+            float: right;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            display: none;
+        }
+
+        .modal-overlay.visible {
+            display: flex;
+        }
+
+        .modal {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            width: 500px;
+            max-width: 90%;
+        }
+
+        .modal-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <div class="logo">Collaborative Epistemic Engine</div>
+            <div class="event-selector">
+                <select id="event-select" onchange="loadEvent(this.value)">
+                    <option value="">Select Event...</option>
+                </select>
+                <button onclick="showCreateEventModal()">+ New Event</button>
+            </div>
+        </header>
+
+        <!-- Status Bar -->
+        <div class="status-bar" id="status-bar">
+            <div class="status-item">
+                <div class="status-value" id="status-phase">
+                    <span class="phase-badge emerging">
+                        <span class="phase-dot"></span>
+                        --
+                    </span>
+                </div>
+                <div class="status-label">Phase</div>
+            </div>
+            <div class="status-item">
+                <div class="status-value green" id="status-entropy">--</div>
+                <div class="status-label">Entropy</div>
+            </div>
+            <div class="status-item">
+                <div class="status-value" id="status-coherence">--</div>
+                <div class="status-label">Coherence</div>
+            </div>
+            <div class="status-item">
+                <div class="status-value" id="status-claims">--</div>
+                <div class="status-label">Claims</div>
+            </div>
+            <div class="status-item">
+                <div class="status-value" id="status-version">--</div>
+                <div class="status-label">Version</div>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('emergence')">
+                Emergence
+                <span class="tab-count" id="tab-count-claims">0</span>
+            </button>
+            <button class="tab" onclick="showTab('conflicts')">
+                Conflicts
+                <span class="tab-count" id="tab-count-conflicts">0</span>
+            </button>
+            <button class="tab" onclick="showTab('cr')">
+                Corrections
+                <span class="tab-count" id="tab-count-cr">0</span>
+            </button>
+            <button class="tab" onclick="showTab('versions')">
+                Versions
+                <span class="tab-count" id="tab-count-versions">0</span>
+            </button>
+            <button class="tab" onclick="showTab('audit')">
+                Audit Log
+            </button>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-grid">
+            <!-- Tab Contents -->
+            <div class="tab-contents">
+                <!-- EMERGENCE TAB -->
+                <div class="tab-content active" id="tab-emergence">
+                    <div class="emergence-grid">
+                        <div class="panel">
+                            <div class="panel-header">
+                                <span class="panel-title">Claim Stream</span>
+                                <span class="panel-title" style="color: var(--text-dim);" id="claim-count">0 claims</span>
+                            </div>
+                            <div class="panel-content">
+                                <div class="claim-stream" id="claim-stream">
+                                    <div style="color: var(--text-dim); text-align: center; padding: 2rem;">
+                                        No claims yet. Add evidence to begin.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="panel">
+                            <div class="panel-header">
+                                <span class="panel-title">Belief States</span>
+                            </div>
+                            <div class="panel-content">
+                                <div id="belief-states">
+                                    <div style="color: var(--text-dim); text-align: center; padding: 2rem;">
+                                        Metrics will appear as claims are processed.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CONFLICTS TAB -->
+                <div class="tab-content" id="tab-conflicts">
+                    <div class="panel">
+                        <div class="panel-header">
+                            <span class="panel-title">Contradictions</span>
+                        </div>
+                        <div class="panel-content" id="conflicts-list">
+                            <div style="color: var(--text-dim); text-align: center; padding: 2rem;">
+                                No contradictions detected.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CR TAB -->
+                <div class="tab-content" id="tab-cr">
+                    <div class="panel">
+                        <div class="panel-header">
+                            <span class="panel-title">Correction Requests</span>
+                            <button onclick="showFileCRModal()">+ File CR</button>
+                        </div>
+                        <div class="panel-content" id="cr-list">
+                            <div style="color: var(--text-dim); text-align: center; padding: 2rem;">
+                                No correction requests.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- VERSIONS TAB -->
+                <div class="tab-content" id="tab-versions">
+                    <div class="panel">
+                        <div class="panel-header">
+                            <span class="panel-title">Narrative Versions</span>
+                            <button onclick="releaseVersion()">Release Version</button>
+                        </div>
+                        <div class="panel-content" id="versions-list">
+                            <div style="color: var(--text-dim); text-align: center; padding: 2rem;">
+                                No versions released yet.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- AUDIT TAB -->
+                <div class="tab-content" id="tab-audit">
+                    <div class="panel">
+                        <div class="panel-header">
+                            <span class="panel-title">Audit Log</span>
+                        </div>
+                        <div class="panel-content" id="audit-list" style="max-height: 500px; overflow-y: auto;">
+                            <div style="color: var(--text-dim); text-align: center; padding: 2rem;">
+                                No activity recorded.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sidebar -->
+            <div class="sidebar">
+                <!-- Add Claim Panel -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <span class="panel-title">Add Evidence</span>
+                    </div>
+                    <div class="panel-content">
+                        <div class="form-group">
+                            <label class="form-label">Claim Text</label>
+                            <textarea id="claim-text" placeholder="Enter claim from a source..."></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Source</label>
+                            <input type="text" id="claim-source" placeholder="e.g., Reuters, BBC, Official">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Publication Time (optional)</label>
+                            <input type="text" id="claim-time" placeholder="e.g., 2024-11-26T10:30:00">
+                        </div>
+                        <button onclick="addClaim()" style="width: 100%;">Add Claim → Process</button>
+                        <div id="claim-result" style="margin-top: 1rem;"></div>
+                    </div>
+                </div>
+
+                <!-- Convergence Chart -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <span class="panel-title">Convergence</span>
+                    </div>
+                    <div class="panel-content">
+                        <div class="convergence-chart">
+                            <canvas id="convergence-canvas" class="chart-canvas"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Stats -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <span class="panel-title">Quick Stats</span>
+                    </div>
+                    <div class="panel-content" id="quick-stats">
+                        <div style="color: var(--text-dim);">Select an event to view stats.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Event Modal -->
+    <div class="modal-overlay" id="modal-create-event">
+        <div class="modal">
+            <div class="modal-title">Create New Event</div>
+            <div class="form-group">
+                <label class="form-label">Event Title</label>
+                <input type="text" id="new-event-title" placeholder="e.g., Wang Fuk Court Fire">
+            </div>
+            <div class="modal-actions">
+                <button class="secondary" onclick="hideModal('modal-create-event')">Cancel</button>
+                <button onclick="createEvent()">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Resolve Conflict Modal -->
+    <div class="modal-overlay" id="modal-resolve-conflict">
+        <div class="modal">
+            <div class="modal-title">Resolve Conflict</div>
+            <input type="hidden" id="resolve-conflict-id">
+            <div class="form-group">
+                <label class="form-label">Resolution Method</label>
+                <select id="resolve-method">
+                    <option value="temporal_update">Temporal Update (later value)</option>
+                    <option value="evidence_weight">Evidence Weight (more support)</option>
+                    <option value="user_judgment">User Judgment</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Chosen Value</label>
+                <input type="text" id="resolve-value">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Explanation</label>
+                <textarea id="resolve-explanation" placeholder="Explain your resolution..."></textarea>
+            </div>
+            <div class="modal-actions">
+                <button class="secondary" onclick="hideModal('modal-resolve-conflict')">Cancel</button>
+                <button onclick="submitResolveConflict()">Resolve</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- File CR Modal -->
+    <div class="modal-overlay" id="modal-file-cr">
+        <div class="modal">
+            <div class="modal-title">File Correction Request</div>
+            <div class="form-group">
+                <label class="form-label">Target Type</label>
+                <select id="cr-target-type">
+                    <option value="claim">Claim</option>
+                    <option value="belief">Belief State</option>
+                    <option value="narrative">Narrative</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Target ID</label>
+                <input type="text" id="cr-target-id" placeholder="ID of the target">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Reason</label>
+                <textarea id="cr-reason" placeholder="Describe the issue..."></textarea>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Suggested Fix (optional)</label>
+                <textarea id="cr-fix" placeholder="How should it be fixed?"></textarea>
+            </div>
+            <div class="modal-actions">
+                <button class="secondary" onclick="hideModal('modal-file-cr')">Cancel</button>
+                <button onclick="submitCR()">File CR</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // =============================================================================
+        // CONFIG
+        // =============================================================================
+        const API_BASE = 'http://localhost:5050/api';
+        const DATA_BASE = 'data';  // Static data files
+        const USE_STATIC_DATA = true;  // Set to false to use live API
+        let currentEventId = null;
+        let currentEvent = null;
+        let entropyHistory = [];
+
+        // =============================================================================
+        // API CALLS
+        // =============================================================================
+
+        async function api(endpoint, method = 'GET', body = null) {
+            const options = {
+                method,
+                headers: { 'Content-Type': 'application/json' }
+            };
+            if (body) options.body = JSON.stringify(body);
+
+            try {
+                const res = await fetch(`${API_BASE}${endpoint}`, options);
+                return await res.json();
+            } catch (e) {
+                console.error('API Error:', e);
+                return { error: e.message };
+            }
+        }
+
+        async function fetchStatic(filename) {
+            try {
+                const res = await fetch(`${DATA_BASE}/${filename}`);
+                return await res.json();
+            } catch (e) {
+                console.error('Static data error:', e);
+                return { error: e.message };
+            }
+        }
+
+        // Transform static epistemic narrative format to UI-expected format
+        function transformEpistemicData(data) {
+            if (!data || data.error) return data;
+
+            // Compute average confidence from sections
+            const sections = data.sections || [];
+            const avgConfidence = sections.length > 0
+                ? sections.reduce((sum, s) => sum + (s.confidence || 0.5), 0) / sections.length
+                : 0.5;
+
+            // Generate synthetic claims from sections
+            const claims = [];
+            sections.forEach((section, idx) => {
+                claims.push({
+                    id: `claim_section_${idx}`,
+                    text: section.prose,
+                    source: section.sources?.map(s => s.name).join(', ') || 'Multiple sources',
+                    relation: { relation: section.epistemic_status === 'established' ? 'corroborates' : 'seeds' },
+                    added_at: data.generated_at
+                });
+            });
+
+            // Generate synthetic belief states from sections
+            const beliefStates = sections.map((section, idx) => ({
+                metric: section.id,
+                label: section.heading,
+                belief: section.epistemic_status === 'established' ? '✓ Established' : '? Contested',
+                entropy: 1 - (section.confidence || 0.5),
+                prior: 'none',
+                history: [],
+                corroborations: section.sources?.length || 0,
+                contradictions: 0
+            }));
+
+            return {
+                id: data.event_id,
+                title: data.title,
+                phase: avgConfidence > 0.8 ? 'converged' : avgConfidence > 0.5 ? 'contested' : 'emerging',
+                entropy: 1 - avgConfidence,
+                coherence: avgConfidence,
+                claim_count: claims.length,
+                claims: claims,
+                belief_states: beliefStates,
+                contradictions: [],
+                correction_requests: [],
+                versions: [],
+                prose: data.summary,
+                sections: sections  // Keep original sections for narrative display
+            };
+        }
+
+        // =============================================================================
+        // EVENT MANAGEMENT
+        // =============================================================================
+
+        async function loadEvents() {
+            let events;
+            if (USE_STATIC_DATA) {
+                const index = await fetchStatic('index_epistemic.json');
+                events = index.events || [];
+            } else {
+                events = await api('/events');
+            }
+
+            const select = document.getElementById('event-select');
+            select.innerHTML = '<option value="">Select Event...</option>';
+
+            if (Array.isArray(events)) {
+                events.forEach(e => {
+                    const opt = document.createElement('option');
+                    opt.value = e.id;
+                    opt.textContent = e.title;
+                    select.appendChild(opt);
+                });
+            }
+        }
+
+        async function loadEvent(eventId) {
+            if (!eventId) {
+                currentEventId = null;
+                currentEvent = null;
+                return;
+            }
+
+            currentEventId = eventId;
+
+            if (USE_STATIC_DATA) {
+                const rawData = await fetchStatic(`${eventId}_epistemic.json`);
+                currentEvent = transformEpistemicData(rawData);
+            } else {
+                currentEvent = await api(`/events/${eventId}`);
+            }
+
+            if (currentEvent.error) {
+                alert('Error loading event: ' + currentEvent.error);
+                return;
+            }
+
+            // Track entropy history
+            entropyHistory.push({
+                claims: currentEvent.claim_count,
+                entropy: currentEvent.entropy
+            });
+
+            updateUI();
+        }
+
+        function showCreateEventModal() {
+            document.getElementById('modal-create-event').classList.add('visible');
+        }
+
+        async function createEvent() {
+            const title = document.getElementById('new-event-title').value;
+            if (!title) return alert('Please enter a title');
+
+            const result = await api('/events', 'POST', { title });
+            if (result.error) {
+                alert('Error: ' + result.error);
+            } else {
+                hideModal('modal-create-event');
+                await loadEvents();
+                document.getElementById('event-select').value = result.id;
+                loadEvent(result.id);
+            }
+        }
+
+        // =============================================================================
+        // CLAIM MANAGEMENT
+        // =============================================================================
+
+        async function addClaim() {
+            if (!currentEventId) return alert('Please select an event first');
+
+            const text = document.getElementById('claim-text').value;
+            const source = document.getElementById('claim-source').value;
+            const pub_time = document.getElementById('claim-time').value;
+
+            if (!text || !source) return alert('Please enter claim text and source');
+
+            const result = await api(`/events/${currentEventId}/claims`, 'POST', {
+                text, source, pub_time: pub_time || null
+            });
+
+            const resultDiv = document.getElementById('claim-result');
+
+            if (result.error) {
+                resultDiv.innerHTML = `<div style="color: var(--red);">Error: ${result.error}</div>`;
+            } else {
+                // Show relation result
+                const relations = result.relations || [];
+                const relHtml = relations.map(r => `
+                    <span class="claim-relation ${r.relation}">${r.relation.toUpperCase()}</span>
+                    ${r.metric}: ${r.old_value || ''} → ${r.new_value || r.value}
+                `).join('<br>');
+
+                resultDiv.innerHTML = `
+                    <div style="background: var(--surface-2); padding: 0.75rem; border-radius: 6px;">
+                        <div style="font-size: 0.75rem; color: var(--text-dim);">RELATE Result:</div>
+                        ${relHtml || 'No metrics extracted'}
+                        <div style="margin-top: 0.5rem; font-size: 0.75rem;">
+                            Event entropy: <span class="${result.event_entropy < 0.3 ? 'green' : 'yellow'}">${result.event_entropy.toFixed(2)}</span>
+                        </div>
+                    </div>
+                `;
+
+                // Clear form
+                document.getElementById('claim-text').value = '';
+
+                // Reload event
+                await loadEvent(currentEventId);
+            }
+        }
+
+        // =============================================================================
+        // CONFLICT RESOLUTION
+        // =============================================================================
+
+        function showResolveConflictModal(conflictId) {
+            document.getElementById('resolve-conflict-id').value = conflictId;
+            document.getElementById('modal-resolve-conflict').classList.add('visible');
+        }
+
+        async function submitResolveConflict() {
+            const conflictId = document.getElementById('resolve-conflict-id').value;
+            const method = document.getElementById('resolve-method').value;
+            const chosenValue = document.getElementById('resolve-value').value;
+            const explanation = document.getElementById('resolve-explanation').value;
+
+            const result = await api(`/events/${currentEventId}/conflicts/${conflictId}/resolve`, 'POST', {
+                method, chosen_value: chosenValue, explanation
+            });
+
+            if (result.error) {
+                alert('Error: ' + result.error);
+            } else {
+                hideModal('modal-resolve-conflict');
+                await loadEvent(currentEventId);
+            }
+        }
+
+        // =============================================================================
+        // CR MANAGEMENT
+        // =============================================================================
+
+        function showFileCRModal() {
+            if (!currentEventId) return alert('Please select an event first');
+            document.getElementById('modal-file-cr').classList.add('visible');
+        }
+
+        async function submitCR() {
+            const targetType = document.getElementById('cr-target-type').value;
+            const targetId = document.getElementById('cr-target-id').value;
+            const reason = document.getElementById('cr-reason').value;
+            const fix = document.getElementById('cr-fix').value;
+
+            if (!targetId || !reason) return alert('Please fill required fields');
+
+            const result = await api(`/events/${currentEventId}/cr`, 'POST', {
+                target_type: targetType,
+                target_id: targetId,
+                reason,
+                suggested_fix: fix || null
+            });
+
+            if (result.error) {
+                alert('Error: ' + result.error);
+            } else {
+                hideModal('modal-file-cr');
+                await loadEvent(currentEventId);
+            }
+        }
+
+        // =============================================================================
+        // VERSION CONTROL
+        // =============================================================================
+
+        async function releaseVersion() {
+            if (!currentEventId) return alert('Please select an event first');
+
+            const notes = prompt('Release notes:');
+            if (notes === null) return;
+
+            const result = await api(`/events/${currentEventId}/versions`, 'POST', {
+                release_notes: notes
+            });
+
+            if (result.error) {
+                alert('Error: ' + result.error);
+            } else {
+                await loadEvent(currentEventId);
+                showTab('versions');
+            }
+        }
+
+        // =============================================================================
+        // UI UPDATES
+        // =============================================================================
+
+        function updateUI() {
+            if (!currentEvent) return;
+
+            // Status bar
+            const phaseClass = currentEvent.phase || 'emerging';
+            document.getElementById('status-phase').innerHTML = `
+                <span class="phase-badge ${phaseClass}">
+                    <span class="phase-dot"></span>
+                    ${phaseClass.toUpperCase()}
+                </span>
+            `;
+
+            const entropyClass = currentEvent.entropy < 0.3 ? 'green' : currentEvent.entropy < 0.6 ? 'yellow' : 'red';
+            document.getElementById('status-entropy').className = `status-value ${entropyClass}`;
+            document.getElementById('status-entropy').textContent = currentEvent.entropy.toFixed(2);
+
+            const coherenceClass = currentEvent.coherence > 0.8 ? 'green' : currentEvent.coherence > 0.5 ? 'yellow' : 'red';
+            document.getElementById('status-coherence').className = `status-value ${coherenceClass}`;
+            document.getElementById('status-coherence').textContent = (currentEvent.coherence * 100).toFixed(0) + '%';
+
+            document.getElementById('status-claims').textContent = currentEvent.claim_count;
+            document.getElementById('status-version').textContent = 'v' + (currentEvent.versions?.length || 0);
+
+            // Tab counts
+            document.getElementById('tab-count-claims').textContent = currentEvent.claim_count;
+            document.getElementById('tab-count-conflicts').textContent =
+                currentEvent.contradictions?.filter(c => c.status === 'active').length || 0;
+            document.getElementById('tab-count-cr').textContent =
+                currentEvent.correction_requests?.filter(c => c.status === 'open').length || 0;
+            document.getElementById('tab-count-versions').textContent = currentEvent.versions?.length || 0;
+
+            // Render tabs
+            renderClaimStream();
+            renderBeliefStates();
+            renderConflicts();
+            renderCRs();
+            renderVersions();
+            renderAuditLog();
+            renderConvergenceChart();
+        }
+
+        function renderClaimStream() {
+            const container = document.getElementById('claim-stream');
+            const claims = currentEvent.claims || [];
+
+            if (claims.length === 0) {
+                container.innerHTML = '<div style="color: var(--text-dim); text-align: center; padding: 2rem;">No claims yet.</div>';
+                return;
+            }
+
+            container.innerHTML = claims.slice().reverse().map(c => {
+                const relation = c.relation?.relation || c.relation?.multiple?.[0]?.relation || 'seeds';
+                return `
+                    <div class="claim-item ${relation}">
+                        <div class="claim-text">${c.text}</div>
+                        <div class="claim-meta">
+                            <span>${c.source}</span>
+                            <span class="claim-relation ${relation}">${relation.toUpperCase()}</span>
+                            <span>${c.added_at?.split('T')[0] || ''}</span>
+                        </div>
+                        <div class="claim-actions">
+                            <button onclick="fileCRForClaim('${c.id}')">Flag CR</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            document.getElementById('claim-count').textContent = claims.length + ' claims';
+        }
+
+        function fileCRForClaim(claimId) {
+            document.getElementById('cr-target-type').value = 'claim';
+            document.getElementById('cr-target-id').value = claimId;
+            showFileCRModal();
+        }
+
+        function renderBeliefStates() {
+            const container = document.getElementById('belief-states');
+            const beliefs = currentEvent.belief_states || [];
+
+            if (beliefs.length === 0) {
+                container.innerHTML = '<div style="color: var(--text-dim); text-align: center; padding: 2rem;">No metrics discovered yet.</div>';
+                return;
+            }
+
+            container.innerHTML = beliefs.map(bs => {
+                const entropyClass = bs.entropy < 0.2 ? 'green' : bs.entropy < 0.4 ? 'blue' : 'yellow';
+                const history = (bs.history || []).slice(-3).map(h => h.value).join(' → ');
+                const priorIcon = bs.prior === 'monotonic_increasing' ? '↑' :
+                                  bs.prior === 'monotonic_decreasing' ? '↓' : '~';
+
+                return `
+                    <div class="belief-state">
+                        <div class="belief-header">
+                            <span class="belief-name">${bs.label} <span style="color: var(--text-dim);">${priorIcon}</span></span>
+                            <span class="belief-value ${entropyClass}">${bs.belief}</span>
+                            <span class="belief-entropy">H=${bs.entropy.toFixed(2)}</span>
+                        </div>
+                        <div class="belief-history">${history}</div>
+                        <div style="font-size: 0.7rem; color: var(--text-dim);">
+                            ${bs.corroborations} corr / ${bs.contradictions} contra
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderConflicts() {
+            const container = document.getElementById('conflicts-list');
+            const conflicts = currentEvent.contradictions || [];
+
+            if (conflicts.length === 0) {
+                container.innerHTML = '<div style="color: var(--text-dim); text-align: center; padding: 2rem;">No contradictions.</div>';
+                return;
+            }
+
+            container.innerHTML = conflicts.map(c => `
+                <div class="conflict-item ${c.status}">
+                    <div class="conflict-header">
+                        <span class="conflict-topic">${c.topic.replace('_', ' ')}</span>
+                        <span class="conflict-status ${c.status}">${c.status}</span>
+                    </div>
+                    <div class="conflict-values">
+                        ${c.values.map((v, i) => `
+                            <div class="conflict-value">
+                                <div class="conflict-value-num">${v}</div>
+                                <div class="conflict-value-support">${c.support[i]} claims</div>
+                            </div>
+                        `).join('<span style="align-self: center; color: var(--text-dim);">vs</span>')}
+                    </div>
+                    ${c.status === 'active' ? `
+                        <div class="conflict-actions">
+                            <button onclick="showResolveConflictModal('${c.id}')">Resolve</button>
+                        </div>
+                    ` : `
+                        <div style="font-size: 0.75rem; color: var(--text-dim);">
+                            Resolved by ${c.resolution?.by}: ${c.resolution?.explanation}
+                        </div>
+                    `}
+                </div>
+            `).join('');
+        }
+
+        function renderCRs() {
+            const container = document.getElementById('cr-list');
+            const crs = currentEvent.correction_requests || [];
+
+            if (crs.length === 0) {
+                container.innerHTML = '<div style="color: var(--text-dim); text-align: center; padding: 2rem;">No correction requests.</div>';
+                return;
+            }
+
+            container.innerHTML = crs.map(cr => `
+                <div class="cr-item">
+                    <div class="cr-header">
+                        <span class="cr-target">${cr.target_type}:${cr.target_id.slice(0, 8)}...</span>
+                        <span class="cr-status ${cr.status}">${cr.status}</span>
+                    </div>
+                    <div class="cr-reason">${cr.reason}</div>
+                    ${cr.suggested_fix ? `<div style="font-size: 0.8rem; color: var(--text-dim);">Suggested: ${cr.suggested_fix}</div>` : ''}
+                    <div class="cr-meta">Filed by ${cr.filed_by} at ${cr.filed_at?.split('T')[0]}</div>
+                </div>
+            `).join('');
+        }
+
+        function renderVersions() {
+            const container = document.getElementById('versions-list');
+            const versions = currentEvent.versions || [];
+
+            if (versions.length === 0) {
+                container.innerHTML = '<div style="color: var(--text-dim); text-align: center; padding: 2rem;">No versions released yet.</div>';
+                return;
+            }
+
+            container.innerHTML = versions.slice().reverse().map(v => `
+                <div class="version-item">
+                    <div class="version-header">
+                        <span class="version-num">v${v.version}</span>
+                        <span class="version-meta">${v.released_at?.split('T')[0]} by ${v.released_by}</span>
+                    </div>
+                    <div class="version-prose">${v.prose}</div>
+                    <div class="version-facts">
+                        ${(v.facts || []).map(f => `
+                            <span class="version-fact ${f.certainty_class}">${f.text}</span>
+                        `).join('')}
+                    </div>
+                    ${v.release_notes ? `<div style="font-size: 0.75rem; color: var(--text-dim); margin-top: 0.5rem;">Notes: ${v.release_notes}</div>` : ''}
+                </div>
+            `).join('');
+        }
+
+        function renderAuditLog() {
+            const container = document.getElementById('audit-list');
+            const log = currentEvent.audit_log || [];
+
+            if (log.length === 0) {
+                container.innerHTML = '<div style="color: var(--text-dim); text-align: center; padding: 2rem;">No activity.</div>';
+                return;
+            }
+
+            container.innerHTML = log.slice().reverse().map(entry => `
+                <div class="audit-item">
+                    <span class="audit-action">${entry.action}</span>
+                    by ${entry.actor}
+                    <span class="audit-time">${entry.timestamp?.split('T')[0]}</span>
+                </div>
+            `).join('');
+        }
+
+        function renderConvergenceChart() {
+            const canvas = document.getElementById('convergence-canvas');
+            const ctx = canvas.getContext('2d');
+
+            const dpr = window.devicePixelRatio || 1;
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            ctx.scale(dpr, dpr);
+
+            const width = rect.width;
+            const height = rect.height;
+            const padding = 10;
+
+            ctx.clearRect(0, 0, width, height);
+
+            // Grid
+            ctx.strokeStyle = '#2a2a3a';
+            ctx.lineWidth = 0.5;
+            for (let i = 0; i <= 4; i++) {
+                const y = padding + (height - 2 * padding) * i / 4;
+                ctx.beginPath();
+                ctx.moveTo(padding, y);
+                ctx.lineTo(width - padding, y);
+                ctx.stroke();
+            }
+
+            if (entropyHistory.length < 2) return;
+
+            const maxClaims = Math.max(...entropyHistory.map(e => e.claims), 1);
+
+            // Draw entropy line
+            ctx.strokeStyle = '#22c55e';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            entropyHistory.forEach((e, i) => {
+                const x = padding + (e.claims / maxClaims) * (width - 2 * padding);
+                const y = padding + e.entropy * (height - 2 * padding);
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            });
+            ctx.stroke();
+
+            // Dots
+            entropyHistory.forEach(e => {
+                const x = padding + (e.claims / maxClaims) * (width - 2 * padding);
+                const y = padding + e.entropy * (height - 2 * padding);
+                ctx.fillStyle = '#22c55e';
+                ctx.beginPath();
+                ctx.arc(x, y, 4, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        // =============================================================================
+        // TABS
+        // =============================================================================
+
+        function showTab(tabName) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+
+            event.target.classList.add('active');
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+        }
+
+        // =============================================================================
+        // MODALS
+        // =============================================================================
+
+        function hideModal(modalId) {
+            document.getElementById(modalId).classList.remove('visible');
+        }
+
+        // Close modals on overlay click
+        document.querySelectorAll('.modal-overlay').forEach(overlay => {
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) {
+                    overlay.classList.remove('visible');
+                }
+            });
+        });
+
+        // =============================================================================
+        // INIT
+        // =============================================================================
+
+        loadEvents();
+    </script>
+</body>
+</html>

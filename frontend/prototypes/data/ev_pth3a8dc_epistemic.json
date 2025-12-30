@@ -1,0 +1,350 @@
+{
+  "event_id": "ev_pth3a8dc",
+  "title": "Wang Fuk Court Fire",
+  "generated_at": "2025-12-22T19:00:42.956365",
+  "summary": "The Wang Fuk Court fire in Tai Po District has tragically claimed at least 160 lives, making it one of Hong Kong's deadliest fires in decades. In response to public outrage, authorities have launched an investigation led by a judge and the Independent Commission Against Corruption, focusing on potential negligence and the use of unsafe materials in a recent renovation project. As the search for missing individuals continues, police have arrested at least 13 people on suspicion of manslaughter, while concerns about safety raised by residents prior to the fire are being scrutinized.",
+  "sections": [
+    {
+      "id": "section-0",
+      "heading": "Death Toll",
+      "prose": "The fire in Tai Po District has resulted in a tragic death toll of at least 160 people, marking it as one of Hong Kong's deadliest blazes in decades. As authorities continue to investigate, the city is grappling with public anger over the disaster. DNA tests have confirmed additional fatalities, further increasing the grim count.",
+      "claims_used": [
+        "cl_hcukz3ma",
+        "cl_00pvag62",
+        "cl_w4z4eje5",
+        "cl_wos80gkg",
+        "cl_3270lksu",
+        "cl_i60f189d"
+      ],
+      "sources": [
+        {
+          "name": "MYLONDON",
+          "type": "other"
+        },
+        {
+          "name": "NEWS",
+          "type": "other"
+        },
+        {
+          "name": "ASIA",
+          "type": "other"
+        },
+        {
+          "name": "THEATLANTIC",
+          "type": "other"
+        },
+        {
+          "name": "NDTV",
+          "type": "other"
+        },
+        {
+          "name": "HKFP",
+          "type": "local"
+        }
+      ],
+      "confidence": 1.0,
+      "epistemic_status": "established"
+    },
+    {
+      "id": "section-1",
+      "heading": "Investigation and Accountability",
+      "prose": "Hong Kong leader John Lee recently announced the establishment of a judge-led independent committee to investigate the cause of the Wang Fuk Court fire. The Independent Commission Against Corruption is also involved, examining potential graft related to the renovation project. The investigations aim to clarify the circumstances surrounding the fire and to identify measures to prevent future incidents. In connection with the renovations, police have arrested at least 13 individuals on suspicion of manslaughter.",
+      "claims_used": [
+        "cl_dt9jy5oj",
+        "cl_x516wooc",
+        "cl_u174ifkx",
+        "cl_ur7ohiux",
+        "cl_1shg2rm1",
+        "cl_x8dk0jup"
+      ],
+      "sources": [
+        {
+          "name": "NDTV",
+          "type": "other"
+        },
+        {
+          "name": "DOMINOTHEORY",
+          "type": "other"
+        },
+        {
+          "name": "DOMINOTHEORY",
+          "type": "other"
+        },
+        {
+          "name": "NEWS",
+          "type": "other"
+        },
+        {
+          "name": "Christianity Today",
+          "type": "international"
+        },
+        {
+          "name": "Christianity Today",
+          "type": "international"
+        }
+      ],
+      "confidence": 1.0,
+      "epistemic_status": "contested"
+    },
+    {
+      "id": "section-2",
+      "heading": "Safety Concerns",
+      "prose": "Hong Yip Service Co. Ltd. was involved in the renovation project at Wang Fuk Court, where residents had been raising concerns about safety issues since last year. Authorities allege that the construction company used unsafe materials, and complaints about the quality of the scaffolding netting were received by the Labour Department in September. Investigations revealed that some of the netting failed to meet fire safety standards.",
+      "claims_used": [
+        "cl_rhm85e5h",
+        "cl_zs3e8r0o",
+        "cl_1lk8w2ma",
+        "cl_pec49lqk",
+        "cl_9lseaeky"
+      ],
+      "sources": [
+        {
+          "name": "HK",
+          "type": "other"
+        },
+        {
+          "name": "HK",
+          "type": "other"
+        },
+        {
+          "name": "THEATLANTIC",
+          "type": "other"
+        },
+        {
+          "name": "HK",
+          "type": "other"
+        },
+        {
+          "name": "Christianity Today",
+          "type": "international"
+        }
+      ],
+      "confidence": 0.9,
+      "epistemic_status": "contested"
+    },
+    {
+      "id": "section-3",
+      "heading": "Government Response",
+      "prose": "In the wake of a devastating apartment fire in Hong Kong that claimed 128 lives, both local and Beijing authorities are working swiftly to address public outrage. The city's security chief, Chris Tang, has called for unity as the community grapples with the tragedy. Meanwhile, police have raised concerns about potential negligence related to the incident, further fueling tensions among residents.",
+      "claims_used": [
+        "cl_bemsr794",
+        "cl_w4z4eje5",
+        "cl_u7kdi2qf",
+        "cl_l3d7lgbj",
+        "cl_tqhpnrvf"
+      ],
+      "sources": [
+        {
+          "name": "ASIA",
+          "type": "other"
+        },
+        {
+          "name": "ASIA",
+          "type": "other"
+        },
+        {
+          "name": "ASIA",
+          "type": "other"
+        },
+        {
+          "name": "DOMINOTHEORY",
+          "type": "other"
+        },
+        {
+          "name": "ASIA",
+          "type": "other"
+        }
+      ],
+      "confidence": 0.5,
+      "epistemic_status": "contested"
+    },
+    {
+      "id": "section-4",
+      "heading": "Political Context",
+      "prose": "Jimmy Lai's trial stands as a crucial test for press freedom and judicial independence in Hong Kong, with critics asserting that he is imprisoned on trumped-up charges under the oppressive Chinese National Security Law. Meanwhile, Chinese media has condemned the politicization of the Wang Fuk Court fire, as China's national security office has summoned foreign media to caution against spreading false information about the incident. Observers note that accountability for local officials in China can be both brutal and swift.",
+      "claims_used": [
+        "cl_e0kgn5lg",
+        "cl_axpqhteq",
+        "cl_espf5k9b",
+        "cl_msuchuar",
+        "cl_zg72gvfj"
+      ],
+      "sources": [
+        {
+          "name": "Independent",
+          "type": "international"
+        },
+        {
+          "name": "DOMINOTHEORY",
+          "type": "other"
+        },
+        {
+          "name": "Independent",
+          "type": "international"
+        },
+        {
+          "name": "DOMINOTHEORY",
+          "type": "other"
+        },
+        {
+          "name": "DOMINOTHEORY",
+          "type": "other"
+        }
+      ],
+      "confidence": 0.8,
+      "epistemic_status": "contested"
+    },
+    {
+      "id": "section-5",
+      "heading": "Missing Persons",
+      "prose": "Many people are still unaccounted for following the fire in Tai Po District. While reports indicate that the number of missing individuals has decreased significantly, the situation remains dire, with several still unaccounted for. The Indonesian consulate general confirmed that nine migrant domestic workers died in the fire, with one person still missing. More than thirty individuals are reported missing after the devastating incident at Wang Fuk Court.",
+      "claims_used": [
+        "cl_yzz10ver",
+        "cl_92tknghf",
+        "cl_6sh5drt5",
+        "cl_qs73hm71"
+      ],
+      "sources": [
+        {
+          "name": "MYLONDON",
+          "type": "other"
+        },
+        {
+          "name": "HKFP",
+          "type": "local"
+        },
+        {
+          "name": "HKFP",
+          "type": "local"
+        },
+        {
+          "name": "Christianity Today",
+          "type": "international"
+        }
+      ],
+      "confidence": 1.0,
+      "epistemic_status": "established"
+    }
+  ],
+  "tensions": [
+    {
+      "id": "tension-0",
+      "topic": "Investigation and Accountability",
+      "description": "Sources disagree on Ongoing investigations and accountability measures",
+      "positions": [
+        {
+          "label": "Position A",
+          "summary": "",
+          "sources": []
+        },
+        {
+          "label": "Position B",
+          "summary": "",
+          "sources": []
+        }
+      ],
+      "claims_involved": []
+    },
+    {
+      "id": "tension-1",
+      "topic": "Safety Concerns",
+      "description": "Sources disagree on Warnings and safety issues prior to the fire",
+      "positions": [
+        {
+          "label": "Position A",
+          "summary": "",
+          "sources": []
+        },
+        {
+          "label": "Position B",
+          "summary": "",
+          "sources": []
+        }
+      ],
+      "claims_involved": []
+    },
+    {
+      "id": "tension-2",
+      "topic": "Government Response",
+      "description": "Sources disagree on Reactions from authorities and government officials",
+      "positions": [
+        {
+          "label": "Position A",
+          "summary": "",
+          "sources": []
+        },
+        {
+          "label": "Position B",
+          "summary": "",
+          "sources": []
+        }
+      ],
+      "claims_involved": []
+    }
+  ],
+  "gaps": [
+    {
+      "id": "gap-official",
+      "question": "What is the official government position or statement?",
+      "why_important": "Official sources provide authoritative information on investigations, policies, and responses",
+      "suggested_sources": [
+        "Government press releases",
+        "Official statements",
+        "Press conferences"
+      ],
+      "priority": "high"
+    },
+    {
+      "id": "gap-content-0",
+      "question": "What specific safety measures were in place at Wang Fuk Court prior to the fire, and why did they fail?",
+      "why_important": "Understanding the specific safety measures and their failures can provide insight into the systemic issues that allowed the fire to escalate and result in such a high death toll. It may also highlight accountability for those responsible for enforcing safety regulations.",
+      "suggested_sources": [
+        "Official reports from the Hong Kong Housing Authority",
+        "Investigative journalism from local news outlets",
+        "Expert analysis from fire safety professionals"
+      ],
+      "priority": "medium"
+    },
+    {
+      "id": "gap-content-1",
+      "question": "What are the long-term implications of the fire on fire safety regulations and housing policies in Hong Kong?",
+      "why_important": "The fire could serve as a catalyst for changes in regulations or policies. Understanding the potential shifts can inform public discourse and accountability measures, as well as impact resident safety in the future.",
+      "suggested_sources": [
+        "Policy analysis from urban planning experts",
+        "Reports from human rights organizations",
+        "Public statements from government officials regarding future regulatory changes"
+      ],
+      "priority": "medium"
+    }
+  ],
+  "total_claims": 130,
+  "sources_by_type": {
+    "other": [
+      "MYLONDON",
+      "ASIA",
+      "NEWS",
+      "HK",
+      "NDTV",
+      "DOMINOTHEORY",
+      "THEATLANTIC",
+      "KOREAJOONGANGDAILY",
+      "AASTOCKS",
+      "TRTWORLD"
+    ],
+    "international": [
+      "Independent",
+      "Christianity Today",
+      "ABC Australia",
+      "Daily Mail",
+      "Guardian",
+      "DW"
+    ],
+    "ngo": [
+      "RSF"
+    ],
+    "local": [
+      "HKFP"
+    ]
+  },
+  "confidence_overall": 0.8666666666666667
+}

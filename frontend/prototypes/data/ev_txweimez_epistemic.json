@@ -1,0 +1,356 @@
+{
+  "event_id": "ev_txweimez",
+  "title": "Brown University Shooting",
+  "generated_at": "2025-12-22T19:01:51.488826",
+  "summary": "A shooting at Brown University resulted in two fatalities and multiple injuries, with at least eight to nine individuals wounded in the engineering building late Saturday night. A suspect has been detained, though they are not a student at the university, and police are searching for additional suspects. Brown University President Christina H. Paxson called the incident \"devastating gun violence,\" while local and federal authorities are actively investigating the situation and ensuring community safety.",
+  "sections": [
+    {
+      "id": "section-0",
+      "heading": "Incident Overview",
+      "prose": "A shooting rampage at Brown University resulted in two fatalities and multiple injuries, with reports indicating that at least eight to nine individuals were wounded in the incident. The shooting occurred in the engineering building on campus late Saturday night, marking a tragic event for the university community.",
+      "claims_used": [
+        "cl_akt0s29m",
+        "cl_fcub4ifi",
+        "cl_jmfa9kds",
+        "cl_3f34ic1i",
+        "cl_q8kkq80u",
+        "cl_70qf2dxb"
+      ],
+      "sources": [
+        {
+          "name": "Washington Post",
+          "type": "international"
+        },
+        {
+          "name": "Washington Post",
+          "type": "international"
+        },
+        {
+          "name": "CP24",
+          "type": "other"
+        },
+        {
+          "name": "BOSTONGLOBE",
+          "type": "other"
+        },
+        {
+          "name": "MASSLIVE",
+          "type": "other"
+        },
+        {
+          "name": "ABCNEWS",
+          "type": "other"
+        }
+      ],
+      "confidence": 1.0,
+      "epistemic_status": "established"
+    },
+    {
+      "id": "section-1",
+      "heading": "Suspect Information",
+      "prose": "A Reddit user identified as 'John' provided a crucial tip about the suspect in the Brown University shooting, leading to the FBI using cellphone data to locate a person of interest. This individual has been detained in connection with the incident, although they are not a student at Brown University. Police continue to search for additional suspects related to the shooting.",
+      "claims_used": [
+        "cl_748zogc5",
+        "cl_bgv0545h",
+        "cl_r6hz2y5u",
+        "cl_u90fntge",
+        "cl_jcsbj15q",
+        "cl_ypm228aj",
+        "cl_dgxzkdnp"
+      ],
+      "sources": [
+        {
+          "name": "NBCNEWS",
+          "type": "other"
+        },
+        {
+          "name": "BOSTONGLOBE",
+          "type": "other"
+        },
+        {
+          "name": "BOSTONGLOBE",
+          "type": "other"
+        },
+        {
+          "name": "ABCNEWS",
+          "type": "other"
+        },
+        {
+          "name": "ABCNEWS",
+          "type": "other"
+        },
+        {
+          "name": "CP24",
+          "type": "other"
+        },
+        {
+          "name": "DECCANHERALD",
+          "type": "other"
+        }
+      ],
+      "confidence": 0.8,
+      "epistemic_status": "established"
+    },
+    {
+      "id": "section-2",
+      "heading": "Political Reactions",
+      "prose": "The Trump administration and its allies claimed that the Brown University shooting targeted a young Republican and suggested that a Palestinian student was responsible. They amplified unfounded theories surrounding the incident, while President Trump expressed his hope that authorities would capture the \"animal\" responsible, describing the event as a terrible thing. He also extended his condolences to the victims and their families on his social media platform.",
+      "claims_used": [
+        "cl_9quwcviu",
+        "cl_c12a9fsc",
+        "cl_ywr3c7kq",
+        "cl_9epkw3as",
+        "cl_hex78ugm",
+        "cl_v6vuwfiy",
+        "cl_mmcipx9x",
+        "cl_yfai5spo",
+        "cl_wql8m9xi"
+      ],
+      "sources": [
+        {
+          "name": "Washington Post",
+          "type": "international"
+        },
+        {
+          "name": "Washington Post",
+          "type": "international"
+        },
+        {
+          "name": "Washington Post",
+          "type": "international"
+        },
+        {
+          "name": "FOXNEWS",
+          "type": "other"
+        },
+        {
+          "name": "MASSLIVE",
+          "type": "other"
+        },
+        {
+          "name": "CP24",
+          "type": "other"
+        },
+        {
+          "name": "MASSLIVE",
+          "type": "other"
+        },
+        {
+          "name": "CP24",
+          "type": "other"
+        },
+        {
+          "name": "WHDH",
+          "type": "other"
+        }
+      ],
+      "confidence": 1.0,
+      "epistemic_status": "contested"
+    },
+    {
+      "id": "section-3",
+      "heading": "Community Response",
+      "prose": "Brown University President Christina H. Paxson described the recent shooting as \"devastating gun violence,\" expressing confidence that the strong community will overcome this tragedy. Governor Dan McKee extended his prayers to the community, while local resident John Goncalves shared his heartbreak for those affected. During the incident, students like Kevin Le took immediate action by barricading classroom doors to ensure their safety.",
+      "claims_used": [
+        "cl_el9dx23z",
+        "cl_4p90987s",
+        "cl_mf048ow7",
+        "cl_v3n64r4d",
+        "cl_0oc7gv0l"
+      ],
+      "sources": [
+        {
+          "name": "ABCNEWS",
+          "type": "other"
+        },
+        {
+          "name": "BOSTONGLOBE",
+          "type": "other"
+        },
+        {
+          "name": "CP24",
+          "type": "other"
+        },
+        {
+          "name": "CP24",
+          "type": "other"
+        },
+        {
+          "name": "BOSTONGLOBE",
+          "type": "other"
+        }
+      ],
+      "confidence": 0.6000000000000001,
+      "epistemic_status": "reported"
+    },
+    {
+      "id": "section-4",
+      "heading": "Law Enforcement Actions",
+      "prose": "FBI Director Kash Patel announced that the agency has deployed additional resources to track down leads in the shooting incident at Brown University. Providence Police Chief Colonel Oscar Perez is reviewing new video footage of a possible suspect, while Rhode Island Attorney General Peter Neronha expressed frustration over the absence of surveillance cameras on campus. The Rhode Island State Police and the Emergency Management Agency are collaborating closely with local law enforcement, and the FBI is assisting in the ongoing response to the situation.",
+      "claims_used": [
+        "cl_qdazq1pl",
+        "cl_ro567et7",
+        "cl_e24nwjhs",
+        "cl_hhbsoq6x",
+        "cl_qhccbh90"
+      ],
+      "sources": [
+        {
+          "name": "FOXNEWS",
+          "type": "other"
+        },
+        {
+          "name": "ABCNEWS",
+          "type": "other"
+        },
+        {
+          "name": "FOXNEWS",
+          "type": "other"
+        },
+        {
+          "name": "CP24",
+          "type": "other"
+        },
+        {
+          "name": "CP24",
+          "type": "other"
+        }
+      ],
+      "confidence": 0.6000000000000001,
+      "epistemic_status": "reported"
+    },
+    {
+      "id": "section-5",
+      "heading": "Emergency Response",
+      "prose": "As of 8:30 p.m. on Saturday, a shelter-in-place order was in effect for Brown University and the surrounding community due to an ongoing situation involving an active shooter. The Ivy League school issued an alert urging students and staff to take shelter, while university officials initially reported that a suspect was in custody. However, the shooter remained at large, prompting continued safety measures.",
+      "claims_used": [
+        "cl_05tlrq10",
+        "cl_btxkbjp6",
+        "cl_g6z3mn6a",
+        "cl_8hjkq5g9"
+      ],
+      "sources": [
+        {
+          "name": "MASSLIVE",
+          "type": "other"
+        },
+        {
+          "name": "CP24",
+          "type": "other"
+        },
+        {
+          "name": "DECCANHERALD",
+          "type": "other"
+        },
+        {
+          "name": "CP24",
+          "type": "other"
+        }
+      ],
+      "confidence": 0.6000000000000001,
+      "epistemic_status": "reported"
+    },
+    {
+      "id": "section-6",
+      "heading": "Victim Identification",
+      "prose": "Mukhammad Aziz Umurzokov and Ella Cook were identified as victims in the Brown University shooting.",
+      "claims_used": [
+        "cl_c5ya2mj7",
+        "cl_uxamrtks"
+      ],
+      "sources": [
+        {
+          "name": "FOXNEWS",
+          "type": "other"
+        },
+        {
+          "name": "FOXNEWS",
+          "type": "other"
+        }
+      ],
+      "confidence": 0.4,
+      "epistemic_status": "uncertain"
+    }
+  ],
+  "tensions": [
+    {
+      "id": "tension-0",
+      "topic": "Political Reactions",
+      "description": "Sources disagree on Responses from political figures regarding the shooting",
+      "positions": [
+        {
+          "label": "Position A",
+          "summary": "",
+          "sources": []
+        },
+        {
+          "label": "Position B",
+          "summary": "",
+          "sources": []
+        }
+      ],
+      "claims_involved": []
+    }
+  ],
+  "gaps": [
+    {
+      "id": "gap-official",
+      "question": "What is the official government position or statement?",
+      "why_important": "Official sources provide authoritative information on investigations, policies, and responses",
+      "suggested_sources": [
+        "Government press releases",
+        "Official statements",
+        "Press conferences"
+      ],
+      "priority": "high"
+    },
+    {
+      "id": "gap-ngo",
+      "question": "What do civil society organizations say?",
+      "why_important": "NGOs provide independent perspectives and human rights context",
+      "suggested_sources": [
+        "Amnesty International",
+        "Human Rights Watch",
+        "Local advocacy groups"
+      ],
+      "priority": "medium"
+    },
+    {
+      "id": "gap-content-0",
+      "question": "What were the motives behind Claudio Neves Valente's actions during the shooting?",
+      "why_important": "Understanding the motives can provide insight into the circumstances leading to the shooting and help prevent future incidents.",
+      "suggested_sources": [
+        "Psychological evaluations, law enforcement reports, interviews with acquaintances or family members"
+      ],
+      "priority": "medium"
+    },
+    {
+      "id": "gap-content-1",
+      "question": "What measures are being taken by Brown University and local authorities to enhance campus safety and prevent future violence?",
+      "why_important": "This information is crucial for the community's sense of security and for implementing effective safety protocols in educational institutions.",
+      "suggested_sources": [
+        "Official statements from Brown University administration, local government safety plans, reports from campus safety committees"
+      ],
+      "priority": "medium"
+    }
+  ],
+  "total_claims": 58,
+  "sources_by_type": {
+    "other": [
+      "LATIMES",
+      "NBCNEWS",
+      "FOXNEWS",
+      "ABCNEWS",
+      "BOSTONGLOBE",
+      "MASSLIVE",
+      "WHDH",
+      "CP24",
+      "DECCANHERALD",
+      "NPR"
+    ],
+    "international": [
+      "Washington Post"
+    ]
+  },
+  "confidence_overall": 0.7142857142857143
+}

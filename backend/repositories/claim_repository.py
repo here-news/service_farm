@@ -311,7 +311,7 @@ class ClaimRepository:
         """
         async with self.db_pool.acquire() as conn:
             await conn.execute("""
-                INSERT INTO content.claim_embeddings (claim_id, embedding)
+                INSERT INTO core.claim_embeddings (claim_id, embedding)
                 VALUES ($1, $2)
                 ON CONFLICT (claim_id) DO UPDATE SET embedding = $2
             """, claim_id, embedding)
@@ -328,7 +328,7 @@ class ClaimRepository:
         """
         async with self.db_pool.acquire() as conn:
             result = await conn.fetchval("""
-                SELECT embedding FROM content.claim_embeddings WHERE claim_id = $1
+                SELECT embedding FROM core.claim_embeddings WHERE claim_id = $1
             """, claim_id)
 
             if result:
@@ -358,14 +358,17 @@ class ClaimRepository:
         Returns:
             List of {claim_id, similarity} dicts
         """
+        from pgvector.asyncpg import register_vector
+
         exclude_ids = exclude_claim_ids or []
 
         async with self.db_pool.acquire() as conn:
+            await register_vector(conn)
             results = await conn.fetch("""
-                SELECT claim_id, 1 - (embedding <=> $1) as similarity
-                FROM content.claim_embeddings
+                SELECT claim_id, 1 - (embedding <=> $1::vector) as similarity
+                FROM core.claim_embeddings
                 WHERE NOT (claim_id = ANY($3::text[]))
-                ORDER BY embedding <=> $1
+                ORDER BY embedding <=> $1::vector
                 LIMIT $2
             """, embedding, limit, exclude_ids)
 

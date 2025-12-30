@@ -1,0 +1,160 @@
+{
+  "event_id": "ev_pth3a8dc",
+  "evaluated_at": "2025-12-23T01:06:27.563697",
+  "claim_count": 130,
+  "stability": 0.4444444444444444,
+  "accuracy": 1.0,
+  "verified_facts": [
+    {
+      "statement": "The fire at Wang Fuk Court in Tai Po District left at least 128 people dead and more than 60 members of Tai Po Baptist Church lost their homes.",
+      "confidence": 0.95,
+      "supporting_claims": 13,
+      "verified": true,
+      "top_match": {
+        "claim_id": "cl_5gm48d37",
+        "similarity": 65.34653465346535,
+        "text": "Tai Po Baptist Church provided shelter and aid after the fire."
+      }
+    },
+    {
+      "statement": "The fire started on the external scaffolding of Wang Cheong House, which was undergoing major renovations.",
+      "confidence": 0.9,
+      "supporting_claims": 3,
+      "verified": true,
+      "top_match": {
+        "claim_id": "cl_rd4hikns",
+        "similarity": 61.01694915254237,
+        "text": "76 others were injured in the fire"
+      }
+    },
+    {
+      "statement": "Firefighters deployed 128 fire trucks and 57 ambulances to the scene, struggling to bring the blaze under control.",
+      "confidence": 0.9,
+      "supporting_claims": 3,
+      "verified": true,
+      "top_match": {
+        "claim_id": "cl_up1vg585",
+        "similarity": 100.0,
+        "text": "Firefighters deployed 128 fire trucks and 57 ambulances to the scene"
+      }
+    },
+    {
+      "statement": "Nine migrant domestic workers died in the fire, and one was reported missing.",
+      "confidence": 0.85,
+      "supporting_claims": 2,
+      "verified": true,
+      "top_match": {
+        "claim_id": "cl_rd4hikns",
+        "similarity": 70.58823529411764,
+        "text": "76 others were injured in the fire"
+      }
+    },
+    {
+      "statement": "The Hong Kong government announced a HK$300 million fund to help residents affected by the fire.",
+      "confidence": 0.85,
+      "supporting_claims": 1,
+      "verified": true,
+      "top_match": {
+        "claim_id": "cl_v0f7vnd2",
+        "similarity": 78.68852459016394,
+        "text": "The government would set up a HK$300m fund to help residents."
+      }
+    },
+    {
+      "statement": "Police have arrested at least 13 individuals involved with the renovations for suspected manslaughter.",
+      "confidence": 0.8,
+      "supporting_claims": 2,
+      "verified": true,
+      "top_match": {
+        "claim_id": "cl_1shg2rm1",
+        "similarity": 89.69072164948454,
+        "text": "Police have arrested at least 13 people involved with the renovations for suspected manslaughter."
+      }
+    },
+    {
+      "statement": "The fire was still burning in the early hours of Thursday, and many people were still unaccounted for.",
+      "confidence": 0.8,
+      "supporting_claims": 2,
+      "verified": true,
+      "top_match": {
+        "claim_id": "cl_b5abjlfk",
+        "similarity": 100.0,
+        "text": "The fire was still burning in the early hours of Thursday"
+      }
+    },
+    {
+      "statement": "The Independent Commission Against Corruption is investigating the cause of the Wang Fuk Court fire.",
+      "confidence": 0.8,
+      "supporting_claims": 15,
+      "verified": true,
+      "top_match": {
+        "claim_id": "cl_x516wooc",
+        "similarity": 100.0,
+        "text": "The Independent Commission Against Corruption is investigating the cause of the Wang Fuk Court fire."
+      }
+    },
+    {
+      "statement": "The alarms in the building failed to sound, allowing flames to spread rapidly from the lower floors to the roof.",
+      "confidence": 0.75,
+      "supporting_claims": 2,
+      "verified": true,
+      "top_match": {
+        "claim_id": "cl_bgx74h59",
+        "similarity": 70.05076142131979,
+        "text": "The alarms failed to sound and the flames climbed from the lower floors to the roof within minutes."
+      }
+    }
+  ],
+  "gaps": [
+    {
+      "question": "What specific safety issues were residents warning about prior to the fire?",
+      "impact": 0.9,
+      "type": "unanswered_question",
+      "suggested_source": "Resident testimonies or safety reports from the housing complex"
+    },
+    {
+      "question": "What were the specific causes of the fire as determined by initial investigations?",
+      "impact": 0.9,
+      "type": "unanswered_question",
+      "suggested_source": "Fire department investigation reports or preliminary findings"
+    },
+    {
+      "question": "What measures will the government task force implement to prevent future incidents?",
+      "impact": 0.8,
+      "type": "unanswered_question",
+      "suggested_source": "Government announcements or plans from the newly formed task force"
+    },
+    {
+      "question": "What are the details of the investigation by the Independent Commission Against Corruption?",
+      "impact": 0.7,
+      "type": "missing_source",
+      "suggested_source": "Official statements or reports from the Independent Commission Against Corruption"
+    },
+    {
+      "question": "How are the families of the deceased and missing being supported in the aftermath of the fire?",
+      "impact": 0.6,
+      "type": "unanswered_question",
+      "suggested_source": "Local community organizations or government support programs"
+    }
+  ],
+  "convergence": [
+    {
+      "iteration": 1,
+      "fact_count": 9,
+      "accuracy": 1.0,
+      "avg_confidence": 0.8555555555555556
+    },
+    {
+      "iteration": 2,
+      "fact_count": 0,
+      "accuracy": 0,
+      "avg_confidence": 0
+    },
+    {
+      "iteration": 3,
+      "fact_count": 0,
+      "accuracy": 0,
+      "avg_confidence": 0
+    }
+  ]
+}

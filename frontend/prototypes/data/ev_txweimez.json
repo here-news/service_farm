@@ -1,0 +1,337 @@
+{
+  "id": "ev_txweimez",
+  "title": "Brown University Shooting",
+  "event_type": "SHOOTING",
+  "date_range": "2025-12-13T00:00:00.000000000 - 2025-12-20T14:42:21.408301000+00:00",
+  "claim_count": 58,
+  "source_count": 11,
+  "sources_by_type": {
+    "other": [
+      "LATIMES",
+      "NBCNEWS",
+      "FOXNEWS",
+      "ABCNEWS",
+      "BOSTONGLOBE",
+      "MASSLIVE",
+      "WHDH",
+      "CP24",
+      "DECCANHERALD",
+      "NPR"
+    ],
+    "international": [
+      "Washington Post"
+    ]
+  },
+  "narrative_blocks": [
+    {
+      "type": "paragraph",
+      "content": "President Donald Trump stated, 'What a terrible thing it is,' regarding the Brown University shooting.",
+      "voice": "international",
+      "sources": [
+        "DECCANHERALD",
+        "WHDH",
+        "MASSLIVE"
+      ],
+      "source_type": "corroborated",
+      "timestamp": "2025-12-13T12:00:00+00:00",
+      "metadata": {
+        "corroboration_count": 3
+      }
+    },
+    {
+      "type": "paragraph",
+      "content": "Brown University found no indication of any public safety interactions or other concerns while Claudio Neves Valente was a student.",
+      "voice": "other",
+      "sources": [
+        "LATIMES"
+      ],
+      "source_type": "single",
+      "timestamp": null,
+      "metadata": null
+    },
+    {
+      "type": "paragraph",
+      "content": "The Trump administration and its allies claimed that the Brown University shooting targeted a young Republican.",
+      "voice": "international",
+      "sources": [
+        "Washington Post"
+      ],
+      "source_type": "single",
+      "timestamp": "2025-12-19T12:00:00+00:00",
+      "metadata": null
+    },
+    {
+      "type": "paragraph",
+      "content": "The Trump administration and its allies claimed that a Palestinian student was responsible for the Brown University shooting.",
+      "voice": "international",
+      "sources": [
+        "Washington Post"
+      ],
+      "source_type": "single",
+      "timestamp": "2025-12-19T12:00:00+00:00",
+      "metadata": null
+    },
+    {
+      "type": "paragraph",
+      "content": "The Trump administration and its allies amplified unfounded theories about the Brown University shooting.",
+      "voice": "international",
+      "sources": [
+        "Washington Post"
+      ],
+      "source_type": "single",
+      "timestamp": "2025-12-19T12:00:00+00:00",
+      "metadata": null
+    },
+    {
+      "type": "paragraph",
+      "content": "A Reddit user identified as 'John' provided a crucial tip about the Brown University shooting suspect.",
+      "voice": "other",
+      "sources": [
+        "NBCNEWS"
+      ],
+      "source_type": "single",
+      "timestamp": "2025-12-19T12:00:00+00:00",
+      "metadata": null
+    },
+    {
+      "type": "paragraph",
+      "content": "President Donald Trump said he hopes authorities capture the 'animal' responsible for the Brown University shooting.",
+      "voice": "other",
+      "sources": [
+        "FOXNEWS"
+      ],
+      "source_type": "single",
+      "timestamp": "2025-12-15T12:00:00+00:00",
+      "metadata": null
+    },
+    {
+      "type": "paragraph",
+      "content": "FBI Director Kash Patel said the agency has deployed additional resources to track down leads in the Brown University shooting.",
+      "voice": "other",
+      "sources": [
+        "FOXNEWS"
+      ],
+      "source_type": "single",
+      "timestamp": "2025-12-15T12:00:00+00:00",
+      "metadata": null
+    },
+    {
+      "type": "paragraph",
+      "content": "Providence Police Chief Colonel Oscar Perez looks at a new video released of the possible shooter at Brown University.",
+      "voice": "other",
+      "sources": [
+        "ABCNEWS"
+      ],
+      "source_type": "single",
+      "timestamp": "2025-12-15T12:00:00+00:00",
+      "metadata": null
+    },
+    {
+      "type": "paragraph",
+      "content": "Rhode Island AG Peter Neronha had a tense exchange with reporters over the lack of cameras at Brown University.",
+      "voice": "other",
+      "sources": [
+        "FOXNEWS"
+      ],
+      "source_type": "single",
+      "timestamp": "2025-12-14T12:00:00+00:00",
+      "metadata": null
+    },
+    {
+      "type": "paragraph",
+      "content": "Providence Mayor Brett Smiley praised the police response to the Brown University shooting as 'swift' and 'timely'.",
+      "voice": "other",
+      "sources": [
+        "FOXNEWS"
+      ],
+      "source_type": "single",
+      "timestamp": "2025-12-14T12:00:00+00:00",
+      "metadata": null
+    },
+    {
+      "type": "paragraph",
+      "content": "Brown University President Christina H. Paxson said the shooting amounted to 'devastating gun violence.'",
+      "voice": "other",
+      "sources": [
+        "ABCNEWS"
+      ],
+      "source_type": "single",
+      "timestamp": "2025-12-14T12:00:00+00:00",
+      "metadata": null
+    }
+  ],
+  "corroborations": [
+    {
+      "claim_text": "President Donald Trump stated, 'What a terrible thing it is,' regarding the Brown University shooting.",
+      "sources": [
+        "DECCANHERALD",
+        "WHDH",
+        "MASSLIVE"
+      ],
+      "count": 3,
+      "first_reported": "2025-12-13T12:00:00+00:00",
+      "claim_ids": [
+        "cl_mmcipx9x",
+        "cl_wql8m9xi",
+        "cl_r4ujwju6"
+      ]
+    },
+    {
+      "claim_text": "Two students were killed at Brown University.",
+      "sources": [
+        "FOXNEWS",
+        "Washington Post"
+      ],
+      "count": 2,
+      "first_reported": "2025-12-13T12:00:00+00:00",
+      "claim_ids": [
+        "cl_akt0s29m",
+        "cl_u65x5cqd"
+      ]
+    },
+    {
+      "claim_text": "A shooting rampage occurred at Brown University.",
+      "sources": [
+        "DECCANHERALD",
+        "Washington Post"
+      ],
+      "count": 2,
+      "first_reported": "2025-12-13T12:00:00+00:00",
+      "claim_ids": [
+        "cl_fcub4ifi",
+        "cl_vm24f3hr"
+      ]
+    },
+    {
+      "claim_text": "The FBI used cellphone data to locate the person of interest in the Brown University shooting",
+      "sources": [
+        "BOSTONGLOBE",
+        "ABCNEWS"
+      ],
+      "count": 2,
+      "first_reported": "2025-12-14T00:00:00+00:00",
+      "claim_ids": [
+        "cl_bgv0545h",
+        "cl_u90fntge"
+      ]
+    },
+    {
+      "claim_text": "Brown University President Christina H. Paxson said the shooting amounted to 'devastating gun violence.'",
+      "sources": [
+        "BOSTONGLOBE",
+        "ABCNEWS"
+      ],
+      "count": 2,
+      "first_reported": "2025-12-14T12:00:00+00:00",
+      "claim_ids": [
+        "cl_el9dx23z",
+        "cl_4p90987s"
+      ]
+    },
+    {
+      "claim_text": "No one else is being sought in the Brown University shooting",
+      "sources": [
+        "DECCANHERALD",
+        "ABCNEWS"
+      ],
+      "count": 2,
+      "first_reported": "2025-12-13T12:00:00+00:00",
+      "claim_ids": [
+        "cl_8tzmhndq",
+        "cl_dgxzkdnp"
+      ]
+    },
+    {
+      "claim_text": "President Donald Trump posted on Truth Social about the Brown University shooting.",
+      "sources": [
+        "WHDH",
+        "MASSLIVE"
+      ],
+      "count": 2,
+      "first_reported": "2025-12-13T12:00:00+00:00",
+      "claim_ids": [
+        "cl_hex78ugm",
+        "cl_zfumpdb4"
+      ]
+    },
+    {
+      "claim_text": "A shooting in the engineering building at Brown University left at least two people dead and eight injured.",
+      "sources": [
+        "DECCANHERALD",
+        "CP24"
+      ],
+      "count": 2,
+      "first_reported": "2025-12-13T12:00:00+00:00",
+      "claim_ids": [
+        "cl_jmfa9kds",
+        "cl_ke7b3n4f"
+      ]
+    },
+    {
+      "claim_text": "Two people were killed and nine people were injured in the shooting at Brown University",
+      "sources": [
+        "BOSTONGLOBE",
+        "ABCNEWS"
+      ],
+      "count": 2,
+      "first_reported": "2025-12-13T00:00:00+00:00",
+      "claim_ids": [
+        "cl_3f34ic1i",
+        "cl_70qf2dxb"
+      ]
+    },
+    {
+      "claim_text": "Donald Trump said he has been briefed on the shooting.",
+      "sources": [
+        "WHDH",
+        "CP24"
+      ],
+      "count": 2,
+      "first_reported": "2025-12-13T12:00:00+00:00",
+      "claim_ids": [
+        "cl_v6vuwfiy",
+        "cl_3ykbwol8"
+      ]
+    }
+  ],
+  "tensions": [],
+  "gaps": [
+    {
+      "type": "missing_source",
+      "description": "No official government statements found",
+      "priority": "high",
+      "bounty": 15
+    },
+    {
+      "type": "perspective_gap",
+      "description": "No NGO or human rights organization perspective",
+      "priority": "medium",
+      "bounty": 20
+    },
+    {
+      "type": "missing_source",
+      "description": "No wire service coverage (Reuters, AP, AFP)",
+      "priority": "medium",
+      "bounty": 10
+    },
+    {
+      "type": "missing_source",
+      "description": "Limited local news coverage",
+      "priority": "low",
+      "bounty": 8
+    }
+  ],
+  "live_activity": [
+    {
+      "type": "source_added",
+      "text": "New source: LATIMES",
+      "time": "5 min ago"
+    },
+    {
+      "type": "corroboration",
+      "text": "Claim corroborated by 3 sources",
+      "time": "12 min ago"
+    }
+  ],
+  "completeness": 0.2
+}

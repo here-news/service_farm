@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Universal Epistemic Kernel</title>
+    <style>
+        :root {
+            --bg: #0a0a0f;
+            --surface: #12121a;
+            --surface-2: #1a1a24;
+            --border: #2a2a3a;
+            --text: #e0e0e8;
+            --text-dim: #8888a0;
+            --green: #22c55e;
+            --blue: #3b82f6;
+            --yellow: #eab308;
+            --red: #ef4444;
+            --purple: #a855f7;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        .header {
+            padding: 1rem 2rem;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+        }
+
+        .header h1 {
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        .metrics {
+            display: flex;
+            gap: 1.5rem;
+            margin-left: auto;
+        }
+
+        .metric {
+            text-align: center;
+        }
+
+        .metric-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        .metric-label {
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+        }
+
+        .main {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            height: calc(100vh - 60px);
+        }
+
+        /* Evolution Timeline */
+        .evolution-pane {
+            padding: 1.5rem;
+            overflow-y: auto;
+        }
+
+        .timeline-controls {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            background: var(--surface);
+            border-radius: 8px;
+        }
+
+        .play-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: none;
+            background: var(--blue);
+            color: white;
+            font-size: 1.2rem;
+            cursor: pointer;
+        }
+
+        .play-btn:hover { filter: brightness(1.1); }
+
+        .timeline-slider {
+            flex: 1;
+            height: 6px;
+            -webkit-appearance: none;
+            background: var(--surface-2);
+            border-radius: 3px;
+            cursor: pointer;
+        }
+
+        .timeline-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--blue);
+            cursor: pointer;
+        }
+
+        .step-label {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            min-width: 80px;
+        }
+
+        /* Belief Tree */
+        .tree-container {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 1.5rem;
+            min-height: 300px;
+            position: relative;
+        }
+
+        .tree-title {
+            font-size: 0.8rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            margin-bottom: 1rem;
+        }
+
+        .tree-canvas {
+            width: 100%;
+            height: 400px;
+        }
+
+        /* Feed of updates */
+        .update-feed {
+            margin-top: 1.5rem;
+        }
+
+        .update-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.75rem;
+            padding: 0.75rem;
+            background: var(--surface);
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+            border-left: 3px solid var(--border);
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateX(-10px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        .update-item.confirms { border-left-color: var(--green); }
+        .update-item.refines { border-left-color: var(--blue); }
+        .update-item.supersedes { border-left-color: var(--purple); }
+        .update-item.conflicts { border-left-color: var(--red); }
+        .update-item.novel { border-left-color: var(--yellow); }
+
+        .update-symbol {
+            width: 24px;
+            height: 24px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.9rem;
+            flex-shrink: 0;
+        }
+
+        .update-symbol.confirms { background: rgba(34,197,94,0.2); color: var(--green); }
+        .update-symbol.refines { background: rgba(59,130,246,0.2); color: var(--blue); }
+        .update-symbol.supersedes { background: rgba(168,85,247,0.2); color: var(--purple); }
+        .update-symbol.conflicts { background: rgba(239,68,68,0.2); color: var(--red); }
+        .update-symbol.novel { background: rgba(234,179,8,0.2); color: var(--yellow); }
+
+        .update-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .update-text {
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+
+        .update-meta {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            margin-top: 0.25rem;
+        }
+
+        /* Knowledge Pane */
+        .knowledge-pane {
+            background: var(--surface);
+            border-left: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .knowledge-section {
+            padding: 1.25rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .section-title {
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .section-title .icon {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+        }
+
+        .section-title .icon.know { background: rgba(34,197,94,0.2); color: var(--green); }
+        .section-title .icon.dont-know { background: rgba(234,179,8,0.2); color: var(--yellow); }
+        .section-title .icon.conflict { background: rgba(239,68,68,0.2); color: var(--red); }
+
+        /* Belief items */
+        .belief-item {
+            padding: 0.6rem 0.75rem;
+            background: var(--surface-2);
+            border-radius: 6px;
+            margin-bottom: 0.5rem;
+            font-size: 0.85rem;
+            line-height: 1.4;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .belief-item:hover {
+            background: var(--border);
+        }
+
+        .belief-item .sources {
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            margin-top: 0.25rem;
+        }
+
+        .belief-item .certainty {
+            color: var(--green);
+            font-weight: 600;
+        }
+
+        /* Gap items */
+        .gap-item {
+            padding: 0.75rem;
+            background: rgba(234,179,8,0.1);
+            border: 1px dashed var(--yellow);
+            border-radius: 6px;
+            margin-bottom: 0.5rem;
+        }
+
+        .gap-text {
+            font-size: 0.85rem;
+            color: var(--yellow);
+            margin-bottom: 0.5rem;
+        }
+
+        .gap-action {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+        }
+
+        .gap-btn {
+            margin-top: 0.5rem;
+            padding: 0.4rem 0.75rem;
+            background: var(--surface);
+            border: 1px solid var(--yellow);
+            border-radius: 4px;
+            color: var(--yellow);
+            font-size: 0.75rem;
+            cursor: pointer;
+        }
+
+        .gap-btn:hover {
+            background: rgba(234,179,8,0.1);
+        }
+
+        /* Conflict items */
+        .conflict-item {
+            padding: 0.75rem;
+            background: rgba(239,68,68,0.1);
+            border: 1px solid var(--red);
+            border-radius: 6px;
+            margin-bottom: 0.5rem;
+        }
+
+        .conflict-claims {
+            font-size: 0.85rem;
+        }
+
+        .conflict-vs {
+            color: var(--red);
+            font-weight: 600;
+            margin: 0.5rem 0;
+            font-size: 0.75rem;
+        }
+
+        .conflict-action {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+        }
+
+        .conflict-btn {
+            flex: 1;
+            padding: 0.4rem;
+            border: none;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            cursor: pointer;
+            background: var(--surface);
+            color: var(--text-dim);
+        }
+
+        .conflict-btn:hover {
+            color: var(--text);
+        }
+
+        /* Scrollable sections */
+        .scroll-section {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.25rem;
+        }
+
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-dim);
+            font-size: 0.85rem;
+        }
+
+        /* Superscript notation */
+        sup.cert {
+            font-size: 0.65rem;
+            color: var(--green);
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Universal Epistemic Kernel</h1>
+        <div class="metrics">
+            <div class="metric">
+                <div class="metric-value" id="m-beliefs">0</div>
+                <div class="metric-label">Beliefs</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value" id="m-claims">0</div>
+                <div class="metric-label">Claims</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value" style="color: var(--green);" id="m-coherence">--</div>
+                <div class="metric-label">Coherence</div>
+            </div>
+            <div class="metric">
+                <div class="metric-value" id="m-conflicts">0</div>
+                <div class="metric-label">Conflicts</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="main">
+        <div class="evolution-pane">
+            <div class="timeline-controls">
+                <button class="play-btn" id="play-btn" onclick="togglePlay()">▶</button>
+                <input type="range" class="timeline-slider" id="timeline" min="0" max="0" value="0" oninput="seekTo(this.value)">
+                <span class="step-label" id="step-label">0 / 0</span>
+            </div>
+
+            <div class="tree-container">
+                <div class="tree-title">Belief Topology</div>
+                <canvas class="tree-canvas" id="tree-canvas"></canvas>
+            </div>
+
+            <div class="update-feed" id="update-feed">
+                <!-- Updates appear here -->
+            </div>
+        </div>
+
+        <div class="knowledge-pane">
+            <div class="knowledge-section">
+                <div class="section-title">
+                    <span class="icon know">✓</span>
+                    What We Know
+                </div>
+                <div id="known-beliefs">
+                    <div class="empty-state">Processing claims...</div>
+                </div>
+            </div>
+
+            <div class="knowledge-section">
+                <div class="section-title">
+                    <span class="icon dont-know">?</span>
+                    What We Don't Know
+                </div>
+                <div id="unknown-gaps">
+                    <div class="empty-state">No gaps detected yet</div>
+                </div>
+            </div>
+
+            <div class="scroll-section">
+                <div class="section-title">
+                    <span class="icon conflict">!</span>
+                    Conflicts to Resolve
+                </div>
+                <div id="conflicts">
+                    <div class="empty-state">No conflicts yet</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // =========================================================================
+        // STATE
+        // =========================================================================
+
+        const superscripts = {'0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹'};
+        const toSuper = n => String(n).split('').map(d => superscripts[d] || d).join('');
+
+        let state = {
+            topology: null,
+            step: 0,
+            playing: false,
+            playInterval: null,
+            history: []  // [{nodes, edges, event}]
+        };
+
+        // =========================================================================
+        // LOAD DATA
+        // =========================================================================
+
+        async function loadTopology() {
+            try {
+                // Try to load from universal kernel output
+                const response = await fetch('test_eu/results/universal_topology.json');
+                if (!response.ok) {
+                    // Fallback to sample data
+                    loadSampleData();
+                    return;
+                }
+                state.topology = await response.json();
+                processTopology();
+            } catch (err) {
+                console.log('Loading sample data:', err);
+                loadSampleData();
+            }
+        }
+
+        function loadSampleData() {
+            // Sample data for demo
+            state.topology = {
+                nodes: {
+                    "cl_001": { id: "cl_001", content: "At least 11 people killed in Hong Kong high-rise fire", source: "BBC" },
+                    "cl_002": { id: "cl_002", content: "Fire breaks out in Wang Fuk Court, Tai Po district", source: "SCMP" },
+                    "cl_003": { id: "cl_003", content: "Death toll rises to 17 as rescue efforts continue", source: "Reuters" },
+                    "cl_004": { id: "cl_004", content: "11 confirmed dead, dozens injured", source: "Al Jazeera" },
+                    "cl_005": { id: "cl_005", content: "36 confirmed dead in Hong Kong apartment fire", source: "AP" },
+                    "cl_006": { id: "cl_006", content: "128 confirmed dead as DNA identification proceeds", source: "HK Gov" },
+                    "cl_007": { id: "cl_007", content: "Fire originated on 14th floor", source: "Police" },
+                    "cl_008": { id: "cl_008", content: "Fire believed to have started on 15th floor", source: "Fire Dept" },
+                },
+                edges: [
+                    { from: "cl_003", to: "cl_001", relation: "SUPERSEDES", reasoning: "Updated death toll" },
+                    { from: "cl_004", to: "cl_001", relation: "CONFIRMS", reasoning: "Same death count" },
+                    { from: "cl_005", to: "cl_003", relation: "SUPERSEDES", reasoning: "Higher death toll" },
+                    { from: "cl_006", to: "cl_005", relation: "SUPERSEDES", reasoning: "Final official count" },
+                    { from: "cl_008", to: "cl_007", relation: "CONFLICTS", reasoning: "Different floor numbers" },
+                ],
+                metrics: {
+                    node_count: 8,
+                    edge_count: 5,
+                    belief_count: 4,
+                    conflict_count: 1
+                }
+            };
+            processTopology();
+        }
+
+        function processTopology() {
+            const t = state.topology;
+            if (!t) return;
+
+            // Build history from edges (simulate evolution)
+            state.history = [];
+            const nodes = t.nodes || {};
+            const edges = t.edges || [];
+
+            // Sort nodes by ID to simulate temporal order
+            const nodeIds = Object.keys(nodes).sort();
+
+            // Build step-by-step history
+            let currentNodes = {};
+            let currentEdges = [];
+
+            nodeIds.forEach((id, i) => {
+                currentNodes[id] = nodes[id];
+
+                // Find edges involving this node
+                const newEdges = edges.filter(e => e.from === id);
+                currentEdges = [...currentEdges, ...newEdges];
+
+                const event = newEdges.length > 0 ? {
+                    type: newEdges[0].relation.toLowerCase(),
+                    claim: nodes[id],
+                    edge: newEdges[0]
+                } : {
+                    type: 'novel',
+                    claim: nodes[id],
+                    edge: null
+                };
+
+                state.history.push({
+                    nodes: { ...currentNodes },
+                    edges: [...currentEdges],
+                    event: event
+                });
+            });
+
+            // Update slider
+            const slider = document.getElementById('timeline');
+            slider.max = state.history.length - 1;
+            slider.value = state.history.length - 1;
+
+            state.step = state.history.length - 1;
+            renderStep(state.step);
+            updateMetrics();
+        }
+
+        // =========================================================================
+        // RENDER
+        // =========================================================================
+
+        function renderStep(step) {
+            if (step < 0 || step >= state.history.length) return;
+
+            state.step = step;
+            const snapshot = state.history[step];
+
+            // Update label
+            document.getElementById('step-label').textContent = `${step + 1} / ${state.history.length}`;
+
+            // Render tree
+            renderTree(snapshot.nodes, snapshot.edges);
+
+            // Render feed (show recent events up to this step)
+            renderFeed(step);
+
+            // Render knowledge panels
+            renderKnowledge(snapshot);
+        }
+
+        function renderTree(nodes, edges) {
+            const canvas = document.getElementById('tree-canvas');
+            const ctx = canvas.getContext('2d');
+
+            // Set canvas size
+            canvas.width = canvas.offsetWidth * 2;
+            canvas.height = canvas.offsetHeight * 2;
+            ctx.scale(2, 2);
+
+            const w = canvas.offsetWidth;
+            const h = canvas.offsetHeight;
+
+            // Clear
+            ctx.fillStyle = '#12121a';
+            ctx.fillRect(0, 0, w, h);
+
+            const nodeIds = Object.keys(nodes);
+            if (nodeIds.length === 0) return;
+
+            // Calculate positions (simple grid layout)
+            const positions = {};
+            const cols = Math.ceil(Math.sqrt(nodeIds.length));
+            const cellW = w / (cols + 1);
+            const cellH = h / (Math.ceil(nodeIds.length / cols) + 1);
+
+            nodeIds.forEach((id, i) => {
+                const col = i % cols;
+                const row = Math.floor(i / cols);
+                positions[id] = {
+                    x: cellW * (col + 1),
+                    y: cellH * (row + 1)
+                };
+            });
+
+            // Draw edges
+            edges.forEach(edge => {
+                const from = positions[edge.from];
+                const to = positions[edge.to];
+                if (!from || !to) return;
+
+                ctx.beginPath();
+                ctx.moveTo(from.x, from.y);
+                ctx.lineTo(to.x, to.y);
+
+                switch (edge.relation) {
+                    case 'CONFIRMS': ctx.strokeStyle = '#22c55e'; break;
+                    case 'REFINES': ctx.strokeStyle = '#3b82f6'; break;
+                    case 'SUPERSEDES': ctx.strokeStyle = '#a855f7'; break;
+                    case 'CONFLICTS': ctx.strokeStyle = '#ef4444'; break;
+                    default: ctx.strokeStyle = '#2a2a3a';
+                }
+
+                ctx.lineWidth = edge.relation === 'CONFLICTS' ? 2 : 1.5;
+                if (edge.relation === 'CONFLICTS') {
+                    ctx.setLineDash([4, 4]);
+                } else {
+                    ctx.setLineDash([]);
+                }
+                ctx.stroke();
+
+                // Draw arrow
+                const angle = Math.atan2(to.y - from.y, to.x - from.x);
+                const arrowLen = 8;
+                const midX = (from.x + to.x) / 2;
+                const midY = (from.y + to.y) / 2;
+
+                ctx.beginPath();
+                ctx.moveTo(midX, midY);
+                ctx.lineTo(midX - arrowLen * Math.cos(angle - Math.PI/6), midY - arrowLen * Math.sin(angle - Math.PI/6));
+                ctx.moveTo(midX, midY);
+                ctx.lineTo(midX - arrowLen * Math.cos(angle + Math.PI/6), midY - arrowLen * Math.sin(angle + Math.PI/6));
+                ctx.stroke();
+            });
+
+            ctx.setLineDash([]);
+
+            // Draw nodes
+            nodeIds.forEach(id => {
+                const pos = positions[id];
+                const node = nodes[id];
+
+                // Check if superseded
+                const isSuperseded = edges.some(e => e.to === id && e.relation === 'SUPERSEDES');
+                const hasConflict = edges.some(e => (e.from === id || e.to === id) && e.relation === 'CONFLICTS');
+
+                // Node circle
+                ctx.beginPath();
+                ctx.arc(pos.x, pos.y, 20, 0, Math.PI * 2);
+
+                if (hasConflict) {
+                    ctx.fillStyle = 'rgba(239,68,68,0.3)';
+                    ctx.strokeStyle = '#ef4444';
+                } else if (isSuperseded) {
+                    ctx.fillStyle = 'rgba(136,136,160,0.2)';
+                    ctx.strokeStyle = '#4a4a5a';
+                } else {
+                    ctx.fillStyle = 'rgba(34,197,94,0.2)';
+                    ctx.strokeStyle = '#22c55e';
+                }
+
+                ctx.fill();
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                // Label
+                ctx.fillStyle = isSuperseded ? '#666' : '#e0e0e8';
+                ctx.font = '10px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(id.substring(0, 8), pos.x, pos.y + 4);
+
+                // Source below
+                ctx.fillStyle = '#666';
+                ctx.font = '8px sans-serif';
+                ctx.fillText(node.source?.substring(0, 10) || '', pos.x, pos.y + 32);
+            });
+        }
+
+        function renderFeed(upToStep) {
+            const container = document.getElementById('update-feed');
+            let html = '';
+
+            // Show last 5 events
+            const start = Math.max(0, upToStep - 4);
+            for (let i = upToStep; i >= start; i--) {
+                const event = state.history[i]?.event;
+                if (!event) continue;
+
+                const symbols = {
+                    confirms: '=',
+                    refines: '↑',
+                    supersedes: '→',
+                    conflicts: '!',
+                    novel: '+'
+                };
+
+                html += `
+                    <div class="update-item ${event.type}">
+                        <div class="update-symbol ${event.type}">${symbols[event.type] || '?'}</div>
+                        <div class="update-content">
+                            <div class="update-text">${event.claim?.content || 'Unknown claim'}</div>
+                            <div class="update-meta">
+                                ${event.claim?.source || ''}
+                                ${event.edge ? `• ${event.type} ${event.edge.to}` : '• First claim'}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            container.innerHTML = html || '<div class="empty-state">No updates yet</div>';
+        }
+
+        function renderKnowledge(snapshot) {
+            const nodes = snapshot.nodes;
+            const edges = snapshot.edges;
+
+            // Current beliefs = not superseded
+            const superseded = new Set(edges.filter(e => e.relation === 'SUPERSEDES').map(e => e.to));
+            const currentBeliefs = Object.values(nodes).filter(n => !superseded.has(n.id));
+
+            // Count confirmations per belief
+            const confirmCounts = {};
+            currentBeliefs.forEach(b => {
+                confirmCounts[b.id] = 1 + edges.filter(e => e.to === b.id && e.relation === 'CONFIRMS').length;
+            });
+
+            // Sort by confirmation count
+            currentBeliefs.sort((a, b) => (confirmCounts[b.id] || 0) - (confirmCounts[a.id] || 0));
+
+            // Render known beliefs
+            let knownHtml = '';
+            currentBeliefs.slice(0, 5).forEach(b => {
+                const count = confirmCounts[b.id] || 1;
+                knownHtml += `
+                    <div class="belief-item">
+                        ${b.content}
+                        <div class="sources">
+                            ${b.source} <span class="certainty">x${toSuper(count)}</span>
+                        </div>
+                    </div>
+                `;
+            });
+            document.getElementById('known-beliefs').innerHTML = knownHtml || '<div class="empty-state">No beliefs yet</div>';
+
+            // Gaps (single-source beliefs)
+            const singleSource = currentBeliefs.filter(b => confirmCounts[b.id] === 1);
+            let gapsHtml = '';
+            singleSource.slice(0, 3).forEach(b => {
+                gapsHtml += `
+                    <div class="gap-item">
+                        <div class="gap-text">"${b.content?.substring(0, 60)}..." needs corroboration</div>
+                        <div class="gap-action">Only reported by ${b.source}</div>
+                        <button class="gap-btn" onclick="investigate('${b.id}')">Seek sources</button>
+                    </div>
+                `;
+            });
+            document.getElementById('unknown-gaps').innerHTML = gapsHtml || '<div class="empty-state">All claims corroborated</div>';
+
+            // Conflicts
+            const conflicts = edges.filter(e => e.relation === 'CONFLICTS');
+            let conflictsHtml = '';
+            conflicts.forEach(c => {
+                const claimA = nodes[c.from];
+                const claimB = nodes[c.to];
+                conflictsHtml += `
+                    <div class="conflict-item">
+                        <div class="conflict-claims">
+                            "${claimA?.content?.substring(0, 50)}..."
+                            <div class="conflict-vs">VS</div>
+                            "${claimB?.content?.substring(0, 50)}..."
+                        </div>
+                        <div class="conflict-action">
+                            <button class="conflict-btn" onclick="resolve('${c.from}')">This is correct</button>
+                            <button class="conflict-btn" onclick="resolve('${c.to}')">This is correct</button>
+                            <button class="conflict-btn" onclick="investigate('${c.from}')">Investigate</button>
+                        </div>
+                    </div>
+                `;
+            });
+            document.getElementById('conflicts').innerHTML = conflictsHtml || '<div class="empty-state">No conflicts</div>';
+        }
+
+        function updateMetrics() {
+            const t = state.topology;
+            const m = t?.metrics || {};
+
+            document.getElementById('m-beliefs').textContent = m.belief_count || Object.keys(t?.nodes || {}).length;
+            document.getElementById('m-claims').textContent = m.node_count || Object.keys(t?.nodes || {}).length;
+            document.getElementById('m-coherence').textContent = m.coherence ? (m.coherence * 100).toFixed(0) + '%' : '--';
+            document.getElementById('m-conflicts').textContent = m.conflict_count || (t?.edges || []).filter(e => e.relation === 'CONFLICTS').length;
+        }
+
+        // =========================================================================
+        // PLAYBACK
+        // =========================================================================
+
+        function togglePlay() {
+            state.playing = !state.playing;
+            document.getElementById('play-btn').textContent = state.playing ? '⏸' : '▶';
+
+            if (state.playing) {
+                // Reset if at end
+                if (state.step >= state.history.length - 1) {
+                    state.step = 0;
+                }
+
+                state.playInterval = setInterval(() => {
+                    if (state.step < state.history.length - 1) {
+                        state.step++;
+                        document.getElementById('timeline').value = state.step;
+                        renderStep(state.step);
+                    } else {
+                        togglePlay(); // Stop at end
+                    }
+                }, 800);
+            } else {
+                clearInterval(state.playInterval);
+            }
+        }
+
+        function seekTo(step) {
+            state.step = parseInt(step);
+            renderStep(state.step);
+        }
+
+        // =========================================================================
+        // ACTIONS
+        // =========================================================================
+
+        function investigate(beliefId) {
+            alert(`Investigating ${beliefId}...\n\nIn a real implementation, this would:\n1. Search for additional sources\n2. Queue for journalist review\n3. Flag for fact-checking`);
+        }
+
+        function resolve(beliefId) {
+            alert(`Resolving conflict in favor of ${beliefId}...\n\nIn a real implementation, this would:\n1. Mark this claim as authoritative\n2. Update the topology\n3. Log the resolution`);
+        }
+
+        // =========================================================================
+        // INIT
+        // =========================================================================
+
+        loadTopology();
+
+        // Handle resize
+        window.addEventListener('resize', () => {
+            if (state.history.length > 0) {
+                const snapshot = state.history[state.step];
+                renderTree(snapshot.nodes, snapshot.edges);
+            }
+        });
+    </script>
+</body>
+</html>
