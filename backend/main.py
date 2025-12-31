@@ -42,6 +42,15 @@ try:
 except ImportError as e:
     print(f"⚠️  Contributions not available: {e}")
 
+# Import inquiry router (MVP)
+inquiry_router = None
+try:
+    from api import inquiry
+    inquiry_router = inquiry.router
+    print("✅ Inquiry MVP loaded")
+except ImportError as e:
+    print(f"⚠️  Inquiry not available: {e}")
+
 # Try to import other feature routers
 feature_routers = []
 for module_name, prefix, tags in [
@@ -102,6 +111,10 @@ if auth_router:
 # Contributions router (epistemic layer)
 if contributions_router:
     app.include_router(contributions_router, prefix="/api", tags=["Contributions"])
+
+# Inquiry router (MVP)
+if inquiry_router:
+    app.include_router(inquiry_router, prefix="/api", tags=["Inquiry"])
 
 # Feature routers (if available)
 for router, prefix, tags in feature_routers:
@@ -217,7 +230,12 @@ async def serve_spa_app(full_path: str = ""):
 @app.get("/graph", response_class=HTMLResponse)
 @app.get("/map", response_class=HTMLResponse)
 @app.get("/archive", response_class=HTMLResponse)
+@app.get("/inquiry", response_class=HTMLResponse)
 async def serve_spa_direct():
+    return await _serve_spa()
+
+@app.get("/inquiry/{inquiry_path:path}", response_class=HTMLResponse)
+async def serve_spa_inquiry(inquiry_path: str):
     return await _serve_spa()
 
 @app.get("/event/{event_slug:path}", response_class=HTMLResponse)

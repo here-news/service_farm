@@ -18,10 +18,8 @@ from typing import Optional
 from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-import asyncpg
 
 from repositories import PageRepository, RogueTaskRepository
-from services.job_queue import JobQueue
 
 router = APIRouter()
 
@@ -37,15 +35,8 @@ async def init_services():
     global db_pool, page_repo, rogue_task_repo, job_queue
 
     if db_pool is None:
-        db_pool = await asyncpg.create_pool(
-            host=os.getenv('POSTGRES_HOST', 'postgres'),
-            port=int(os.getenv('POSTGRES_PORT', 5432)),
-            user=os.getenv('POSTGRES_USER', 'herenews_user'),
-            password=os.getenv('POSTGRES_PASSWORD', 'herenews_pass'),
-            database=os.getenv('POSTGRES_DB', 'herenews'),
-            min_size=2,
-            max_size=10
-        )
+        from config import create_postgres_pool
+        db_pool = await create_postgres_pool(min_size=2, max_size=10)
 
     if page_repo is None:
         page_repo = PageRepository(db_pool)
@@ -54,8 +45,8 @@ async def init_services():
         rogue_task_repo = RogueTaskRepository(db_pool)
 
     if job_queue is None:
-        job_queue = JobQueue(os.getenv('REDIS_URL', 'redis://redis:6379'))
-        await job_queue.connect()
+        from config import create_job_queue
+        job_queue = await create_job_queue()
 
     return page_repo, rogue_task_repo, job_queue
 

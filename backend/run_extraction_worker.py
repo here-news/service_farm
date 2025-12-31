@@ -13,8 +13,7 @@ load_dotenv(env_path)
 
 import asyncio
 import logging
-import asyncpg
-from services.job_queue import JobQueue
+from config import create_postgres_pool, create_job_queue
 from workers.extraction_worker import ExtractionWorker
 
 # Configure logging
@@ -31,24 +30,15 @@ async def main():
     worker_id = int(os.getenv('WORKER_ID', '1'))
 
     # Connect to PostgreSQL
-    db_pool = await asyncpg.create_pool(
-        host=os.getenv('POSTGRES_HOST', 'postgres'),
-        port=int(os.getenv('POSTGRES_PORT', 5432)),
-        user=os.getenv('POSTGRES_USER', 'herenews_user'),
-        password=os.getenv('POSTGRES_PASSWORD', 'herenews_pass'),
-        database=os.getenv('POSTGRES_DB', 'herenews'),
-        min_size=2,
-        max_size=5
-    )
+    db_pool = await create_postgres_pool(min_size=2, max_size=5)
 
     # Connect to Redis job queue
-    job_queue = JobQueue(os.getenv('REDIS_URL', 'redis://redis:6379'))
-    await job_queue.connect()
+    job_queue = await create_job_queue()
 
     # Create and start worker
     worker = ExtractionWorker(db_pool, job_queue, worker_id=worker_id)
 
-    logger.info(f"🚀 Starting extraction worker {worker_id}")
+    logger.info(f"Starting extraction worker {worker_id}")
 
     try:
         await worker.start()

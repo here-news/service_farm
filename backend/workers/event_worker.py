@@ -263,24 +263,16 @@ class EventWorker:
 
 async def main():
     """Main entry point"""
+    from config import create_postgres_pool, create_job_queue, create_neo4j_service
+
     # Connect to PostgreSQL
-    db_pool = await asyncpg.create_pool(
-        host=os.getenv('POSTGRES_HOST', 'localhost'),
-        port=int(os.getenv('POSTGRES_PORT', 5432)),
-        user=os.getenv('POSTGRES_USER', 'herenews_user'),
-        password=os.getenv('POSTGRES_PASSWORD', 'herenews_pass'),
-        database=os.getenv('POSTGRES_DB', 'herenews'),
-        min_size=2,
-        max_size=10
-    )
+    db_pool = await create_postgres_pool(min_size=2, max_size=10)
 
     # Connect to Neo4j
-    neo4j = Neo4jService()
-    await neo4j.connect()
+    neo4j = await create_neo4j_service()
 
     # Connect to Redis job queue
-    job_queue = JobQueue(os.getenv('REDIS_URL', 'redis://redis:6379'))
-    await job_queue.connect()
+    job_queue = await create_job_queue()
 
     # Start worker
     worker = EventWorker(

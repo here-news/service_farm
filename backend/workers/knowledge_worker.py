@@ -939,25 +939,16 @@ class KnowledgeWorker:
 
 async def run_knowledge_worker():
     """Main worker loop."""
+    from config import create_postgres_pool, create_job_queue, create_neo4j_service
+
     # Initialize database pool
-    db_pool = await asyncpg.create_pool(
-        host=os.getenv('POSTGRES_HOST', 'postgres'),
-        port=int(os.getenv('POSTGRES_PORT', 5432)),
-        user=os.getenv('POSTGRES_USER', 'herenews_user'),
-        password=os.getenv('POSTGRES_PASSWORD', 'herenews_pass'),
-        database=os.getenv('POSTGRES_DB', 'herenews'),
-        min_size=2,
-        max_size=10
-    )
+    db_pool = await create_postgres_pool(min_size=2, max_size=10)
 
     # Initialize job queue
-    from services.job_queue import JobQueue
-    job_queue = JobQueue(os.getenv('REDIS_URL', 'redis://redis:6379'))
-    await job_queue.connect()
+    job_queue = await create_job_queue()
 
     # Initialize Neo4j
-    neo4j_service = Neo4jService()
-    await neo4j_service.connect()
+    neo4j_service = await create_neo4j_service()
     await neo4j_service.initialize_constraints()
 
     # Initialize worker

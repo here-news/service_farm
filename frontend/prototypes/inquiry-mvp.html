@@ -1,0 +1,1351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inquiry - What's True?</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        [x-cloak] { display: none !important; }
+        body { font-family: 'Inter', system-ui, sans-serif; }
+        .confidence-ring { transition: stroke-dashoffset 0.5s ease; }
+        .fade-enter { animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .pulse-glow { animation: pulse 2s infinite; }
+        @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4); } 50% { box-shadow: 0 0 0 8px rgba(34, 197, 94, 0); } }
+        .contested-glow { animation: contested 1.5s infinite; }
+        @keyframes contested { 0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.3); } 50% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); } }
+        .chip { @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700; }
+        .chip-remove { @apply ml-1 hover:text-red-500 cursor-pointer; }
+    </style>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: { 50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8' },
+                        success: { 50: '#f0fdf4', 100: '#dcfce7', 200: '#bbf7d0', 500: '#22c55e', 600: '#16a34a', 700: '#15803d' },
+                        warm: { 50: '#fffbeb', 100: '#fef3c7', 200: '#fde68a', 500: '#f59e0b', 600: '#d97706' },
+                        danger: { 50: '#fef2f2', 100: '#fee2e2', 500: '#ef4444', 600: '#dc2626' },
+                        purple: { 50: '#faf5ff', 100: '#f3e8ff', 500: '#a855f7', 600: '#9333ea' }
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div x-data="inquiryApp()" x-init="init()" class="max-w-5xl mx-auto px-4 py-8">
+
+        <!-- Header -->
+        <header class="text-center mb-6">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">What's True?</h1>
+            <p class="text-gray-500">Collaborative fact-finding with epistemic rigor</p>
+        </header>
+
+        <!-- Search Bar -->
+        <div class="max-w-2xl mx-auto mb-6">
+            <div class="relative">
+                <input type="text" x-model="searchQuery" @input="filterInquiries()"
+                       placeholder="Search questions or find one to join..."
+                       class="w-full border border-gray-200 rounded-full px-5 py-3 pl-12 text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent shadow-sm">
+                <svg class="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                </svg>
+                <span x-show="searchQuery" @click="searchQuery = ''; filterInquiries()"
+                      class="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer">✕</span>
+            </div>
+        </div>
+
+        <!-- View Toggle -->
+        <div class="flex justify-center mb-8">
+            <div class="inline-flex bg-white rounded-full p-1 shadow-sm border">
+                <button @click="tab = 'browse'"
+                        :class="tab === 'browse' ? 'bg-primary-500 text-white' : 'text-gray-600 hover:text-gray-800'"
+                        class="px-5 py-2 rounded-full text-sm font-medium transition">
+                    Browse
+                </button>
+                <button @click="tab = 'create'"
+                        :class="tab === 'create' ? 'bg-primary-500 text-white' : 'text-gray-600 hover:text-gray-800'"
+                        class="px-5 py-2 rounded-full text-sm font-medium transition">
+                    New Question
+                </button>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- BROWSE VIEW - Homepage with sections -->
+        <!-- ============================================================ -->
+        <div x-show="tab === 'browse'" x-cloak>
+
+            <!-- Search Results -->
+            <div x-show="searchQuery && filteredInquiries.length > 0" class="mb-8">
+                <div class="flex items-center gap-2 mb-4">
+                    <span class="text-xl">🔎</span>
+                    <h2 class="text-lg font-semibold text-gray-700">Search Results</h2>
+                    <span class="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full" x-text="filteredInquiries.length + ' found'"></span>
+                </div>
+                <div class="space-y-3">
+                    <template x-for="inq in filteredInquiries.slice(0, 5)" :key="inq.id">
+                        <div @click="selectInquiry(inq.id)"
+                             class="bg-white rounded-xl p-4 border border-primary-200 cursor-pointer hover:shadow-md transition">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <h3 class="font-medium text-gray-800" x-text="inq.title"></h3>
+                                    <div class="text-sm text-gray-500 mt-1">
+                                        <span x-text="inq.contributions + ' contributions'"></span> ·
+                                        <span x-text="'$' + inq.stake.toFixed(2) + ' staked'"></span>
+                                    </div>
+                                </div>
+                                <button class="text-primary-500 hover:text-primary-700 font-medium text-sm">Join →</button>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+
+            <!-- No Results -->
+            <div x-show="searchQuery && filteredInquiries.length === 0" class="text-center py-8 mb-8 bg-white rounded-xl border border-gray-200">
+                <div class="text-4xl mb-2">🤷</div>
+                <p class="text-gray-600 mb-3">No matching questions found</p>
+                <button @click="tab = 'create'; newInquiry.title = searchQuery"
+                        class="text-primary-500 hover:text-primary-700 font-medium">
+                    Create this question →
+                </button>
+            </div>
+
+            <!-- Newly Resolved Section -->
+            <section x-show="!searchQuery && resolvedInquiries.length > 0" class="mb-10">
+                <div class="flex items-center gap-2 mb-4">
+                    <span class="text-xl">✅</span>
+                    <h2 class="text-lg font-semibold text-gray-700">Recently Resolved</h2>
+                    <span class="text-xs bg-success-100 text-success-700 px-2 py-0.5 rounded-full">Truth found</span>
+                </div>
+                <div class="grid md:grid-cols-2 gap-4">
+                    <template x-for="inq in resolvedInquiries.slice(0, 2)" :key="inq.id">
+                        <div @click="selectInquiry(inq.id)"
+                             class="bg-gradient-to-br from-success-50 to-white rounded-2xl p-5 border border-success-200 cursor-pointer hover:shadow-lg transition pulse-glow">
+                            <div class="flex items-start gap-4">
+                                <div class="w-14 h-14 rounded-full bg-success-500 flex items-center justify-center text-white font-bold text-lg">
+                                    <span x-text="typeof inq.posterior_map === 'number' ? inq.posterior_map : (inq.posterior_map === 'true' ? '✓' : '✗')"></span>
+                                </div>
+                                <div class="flex-1">
+                                    <div class="flex items-center gap-2 mb-1">
+                                        <span class="text-xs bg-success-500 text-white px-2 py-0.5 rounded-full">RESOLVED</span>
+                                        <span class="text-xs text-gray-400" x-text="inq.resolved_ago"></span>
+                                    </div>
+                                    <h3 class="font-semibold text-gray-800 leading-snug" x-text="inq.title"></h3>
+                                    <p class="text-sm text-success-600 mt-1">
+                                        <span x-text="Math.round(inq.posterior_probability * 100) + '%'"></span> confidence
+                                        · <span x-text="inq.contributions"></span> sources
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </section>
+
+            <!-- Top Bounty Section -->
+            <section x-show="!searchQuery && topBountiedInquiries.length > 0" class="mb-10">
+                <div class="flex items-center gap-2 mb-4">
+                    <span class="text-xl">💰</span>
+                    <h2 class="text-lg font-semibold text-gray-700">Top Bounties</h2>
+                    <span class="text-xs bg-warm-100 text-warm-700 px-2 py-0.5 rounded-full">Earn rewards</span>
+                </div>
+                <div class="space-y-3">
+                    <template x-for="inq in topBountiedInquiries.slice(0, 3)" :key="inq.id">
+                        <div @click="selectInquiry(inq.id)"
+                             class="bg-white rounded-2xl p-4 border border-gray-100 cursor-pointer hover:shadow-md hover:border-warm-300 transition">
+                            <div class="flex items-center gap-4">
+                                <div class="flex-shrink-0 text-center">
+                                    <div class="text-2xl font-bold text-warm-500" x-text="'$' + inq.stake.toFixed(2)"></div>
+                                    <div class="text-xs text-gray-400">bounty</div>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <h3 class="font-medium text-gray-800 truncate" x-text="inq.title"></h3>
+                                    <div class="flex items-center gap-3 text-sm text-gray-500 mt-1">
+                                        <span x-text="inq.open_tasks + ' tasks open'"></span>
+                                        <span>·</span>
+                                        <span x-text="inq.schema_type === 'monotone_count' ? 'Number' : inq.schema_type === 'boolean' ? 'Yes/No' : inq.schema_type === 'forecast' ? 'Forecast' : 'Category'"></span>
+                                    </div>
+                                </div>
+                                <div class="flex-shrink-0 text-right">
+                                    <div class="text-sm font-medium"
+                                         :class="inq.posterior_probability < 0.5 ? 'text-gray-400' : 'text-gray-600'"
+                                         x-text="Math.round(inq.posterior_probability * 100) + '%'"></div>
+                                    <div class="text-xs text-gray-400">confidence</div>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </section>
+
+            <!-- Highly Contested Section -->
+            <section x-show="!searchQuery && contestedInquiries.length > 0" class="mb-10">
+                <div class="flex items-center gap-2 mb-4">
+                    <span class="text-xl">⚔️</span>
+                    <h2 class="text-lg font-semibold text-gray-700">Highly Contested</h2>
+                    <span class="text-xs bg-danger-100 text-danger-600 px-2 py-0.5 rounded-full">Conflicting evidence</span>
+                </div>
+                <div class="space-y-3">
+                    <template x-for="inq in contestedInquiries.slice(0, 3)" :key="inq.id">
+                        <div @click="selectInquiry(inq.id)"
+                             class="bg-white rounded-2xl p-4 border-2 border-danger-100 cursor-pointer hover:shadow-md hover:border-danger-300 transition contested-glow">
+                            <div class="flex items-center gap-4">
+                                <div class="flex-shrink-0">
+                                    <div class="w-12 h-12 rounded-full bg-gradient-to-br from-danger-100 to-warm-100 flex items-center justify-center">
+                                        <span class="text-lg">🔥</span>
+                                    </div>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <h3 class="font-medium text-gray-800" x-text="inq.title"></h3>
+                                    <div class="flex items-center gap-2 text-sm mt-1">
+                                        <span class="text-danger-500 font-medium" x-text="inq.entropy_bits.toFixed(1) + ' bits entropy'"></span>
+                                        <span class="text-gray-400">·</span>
+                                        <span class="text-gray-500" x-text="inq.contributions + ' conflicting sources'"></span>
+                                    </div>
+                                </div>
+                                <div class="flex-shrink-0 text-right text-sm">
+                                    <div class="text-gray-600">Range: <span class="font-mono" x-text="inq.credible_interval?.[0] + '-' + inq.credible_interval?.[1]"></span></div>
+                                    <div class="text-xs text-gray-400">still uncertain</div>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </section>
+
+            <!-- All Open Questions -->
+            <section x-show="!searchQuery">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xl">🔍</span>
+                        <h2 class="text-lg font-semibold text-gray-700">All Open Questions</h2>
+                    </div>
+                    <select x-model="sortBy" @change="sortInquiries()"
+                            class="text-sm border border-gray-200 rounded-lg px-3 py-1.5 bg-white">
+                        <option value="stake">By Bounty</option>
+                        <option value="entropy">By Uncertainty</option>
+                        <option value="contributions">By Activity</option>
+                        <option value="created">Newest First</option>
+                    </select>
+                </div>
+
+                <div class="space-y-3">
+                    <template x-for="inq in openInquiries" :key="inq.id">
+                        <div @click="selectInquiry(inq.id)"
+                             class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 cursor-pointer hover:shadow-md hover:border-primary-200 transition fade-enter">
+                            <div class="flex items-start gap-4">
+                                <div class="flex-shrink-0">
+                                    <div class="relative w-14 h-14">
+                                        <svg class="w-14 h-14 transform -rotate-90">
+                                            <circle cx="28" cy="28" r="24" stroke="#e5e7eb" stroke-width="4" fill="none"/>
+                                            <circle cx="28" cy="28" r="24"
+                                                    :stroke="inq.posterior_probability > 0.8 ? '#22c55e' : inq.posterior_probability > 0.5 ? '#f59e0b' : '#94a3b8'"
+                                                    stroke-width="4" fill="none"
+                                                    stroke-linecap="round"
+                                                    :stroke-dasharray="151"
+                                                    :stroke-dashoffset="151 - (151 * inq.posterior_probability)"
+                                                    class="confidence-ring"/>
+                                        </svg>
+                                        <div class="absolute inset-0 flex items-center justify-center">
+                                            <span class="text-xs font-bold text-gray-700" x-text="Math.round(inq.posterior_probability * 100) + '%'"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <h3 class="font-semibold text-gray-800 mb-1 leading-snug" x-text="inq.title"></h3>
+                                    <div class="flex flex-wrap items-center gap-2 text-sm text-gray-500">
+                                        <span x-show="inq.posterior_map !== null">
+                                            Best: <strong class="text-gray-700" x-text="inq.posterior_map"></strong>
+                                        </span>
+                                        <span>📊 <span x-text="inq.contributions"></span></span>
+                                        <span x-show="inq.stake > 0" class="text-warm-600">💰 $<span x-text="inq.stake.toFixed(2)"></span></span>
+                                        <span x-show="inq.open_tasks > 0" class="text-primary-500">⚡ <span x-text="inq.open_tasks"></span></span>
+                                    </div>
+                                    <!-- Scope chips -->
+                                    <div x-show="inq.scope_entities?.length > 0" class="flex flex-wrap gap-1 mt-2">
+                                        <template x-for="entity in (inq.scope_entities || []).slice(0, 3)" :key="entity">
+                                            <span class="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full" x-text="entity"></span>
+                                        </template>
+                                    </div>
+                                </div>
+                                <div class="flex-shrink-0">
+                                    <span :class="{
+                                        'bg-success-100 text-success-700 border-success-200': inq.rigor === 'A',
+                                        'bg-primary-100 text-primary-700 border-primary-200': inq.rigor === 'B',
+                                        'bg-gray-100 text-gray-600 border-gray-200': inq.rigor === 'C'
+                                    }" class="px-2 py-1 rounded-lg text-xs font-medium border" x-text="'Rigor ' + inq.rigor"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+                <div x-show="openInquiries.length === 0" class="text-center py-16">
+                    <div class="text-6xl mb-4">🔍</div>
+                    <h2 class="text-xl font-semibold text-gray-700 mb-2">No questions yet</h2>
+                    <p class="text-gray-500 mb-6">Be the first to ask something!</p>
+                    <button @click="tab = 'create'" class="bg-primary-500 hover:bg-primary-600 text-white px-6 py-3 rounded-full font-medium transition">
+                        Ask a Question
+                    </button>
+                </div>
+            </section>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- CREATE VIEW - Enhanced with InquirySpec -->
+        <!-- ============================================================ -->
+        <div x-show="tab === 'create'" x-cloak>
+            <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 max-w-2xl mx-auto">
+                <h2 class="text-xl font-semibold text-gray-800 mb-6">Ask a New Question</h2>
+
+                <form @submit.prevent="createInquiry()" class="space-y-5">
+                    <!-- Question -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Your Question</label>
+                        <input type="text" x-model="newInquiry.title"
+                               placeholder="e.g., How many people died in the Wang Fuk Court fire?"
+                               class="w-full border border-gray-200 rounded-xl px-4 py-3 text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent">
+                    </div>
+
+                    <!-- Answer Type -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Answer Type</label>
+                        <div class="grid grid-cols-4 gap-2">
+                            <button type="button" @click="newInquiry.schema.schema_type = 'monotone_count'"
+                                    :class="newInquiry.schema.schema_type === 'monotone_count' ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-gray-200 hover:border-gray-300'"
+                                    class="border-2 rounded-xl p-3 text-center transition">
+                                <div class="text-xl mb-1">🔢</div>
+                                <div class="text-xs font-medium">Number</div>
+                            </button>
+                            <button type="button" @click="newInquiry.schema.schema_type = 'boolean'"
+                                    :class="newInquiry.schema.schema_type === 'boolean' ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-gray-200 hover:border-gray-300'"
+                                    class="border-2 rounded-xl p-3 text-center transition">
+                                <div class="text-xl mb-1">✓✗</div>
+                                <div class="text-xs font-medium">Yes/No</div>
+                            </button>
+                            <button type="button" @click="newInquiry.schema.schema_type = 'categorical'"
+                                    :class="newInquiry.schema.schema_type === 'categorical' ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-gray-200 hover:border-gray-300'"
+                                    class="border-2 rounded-xl p-3 text-center transition">
+                                <div class="text-xl mb-1">📋</div>
+                                <div class="text-xs font-medium">Category</div>
+                            </button>
+                            <button type="button" @click="newInquiry.schema.schema_type = 'forecast'"
+                                    :class="newInquiry.schema.schema_type === 'forecast' ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-gray-200 hover:border-gray-300'"
+                                    class="border-2 rounded-xl p-3 text-center transition">
+                                <div class="text-xl mb-1">🔮</div>
+                                <div class="text-xs font-medium">Forecast</div>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Count Scale -->
+                    <div x-show="newInquiry.schema.schema_type === 'monotone_count'" class="bg-gray-50 rounded-xl p-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-3">Expected Scale</label>
+                        <div class="flex gap-2">
+                            <button type="button" @click="newInquiry.schema.count_scale = 'small'; newInquiry.schema.count_max = 100"
+                                    :class="newInquiry.schema.count_scale === 'small' ? 'bg-primary-500 text-white' : 'bg-white border border-gray-200'"
+                                    class="px-3 py-1.5 rounded-lg text-sm font-medium transition">1-100</button>
+                            <button type="button" @click="newInquiry.schema.count_scale = 'medium'; newInquiry.schema.count_max = 300"
+                                    :class="newInquiry.schema.count_scale === 'medium' ? 'bg-primary-500 text-white' : 'bg-white border border-gray-200'"
+                                    class="px-3 py-1.5 rounded-lg text-sm font-medium transition">1-300</button>
+                            <button type="button" @click="newInquiry.schema.count_scale = 'large'; newInquiry.schema.count_max = 1000"
+                                    :class="newInquiry.schema.count_scale === 'large' ? 'bg-primary-500 text-white' : 'bg-white border border-gray-200'"
+                                    class="px-3 py-1.5 rounded-lg text-sm font-medium transition">1-1000</button>
+                            <button type="button" @click="newInquiry.schema.count_scale = 'huge'; newInquiry.schema.count_max = 1000000"
+                                    :class="newInquiry.schema.count_scale === 'huge' ? 'bg-primary-500 text-white' : 'bg-white border border-gray-200'"
+                                    class="px-3 py-1.5 rounded-lg text-sm font-medium transition">1M+</button>
+                        </div>
+                    </div>
+
+                    <!-- Forecast Resolution -->
+                    <div x-show="newInquiry.schema.schema_type === 'forecast'" class="bg-purple-50 rounded-xl p-4 space-y-3">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Resolution Date</label>
+                            <input type="date" x-model="newInquiry.resolution_date"
+                                   class="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">What counts as "happened"?</label>
+                            <input type="text" x-model="newInquiry.resolution_criteria"
+                                   placeholder="e.g., Public API access available to all users"
+                                   class="border border-gray-200 rounded-lg px-3 py-2 text-sm w-full">
+                        </div>
+                    </div>
+
+                    <!-- SCOPE DEFINITION (Critical for preventing cross-incident contamination) -->
+                    <div class="border-t border-gray-100 pt-5">
+                        <div class="flex items-center justify-between mb-3">
+                            <label class="text-sm font-medium text-gray-700">Scope Definition</label>
+                            <button type="button" @click="showScopeAdvanced = !showScopeAdvanced"
+                                    class="text-xs text-primary-500 hover:text-primary-700">
+                                <span x-text="showScopeAdvanced ? 'Hide advanced' : 'Show advanced'"></span>
+                            </button>
+                        </div>
+
+                        <!-- Entities (chips) -->
+                        <div class="mb-3">
+                            <label class="block text-xs text-gray-500 mb-1">Required Entities (must be present in evidence)</label>
+                            <div class="flex flex-wrap gap-2 mb-2">
+                                <template x-for="(entity, i) in newInquiry.scope_entities" :key="i">
+                                    <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
+                                        <span x-text="entity"></span>
+                                        <span @click="newInquiry.scope_entities.splice(i, 1)" class="ml-1 hover:text-red-500 cursor-pointer">×</span>
+                                    </span>
+                                </template>
+                            </div>
+                            <div class="flex gap-2">
+                                <input type="text" x-model="entityInput" @keydown.enter.prevent="addEntity()"
+                                       placeholder="Add entity (e.g., Wang Fuk Court, Hong Kong)"
+                                       class="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                                <button type="button" @click="addEntity()"
+                                        class="px-3 py-2 bg-purple-100 text-purple-700 rounded-lg text-sm font-medium hover:bg-purple-200">Add</button>
+                            </div>
+                        </div>
+
+                        <!-- Time Window -->
+                        <div class="grid grid-cols-2 gap-3 mb-3">
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1">Time Start</label>
+                                <input type="datetime-local" x-model="newInquiry.scope_time_start"
+                                       class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1">Time End</label>
+                                <input type="datetime-local" x-model="newInquiry.scope_time_end"
+                                       class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                            </div>
+                        </div>
+
+                        <!-- Advanced Scope Options -->
+                        <div x-show="showScopeAdvanced" class="space-y-3 bg-gray-50 rounded-lg p-3">
+                            <!-- Keywords -->
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1">Keywords (OR matching)</label>
+                                <input type="text" x-model="keywordsInput" @keydown.enter.prevent="addKeyword()"
+                                       placeholder="fire, blaze, apartment"
+                                       class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                                <div class="flex flex-wrap gap-1 mt-1">
+                                    <template x-for="(kw, i) in newInquiry.scope_keywords" :key="i">
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs bg-gray-200 text-gray-700">
+                                            <span x-text="kw"></span>
+                                            <span @click="newInquiry.scope_keywords.splice(i, 1)" class="ml-1 hover:text-red-500 cursor-pointer">×</span>
+                                        </span>
+                                    </template>
+                                </div>
+                            </div>
+
+                            <!-- Primary Source Definition -->
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1">What counts as authoritative?</label>
+                                <input type="text" x-model="newInquiry.primary_source_definition"
+                                       placeholder="e.g., Official government statement, Hospital records"
+                                       class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                            </div>
+
+                            <!-- What Would Change Your Mind -->
+                            <div>
+                                <label class="block text-xs text-gray-500 mb-1">What would change your mind? (generates initial tasks)</label>
+                                <input type="text" x-model="newInquiry.falsification_criteria"
+                                       placeholder="e.g., Evidence of a different fire at same location"
+                                       class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Initial Stake (microcredits) -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Initial Stake</label>
+                        <div class="flex items-center gap-2">
+                            <span class="text-gray-400">$</span>
+                            <input type="number" x-model.number="newInquiry.initial_stake" min="0.01" step="0.01"
+                                   class="w-32 border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-500">
+                            <span class="text-sm text-gray-500">Min $0.01</span>
+                        </div>
+                        <p class="text-xs text-gray-400 mt-1">Higher stakes attract more contributors and fund task bounties</p>
+                    </div>
+
+                    <button type="submit"
+                            class="w-full bg-primary-500 hover:bg-primary-600 text-white font-semibold py-3 px-6 rounded-xl transition">
+                        Create Question
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- ============================================================ -->
+        <!-- DETAIL VIEW - Enhanced with topology trace -->
+        <!-- ============================================================ -->
+        <div x-show="tab === 'detail' && selectedInquiry" x-cloak>
+            <button @click="tab = 'browse'; selectedInquiry = null" class="flex items-center gap-2 text-gray-500 hover:text-gray-700 mb-6 transition">
+                ← Back to questions
+            </button>
+
+            <!-- Question Header Card -->
+            <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 mb-6">
+                <div class="flex items-start justify-between mb-4">
+                    <div>
+                        <div class="flex items-center gap-2 mb-2">
+                            <span :class="{
+                                'bg-success-100 text-success-700': selectedInquiry.status === 'resolved',
+                                'bg-primary-100 text-primary-700': selectedInquiry.status === 'open',
+                                'bg-gray-100 text-gray-600': selectedInquiry.status === 'stale'
+                            }" class="px-2 py-0.5 rounded-full text-xs font-medium"
+                            x-text="selectedInquiry.status.toUpperCase()"></span>
+                            <span class="text-xs text-gray-400" x-text="'Rigor ' + selectedInquiry.rigor"></span>
+                            <span x-show="selectedInquiry.schema_type === 'forecast'" class="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">Forecast</span>
+                        </div>
+                        <h2 class="text-xl font-semibold text-gray-800" x-text="selectedInquiry.title"></h2>
+                        <!-- Scope chips -->
+                        <div x-show="selectedInquiry.scope_entities?.length > 0" class="flex flex-wrap gap-1 mt-2">
+                            <template x-for="entity in (selectedInquiry.scope_entities || [])" :key="entity">
+                                <span class="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full" x-text="entity"></span>
+                            </template>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-2xl font-bold text-warm-500">$<span x-text="(selectedInquiry.stake || 0).toFixed(2)"></span></div>
+                        <div class="text-xs text-gray-400">total stake</div>
+                    </div>
+                </div>
+
+                <!-- Big Answer Display -->
+                <div class="bg-gray-50 rounded-xl p-6 mb-6">
+                    <div class="flex items-center gap-8">
+                        <div class="text-center">
+                            <div class="text-5xl font-bold text-gray-800 mb-1" x-text="trace?.belief_state?.map ?? '?'"></div>
+                            <div class="text-sm text-gray-500">Current Best Answer</div>
+                        </div>
+                        <div class="flex-1">
+                            <div class="flex justify-between text-sm mb-2">
+                                <span class="text-gray-600">Confidence</span>
+                                <span class="font-bold"
+                                      :class="(trace?.belief_state?.map_probability || 0) > 0.8 ? 'text-success-600' : (trace?.belief_state?.map_probability || 0) > 0.5 ? 'text-warm-500' : 'text-gray-400'"
+                                      x-text="Math.round((trace?.belief_state?.map_probability || 0) * 100) + '%'"></span>
+                            </div>
+                            <div class="h-4 bg-gray-200 rounded-full overflow-hidden">
+                                <div class="h-full rounded-full transition-all duration-500"
+                                     :class="(trace?.belief_state?.map_probability || 0) > 0.8 ? 'bg-success-500' : (trace?.belief_state?.map_probability || 0) > 0.5 ? 'bg-warm-500' : 'bg-gray-400'"
+                                     :style="'width: ' + ((trace?.belief_state?.map_probability || 0) * 100) + '%'"></div>
+                            </div>
+                            <div class="flex justify-between text-xs text-gray-400 mt-2">
+                                <span>95% CI: <span class="font-mono" x-text="JSON.stringify(selectedInquiry.posterior?.credible_interval || selectedInquiry.credible_interval || [])"></span></span>
+                                <span x-text="(trace?.belief_state?.entropy_bits || 0).toFixed(1) + ' bits'"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Resolution Policy (explicit) -->
+                <div class="bg-gray-50 rounded-lg p-3 text-xs text-gray-600">
+                    <strong>Resolution Policy:</strong>
+                    P(MAP) ≥ 95% for 24 hours + no blocking tasks + multi-source confirmation.
+                    <span x-show="selectedInquiry.schema_type === 'forecast'" class="text-purple-600">
+                        Forecast resolves on <span x-text="selectedInquiry.resolution_date || 'specified date'"></span>.
+                    </span>
+                </div>
+
+                <!-- Probability Distribution -->
+                <div x-show="trace?.posterior_top_10?.length > 0" class="mt-4">
+                    <div class="text-sm font-medium text-gray-600 mb-3">Probability Distribution</div>
+                    <div class="flex items-end gap-1 h-20 bg-gray-50 rounded-lg p-3">
+                        <template x-for="item in (trace?.posterior_top_10 || [])" :key="item.value">
+                            <div class="flex-1 flex flex-col items-center">
+                                <div class="text-xs text-gray-500 mb-1" x-text="Math.round(item.probability * 100) + '%'"></div>
+                                <div class="w-full rounded-t transition-all duration-300"
+                                     :class="item.value === trace?.belief_state?.map ? 'bg-primary-500' : 'bg-primary-200'"
+                                     :style="'height: ' + (item.probability / (trace?.posterior_top_10?.[0]?.probability || 1) * 50) + 'px'"></div>
+                                <div class="text-xs font-mono text-gray-600 mt-1" x-text="item.value"></div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Three Column Layout -->
+            <div class="grid lg:grid-cols-3 gap-6">
+
+                <!-- Column 1: Contribution Forms -->
+                <div class="lg:col-span-1 space-y-4">
+                    <!-- Related Claims Feed -->
+                    <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+                        <h3 class="font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                            📰 Related Claims <span class="text-xs bg-primary-100 text-primary-600 px-2 py-0.5 rounded-full">Click to add</span>
+                        </h3>
+                        <div class="space-y-2 max-h-48 overflow-y-auto">
+                            <template x-for="claim in relatedClaims" :key="claim.id">
+                                <div class="border border-gray-100 rounded-lg p-2 hover:border-primary-200 transition cursor-pointer text-xs"
+                                     @click="prefillClaim(claim)">
+                                    <div class="flex items-start gap-2">
+                                        <span x-text="claim.icon"></span>
+                                        <div class="flex-1">
+                                            <div class="text-gray-400" x-text="claim.source"></div>
+                                            <p class="text-gray-700 line-clamp-1" x-text="claim.text"></p>
+                                            <span class="font-mono bg-gray-100 px-1 rounded" x-text="claim.extracted_value + ' (' + claim.observation_kind + ')'"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- Contribution Type Tabs -->
+                    <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+                        <div class="flex gap-1 mb-4">
+                            <button @click="contributionTab = 'evidence'"
+                                    :class="contributionTab === 'evidence' ? 'bg-primary-500 text-white' : 'bg-gray-100 text-gray-600'"
+                                    class="flex-1 py-2 rounded-lg text-xs font-medium">📊 Evidence</button>
+                            <button @click="contributionTab = 'attribution'"
+                                    :class="contributionTab === 'attribution' ? 'bg-purple-500 text-white' : 'bg-gray-100 text-gray-600'"
+                                    class="flex-1 py-2 rounded-lg text-xs font-medium">🗣️ Attribution</button>
+                            <button @click="contributionTab = 'scope_fix'"
+                                    :class="contributionTab === 'scope_fix' ? 'bg-danger-500 text-white' : 'bg-gray-100 text-gray-600'"
+                                    class="flex-1 py-2 rounded-lg text-xs font-medium">🚫 Scope Fix</button>
+                        </div>
+
+                        <!-- Evidence Form -->
+                        <form x-show="contributionTab === 'evidence'" @submit.prevent="addContribution('evidence')" class="space-y-3">
+                            <textarea x-model="newContribution.text" rows="2" placeholder="Paste quote or describe evidence..."
+                                      class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"></textarea>
+                            <div class="grid grid-cols-2 gap-2">
+                                <input type="text" x-model="newContribution.source_name" placeholder="Source"
+                                       class="border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                                <input type="number" x-model.number="newContribution.extracted_value" placeholder="Value"
+                                       class="border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                            </div>
+                            <div class="flex gap-1">
+                                <button type="button" @click="newContribution.observation_kind = 'point'"
+                                        :class="newContribution.observation_kind === 'point' ? 'bg-primary-500 text-white' : 'bg-gray-100'"
+                                        class="flex-1 py-1.5 rounded text-xs">Exact</button>
+                                <button type="button" @click="newContribution.observation_kind = 'lower_bound'"
+                                        :class="newContribution.observation_kind === 'lower_bound' ? 'bg-primary-500 text-white' : 'bg-gray-100'"
+                                        class="flex-1 py-1.5 rounded text-xs">At least</button>
+                                <button type="button" @click="newContribution.observation_kind = 'approximate'"
+                                        :class="newContribution.observation_kind === 'approximate' ? 'bg-primary-500 text-white' : 'bg-gray-100'"
+                                        class="flex-1 py-1.5 rounded text-xs">~Approx</button>
+                            </div>
+                            <button type="submit" class="w-full bg-success-500 hover:bg-success-600 text-white font-medium py-2 rounded-lg text-sm">
+                                Submit Evidence
+                            </button>
+                        </form>
+
+                        <!-- Attribution Form (A said B reported p) -->
+                        <form x-show="contributionTab === 'attribution'" @submit.prevent="addContribution('attribution')" class="space-y-3">
+                            <div class="bg-purple-50 rounded-lg p-3 text-xs text-purple-700 mb-2">
+                                Use this when a source is <em>quoting</em> another source, not making a direct claim.
+                            </div>
+                            <input type="text" x-model="newContribution.attributed_to" placeholder="Who said it? (e.g., Reuters)"
+                                   class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                            <input type="text" x-model="newContribution.original_source" placeholder="Original source (e.g., Health Ministry)"
+                                   class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                            <textarea x-model="newContribution.text" rows="2" placeholder="What was reported?"
+                                      class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"></textarea>
+                            <button type="submit" class="w-full bg-purple-500 hover:bg-purple-600 text-white font-medium py-2 rounded-lg text-sm">
+                                Submit Attribution
+                            </button>
+                        </form>
+
+                        <!-- Scope Fix Form -->
+                        <form x-show="contributionTab === 'scope_fix'" @submit.prevent="addContribution('scope_correction')" class="space-y-3">
+                            <div class="bg-danger-50 rounded-lg p-3 text-xs text-danger-700 mb-2">
+                                Use this to flag evidence that's about a <em>different</em> incident or out of scope.
+                            </div>
+                            <textarea x-model="newContribution.text" rows="2" placeholder="Which evidence is out of scope and why?"
+                                      class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"></textarea>
+                            <input type="text" x-model="newContribution.correct_scope" placeholder="What incident does it actually belong to?"
+                                   class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                            <button type="submit" class="w-full bg-danger-500 hover:bg-danger-600 text-white font-medium py-2 rounded-lg text-sm">
+                                Flag Scope Issue
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Column 2: Epistemic Trace (Topology-first) -->
+                <div class="lg:col-span-1">
+                    <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+                        <h3 class="font-semibold text-gray-800 mb-4">🔬 Epistemic Trace</h3>
+
+                        <!-- Surfaces (Topology) -->
+                        <div class="mb-4">
+                            <div class="text-xs font-medium text-gray-500 mb-2">Surfaces (Claim Clusters)</div>
+                            <div class="space-y-2">
+                                <template x-for="surface in (trace?.surfaces || generateSimulatedSurfaces())" :key="surface.id">
+                                    <div class="border rounded-lg p-2 text-xs"
+                                         :class="surface.in_scope ? 'border-success-200 bg-success-50' : 'border-danger-200 bg-danger-50'">
+                                        <div class="flex items-center justify-between mb-1">
+                                            <span class="font-medium" x-text="surface.name"></span>
+                                            <span :class="surface.in_scope ? 'text-success-600' : 'text-danger-600'"
+                                                  x-text="surface.in_scope ? 'In scope' : 'Flagged'"></span>
+                                        </div>
+                                        <div class="text-gray-500">
+                                            <span x-text="surface.claim_count + ' claims'"></span> ·
+                                            <span x-text="surface.sources?.join(', ') || 'various'"></span>
+                                        </div>
+                                        <!-- Identity Relations -->
+                                        <div x-show="surface.relations?.length > 0" class="mt-1 flex flex-wrap gap-1">
+                                            <template x-for="rel in (surface.relations || [])" :key="rel">
+                                                <span class="px-1 py-0.5 rounded text-xs"
+                                                      :class="{
+                                                          'bg-success-100 text-success-700': rel.type === 'CONFIRMS',
+                                                          'bg-primary-100 text-primary-700': rel.type === 'SUPERSEDES',
+                                                          'bg-danger-100 text-danger-700': rel.type === 'CONFLICTS'
+                                                      }"
+                                                      x-text="rel.type + ' ' + rel.target"></span>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+
+                        <!-- Belief Summary -->
+                        <div class="bg-gray-50 rounded-lg p-3 mb-4 text-xs">
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <div class="text-gray-500">Observations</div>
+                                    <div class="font-semibold" x-text="trace?.belief_state?.observation_count || 0"></div>
+                                </div>
+                                <div>
+                                    <div class="text-gray-500">Entropy</div>
+                                    <div class="font-semibold" x-text="(trace?.belief_state?.entropy_bits || 0).toFixed(2) + ' bits'"></div>
+                                </div>
+                                <div>
+                                    <div class="text-gray-500">Normalized</div>
+                                    <div class="font-semibold" x-text="((trace?.belief_state?.normalized_entropy || 0) * 100).toFixed(0) + '%'"></div>
+                                </div>
+                                <div>
+                                    <div class="text-gray-500">Log Score</div>
+                                    <div class="font-semibold" x-text="(trace?.belief_state?.total_log_score || 0).toFixed(2)"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Tasks with Claim Workflow -->
+                        <div>
+                            <div class="text-xs font-medium text-gray-500 mb-2">Tasks (from Meta-Claims)</div>
+                            <template x-for="task in (trace?.tasks || [])" :key="task.id">
+                                <div :class="task.completed ? 'bg-success-50 border-success-200' : 'bg-warm-50 border-warm-200'"
+                                     class="rounded-lg p-3 mb-2 border">
+                                    <div class="flex items-start justify-between">
+                                        <div>
+                                            <div class="flex items-center gap-2 text-xs">
+                                                <span x-text="task.completed ? '✅' : '⚠️'"></span>
+                                                <span class="font-medium" x-text="task.type"></span>
+                                            </div>
+                                            <p class="text-xs text-gray-600 mt-1" x-text="task.description"></p>
+                                        </div>
+                                        <span class="text-warm-600 font-medium text-sm" x-text="'$' + (task.bounty || 0).toFixed(2)"></span>
+                                    </div>
+                                    <button x-show="!task.completed" @click="claimTask(task)"
+                                            class="mt-2 w-full bg-warm-100 hover:bg-warm-200 text-warm-700 text-xs font-medium py-1.5 rounded">
+                                        Claim Task
+                                    </button>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Column 3: Timeline & Status -->
+                <div class="lg:col-span-1 space-y-4">
+                    <!-- Resolution Status -->
+                    <div :class="trace?.resolution?.resolvable ? 'bg-success-50 border-success-200' : 'bg-gray-50 border-gray-200'"
+                         class="rounded-2xl p-5 border">
+                        <div class="flex items-center gap-3">
+                            <span class="text-2xl" x-text="trace?.resolution?.resolvable ? '✅' : '⏳'"></span>
+                            <div>
+                                <div class="font-semibold"
+                                     :class="trace?.resolution?.resolvable ? 'text-success-700' : 'text-gray-700'"
+                                     x-text="trace?.resolution?.resolvable ? 'Ready to Resolve!' : 'Gathering Evidence'"></div>
+                                <div class="text-xs text-gray-500">
+                                    <span x-show="trace?.resolution?.blocking_tasks?.length > 0"
+                                          x-text="trace?.resolution?.blocking_tasks?.length + ' blocking tasks'"></span>
+                                    <span x-show="!trace?.resolution?.blocking_tasks?.length && (trace?.belief_state?.map_probability || 0) < 0.95">
+                                        Need <span x-text="Math.max(0, 95 - Math.round((trace?.belief_state?.map_probability || 0) * 100))"></span>% more confidence
+                                    </span>
+                                    <span x-show="!trace?.resolution?.blocking_tasks?.length && (trace?.belief_state?.map_probability || 0) >= 0.95">
+                                        Waiting for 24h stability
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Stake History -->
+                    <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+                        <h3 class="font-semibold text-gray-800 mb-3">📈 Stake History</h3>
+                        <div class="space-y-2 text-sm">
+                            <template x-for="(event, i) in stakeHistory" :key="i">
+                                <div class="flex items-center justify-between">
+                                    <span class="text-gray-500" x-text="event.actor"></span>
+                                    <span class="font-medium text-success-600" x-text="'+$' + event.amount.toFixed(2)"></span>
+                                </div>
+                            </template>
+                            <div class="pt-2 border-t flex justify-between">
+                                <span class="font-medium">Total</span>
+                                <span class="font-bold text-warm-500" x-text="'$' + (selectedInquiry.stake || 0).toFixed(2)"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Evidence Timeline -->
+                    <div class="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+                        <h3 class="font-semibold text-gray-800 mb-4">📝 Evidence Timeline</h3>
+                        <div class="space-y-3 max-h-64 overflow-y-auto">
+                            <template x-for="(c, i) in (trace?.contributions || [])" :key="c.id">
+                                <div class="flex gap-3">
+                                    <div class="flex flex-col items-center">
+                                        <div class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium"
+                                             :class="{
+                                                 'bg-success-100 text-success-700': c.type === 'evidence' && c.impact > 0.05,
+                                                 'bg-purple-100 text-purple-700': c.type === 'attribution',
+                                                 'bg-danger-100 text-danger-700': c.type === 'scope_correction',
+                                                 'bg-gray-100 text-gray-600': c.type === 'evidence' && c.impact <= 0.05
+                                             }"
+                                             x-text="i + 1"></div>
+                                        <div x-show="i < (trace?.contributions?.length || 0) - 1" class="w-0.5 flex-1 bg-gray-200 mt-1"></div>
+                                    </div>
+                                    <div class="flex-1 pb-3">
+                                        <div class="flex items-center gap-2 mb-1">
+                                            <span class="text-sm font-medium text-gray-700" x-text="c.source || 'Unknown'"></span>
+                                            <span class="text-xs px-1 py-0.5 rounded"
+                                                  :class="{
+                                                      'bg-success-100 text-success-600': c.type === 'evidence',
+                                                      'bg-purple-100 text-purple-600': c.type === 'attribution',
+                                                      'bg-danger-100 text-danger-600': c.type === 'scope_correction'
+                                                  }"
+                                                  x-text="c.type"></span>
+                                            <span x-show="c.impact > 0.02" class="text-xs text-success-600">
+                                                +<span x-text="Math.round(c.impact * 100)"></span>%
+                                            </span>
+                                        </div>
+                                        <p class="text-xs text-gray-600 line-clamp-2" x-text="c.text"></p>
+                                        <div class="text-xs text-gray-400 mt-1">
+                                            <span class="font-mono" x-text="c.extracted_value"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast -->
+        <div x-show="toast" x-transition
+             class="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-6 py-3 rounded-full shadow-lg">
+            <span x-text="toast"></span>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api';
+
+        // Simulated inquiries with full InquirySpec
+        const SIMULATED_INQUIRIES = [
+            // Resolved
+            {
+                id: 'sim_resolved_1',
+                title: 'Did Elon Musk acquire Twitter in 2022?',
+                status: 'resolved',
+                rigor: 'A',
+                schema_type: 'boolean',
+                posterior_map: 'true',
+                posterior_probability: 0.99,
+                entropy_bits: 0.08,
+                stake: 250.00,
+                contributions: 12,
+                open_tasks: 0,
+                resolvable: true,
+                resolved_ago: '3 days ago',
+                credible_interval: ['true', 'true'],
+                scope_entities: ['Elon Musk', 'Twitter', 'X Corp'],
+                scope_time_start: '2022-04-01',
+                scope_time_end: '2022-12-31'
+            },
+            {
+                id: 'sim_resolved_2',
+                title: 'How many people attended the 2024 Super Bowl?',
+                status: 'resolved',
+                rigor: 'A',
+                schema_type: 'monotone_count',
+                posterior_map: 61629,
+                posterior_probability: 0.97,
+                entropy_bits: 0.21,
+                stake: 180.50,
+                contributions: 8,
+                open_tasks: 0,
+                resolvable: true,
+                resolved_ago: '1 week ago',
+                credible_interval: [61500, 61800],
+                scope_entities: ['Super Bowl LVIII', 'Allegiant Stadium', 'Las Vegas']
+            },
+            // High Bounty
+            {
+                id: 'sim_bounty_1',
+                title: 'How many Russian soldiers have died in Ukraine as of Dec 2024?',
+                status: 'open',
+                rigor: 'B',
+                schema_type: 'monotone_count',
+                posterior_map: 315000,
+                posterior_probability: 0.32,
+                entropy_bits: 4.8,
+                stake: 5000.00,
+                contributions: 24,
+                open_tasks: 4,
+                resolvable: false,
+                credible_interval: [180000, 450000],
+                scope_entities: ['Russian Armed Forces', 'Ukraine'],
+                scope_time_start: '2022-02-24'
+            },
+            {
+                id: 'sim_bounty_2',
+                title: 'Will GPT-5 be released before July 2025?',
+                status: 'open',
+                rigor: 'B',
+                schema_type: 'forecast',
+                posterior_map: 'true',
+                posterior_probability: 0.62,
+                entropy_bits: 0.96,
+                stake: 2500.00,
+                contributions: 15,
+                open_tasks: 2,
+                resolvable: false,
+                credible_interval: ['false', 'true'],
+                scope_entities: ['OpenAI', 'GPT-5'],
+                resolution_date: '2025-07-01',
+                resolution_criteria: 'Public API access or official announcement of general availability'
+            },
+            {
+                id: 'sim_bounty_3',
+                title: 'What is the actual unemployment rate in China (Dec 2024)?',
+                status: 'open',
+                rigor: 'C',
+                schema_type: 'monotone_count',
+                posterior_map: 18,
+                posterior_probability: 0.28,
+                entropy_bits: 3.2,
+                stake: 1800.00,
+                contributions: 9,
+                open_tasks: 3,
+                resolvable: false,
+                credible_interval: [8, 25],
+                scope_entities: ['China', 'National Bureau of Statistics']
+            },
+            // Contested
+            {
+                id: 'sim_contested_1',
+                title: 'How many people were killed in the Gaza hospital explosion (Oct 2023)?',
+                status: 'open',
+                rigor: 'B',
+                schema_type: 'monotone_count',
+                posterior_map: 300,
+                posterior_probability: 0.18,
+                entropy_bits: 5.2,
+                stake: 800.00,
+                contributions: 31,
+                open_tasks: 5,
+                resolvable: false,
+                credible_interval: [50, 500],
+                scope_entities: ['Al-Ahli Arab Hospital', 'Gaza'],
+                scope_time_start: '2023-10-17',
+                scope_time_end: '2023-10-18'
+            },
+            {
+                id: 'sim_contested_2',
+                title: 'Did lab leak cause COVID-19?',
+                status: 'open',
+                rigor: 'C',
+                schema_type: 'categorical',
+                posterior_map: 'uncertain',
+                posterior_probability: 0.35,
+                entropy_bits: 1.58,
+                stake: 1200.00,
+                contributions: 45,
+                open_tasks: 6,
+                resolvable: false,
+                credible_interval: ['lab_leak', 'natural_origin'],
+                scope_entities: ['Wuhan Institute of Virology', 'SARS-CoV-2']
+            },
+            {
+                id: 'sim_contested_3',
+                title: 'What was the actual vote margin in Venezuela 2024 election?',
+                status: 'open',
+                rigor: 'B',
+                schema_type: 'monotone_count',
+                posterior_map: -15,
+                posterior_probability: 0.22,
+                entropy_bits: 4.1,
+                stake: 600.00,
+                contributions: 18,
+                open_tasks: 4,
+                resolvable: false,
+                credible_interval: [-30, 10],
+                scope_entities: ['Venezuela', 'Nicolás Maduro', 'Edmundo González']
+            },
+            // More open
+            {
+                id: 'sim_open_1',
+                title: 'How many cars did Tesla deliver in Q4 2024?',
+                status: 'open',
+                rigor: 'A',
+                schema_type: 'monotone_count',
+                posterior_map: 485000,
+                posterior_probability: 0.65,
+                entropy_bits: 1.8,
+                stake: 400.00,
+                contributions: 6,
+                open_tasks: 1,
+                resolvable: false,
+                credible_interval: [460000, 510000],
+                scope_entities: ['Tesla', 'Q4 2024']
+            },
+            {
+                id: 'sim_open_2',
+                title: 'Did Sam Altman really get fired and rehired in Nov 2023?',
+                status: 'open',
+                rigor: 'A',
+                schema_type: 'boolean',
+                posterior_map: 'true',
+                posterior_probability: 0.94,
+                entropy_bits: 0.35,
+                stake: 150.00,
+                contributions: 9,
+                open_tasks: 1,
+                resolvable: false,
+                credible_interval: ['true', 'true'],
+                scope_entities: ['Sam Altman', 'OpenAI'],
+                scope_time_start: '2023-11-17',
+                scope_time_end: '2023-11-22'
+            }
+        ];
+
+        const SIMULATED_CLAIMS = {
+            'default': [
+                { id: 'c1', icon: '📰', source: 'Reuters', text: '"Officials confirmed the death toll rose to at least 160 by Thursday morning"', extracted_value: 160, observation_kind: 'lower_bound' },
+                { id: 'c2', icon: '📺', source: 'BBC News', text: '"The fire claimed approximately 165 lives according to hospital records"', extracted_value: 165, observation_kind: 'approximate' },
+                { id: 'c3', icon: '🏛️', source: 'Official Statement', text: '"The government has confirmed 158 deaths as of the latest count"', extracted_value: 158, observation_kind: 'point' },
+                { id: 'c4', icon: '📱', source: 'AP News', text: '"Rescue workers recovered 12 more bodies overnight, bringing total to 170"', extracted_value: 170, observation_kind: 'point' },
+            ],
+            'sim_contested_1': [
+                { id: 'c1', icon: '🏥', source: 'Gaza Health Ministry', text: '"At least 500 people killed in the hospital blast"', extracted_value: 500, observation_kind: 'lower_bound' },
+                { id: 'c2', icon: '🇮🇱', source: 'IDF Statement', text: '"Analysis shows 10-50 casualties from misfired rocket"', extracted_value: 30, observation_kind: 'interval' },
+                { id: 'c3', icon: '🇺🇸', source: 'US Intelligence', text: '"Estimated 100-300 deaths based on satellite imagery"', extracted_value: 200, observation_kind: 'approximate' },
+            ],
+            'sim_bounty_1': [
+                { id: 'c1', icon: '🇺🇦', source: 'Ukrainian MoD', text: '"Over 350,000 Russian soldiers eliminated since Feb 2022"', extracted_value: 350000, observation_kind: 'lower_bound' },
+                { id: 'c2', icon: '🇷🇺', source: 'Mediazona/BBC', text: '"Confirmed deaths with names: 78,000 as of Dec 2024"', extracted_value: 78000, observation_kind: 'lower_bound' },
+                { id: 'c3', icon: '🇬🇧', source: 'UK MoD', text: '"Estimated 315,000 total casualties (killed and wounded)"', extracted_value: 315000, observation_kind: 'approximate' },
+            ]
+        };
+
+        function inquiryApp() {
+            return {
+                tab: 'browse',
+                sortBy: 'stake',
+                searchQuery: '',
+                showScopeAdvanced: false,
+                contributionTab: 'evidence',
+                entityInput: '',
+                keywordsInput: '',
+                inquiries: [],
+                filteredInquiries: [],
+                selectedInquiry: null,
+                trace: null,
+                toast: null,
+                relatedClaims: [],
+                stakeHistory: [],
+
+                newInquiry: {
+                    title: '',
+                    description: '',
+                    schema: { schema_type: 'monotone_count', count_scale: 'medium', count_max: 300, count_monotone: true, rigor: 'A' },
+                    initial_stake: 1.00,
+                    scope_entities: [],
+                    scope_keywords: [],
+                    scope_time_start: '',
+                    scope_time_end: '',
+                    primary_source_definition: '',
+                    falsification_criteria: '',
+                    resolution_date: '',
+                    resolution_criteria: ''
+                },
+
+                newContribution: {
+                    type: 'evidence',
+                    text: '',
+                    source_url: '',
+                    source_name: '',
+                    extracted_value: null,
+                    observation_kind: 'point',
+                    attributed_to: '',
+                    original_source: '',
+                    correct_scope: ''
+                },
+
+                get resolvedInquiries() { return this.inquiries.filter(i => i.status === 'resolved'); },
+                get topBountiedInquiries() { return this.inquiries.filter(i => i.status === 'open' && i.stake > 100).sort((a, b) => b.stake - a.stake); },
+                get contestedInquiries() { return this.inquiries.filter(i => i.status === 'open' && i.entropy_bits > 3).sort((a, b) => b.entropy_bits - a.entropy_bits); },
+                get openInquiries() { return this.inquiries.filter(i => i.status === 'open'); },
+
+                async init() { await this.loadInquiries(); },
+
+                async loadInquiries() {
+                    try {
+                        const res = await fetch(`${API_BASE}/inquiry`);
+                        const realInquiries = await res.json();
+                        this.inquiries = [...realInquiries, ...SIMULATED_INQUIRIES];
+                        this.sortInquiries();
+                    } catch (e) {
+                        this.inquiries = [...SIMULATED_INQUIRIES];
+                    }
+                },
+
+                filterInquiries() {
+                    if (!this.searchQuery.trim()) {
+                        this.filteredInquiries = [];
+                        return;
+                    }
+                    const q = this.searchQuery.toLowerCase();
+                    this.filteredInquiries = this.inquiries.filter(i =>
+                        i.title.toLowerCase().includes(q) ||
+                        (i.scope_entities || []).some(e => e.toLowerCase().includes(q))
+                    );
+                },
+
+                sortInquiries() {
+                    const open = this.inquiries.filter(i => i.status === 'open');
+                    if (this.sortBy === 'stake') open.sort((a, b) => b.stake - a.stake);
+                    else if (this.sortBy === 'entropy') open.sort((a, b) => b.entropy_bits - a.entropy_bits);
+                    else if (this.sortBy === 'contributions') open.sort((a, b) => b.contributions - a.contributions);
+                    else if (this.sortBy === 'created') open.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+                    this.inquiries = [...this.resolvedInquiries, ...open];
+                },
+
+                addEntity() {
+                    if (this.entityInput.trim() && !this.newInquiry.scope_entities.includes(this.entityInput.trim())) {
+                        this.newInquiry.scope_entities.push(this.entityInput.trim());
+                        this.entityInput = '';
+                    }
+                },
+
+                addKeyword() {
+                    if (this.keywordsInput.trim()) {
+                        const kws = this.keywordsInput.split(',').map(k => k.trim()).filter(k => k);
+                        kws.forEach(kw => {
+                            if (!this.newInquiry.scope_keywords.includes(kw)) {
+                                this.newInquiry.scope_keywords.push(kw);
+                            }
+                        });
+                        this.keywordsInput = '';
+                    }
+                },
+
+                async createInquiry() {
+                    if (!this.newInquiry.title.trim() || this.newInquiry.title.length < 10) {
+                        this.showToast('Please enter a question (at least 10 characters)');
+                        return;
+                    }
+                    try {
+                        const res = await fetch(`${API_BASE}/inquiry`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(this.newInquiry)
+                        });
+                        const inquiry = await res.json();
+                        this.showToast('Question created!');
+                        this.resetNewInquiry();
+                        await this.loadInquiries();
+                        await this.selectInquiry(inquiry.id);
+                    } catch (e) {
+                        console.error('Failed to create inquiry:', e);
+                        this.showToast('Error creating question');
+                    }
+                },
+
+                resetNewInquiry() {
+                    this.newInquiry = {
+                        title: '', description: '',
+                        schema: { schema_type: 'monotone_count', count_scale: 'medium', count_max: 300, count_monotone: true, rigor: 'A' },
+                        initial_stake: 1.00, scope_entities: [], scope_keywords: [],
+                        scope_time_start: '', scope_time_end: '',
+                        primary_source_definition: '', falsification_criteria: '',
+                        resolution_date: '', resolution_criteria: ''
+                    };
+                },
+
+                async selectInquiry(id) {
+                    const simulated = SIMULATED_INQUIRIES.find(i => i.id === id);
+                    if (simulated) {
+                        this.selectedInquiry = simulated;
+                        this.trace = this.generateSimulatedTrace(simulated);
+                        this.relatedClaims = SIMULATED_CLAIMS[id] || SIMULATED_CLAIMS['default'];
+                        this.stakeHistory = this.generateStakeHistory(simulated.stake);
+                        this.tab = 'detail';
+                        return;
+                    }
+                    try {
+                        const [inqRes, traceRes] = await Promise.all([
+                            fetch(`${API_BASE}/inquiry/${id}`),
+                            fetch(`${API_BASE}/inquiry/${id}/trace`)
+                        ]);
+                        this.selectedInquiry = await inqRes.json();
+                        this.trace = await traceRes.json();
+                        this.relatedClaims = SIMULATED_CLAIMS['default'];
+                        this.stakeHistory = this.generateStakeHistory(this.selectedInquiry.stake || 0);
+                        this.tab = 'detail';
+                    } catch (e) {
+                        console.error('Failed to load inquiry:', e);
+                    }
+                },
+
+                generateSimulatedSurfaces() {
+                    return [
+                        { id: 's1', name: 'Official Reports', claim_count: 3, sources: ['Gov', 'Hospital'], in_scope: true, relations: [{ type: 'CONFIRMS', target: 'S2' }] },
+                        { id: 's2', name: 'Wire Services', claim_count: 5, sources: ['Reuters', 'AP'], in_scope: true, relations: [] },
+                        { id: 's3', name: 'Local Coverage', claim_count: 4, sources: ['SCMP', 'RTHK'], in_scope: true, relations: [{ type: 'SUPERSEDES', target: 'S1' }] },
+                        { id: 's4', name: 'Different Incident?', claim_count: 1, sources: ['Unknown'], in_scope: false, relations: [{ type: 'CONFLICTS', target: 'S1' }] }
+                    ];
+                },
+
+                generateSimulatedTrace(inq) {
+                    return {
+                        inquiry: { id: inq.id, title: inq.title },
+                        belief_state: {
+                            map: inq.posterior_map,
+                            map_probability: inq.posterior_probability,
+                            entropy_bits: inq.entropy_bits,
+                            normalized_entropy: inq.entropy_bits / 8,
+                            observation_count: inq.contributions,
+                            total_log_score: -inq.entropy_bits * 2
+                        },
+                        surfaces: this.generateSimulatedSurfaces(),
+                        observations: Array(inq.contributions).fill(0).map((_, i) => ({
+                            kind: ['point', 'lower_bound', 'approximate'][i % 3],
+                            value_distribution: { [inq.posterior_map]: 0.3 + Math.random() * 0.4 },
+                            source: ['Reuters', 'BBC', 'AP', 'Local Media', 'Official'][i % 5]
+                        })),
+                        contributions: Array(Math.min(inq.contributions, 5)).fill(0).map((_, i) => ({
+                            id: `contrib_sim_${i}`,
+                            type: ['evidence', 'evidence', 'attribution', 'evidence', 'scope_correction'][i % 5],
+                            text: `Evidence #${i + 1} supporting the current estimate...`,
+                            source: ['Reuters', 'BBC', 'AP News', 'Government', 'Local Media'][i % 5],
+                            extracted_value: typeof inq.posterior_map === 'number' ? inq.posterior_map + Math.floor(Math.random() * 20) - 10 : inq.posterior_map,
+                            impact: Math.random() * 0.15,
+                            created_at: new Date(Date.now() - i * 86400000).toISOString()
+                        })),
+                        tasks: inq.open_tasks > 0 ? [
+                            { id: 't1', type: 'single_source_only', description: 'Add corroborating evidence from independent source', bounty: inq.stake * 0.1, completed: false },
+                            ...(inq.open_tasks > 1 ? [{ id: 't2', type: 'high_entropy', description: 'Reduce uncertainty with definitive primary source', bounty: inq.stake * 0.15, completed: false }] : []),
+                            ...(inq.open_tasks > 2 ? [{ id: 't3', type: 'scope_verification', description: 'Verify all claims refer to same incident', bounty: inq.stake * 0.08, completed: false }] : [])
+                        ] : [],
+                        resolution: {
+                            status: inq.status,
+                            resolvable: inq.resolvable || false,
+                            blocking_tasks: inq.open_tasks > 0 ? ['t1'] : []
+                        },
+                        posterior_top_10: this.generatePosteriorDistribution(inq)
+                    };
+                },
+
+                generatePosteriorDistribution(inq) {
+                    if (inq.schema_type === 'boolean' || inq.schema_type === 'forecast') {
+                        return [
+                            { value: inq.posterior_map, probability: inq.posterior_probability },
+                            { value: inq.posterior_map === 'true' ? 'false' : 'true', probability: 1 - inq.posterior_probability }
+                        ];
+                    }
+                    const base = typeof inq.posterior_map === 'number' ? inq.posterior_map : 100;
+                    const spread = Math.max(base * 0.1, 5);
+                    return Array(10).fill(0).map((_, i) => {
+                        const val = Math.round(base - spread * 2 + (spread * 4 * i / 9));
+                        const prob = Math.max(0.02, inq.posterior_probability * Math.exp(-Math.pow(i - 4.5, 2) / 8));
+                        return { value: val, probability: prob };
+                    }).sort((a, b) => b.probability - a.probability);
+                },
+
+                generateStakeHistory(total) {
+                    if (total <= 0) return [{ actor: 'Creator', amount: 0 }];
+                    const actors = ['Creator', 'alice_researcher', 'fact_checker_42', 'news_verifier', 'anon_staker'];
+                    const history = [];
+                    let remaining = total;
+                    for (let i = 0; i < Math.min(actors.length, Math.ceil(total / 50)); i++) {
+                        const amt = i === actors.length - 1 ? remaining : Math.min(remaining, Math.random() * remaining * 0.6 + 0.5);
+                        if (amt > 0) {
+                            history.push({ actor: actors[i], amount: amt });
+                            remaining -= amt;
+                        }
+                    }
+                    return history;
+                },
+
+                prefillClaim(claim) {
+                    this.newContribution.text = claim.text;
+                    this.newContribution.source_name = claim.source;
+                    this.newContribution.extracted_value = claim.extracted_value;
+                    this.newContribution.observation_kind = claim.observation_kind;
+                    this.contributionTab = 'evidence';
+                    this.showToast('Claim loaded - review and submit');
+                },
+
+                claimTask(task) {
+                    this.showToast(`Task claimed: ${task.type} ($${task.bounty.toFixed(2)} bounty)`);
+                },
+
+                async addContribution(type) {
+                    if (!this.newContribution.text.trim()) {
+                        this.showToast('Please describe the evidence');
+                        return;
+                    }
+                    if (!this.selectedInquiry) return;
+
+                    this.newContribution.type = type;
+
+                    if (this.selectedInquiry.id.startsWith('sim_')) {
+                        this.showToast(`${type} logged (demo mode)`);
+                        this.resetContribution();
+                        return;
+                    }
+
+                    try {
+                        const res = await fetch(`${API_BASE}/inquiry/${this.selectedInquiry.id}/contribute`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(this.newContribution)
+                        });
+                        const result = await res.json();
+                        const impact = Math.round((result.contribution?.impact || 0) * 100);
+                        this.showToast(impact > 5 ? `${type} added! +${impact}% impact` : `${type} added!`);
+                        this.resetContribution();
+                        await this.selectInquiry(this.selectedInquiry.id);
+                    } catch (e) {
+                        console.error('Failed to add contribution:', e);
+                        this.showToast('Error adding contribution');
+                    }
+                },
+
+                resetContribution() {
+                    this.newContribution = {
+                        type: 'evidence', text: '', source_url: '', source_name: '',
+                        extracted_value: null, observation_kind: 'point',
+                        attributed_to: '', original_source: '', correct_scope: ''
+                    };
+                },
+
+                showToast(message) {
+                    this.toast = message;
+                    setTimeout(() => { this.toast = null; }, 3000);
+                }
+            };
+        }
+    </script>
+</body>
+</html>

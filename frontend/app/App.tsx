@@ -10,6 +10,8 @@ import PagePage from './PagePage'
 import ArchivePage from './ArchivePage'
 import GraphPage from './GraphPage'
 import MapPage from './MapPage'
+import InquiryPage from './InquiryPage'
+import InquiryDetailPage from './InquiryDetailPage'
 
 function App() {
   return (
@@ -19,6 +21,8 @@ function App() {
         <Route path="/" element={<LandingPage />} />
 
         {/* Direct routes (without /app prefix) */}
+        <Route path="/inquiry" element={<Layout><InquiryPage /></Layout>} />
+        <Route path="/inquiry/:inquiryId" element={<Layout><InquiryDetailPage /></Layout>} />
         <Route path="/graph" element={<Layout><GraphPage /></Layout>} />
         <Route path="/map" element={<Layout><MapPage /></Layout>} />
         <Route path="/archive" element={<Layout><ArchivePage /></Layout>} />

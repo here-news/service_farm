@@ -1,22 +1,32 @@
 version: '3.8'
 
-# Service Farm - Application Layer Only
-# ======================================
-# Database infrastructure managed by ../infra repo
-# Remote DBs accessed via IPv6 (Yggdrasil) or local network
+# Service Farm - Unified Single Container
+# ========================================
+# All workers run as processes inside one container.
+# Database infrastructure managed by ../infra repo.
 #
 # Usage:
-#   docker-compose up -d              # Start app + workers
-#   docker-compose up -d app          # Start app only
-#   docker-compose logs -f worker-event  # Follow worker logs
+#   docker-compose up -d                    # Start all workers (default)
+#   docker-compose logs -f app              # Follow all logs
+#
+# Dev mode (API only with hot reload):
+#   docker-compose run --rm app uvicorn main:app --host 0.0.0.0 --port 7272 --reload
+#
+# Run specific workers:
+#   docker-compose exec app python run_workers.py --only api
+#   docker-compose exec app python run_workers.py --only extraction
+#   docker-compose exec app python run_workers.py --only knowledge
+#   docker-compose exec app python run_workers.py --only event
+#   docker-compose exec app python run_workers.py --only inquiry
+#
+# Workers included:
+#   - api: FastAPI server (uvicorn on port 7272)
+#   - extraction: Page content extraction
+#   - knowledge: Entity extraction + Wikidata linking
+#   - event: Neo4j event weaving (creates Surfaces)
+#   - inquiry: Inquiry resolution checker (consumes Surfaces)
 
 services:
-  # ============================================
-  # APPLICATION SERVICES
-  # Connect to remote/infra DBs via environment
-  # ============================================
-
-  # Unified App (FastAPI backend + React frontend built-in)
   app:
     build:
       context: .
@@ -24,131 +34,10 @@ services:
     container_name: herenews-app
     network_mode: host
     env_file: .env
-    environment:
-      POSTGRES_HOST: ${POSTGRES_HOST}
-      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
-      POSTGRES_DB: ${POSTGRES_DB:-phi_here}
-      POSTGRES_USER: ${POSTGRES_USER:-phi_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      REDIS_URL: ${REDIS_URL}
-      NEO4J_URI: ${NEO4J_URI}
-      NEO4J_USER: ${NEO4J_USER:-neo4j}
-      NEO4J_PASSWORD: ${NEO4J_PASSWORD}
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-      IFRAMELY_API_KEY: ${IFRAMELY_API_KEY}
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+    # Note: env_file loads all vars from .env
+    # No 'environment:' section needed - it would override with host shell values
     volumes:
       - ./backend:/app
       - ./frontend/prototypes:/app/prototypes
-    command: uvicorn main:app --host 0.0.0.0 --port 7272 --reload
-
-  # Extraction Workers (parallel processing)
-  worker-extraction-1:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: herenews-worker-extraction-1
-    network_mode: host
-    env_file: .env
-    environment:
-      POSTGRES_HOST: ${POSTGRES_HOST}
-      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
-      POSTGRES_DB: ${POSTGRES_DB:-phi_here}
-      POSTGRES_USER: ${POSTGRES_USER:-phi_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      REDIS_URL: ${REDIS_URL}
-      WORKER_ID: "1"
-    volumes:
-      - ./backend:/app
-    command: python run_extraction_worker.py
-
-  worker-extraction-2:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: herenews-worker-extraction-2
-    network_mode: host
-    env_file: .env
-    environment:
-      POSTGRES_HOST: ${POSTGRES_HOST}
-      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
-      POSTGRES_DB: ${POSTGRES_DB:-phi_here}
-      POSTGRES_USER: ${POSTGRES_USER:-phi_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      REDIS_URL: ${REDIS_URL}
-      WORKER_ID: "2"
-    volumes:
-      - ./backend:/app
-    command: python run_extraction_worker.py
-
-  # Knowledge Workers (entity extraction + Wikidata enrichment)
-  worker-knowledge-1:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: herenews-worker-knowledge-1
-    network_mode: host
-    env_file: .env
-    environment:
-      POSTGRES_HOST: ${POSTGRES_HOST}
-      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
-      POSTGRES_DB: ${POSTGRES_DB:-phi_here}
-      POSTGRES_USER: ${POSTGRES_USER:-phi_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      REDIS_URL: ${REDIS_URL}
-      NEO4J_URI: ${NEO4J_URI}
-      NEO4J_USER: ${NEO4J_USER:-neo4j}
-      NEO4J_PASSWORD: ${NEO4J_PASSWORD}
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-      WORKER_NAME: knowledge-1
-    volumes:
-      - ./backend:/app
-    command: python run_knowledge_worker.py
-
-  worker-knowledge-2:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: herenews-worker-knowledge-2
-    network_mode: host
-    env_file: .env
-    environment:
-      POSTGRES_HOST: ${POSTGRES_HOST}
-      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
-      POSTGRES_DB: ${POSTGRES_DB:-phi_here}
-      POSTGRES_USER: ${POSTGRES_USER:-phi_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      REDIS_URL: ${REDIS_URL}
-      NEO4J_URI: ${NEO4J_URI}
-      NEO4J_USER: ${NEO4J_USER:-neo4j}
-      NEO4J_PASSWORD: ${NEO4J_PASSWORD}
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-      WORKER_NAME: knowledge-2
-    volumes:
-      - ./backend:/app
-    command: python run_knowledge_worker.py
-
-  # Event Worker (Neo4j-based graph scaffold)
-  worker-event:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: herenews-worker-event
-    network_mode: host
-    env_file: .env
-    environment:
-      POSTGRES_HOST: ${POSTGRES_HOST}
-      POSTGRES_PORT: ${POSTGRES_PORT:-5432}
-      POSTGRES_DB: ${POSTGRES_DB:-phi_here}
-      POSTGRES_USER: ${POSTGRES_USER:-phi_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      REDIS_URL: ${REDIS_URL}
-      NEO4J_URI: ${NEO4J_URI}
-      NEO4J_USER: ${NEO4J_USER:-neo4j}
-      NEO4J_PASSWORD: ${NEO4J_PASSWORD}
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-      WORKER_ID: "1"
-    volumes:
-      - ./backend:/app
-    command: python run_event_worker_neo4j.py
+    # Run all workers (API + extraction + knowledge + event + inquiry)
+    command: python run_workers.py --workers 1
