@@ -326,14 +326,21 @@ class ClaimRepository:
         Returns:
             Embedding vector or None
         """
+        from pgvector.asyncpg import register_vector
+
         async with self.db_pool.acquire() as conn:
+            await register_vector(conn)
             result = await conn.fetchval("""
                 SELECT embedding FROM core.claim_embeddings WHERE claim_id = $1
             """, claim_id)
 
-            if result:
-                # Parse vector string to list
-                if isinstance(result, str) and result.startswith('['):
+            if result is not None:
+                # pgvector returns numpy array after register_vector
+                if hasattr(result, 'tolist'):
+                    return result.tolist()
+                elif isinstance(result, (list, tuple)):
+                    return list(result)
+                elif isinstance(result, str) and result.startswith('['):
                     return [float(x.strip()) for x in result[1:-1].split(',')]
             return None
 

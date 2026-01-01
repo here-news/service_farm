@@ -89,8 +89,8 @@ async def auth_callback(request: Request):
         # Create JWT token
         access_token = create_access_token(user)
 
-        # Redirect to app with token in cookie
-        response = RedirectResponse(url="/app")
+        # Redirect to home with token in cookie
+        response = RedirectResponse(url="/")
         response.set_cookie(
             key="access_token",
             value=access_token,

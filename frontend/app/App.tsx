@@ -1,11 +1,11 @@
 import React from 'react'
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import Layout from './components/layout/Layout'
-import LandingPage from './LandingPage'
-import HomePage from './HomePage'
 import StoryPage from './StoryPage'
 import EventPage from './EventPage'
+import EventInquiryPage from './EventInquiryPage'
 import EntityPage from './EntityPage'
+import EntityInquiryPage from './EntityInquiryPage'
 import PagePage from './PagePage'
 import ArchivePage from './ArchivePage'
 import GraphPage from './GraphPage'
@@ -17,31 +17,32 @@ function App() {
   return (
     <Router>
       <Routes>
-        {/* Landing page - no layout, full screen */}
-        <Route path="/" element={<LandingPage />} />
+        {/* Home - YOLO dashboard */}
+        <Route path="/" element={<Layout><InquiryPage /></Layout>} />
 
-        {/* Direct routes (without /app prefix) */}
+        {/* Core inquiry routes */}
         <Route path="/inquiry" element={<Layout><InquiryPage /></Layout>} />
         <Route path="/inquiry/:inquiryId" element={<Layout><InquiryDetailPage /></Layout>} />
-        <Route path="/graph" element={<Layout><GraphPage /></Layout>} />
-        <Route path="/map" element={<Layout><MapPage /></Layout>} />
-        <Route path="/archive" element={<Layout><ArchivePage /></Layout>} />
+
+        {/* Event pages */}
+        <Route path="/event/:eventSlug" element={<Layout><EventPage /></Layout>} />
+        <Route path="/event-inquiry/:eventSlug" element={<EventInquiryPage />} />
+
+        {/* Entity pages */}
+        <Route path="/entity/:entityId" element={<Layout><EntityPage /></Layout>} />
+        <Route path="/entity-inquiry/:entitySlug" element={<EntityInquiryPage />} />
+
+        {/* Supporting pages */}
         <Route path="/story/:storyId" element={<Layout><StoryPage /></Layout>} />
         <Route path="/story/:storyId/:slug" element={<Layout><StoryPage /></Layout>} />
-        <Route path="/event/:eventSlug" element={<Layout><EventPage /></Layout>} />
-        <Route path="/entity/:entityId" element={<Layout><EntityPage /></Layout>} />
         <Route path="/page/:pageId" element={<Layout><PagePage /></Layout>} />
+        <Route path="/archive" element={<Layout><ArchivePage /></Layout>} />
+        <Route path="/graph" element={<Layout><GraphPage /></Layout>} />
+        <Route path="/map" element={<Layout><MapPage /></Layout>} />
 
-        {/* App routes - with /app prefix (legacy support) */}
-        <Route path="/app" element={<Layout><HomePage /></Layout>} />
-        <Route path="/app/archive" element={<Layout><ArchivePage /></Layout>} />
-        <Route path="/app/graph" element={<Layout><GraphPage /></Layout>} />
-        <Route path="/app/map" element={<Layout><MapPage /></Layout>} />
-        <Route path="/app/story/:storyId" element={<Layout><StoryPage /></Layout>} />
-        <Route path="/app/story/:storyId/:slug" element={<Layout><StoryPage /></Layout>} />
-        <Route path="/app/event/:eventSlug" element={<Layout><EventPage /></Layout>} />
-        <Route path="/app/entity/:entityId" element={<Layout><EntityPage /></Layout>} />
-        <Route path="/app/page/:pageId" element={<Layout><PagePage /></Layout>} />
+        {/* Legacy redirects */}
+        <Route path="/app" element={<Navigate to="/" replace />} />
+        <Route path="/app/*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
   )

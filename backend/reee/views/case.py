@@ -291,6 +291,28 @@ class CaseView:
 
         return score, evidence
 
+    def _find_related_anchors(
+        self,
+        anchors1: Set[str],
+        anchors2: Set[str]
+    ) -> Set[Tuple[str, str]]:
+        """
+        Find related anchor pairs via relation graph.
+
+        Returns pairs of (anchor1, anchor2) where anchor1 is in anchors1,
+        anchor2 is in anchors2, and they're related via the relation graph.
+        """
+        if not self.relation_graph:
+            return set()
+
+        related = set()
+        for a1 in anchors1:
+            if a1 in self.relation_graph:
+                for a2 in anchors2:
+                    if a2 in self.relation_graph[a1]:
+                        related.add((a1, a2))
+        return related
+
     def _compute_surface_edges(self) -> List[Tuple[str, str, float, Dict]]:
         """
         Compute edges between surfaces for case formation.

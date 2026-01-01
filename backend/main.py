@@ -242,8 +242,16 @@ async def serve_spa_inquiry(inquiry_path: str):
 async def serve_spa_event(event_slug: str):
     return await _serve_spa()
 
+@app.get("/event-inquiry/{event_slug:path}", response_class=HTMLResponse)
+async def serve_spa_event_inquiry(event_slug: str):
+    return await _serve_spa()
+
 @app.get("/entity/{entity_id:path}", response_class=HTMLResponse)
 async def serve_spa_entity(entity_id: str):
+    return await _serve_spa()
+
+@app.get("/entity-inquiry/{entity_slug:path}", response_class=HTMLResponse)
+async def serve_spa_entity_inquiry(entity_slug: str):
     return await _serve_spa()
 
 @app.get("/story/{story_path:path}", response_class=HTMLResponse)

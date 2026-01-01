@@ -19,6 +19,7 @@ from .page import Page
 from .claim import Claim
 from .entity import Entity
 from .event import Event
+from .surface import Surface
 from .mention import Mention, MentionRelationship, ExtractionResult
 from .source import Source, CredibilityEvent
 from .relationships import (
@@ -33,6 +34,7 @@ __all__ = [
     'Claim',
     'Entity',
     'Event',
+    'Surface',
 
     # Knowledge pipeline (extraction → identification)
     'Mention',

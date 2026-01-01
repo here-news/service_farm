@@ -247,6 +247,10 @@ class KnowledgeWorker:
                 await self._generate_and_store_page_embedding(conn, page_id, extraction.claims)
                 logger.info(f"📊 Generated page embedding")
 
+                # 4f. Generate claim embeddings and emit to weaver queue
+                await self._generate_and_emit_claims(conn, claim_ids, extraction.claims)
+                logger.info(f"🧬 Generated claim embeddings → Weaver queue")
+
                 # =========================================================
                 # STAGE 5: Integrity Check
                 # =========================================================
@@ -280,15 +284,10 @@ class KnowledgeWorker:
                     entities_count=len(identification.mention_to_entity)
                 )
 
-                # Signal Event Worker that knowledge is complete
-                # Event worker will process all claims from this page together
-                await self.job_queue.enqueue('queue:event:high', {
-                    'page_id': str(page_id),
-                    'url': url,
-                    'claims_count': len(claim_ids)
-                })
+                # Claims already emitted to weaver queue in stage 4f
+                # Weaver will process claims into Surfaces (L2 identity clusters)
 
-                logger.info(f"✅ Knowledge complete: {url} → Event worker")
+                logger.info(f"✅ Knowledge complete: {url} ({len(claim_ids)} claims → Weaver)")
                 return True
 
         except Exception as e:
@@ -892,6 +891,76 @@ class KnowledgeWorker:
         except Exception as e:
             logger.error(f"Failed to generate/store page embedding: {e}")
             # Non-fatal - continue processing
+
+    async def _generate_and_emit_claims(
+        self,
+        conn: asyncpg.Connection,
+        claim_ids: List[str],
+        claims_data: List
+    ) -> None:
+        """
+        Generate claim embeddings and emit to weaver queue.
+
+        STAGE 4f: Claim embeddings for surface weaving.
+
+        Each claim gets its own embedding based on its text. These embeddings
+        are used by WeaverWorker to cluster claims into Surfaces (L2 identity).
+
+        Args:
+            conn: PostgreSQL connection
+            claim_ids: List of created claim IDs
+            claims_data: Original claim data from extraction (for text)
+        """
+        if not claim_ids or not claims_data:
+            logger.warning("No claims to generate embeddings for")
+            return
+
+        # Build claim_id -> text mapping
+        # claims_data is list of dicts with 'text' key from extraction
+        # claim_ids are in the same order as claims_data
+        claim_texts = []
+        valid_claim_ids = []
+
+        for claim_id, claim_data in zip(claim_ids, claims_data):
+            text = claim_data.get('text', '') if isinstance(claim_data, dict) else getattr(claim_data, 'text', '')
+            if text and len(text) > 10:
+                claim_texts.append(text)
+                valid_claim_ids.append(claim_id)
+
+        if not claim_texts:
+            logger.warning("No valid claim texts for embedding generation")
+            return
+
+        try:
+            # Batch generate embeddings (OpenAI supports up to 2048 texts per request)
+            response = await self.openai_client.embeddings.create(
+                model="text-embedding-3-small",
+                input=claim_texts
+            )
+
+            # Store embeddings and emit to weaver queue
+            await register_vector(conn)
+
+            for claim_id, embedding_data in zip(valid_claim_ids, response.data):
+                embedding = embedding_data.embedding
+
+                # Store in PostgreSQL
+                await conn.execute("""
+                    INSERT INTO core.claim_embeddings (claim_id, embedding)
+                    VALUES ($1, $2)
+                    ON CONFLICT (claim_id) DO UPDATE SET embedding = $2
+                """, claim_id, embedding)
+
+                # Emit to weaver queue
+                await self.job_queue.enqueue('claims:pending', {
+                    'claim_id': claim_id
+                })
+
+            logger.debug(f"✅ Generated {len(valid_claim_ids)} claim embeddings → weaver queue")
+
+        except Exception as e:
+            logger.error(f"Failed to generate claim embeddings: {e}")
+            # Non-fatal - claims exist but won't be woven immediately
 
     async def _verify_integrity(
         self,

@@ -38,7 +38,7 @@ function Header() {
   }
 
   const handleCreate = () => {
-    navigate('/app?share=true')
+    navigate('/?share=true')
   }
 
   return (
@@ -47,7 +47,7 @@ function Header() {
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center gap-6 flex-1">
             <Link
-              to="/app"
+              to="/"
               className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent whitespace-nowrap"
             >
               φ HERE
@@ -67,21 +67,12 @@ function Header() {
                 <button
                   onClick={handleCreate}
                   className="p-2 rounded-lg hover:bg-slate-100 transition text-slate-600"
-                  title="Create new content"
+                  title="Ask a question"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                   </svg>
                 </button>
-                <Link
-                  to="/inquiry"
-                  className="p-2 rounded-lg hover:bg-slate-100 transition text-slate-600"
-                  title="Inquiry - What's True?"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                </Link>
                 <Link
                   to="/archive"
                   className="p-2 rounded-lg hover:bg-slate-100 transition text-slate-600"

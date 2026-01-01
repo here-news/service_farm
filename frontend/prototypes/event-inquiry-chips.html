@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Event Page with Inquiry Chips - Wang Fuk Court Fire</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Inquiry chip styles */
+        .inquiry-chip {
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        .inquiry-chip:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .inquiry-chip.auto {
+            border-left: 3px solid #8b5cf6;
+        }
+        .inquiry-chip.manual {
+            border-left: 3px solid #06b6d4;
+        }
+
+        /* Confidence bar */
+        .conf-bar { height: 4px; border-radius: 2px; background: #e2e8f0; }
+        .conf-fill { height: 100%; border-radius: 2px; transition: width 0.3s; }
+
+        /* Section status */
+        .section-card { transition: all 0.2s; }
+        .section-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+
+        /* Pulse for live */
+        .pulse { animation: pulse 2s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+        /* View scale toggle */
+        .scale-btn.active { background: #4f46e5; color: white; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen">
+    <!-- Header -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-50">
+        <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <a href="/" class="text-xl font-bold text-indigo-600">HERE.news</a>
+                <span class="text-slate-300">|</span>
+                <span class="text-sm text-slate-500">Event</span>
+            </div>
+            <div class="flex items-center gap-3">
+                <span class="px-2 py-1 bg-amber-100 text-amber-700 rounded text-sm flex items-center gap-1">
+                    <span class="w-2 h-2 bg-amber-500 rounded-full pulse"></span> Live
+                </span>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-5xl mx-auto px-4 py-6">
+        <!-- Title & Meta -->
+        <div class="mb-6">
+            <div class="flex items-center gap-2 mb-2">
+                <span class="px-2 py-0.5 bg-red-100 text-red-700 text-xs rounded-full uppercase font-medium">Fire</span>
+                <span class="text-slate-400 text-sm">Nov 26, 2025 - Ongoing</span>
+                <span class="text-slate-300">·</span>
+                <span class="text-slate-400 text-sm">Tai Po, Hong Kong</span>
+            </div>
+            <h1 class="text-3xl font-bold text-slate-900 mb-3">Wang Fuk Court Fire</h1>
+
+            <!-- View Scale Toggle -->
+            <div class="flex items-center gap-2 mb-4">
+                <span class="text-sm text-slate-500">View:</span>
+                <div class="flex gap-1 bg-slate-100 rounded-lg p-0.5">
+                    <button onclick="setScale('incident')" class="scale-btn active px-3 py-1 text-sm rounded-md">Incident</button>
+                    <button onclick="setScale('case')" class="scale-btn px-3 py-1 text-sm rounded-md text-slate-600 hover:bg-slate-200">Case</button>
+                </div>
+                <span class="text-xs text-slate-400 ml-2">3 surfaces · 100 claims</span>
+            </div>
+        </div>
+
+        <!-- Stats Bar -->
+        <div class="bg-white rounded-xl border border-slate-200 p-4 mb-6">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-6">
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm text-slate-500">Sources:</span>
+                        <div class="flex gap-1">
+                            <span class="w-2.5 h-2.5 rounded-full bg-blue-500" title="Wire: Reuters, AP"></span>
+                            <span class="w-2.5 h-2.5 rounded-full bg-green-500" title="Intl: BBC, Guardian"></span>
+                            <span class="w-2.5 h-2.5 rounded-full bg-purple-500" title="Local: SCMP, RTHK"></span>
+                            <span class="w-2.5 h-2.5 rounded-full bg-orange-300" title="Official: pending"></span>
+                        </div>
+                        <span class="text-xs text-slate-400">3/4</span>
+                    </div>
+                    <div class="text-sm">
+                        <span class="font-medium text-slate-700">100</span>
+                        <span class="text-slate-400">claims</span>
+                    </div>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div class="flex items-center gap-2">
+                        <span class="w-3 h-3 rounded-full bg-amber-400"></span>
+                        <span class="text-sm text-amber-600 font-medium">3 open inquiries</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Narrative with Inquiry Chips -->
+        <div class="space-y-4">
+
+            <!-- Section 1: The Incident -->
+            <div class="section-card bg-white rounded-xl border border-slate-200 p-5">
+                <div class="flex items-center gap-2 mb-3">
+                    <div class="w-1 h-5 bg-green-500 rounded"></div>
+                    <h2 class="font-semibold text-slate-800">The Incident</h2>
+                    <span class="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded">Established</span>
+                </div>
+                <p class="text-slate-600 leading-relaxed mb-4">
+                    A devastating fire broke out at the Wang Fuk Court public housing estate in Tai Po
+                    on November 26, 2025. The blaze started around 11pm and spread rapidly through
+                    scaffolding and protective netting during renovation work, affecting multiple
+                    residential towers.
+                </p>
+                <div class="flex items-center gap-2 text-xs text-slate-400">
+                    <span class="px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded">Wire</span>
+                    <span class="px-1.5 py-0.5 bg-green-50 text-green-600 rounded">Intl</span>
+                    <span class="px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded">Local</span>
+                    <span class="ml-auto">6 sources</span>
+                </div>
+            </div>
+
+            <!-- Section 2: Casualties - WITH INQUIRY CHIP -->
+            <div class="section-card bg-white rounded-xl border border-slate-200 p-5">
+                <div class="flex items-center gap-2 mb-3">
+                    <div class="w-1 h-5 bg-amber-500 rounded"></div>
+                    <h2 class="font-semibold text-slate-800">Casualties</h2>
+                    <span class="text-xs px-2 py-0.5 bg-amber-100 text-amber-700 rounded">Contested</span>
+                </div>
+                <p class="text-slate-600 leading-relaxed mb-4">
+                    The fire resulted in significant loss of life and injuries. Reports vary on the
+                    exact death toll, with confirmed deaths ranging from official counts to higher
+                    figures from international media. DNA testing continues to identify victims.
+                    Nine Indonesian domestic workers were confirmed among the dead.
+                </p>
+
+                <!-- AUTO INQUIRY CHIP: Death Count Conflict -->
+                <div class="inquiry-chip auto bg-gradient-to-r from-violet-50 to-purple-50 border border-violet-200 rounded-lg p-4 mb-4"
+                     onclick="openInquiry('inq_death_count')">
+                    <div class="flex items-start justify-between mb-2">
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs px-1.5 py-0.5 bg-violet-100 text-violet-700 rounded font-medium">AUTO</span>
+                            <span class="text-sm font-medium text-slate-800">death_count</span>
+                        </div>
+                        <span class="text-xs text-slate-400">Proto-inquiry</span>
+                    </div>
+                    <p class="text-sm text-slate-700 mb-3">What is the confirmed death toll?</p>
+
+                    <!-- Epistemic state -->
+                    <div class="grid grid-cols-3 gap-3 mb-3 text-xs">
+                        <div class="bg-white rounded p-2">
+                            <div class="text-slate-400 mb-0.5">MAP</div>
+                            <div class="font-semibold text-slate-800">160</div>
+                        </div>
+                        <div class="bg-white rounded p-2">
+                            <div class="text-slate-400 mb-0.5">Confidence</div>
+                            <div class="font-semibold text-amber-600">62%</div>
+                        </div>
+                        <div class="bg-white rounded p-2">
+                            <div class="text-slate-400 mb-0.5">Entropy</div>
+                            <div class="font-semibold text-orange-600">1.2 bits</div>
+                        </div>
+                    </div>
+
+                    <!-- Conflict indicator -->
+                    <div class="flex items-center gap-2 p-2 bg-amber-50 border border-amber-100 rounded text-xs">
+                        <span class="text-amber-600 font-medium">Conflict:</span>
+                        <span class="text-slate-600">Sources report 36, 128, 160 (3 values disagree)</span>
+                    </div>
+
+                    <!-- Missing -->
+                    <div class="mt-2 text-xs text-slate-500">
+                        Missing: official count from authorities
+                    </div>
+
+                    <!-- Tasks -->
+                    <div class="mt-3 pt-3 border-t border-violet-100">
+                        <div class="text-xs text-slate-500 mb-1">Tasks:</div>
+                        <div class="flex flex-wrap gap-1">
+                            <span class="px-2 py-0.5 bg-violet-100 text-violet-700 rounded text-xs">find primary source</span>
+                            <span class="px-2 py-0.5 bg-violet-100 text-violet-700 rounded text-xs">verify official count</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2 text-xs text-slate-400">
+                    <span class="px-1.5 py-0.5 bg-green-50 text-green-600 rounded">Intl</span>
+                    <span class="px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded">Local</span>
+                    <span class="ml-auto">7 sources</span>
+                </div>
+            </div>
+
+            <!-- Section 3: Investigation -->
+            <div class="section-card bg-white rounded-xl border border-slate-200 p-5">
+                <div class="flex items-center gap-2 mb-3">
+                    <div class="w-1 h-5 bg-green-500 rounded"></div>
+                    <h2 class="font-semibold text-slate-800">Investigation</h2>
+                    <span class="text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded">Established</span>
+                </div>
+                <p class="text-slate-600 leading-relaxed mb-4">
+                    Chief Executive John Lee announced a judge-led independent committee to investigate.
+                    Police have made multiple arrests in connection with the renovation work.
+                    The ICAC is examining potential corruption related to the project.
+                </p>
+
+                <!-- AUTO INQUIRY CHIP: Arrest Count -->
+                <div class="inquiry-chip auto bg-gradient-to-r from-violet-50 to-purple-50 border border-violet-200 rounded-lg p-4 mb-4"
+                     onclick="openInquiry('inq_arrests')">
+                    <div class="flex items-start justify-between mb-2">
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs px-1.5 py-0.5 bg-violet-100 text-violet-700 rounded font-medium">AUTO</span>
+                            <span class="text-sm font-medium text-slate-800">arrest_count</span>
+                        </div>
+                        <span class="text-xs text-slate-400">Proto-inquiry</span>
+                    </div>
+                    <p class="text-sm text-slate-700 mb-3">How many arrests have been made?</p>
+
+                    <div class="grid grid-cols-3 gap-3 mb-3 text-xs">
+                        <div class="bg-white rounded p-2">
+                            <div class="text-slate-400 mb-0.5">MAP</div>
+                            <div class="font-semibold text-slate-800">20</div>
+                        </div>
+                        <div class="bg-white rounded p-2">
+                            <div class="text-slate-400 mb-0.5">Confidence</div>
+                            <div class="font-semibold text-green-600">78%</div>
+                        </div>
+                        <div class="bg-white rounded p-2">
+                            <div class="text-slate-400 mb-0.5">Entropy</div>
+                            <div class="font-semibold text-slate-600">0.4 bits</div>
+                        </div>
+                    </div>
+
+                    <div class="text-xs text-slate-500">
+                        3 sources agree · updating as investigation progresses
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2 text-xs text-slate-400">
+                    <span class="px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded">Wire</span>
+                    <span class="px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded">Local</span>
+                    <span class="ml-auto">5 sources</span>
+                </div>
+            </div>
+
+            <!-- Section 4: Safety Concerns -->
+            <div class="section-card bg-white rounded-xl border border-slate-200 p-5">
+                <div class="flex items-center gap-2 mb-3">
+                    <div class="w-1 h-5 bg-slate-400 rounded"></div>
+                    <h2 class="font-semibold text-slate-800">Safety Concerns</h2>
+                    <span class="text-xs px-2 py-0.5 bg-slate-100 text-slate-600 rounded">Incomplete</span>
+                </div>
+                <p class="text-slate-600 leading-relaxed mb-4">
+                    Residents had raised concerns about the flammability of styrofoam panels used
+                    in the renovation. Questions remain about safety inspections and regulatory
+                    compliance before the fire.
+                </p>
+
+                <!-- MANUAL INQUIRY CHIP: User-created -->
+                <div class="inquiry-chip manual bg-gradient-to-r from-cyan-50 to-teal-50 border border-cyan-200 rounded-lg p-4 mb-4"
+                     onclick="openInquiry('inq_user_safety')">
+                    <div class="flex items-start justify-between mb-2">
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs px-1.5 py-0.5 bg-cyan-100 text-cyan-700 rounded font-medium">USER</span>
+                            <span class="text-xs px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded">$50 bounty</span>
+                        </div>
+                        <span class="text-xs text-slate-400">by @HKWatcher</span>
+                    </div>
+                    <p class="text-sm text-slate-700 mb-3">Were safety inspections conducted before the renovation started?</p>
+
+                    <div class="grid grid-cols-2 gap-3 mb-3 text-xs">
+                        <div class="bg-white rounded p-2">
+                            <div class="text-slate-400 mb-0.5">Schema</div>
+                            <div class="font-semibold text-slate-800">Boolean</div>
+                        </div>
+                        <div class="bg-white rounded p-2">
+                            <div class="text-slate-400 mb-0.5">Status</div>
+                            <div class="font-semibold text-amber-600">Open</div>
+                        </div>
+                    </div>
+
+                    <!-- Tasks with bounties -->
+                    <div class="mt-3 pt-3 border-t border-cyan-100">
+                        <div class="text-xs text-slate-500 mb-2">Bountied tasks:</div>
+                        <div class="space-y-1">
+                            <div class="flex items-center justify-between text-xs">
+                                <span class="text-slate-600">Find government inspection records</span>
+                                <span class="font-medium text-amber-600">$25</span>
+                            </div>
+                            <div class="flex items-center justify-between text-xs">
+                                <span class="text-slate-600">Interview resident with documentation</span>
+                                <span class="font-medium text-amber-600">$25</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2 text-xs text-slate-400">
+                    <span class="px-1.5 py-0.5 bg-purple-50 text-purple-600 rounded">Local</span>
+                    <span class="ml-auto">2 sources</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Create Inquiry CTA -->
+        <div class="mt-6 p-4 bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-xl">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h3 class="font-medium text-slate-800">Have a question about this event?</h3>
+                    <p class="text-sm text-slate-500 mt-1">Create an inquiry with optional bounty to get answers</p>
+                </div>
+                <button onclick="showCreateInquiry()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm rounded-lg font-medium">
+                    + Create Inquiry
+                </button>
+            </div>
+        </div>
+
+        <!-- Inquiry Legend -->
+        <div class="mt-6 flex items-center gap-6 text-xs text-slate-500">
+            <div class="flex items-center gap-2">
+                <div class="w-4 h-3 bg-gradient-to-r from-violet-50 to-purple-50 border-l-2 border-violet-500 rounded"></div>
+                <span>Auto: Proto-inquiry from REEE</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <div class="w-4 h-3 bg-gradient-to-r from-cyan-50 to-teal-50 border-l-2 border-cyan-500 rounded"></div>
+                <span>User: Created by contributor</span>
+            </div>
+        </div>
+    </main>
+
+    <!-- Create Inquiry Modal -->
+    <div id="create-modal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white rounded-xl w-full max-w-lg mx-4 overflow-hidden">
+            <div class="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+                <h3 class="font-semibold text-slate-800">Create Inquiry</h3>
+                <button onclick="hideCreateInquiry()" class="text-slate-400 hover:text-slate-600 text-xl">&times;</button>
+            </div>
+            <div class="p-5 space-y-4">
+                <div class="p-3 bg-slate-50 rounded-lg">
+                    <div class="text-xs text-slate-500 mb-1">Context</div>
+                    <div class="text-sm font-medium text-slate-700">Wang Fuk Court Fire</div>
+                    <div class="text-xs text-slate-400 mt-1">Nov 26, 2025 · Tai Po, Hong Kong</div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Question</label>
+                    <input type="text" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                           placeholder="What do you want to know?">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Type</label>
+                    <div class="grid grid-cols-2 gap-2">
+                        <button class="p-3 border-2 border-indigo-500 bg-indigo-50 rounded-lg text-left">
+                            <div class="text-sm font-medium text-slate-800">A/B Typed</div>
+                            <div class="text-xs text-slate-500">Number, boolean, categorical</div>
+                        </button>
+                        <button class="p-3 border border-slate-200 rounded-lg text-left hover:bg-slate-50">
+                            <div class="text-sm font-medium text-slate-800">Open-ended</div>
+                            <div class="text-xs text-slate-500">Descriptive answer</div>
+                        </button>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">Bounty (optional)</label>
+                    <div class="flex items-center gap-2">
+                        <span class="text-slate-400">$</span>
+                        <input type="number" class="w-24 border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                               placeholder="0" min="0">
+                        <span class="text-xs text-slate-400">Paid when resolved</span>
+                    </div>
+                </div>
+            </div>
+            <div class="px-5 py-4 border-t border-slate-200 flex justify-end gap-2">
+                <button onclick="hideCreateInquiry()" class="px-4 py-2 text-sm text-slate-600 hover:bg-slate-100 rounded-lg">Cancel</button>
+                <button class="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg">Create Inquiry</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Navigate to inquiry detail page
+        function openInquiry(inquiryId) {
+            // In production, this goes to the actual inquiry page
+            // For demo, we'll construct a sample URL
+            const baseUrl = window.location.origin;
+            window.location.href = `${baseUrl}/inquiry/${inquiryId}`;
+        }
+
+        // View scale toggle
+        function setScale(scale) {
+            document.querySelectorAll('.scale-btn').forEach(btn => {
+                btn.classList.remove('active');
+                btn.classList.add('text-slate-600');
+            });
+            event.target.classList.add('active');
+            event.target.classList.remove('text-slate-600');
+
+            // In production, this would reload the view at different scale
+            console.log('View scale:', scale);
+        }
+
+        // Create inquiry modal
+        function showCreateInquiry() {
+            document.getElementById('create-modal').classList.remove('hidden');
+        }
+
+        function hideCreateInquiry() {
+            document.getElementById('create-modal').classList.add('hidden');
+        }
+
+        // Close modal on backdrop click
+        document.getElementById('create-modal').addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) hideCreateInquiry();
+        });
+    </script>
+</body>
+</html>

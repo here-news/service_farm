@@ -8,6 +8,8 @@ Components:
 - Inquiry: User-scoped question with typed target
 - InquiryEngine: Orchestrates REEE for inquiries
 - Contribution: User submission (evidence, refutation, etc.)
+- ProtoInquiry: System-generated inquiry from surface + meta-claim
+- InquirySeeder: Seeds proto-inquiries from weaver outputs
 """
 
 from .types import (
@@ -16,8 +18,14 @@ from .types import (
     InquiryTask, TaskType
 )
 from .engine import InquiryEngine
+from .seeder import (
+    ProtoInquiry, ProtoInquiryType, SchemaType,
+    ViewId, MetaClaimRef, ScopeSignature,
+    InquirySeeder, QUESTION_TEMPLATES
+)
 
 __all__ = [
+    # User inquiries (REEE2 contract)
     'Inquiry',
     'InquirySchema',
     'InquiryStatus',
@@ -27,4 +35,13 @@ __all__ = [
     'InquiryTask',
     'TaskType',
     'InquiryEngine',
+    # Proto-inquiries (REEE1 emergence)
+    'ProtoInquiry',
+    'ProtoInquiryType',
+    'SchemaType',
+    'ViewId',
+    'MetaClaimRef',
+    'ScopeSignature',
+    'InquirySeeder',
+    'QUESTION_TEMPLATES',
 ]

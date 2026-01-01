@@ -115,7 +115,7 @@ export interface Surface {
 }
 
 export interface SurfaceRelation {
-  type: 'CONFIRMS' | 'SUPERSEDES' | 'CONFLICTS' | 'REFINES'
+  type: 'CONFIRMS' | 'SUPERSEDES' | 'CONFLICTS' | 'REFINES' | 'DIVERGENT' | 'NOVEL'
   target: string
   confidence?: number
 }

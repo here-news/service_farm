@@ -49,14 +49,62 @@ class SchemaType(Enum):
 
 
 @dataclass
+class ViewId:
+    """
+    Identifier for which projection of the field this inquiry is about.
+
+    Prevents accidental merging across different projections:
+    - incident vs case scale may answer differently
+    - Different params produce different surfaces
+    - Each snapshot is immutable
+    """
+    operator: str = "incident"       # "incident" | "case" | "pattern"
+    scale: str = "tight"             # "tight" | "loose"
+    params_hash: str = ""            # Hash of view parameters
+    snapshot_id: str = ""            # Immutable reference to computation
+
+    def __hash__(self):
+        return hash((self.operator, self.scale, self.params_hash, self.snapshot_id))
+
+    def signature(self) -> str:
+        """Stable signature for dedup."""
+        return f"{self.operator}:{self.scale}:{self.params_hash[:8]}"
+
+
+@dataclass
+class MetaClaimRef:
+    """
+    Reference to a meta-claim that triggered this proto-inquiry.
+
+    Keeps emission explainable - a proto-inquiry is justified by
+    one or more tensions (typed conflict + single-source + missing timestamp).
+    """
+    type: str                        # "typed_value_conflict" | "single_source_only" | etc.
+    target_id: str                   # claim_id or surface_id
+    evidence: Dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> Dict:
+        return {
+            "type": self.type,
+            "target_id": self.target_id,
+            "evidence": self.evidence,
+        }
+
+
+@dataclass
 class ScopeSignature:
     """
     Inferred scope for a proto-inquiry.
 
     The scope defines what the inquiry is about without
     requiring user specification.
+
+    scope_signature = hash(entity_senses[], time_window, view_id)
     """
-    # Entities that define the referent
+    # Which projection this is about (prevents cross-view merging)
+    view_id: ViewId = field(default_factory=ViewId)
+
+    # Entities that define the referent (sense-resolved IDs)
     anchor_entities: Set[str] = field(default_factory=set)
 
     # All related entities
@@ -73,9 +121,15 @@ class ScopeSignature:
     keywords: List[str] = field(default_factory=list)
 
     def signature_key(self) -> str:
-        """Generate a stable key for deduplication."""
+        """
+        Generate a stable key for deduplication.
+
+        Derived from sense-resolved entity IDs + time window + view ID.
+        """
         anchors = sorted(self.anchor_entities)[:3]
-        return "|".join(anchors)
+        entity_part = "|".join(anchors)
+        view_part = self.view_id.signature() if self.view_id else ""
+        return f"{entity_part}@{view_part}"
 
 
 @dataclass
@@ -93,7 +147,11 @@ class ProtoInquiry:
 
     # Source (what generated this)
     surface_id: str = ""
-    meta_claim_ids: List[str] = field(default_factory=list)
+    meta_claim_ids: List[str] = field(default_factory=list)  # Deprecated: use triggers
+
+    # Triggers: which meta-claims justified this proto-inquiry
+    # Multiple tensions can trigger one inquiry (typed conflict + single-source + missing timestamp)
+    triggers: List[MetaClaimRef] = field(default_factory=list)
 
     # What question is being asked
     inquiry_type: ProtoInquiryType = ProtoInquiryType.VALUE_RESOLUTION
@@ -103,7 +161,7 @@ class ProtoInquiry:
     target_variable: str = ""  # e.g., "death_count", "legal_status"
     question_text: str = ""    # Human-readable question
 
-    # Scope
+    # Scope (includes view_id to prevent cross-projection merging)
     scope: ScopeSignature = field(default_factory=ScopeSignature)
 
     # Current belief state (from surface claims)
@@ -119,7 +177,7 @@ class ProtoInquiry:
     # Competing hypotheses (for display)
     hypotheses: List[Dict[str, Any]] = field(default_factory=list)
 
-    # Tensions that triggered this
+    # Tensions that triggered this (human-readable summary)
     tensions: List[str] = field(default_factory=list)
 
     # Metadata
@@ -175,11 +233,20 @@ class ProtoInquiry:
             "target_variable": self.target_variable,
             "question_text": self.question_text,
             "scope": {
+                "signature": self.scope.signature_key(),
+                "view_id": {
+                    "operator": self.scope.view_id.operator,
+                    "scale": self.scope.view_id.scale,
+                    "params_hash": self.scope.view_id.params_hash,
+                    "snapshot_id": self.scope.view_id.snapshot_id,
+                } if self.scope.view_id else None,
                 "anchor_entities": list(self.scope.anchor_entities),
                 "sources": list(self.scope.sources),
                 "time_start": self.scope.time_start.isoformat() if self.scope.time_start else None,
                 "time_end": self.scope.time_end.isoformat() if self.scope.time_end else None,
             },
+            # Triggers: why this proto-inquiry emerged
+            "triggers": [t.to_dict() for t in self.triggers],
             # Epistemic state
             "posterior_map": self.posterior_map,
             "posterior_probability": round(self.posterior_probability, 4),
@@ -288,6 +355,7 @@ class InquirySeeder:
         meta_claims: List[MetaClaim],
         claims: Dict[str, Any],  # claim_id -> Claim
         event_name: Optional[str] = None,
+        view_id: Optional[ViewId] = None,
     ) -> Optional[ProtoInquiry]:
         """
         Attempt to seed a proto-inquiry from a surface.
@@ -299,6 +367,7 @@ class InquirySeeder:
             meta_claims: Meta-claims that reference this surface
             claims: Dict of claims by ID
             event_name: Optional event name for question formulation
+            view_id: Which projection this inquiry is about
         """
         if surface.id in self._seeded_surfaces:
             return None
@@ -330,6 +399,7 @@ class InquirySeeder:
             question_key=question_key,
             inquiry_type=inquiry_type,
             event_name=event_name,
+            view_id=view_id,
         )
 
         self._seeded_surfaces.add(surface.id)
@@ -341,6 +411,7 @@ class InquirySeeder:
         meta_claims: List[MetaClaim],
         claims: Dict[str, Any],
         event_names: Dict[str, str] = None,  # surface_id -> event_name
+        view_id: Optional[ViewId] = None,
     ) -> List[ProtoInquiry]:
         """
         Seed proto-inquiries from a batch of meta-claims.
@@ -350,6 +421,13 @@ class InquirySeeder:
         Key behavior: Multiple surfaces with the same question_key and overlapping
         scope are merged into a single ProtoInquiry. This is because the *question*
         is the same - different surfaces just have different observations.
+
+        Args:
+            surfaces: Dict of surfaces by ID
+            meta_claims: List of meta-claims to process
+            claims: Dict of claims by ID
+            event_names: Optional surface_id -> event_name mapping
+            view_id: Which projection these surfaces came from
         """
         event_names = event_names or {}
         protos = []
@@ -371,6 +449,7 @@ class InquirySeeder:
                 meta_claims=surface_mcs,
                 claims=claims,
                 event_name=event_names.get(surface_id),
+                view_id=view_id,
             )
 
             if proto:
@@ -426,6 +505,7 @@ class InquirySeeder:
         all_observations = []
         all_reported_values = []
         all_tensions = []
+        all_triggers = []
         all_sources = set()
         total_typed = 0
         total_supporting = 0
@@ -434,6 +514,7 @@ class InquirySeeder:
             all_observations.extend(proto.observations)
             all_reported_values.extend(proto.reported_values)
             all_tensions.extend(proto.tensions)
+            all_triggers.extend(proto.triggers)
             all_sources.update(proto.scope.sources)
             total_typed += proto.typed_observation_count
             total_supporting += proto.supporting_claim_count
@@ -459,15 +540,26 @@ class InquirySeeder:
         if len(unique_reported) > 1:
             inquiry_type = ProtoInquiryType.CONFLICT_RESOLUTION
 
+        # Deduplicate triggers by (type, target_id)
+        seen_triggers = set()
+        unique_triggers = []
+        for t in all_triggers:
+            key = (t.type, t.target_id)
+            if key not in seen_triggers:
+                seen_triggers.add(key)
+                unique_triggers.append(t)
+
         # Create merged proto
         return ProtoInquiry(
             surface_id=base.surface_id,  # Keep first surface ID
             meta_claim_ids=[mc for p in group for mc in p.meta_claim_ids],
+            triggers=unique_triggers,
             inquiry_type=inquiry_type,
             schema_type=base.schema_type,
             target_variable=base.target_variable,
             question_text=base.question_text,
             scope=ScopeSignature(
+                view_id=base.scope.view_id,  # Use first proto's view_id
                 anchor_entities=set().union(*(p.scope.anchor_entities for p in group)),
                 context_entities=set().union(*(p.scope.context_entities for p in group)),
                 sources=all_sources,
@@ -537,6 +629,7 @@ class InquirySeeder:
         question_key: str,
         inquiry_type: ProtoInquiryType,
         event_name: Optional[str],
+        view_id: Optional[ViewId] = None,
     ) -> ProtoInquiry:
         """Build a ProtoInquiry from components."""
         # Get template
@@ -544,8 +637,9 @@ class InquirySeeder:
         schema_type = template.get("schema", SchemaType.CATEGORICAL)
         question_template = template.get("template", f"What is the {question_key}?")
 
-        # Build scope from surface
+        # Build scope from surface (includes view_id for projection tracking)
         scope = ScopeSignature(
+            view_id=view_id or ViewId(),
             anchor_entities=surface.anchor_entities.copy() if hasattr(surface, 'anchor_entities') else set(),
             context_entities=surface.entities.copy() if hasattr(surface, 'entities') else set(),
             sources=surface.sources.copy() if hasattr(surface, 'sources') else set(),
@@ -577,7 +671,17 @@ class InquirySeeder:
                 for h in sorted_hypos
             ]
 
-        # Build tensions list
+        # Build triggers from meta-claims (explainable provenance)
+        triggers = [
+            MetaClaimRef(
+                type=mc.type,
+                target_id=mc.target_id,
+                evidence=mc.evidence.copy() if mc.evidence else {},
+            )
+            for mc in meta_claims
+        ]
+
+        # Build tensions list (human-readable summary)
         tensions = [
             f"{mc.type}: {mc.evidence.get('claim_1_text', '')[:50]}..."
             if mc.type == "unresolved_conflict"
@@ -588,6 +692,7 @@ class InquirySeeder:
         proto = ProtoInquiry(
             surface_id=surface.id,
             meta_claim_ids=[mc.id for mc in meta_claims],
+            triggers=triggers,
             inquiry_type=inquiry_type,
             schema_type=schema_type,
             target_variable=question_key,

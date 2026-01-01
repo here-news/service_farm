@@ -153,6 +153,9 @@ export function generateSimulatedTrace(inquiry: InquirySummary) {
     { id: 'c2', icon: '📺', source: 'AP News', text: `"Analysis indicates ${mapValue}"`, extracted_value: mapValue, observation_kind: 'approximate' },
   ]
 
+  // Assign relationship types to claims for demo
+  const relationTypes = ['CONFIRMS', 'REFINES', 'SUPERSEDES', 'CONFLICTS', 'DIVERGENT', 'NOVEL']
+
   return {
     inquiry: { id: inquiry.id, title: inquiry.title },
     belief_state: {
@@ -164,9 +167,41 @@ export function generateSimulatedTrace(inquiry: InquirySummary) {
       total_log_score: -inquiry.entropy_bits * 2
     },
     surfaces: [
-      { id: 's1', name: 'Primary Sources', claim_count: Math.ceil(inquiry.contributions / 3), sources: ['Official', 'Gov'], in_scope: true, relations: [{ type: 'CONFIRMS', target: 'S2' }] },
-      { id: 's2', name: 'Wire Services', claim_count: Math.ceil(inquiry.contributions / 2), sources: ['Reuters', 'AP'], in_scope: true, relations: [] },
-      { id: 's3', name: 'Analysis', claim_count: Math.floor(inquiry.contributions / 4), sources: ['BBC', 'NYT'], in_scope: true, relations: [{ type: 'SUPERSEDES', target: 'S1' }] },
+      {
+        id: 's1',
+        name: 'Primary Sources',
+        claim_count: Math.ceil(inquiry.contributions / 3),
+        sources: ['Official', 'Gov'],
+        in_scope: true,
+        relations: [{ type: 'CONFIRMS', target: 'Wire Services' }]
+      },
+      {
+        id: 's2',
+        name: 'Wire Services',
+        claim_count: Math.ceil(inquiry.contributions / 2),
+        sources: ['Reuters', 'AP'],
+        in_scope: true,
+        relations: [{ type: 'REFINES', target: 'Primary Sources' }]
+      },
+      {
+        id: 's3',
+        name: 'Expert Analysis',
+        claim_count: Math.floor(inquiry.contributions / 4),
+        sources: ['BBC', 'NYT'],
+        in_scope: true,
+        relations: [{ type: 'SUPERSEDES', target: 'Primary Sources' }]
+      },
+      ...(inquiry.entropy_bits > 3 ? [{
+        id: 's4',
+        name: 'Contested Claims',
+        claim_count: Math.floor(inquiry.contributions / 5),
+        sources: ['Social Media', 'Blogs'],
+        in_scope: false,
+        relations: [
+          { type: 'CONFLICTS', target: 'Primary Sources' },
+          { type: 'DIVERGENT', target: 'Wire Services' }
+        ]
+      }] : [])
     ],
     observations: claims.map(c => ({
       kind: c.observation_kind,
@@ -178,13 +213,19 @@ export function generateSimulatedTrace(inquiry: InquirySummary) {
       type: 'evidence',
       text: c.text,
       source: c.source,
+      source_name: c.source,
+      user_name: ['Sarah Chen', 'Mike Torres', 'Anonymous'][i % 3],
       extracted_value: c.extracted_value,
+      observation_kind: c.observation_kind,
       impact: 0.05 + Math.random() * 0.1,
-      created_at: new Date(Date.now() - i * 86400000).toISOString()
+      created_at: new Date(Date.now() - i * 86400000).toISOString(),
+      // Add relationship info for demo
+      relation: i === 0 ? 'CONFIRMS' : i === 1 ? 'REFINES' : 'NOVEL',
+      relation_target: i === 0 ? 'Wire Services' : i === 1 ? 'Primary' : undefined
     })),
     tasks: inquiry.open_tasks > 0 ? [
-      { id: 't1', type: 'verification_needed', description: 'Verify with independent primary source', bounty: inquiry.stake * 0.1, completed: false },
-      ...(inquiry.open_tasks > 1 ? [{ id: 't2', type: 'high_entropy', description: 'Reduce uncertainty with authoritative data', bounty: inquiry.stake * 0.15, completed: false }] : [])
+      { id: 't1', inquiry_id: inquiry.id, type: 'need_primary_source', description: 'Verify with independent primary source', bounty: inquiry.stake * 0.1, completed: false, created_at: new Date().toISOString() },
+      ...(inquiry.open_tasks > 1 ? [{ id: 't2', inquiry_id: inquiry.id, type: 'high_entropy', description: 'Reduce uncertainty with authoritative data', bounty: inquiry.stake * 0.15, completed: false, created_at: new Date().toISOString() }] : [])
     ] : [],
     resolution: {
       status: inquiry.status,

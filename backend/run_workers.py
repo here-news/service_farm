@@ -16,7 +16,7 @@ Workers:
     - api: FastAPI server (uvicorn)
     - extraction: Page content extraction (N instances)
     - knowledge: Entity extraction + Wikidata linking (N instances)
-    - event: Neo4j event weaving
+    - weaver: Surface L2 identity clustering (replaces event worker)
     - inquiry: Inquiry resolution checker
 """
 
@@ -90,11 +90,11 @@ class WorkerManager:
                     env={'WORKER_NAME': f'knowledge-{i+1}'},
                 ))
 
-        # Event weaver
-        if args.only in (None, 'event', 'all'):
+        # Weaver worker (Surface L2 clustering)
+        if args.only in (None, 'weaver', 'all'):
             configs.append(WorkerConfig(
-                name='event',
-                command=['python', 'run_event_worker_neo4j.py'],
+                name='weaver',
+                command=['python', 'run_weaver_worker.py'],
             ))
 
         # Inquiry resolver (new)
@@ -222,7 +222,7 @@ class WorkerManager:
 
 def main():
     parser = argparse.ArgumentParser(description='Unified Worker Manager')
-    parser.add_argument('--only', choices=['api', 'extraction', 'knowledge', 'event', 'inquiry', 'all'],
+    parser.add_argument('--only', choices=['api', 'extraction', 'knowledge', 'weaver', 'inquiry', 'all'],
                         help='Run only specific worker type')
     parser.add_argument('--workers', type=int, default=1,
                         help='Number of extraction/knowledge worker instances (default: 1)')

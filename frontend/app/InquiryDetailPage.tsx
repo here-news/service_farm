@@ -231,6 +231,169 @@ function DistributionChart({
 }
 
 // =============================================================================
+// Relation Badge - TUI-inspired symbols for claim relationships
+// =============================================================================
+const RELATION_CONFIG: Record<string, {
+  symbol: string
+  label: string
+  description: string
+  bgColor: string
+  textColor: string
+  borderColor: string
+}> = {
+  CONFIRMS: {
+    symbol: '=',
+    label: 'Confirms',
+    description: 'Same fact, same value - sources agree',
+    bgColor: 'bg-green-100',
+    textColor: 'text-green-700',
+    borderColor: 'border-green-300'
+  },
+  REFINES: {
+    symbol: '↑',
+    label: 'Refines',
+    description: 'Same fact, more specific - adds precision',
+    bgColor: 'bg-blue-100',
+    textColor: 'text-blue-700',
+    borderColor: 'border-blue-300'
+  },
+  SUPERSEDES: {
+    symbol: '→',
+    label: 'Supersedes',
+    description: 'Same fact, temporal update - newer data',
+    bgColor: 'bg-indigo-100',
+    textColor: 'text-indigo-700',
+    borderColor: 'border-indigo-300'
+  },
+  CONFLICTS: {
+    symbol: '!',
+    label: 'Conflicts',
+    description: 'Same fact, incompatible values - contradiction',
+    bgColor: 'bg-red-100',
+    textColor: 'text-red-700',
+    borderColor: 'border-red-300'
+  },
+  DIVERGENT: {
+    symbol: '?',
+    label: 'Divergent',
+    description: 'Same fact, different values - needs investigation',
+    bgColor: 'bg-amber-100',
+    textColor: 'text-amber-700',
+    borderColor: 'border-amber-300'
+  },
+  NOVEL: {
+    symbol: '+',
+    label: 'Novel',
+    description: 'Different fact, no relation - new information',
+    bgColor: 'bg-purple-100',
+    textColor: 'text-purple-700',
+    borderColor: 'border-purple-300'
+  }
+}
+
+function RelationBadge({
+  type,
+  target,
+  showLabel = false,
+  size = 'sm'
+}: {
+  type: string
+  target?: string
+  showLabel?: boolean
+  size?: 'sm' | 'md' | 'lg'
+}) {
+  const config = RELATION_CONFIG[type] || RELATION_CONFIG.NOVEL
+
+  const sizeClasses = {
+    sm: 'w-5 h-5 text-xs',
+    md: 'w-6 h-6 text-sm',
+    lg: 'w-8 h-8 text-base'
+  }
+
+  return (
+    <div className="group relative inline-flex items-center gap-1">
+      {/* Symbol badge */}
+      <span
+        className={`
+          ${sizeClasses[size]}
+          ${config.bgColor} ${config.textColor}
+          border ${config.borderColor}
+          rounded font-mono font-bold
+          flex items-center justify-center
+          cursor-help transition-transform hover:scale-110
+        `}
+      >
+        {config.symbol}
+      </span>
+
+      {/* Optional label */}
+      {showLabel && (
+        <span className={`text-xs ${config.textColor}`}>
+          {target || config.label}
+        </span>
+      )}
+
+      {/* Tooltip */}
+      <div className="
+        absolute bottom-full left-1/2 -translate-x-1/2 mb-2
+        px-3 py-2 rounded-lg shadow-lg
+        bg-slate-800 text-white text-xs
+        opacity-0 invisible group-hover:opacity-100 group-hover:visible
+        transition-all duration-200 z-50
+        whitespace-nowrap pointer-events-none
+      ">
+        <div className="font-semibold mb-0.5">{config.label}</div>
+        <div className="text-slate-300">{config.description}</div>
+        {target && <div className="text-slate-400 mt-1">→ {target}</div>}
+        {/* Tooltip arrow */}
+        <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1">
+          <div className="border-4 border-transparent border-t-slate-800" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Relation Legend component for reference
+function RelationLegend({ compact = false }: { compact?: boolean }) {
+  const relations = Object.entries(RELATION_CONFIG)
+
+  if (compact) {
+    return (
+      <div className="flex flex-wrap gap-2 text-xs">
+        {relations.map(([type, config]) => (
+          <span key={type} className="flex items-center gap-1">
+            <span className={`w-4 h-4 ${config.bgColor} ${config.textColor} border ${config.borderColor} rounded font-mono font-bold text-xs flex items-center justify-center`}>
+              {config.symbol}
+            </span>
+            <span className="text-slate-500">{config.label}</span>
+          </span>
+        ))}
+      </div>
+    )
+  }
+
+  return (
+    <div className="bg-slate-50 rounded-lg p-3 text-xs">
+      <div className="font-medium text-slate-700 mb-2">Relationship Symbols</div>
+      <div className="grid grid-cols-2 gap-2">
+        {relations.map(([type, config]) => (
+          <div key={type} className="flex items-center gap-2">
+            <span className={`w-5 h-5 ${config.bgColor} ${config.textColor} border ${config.borderColor} rounded font-mono font-bold flex items-center justify-center`}>
+              {config.symbol}
+            </span>
+            <div>
+              <div className="font-medium text-slate-700">{config.label}</div>
+              <div className="text-slate-400 text-[10px]">{config.description}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// =============================================================================
 // Surfaces Panel - Claim clusters with identity relations
 // =============================================================================
 function SurfacesPanel({
@@ -245,16 +408,35 @@ function SurfacesPanel({
     relations?: Array<{ type: string; target: string }>
   }>
 }) {
+  const [showLegend, setShowLegend] = useState(false)
+
   if (!surfaces || surfaces.length === 0) return null
 
   return (
     <div className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
-      <h3 className="font-medium text-slate-700 mb-4 text-sm flex items-center gap-2">
-        <span>Claim Clusters</span>
-        <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">
-          {surfaces.length} surfaces
-        </span>
-      </h3>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="font-medium text-slate-700 text-sm flex items-center gap-2">
+          <span>Claim Clusters</span>
+          <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">
+            {surfaces.length} surfaces
+          </span>
+        </h3>
+        <button
+          onClick={() => setShowLegend(!showLegend)}
+          className="text-xs text-slate-400 hover:text-slate-600 transition"
+          title="Show relationship legend"
+        >
+          {showLegend ? 'Hide' : 'Legend'}
+        </button>
+      </div>
+
+      {/* Collapsible Legend */}
+      {showLegend && (
+        <div className="mb-4">
+          <RelationLegend />
+        </div>
+      )}
+
       <div className="space-y-2">
         {surfaces.map(surface => (
           <div
@@ -278,18 +460,15 @@ function SurfacesPanel({
               )}
             </div>
             {surface.relations && surface.relations.length > 0 && (
-              <div className="flex flex-wrap gap-1 mt-2">
+              <div className="flex flex-wrap gap-1.5 mt-2">
                 {surface.relations.map((rel, i) => (
-                  <span
+                  <RelationBadge
                     key={i}
-                    className={`px-1.5 py-0.5 rounded text-xs ${
-                      rel.type === 'CONFIRMS' ? 'bg-green-100 text-green-700' :
-                      rel.type === 'SUPERSEDES' ? 'bg-blue-100 text-blue-700' :
-                      'bg-red-100 text-red-700'
-                    }`}
-                  >
-                    {rel.type} {rel.target}
-                  </span>
+                    type={rel.type}
+                    target={rel.target}
+                    showLabel={true}
+                    size="sm"
+                  />
                 ))}
               </div>
             )}
@@ -568,9 +747,9 @@ function timeAgo(dateStr: string): string {
 }
 
 // =============================================================================
-// Contribution Card - Social media style
+// Contribution Card - Social media style with relationship indicators
 // =============================================================================
-function ContributionCard({ contrib }: { contrib: Contribution }) {
+function ContributionCard({ contrib }: { contrib: Contribution & { relation?: string; relation_target?: string } }) {
   const userName = contrib.user_name || contrib.source || 'Anonymous'
   const commentCount = Math.floor(Math.random() * 5) // Placeholder - would come from API
 
@@ -594,6 +773,14 @@ function ContributionCard({ contrib }: { contrib: Contribution }) {
             <span className={`text-xs px-2 py-0.5 rounded-full ${config.badge}`}>
               {config.icon} {contrib.type?.replace('_', ' ')}
             </span>
+            {/* Relationship indicator */}
+            {contrib.relation && (
+              <RelationBadge
+                type={contrib.relation}
+                target={contrib.relation_target}
+                size="sm"
+              />
+            )}
             {contrib.impact && contrib.impact > 0.02 && (
               <span className="text-xs font-medium text-green-600 bg-green-100 px-2 py-0.5 rounded-full">
                 +{Math.round(contrib.impact * 100)}% impact
@@ -793,8 +980,30 @@ function InquiryDetailPage() {
       if (inqRes.ok && traceRes.ok) {
         const inqData = await inqRes.json()
         const traceData = await traceRes.json()
-        setInquiry(inqData)
-        setTrace(traceData)
+
+        // Check if this is simulated data (sim_ prefix) - merge with full simulated trace
+        const simulated = SIMULATED_INQUIRIES.find(i => i.id === id)
+        if (simulated) {
+          const simulatedTrace = generateSimulatedTrace(simulated)
+          // Merge: prefer API data but fill in missing fields from simulated
+          const mergedTrace = {
+            ...simulatedTrace,
+            ...traceData,
+            // Always use simulated surfaces/contributions for demo display
+            surfaces: simulatedTrace.surfaces,
+            contributions: traceData.contributions?.length > 0
+              ? traceData.contributions
+              : simulatedTrace.contributions,
+            posterior_top_10: traceData.posterior_top_10?.length > 0
+              ? traceData.posterior_top_10
+              : simulatedTrace.posterior_top_10,
+          }
+          setInquiry(inqData)
+          setTrace(mergedTrace as InquiryTrace)
+        } else {
+          setInquiry(inqData)
+          setTrace(traceData)
+        }
       } else {
         // Fall back to simulated data
         loadSimulatedData(id)
