@@ -182,10 +182,10 @@ function InquiryCard({ inquiry, onClick, variant = 'default' }: InquiryCardProps
               </span>
             )}
 
-            {/* Entropy (for contested) */}
+            {/* Disagreement level (for contested) */}
             {isContested && (
-              <span className="text-red-500 font-medium">
-                🔥 {inquiry.entropy_bits.toFixed(1)} bits
+              <span className="text-red-500 font-medium" title="How much sources disagree">
+                🔥 High disagreement
               </span>
             )}
 

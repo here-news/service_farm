@@ -34,6 +34,14 @@ HUB_ENTITIES = {
     'United Kingdom', 'Beijing', 'Taiwan', 'Europe'
 }
 
+# Publishers/sources that should not act as binding anchors
+# These often appear as entities but are really metadata, not incident identifiers
+PUBLISHER_ENTITIES = {
+    'Time', 'TIME', 'New York Times', 'Washington Post', 'BBC',
+    'CNN', 'Fox News', 'Reuters', 'AP', 'Associated Press',
+    'The Guardian', 'Daily Mail', 'SCMP', 'South China Morning Post',
+}
+
 
 class AboutnessScorer:
     """
@@ -91,15 +99,63 @@ class AboutnessScorer:
         """
         Compute aboutness score between two surfaces.
 
+        For incident-level events, applies:
+        1. Temporal gate: surfaces must be within Δ days
+        2. Discriminative anchor: at least one high-IDF shared anchor
+        3. Multi-signal requirement: 2+ of anchor/semantic/entity
+
         Returns: (score, evidence_dict)
         """
         min_signals = self.params.aboutness_min_signals
         evidence = {}
         signals_met = 0
 
-        # Signal 1: Strong anchor overlap (IDF-weighted)
+        # =================================================================
+        # TEMPORAL GATE (for incident-level events)
+        # =================================================================
+        temporal_compatible = True
+        time_penalty = 1.0
+        t1_start, t1_end = s1.time_window
+        t2_start, t2_end = s2.time_window
+
+        # Check if time is known
+        t1_known = t1_start is not None or t1_end is not None
+        t2_known = t2_start is not None or t2_end is not None
+
+        if t1_known and t2_known:
+            # Both have time - check overlap within window
+            delta_days = self.params.temporal_window_days
+
+            # Use midpoint or available time
+            from datetime import timedelta
+            t1 = t1_start or t1_end
+            t2 = t2_start or t2_end
+
+            days_apart = abs((t1 - t2).days)
+            if days_apart > delta_days:
+                temporal_compatible = False
+            evidence['days_apart'] = days_apart
+        elif not t1_known or not t2_known:
+            # At least one has unknown time - apply penalty
+            time_penalty = self.params.temporal_unknown_penalty
+            evidence['time_unknown'] = True
+
+        evidence['temporal_compatible'] = temporal_compatible
+
+        # Reject if temporally incompatible
+        if not temporal_compatible:
+            evidence['gate'] = 'temporal'
+            evidence['signals_met'] = 0
+            return 0.0, evidence
+
+        # =================================================================
+        # Signal 1: Anchor overlap (IDF-weighted)
+        # =================================================================
         shared_anchors = s1.anchor_entities & s2.anchor_entities
         anchor_score = 0.0
+        has_discriminative = False
+        discriminative_anchors = []
+
         if shared_anchors:
             anchor_score = sum(self.anchor_idf.get(a, 0) for a in shared_anchors)
             max_anchor = max(
@@ -110,10 +166,25 @@ class AboutnessScorer:
             anchor_score = min(anchor_score / max_anchor, 1.0)
             if anchor_score > 0.3:
                 signals_met += 1
+
+            # Check for discriminative anchors (high IDF, excluding publishers)
+            idf_threshold = self.params.discriminative_idf_threshold
+            for a in shared_anchors:
+                # Skip publisher entities - they act as metadata, not incident identifiers
+                if a in PUBLISHER_ENTITIES:
+                    continue
+                if self.anchor_idf.get(a, 0) >= idf_threshold:
+                    has_discriminative = True
+                    discriminative_anchors.append(a)
+
         evidence['anchor_score'] = anchor_score
         evidence['shared_anchors'] = list(shared_anchors)
+        evidence['discriminative_anchors'] = discriminative_anchors
+        evidence['has_discriminative'] = has_discriminative
 
+        # =================================================================
         # Signal 2: Semantic similarity (centroid)
+        # =================================================================
         semantic_score = 0.0
         if s1.centroid and s2.centroid:
             semantic_score = cosine_similarity(s1.centroid, s2.centroid)
@@ -121,7 +192,9 @@ class AboutnessScorer:
                 signals_met += 1
         evidence['semantic_score'] = semantic_score
 
+        # =================================================================
         # Signal 3: Entity overlap (IDF-weighted, EXCLUDING anchors)
+        # =================================================================
         non_anchor_entities_1 = s1.entities - s1.anchor_entities
         non_anchor_entities_2 = s2.entities - s2.anchor_entities
         shared_entities = non_anchor_entities_1 & non_anchor_entities_2
@@ -139,30 +212,42 @@ class AboutnessScorer:
         evidence['entity_score'] = entity_score
         evidence['shared_entities'] = list(shared_entities)[:5]
 
-        # Signal 4: Source diversity
+        # Source diversity
         source_overlap = len(s1.sources & s2.sources)
         source_diversity = 1.0 if source_overlap == 0 else 0.5
         evidence['source_diversity'] = source_diversity
 
-        # 2-of-3 constraint
+        # =================================================================
+        # GATES
+        # =================================================================
+        evidence['signals_met'] = signals_met
+
+        # Gate 1: Minimum signals
         if signals_met < min_signals:
-            evidence['signals_met'] = signals_met
             return 0.0, evidence
 
-        # Additional gates for single-signal contamination
+        # Gate 2: Discriminative anchor requirement
+        if self.params.require_discriminative_anchor and not has_discriminative:
+            # Allow if semantic is very high (same topic, different angle)
+            if semantic_score < 0.75:
+                evidence['gate'] = 'no_discriminative_anchor'
+                return 0.0, evidence
+
+        # Gate 3: Single-signal contamination (anchor-only without semantics)
         anchor_only = (anchor_score > 0.3 and semantic_score < 0.5 and entity_score < 0.3)
         if anchor_only and semantic_score < 0.4:
-            evidence['signals_met'] = signals_met
             evidence['gate'] = 'anchor_only'
             return 0.0, evidence
 
+        # Gate 4: Semantic-only without any anchor (topic drift)
         semantic_only = (semantic_score > 0.45 and anchor_score < 0.3 and entity_score < 0.3)
         if semantic_only and semantic_score < 0.85:
-            evidence['signals_met'] = signals_met
             evidence['gate'] = 'semantic_only'
             return 0.0, evidence
 
-        # Compute overall score
+        # =================================================================
+        # FINAL SCORE
+        # =================================================================
         score = (
             0.45 * anchor_score +
             0.25 * semantic_score +
@@ -170,7 +255,9 @@ class AboutnessScorer:
             0.10 * source_diversity
         )
 
-        evidence['signals_met'] = signals_met
+        # Apply time penalty if unknown
+        score *= time_penalty
+
         return score, evidence
 
     def compute_all_edges(self) -> List[Tuple[str, str, float, Dict]]:
@@ -222,45 +309,122 @@ def compute_events_from_aboutness(
     params: Parameters = None
 ) -> Dict[str, Event]:
     """
-    Cluster surfaces into events based on aboutness edges.
+    Cluster surfaces into events using core/periphery model.
 
-    Uses connected components on edges above threshold.
+    Instead of connected components (which percolates through weak bridges),
+    uses a two-phase approach:
+
+    1. CORE FORMATION: Build cores from strong edges only (2x threshold)
+       - Connected components on strong edges form event cores
+       - Cores are dense, high-confidence clusters
+
+    2. PERIPHERY ATTACHMENT: Attach remaining surfaces to best core
+       - Each unassigned surface joins the core with highest affinity
+       - Periphery attachments NEVER merge cores
+       - Surfaces with no strong affinity stay singleton
+
+    This prevents the "one weak bridge merges everything" pathology.
     """
     params = params or Parameters()
-    aboutness_threshold = params.aboutness_threshold
+    base_threshold = params.aboutness_threshold
 
-    # Build aboutness adjacency (above threshold only)
-    adj = defaultdict(set)
-    for s1_id, s2_id, score, _ in aboutness_edges:
-        if score >= aboutness_threshold:
-            adj[s1_id].add(s2_id)
-            adj[s2_id].add(s1_id)
+    # Thresholds for core vs periphery
+    core_threshold = base_threshold * 2.0  # Strong edges form cores
+    periphery_threshold = base_threshold  # Weak edges attach to cores
 
-    # Find connected components
+    # Build edge lookup
+    edge_map = {}  # (s1, s2) -> (score, evidence)
+    for s1_id, s2_id, score, evidence in aboutness_edges:
+        edge_map[(s1_id, s2_id)] = (score, evidence)
+        edge_map[(s2_id, s1_id)] = (score, evidence)
+
+    # =================================================================
+    # PHASE 1: Core formation (strong edges only)
+    # =================================================================
+    strong_adj = defaultdict(set)
+    for s1_id, s2_id, score, evidence in aboutness_edges:
+        if score >= core_threshold:
+            # Additional check: require discriminative anchor for core edges
+            has_discrim = evidence.get('has_discriminative', False)
+            if has_discrim:
+                strong_adj[s1_id].add(s2_id)
+                strong_adj[s2_id].add(s1_id)
+
+    # Find connected components on strong graph → cores
     visited = set()
-    event_groups = []
+    cores = []  # List of sets of surface IDs
 
     for surface_id in surfaces:
         if surface_id in visited:
             continue
 
-        group = set()
+        # BFS on strong edges only
+        core = set()
         stack = [surface_id]
         while stack:
             curr = stack.pop()
             if curr in visited:
                 continue
             visited.add(curr)
-            group.add(curr)
-            stack.extend(adj[curr] - visited)
+            core.add(curr)
+            stack.extend(strong_adj[curr] - visited)
 
-        event_groups.append(group)
+        # Only keep cores with >1 surface (singletons handled in periphery phase)
+        if len(core) > 1:
+            cores.append(core)
 
-    # Create events
+    # =================================================================
+    # PHASE 2: Periphery attachment (weak edges)
+    # =================================================================
+    # Surfaces already in a core
+    core_assigned = set()
+    surface_to_core = {}  # surface_id -> core_index
+    for i, core in enumerate(cores):
+        for sid in core:
+            core_assigned.add(sid)
+            surface_to_core[sid] = i
+
+    # Assign remaining surfaces to best core (or leave as singleton)
+    for surface_id in surfaces:
+        if surface_id in core_assigned:
+            continue
+
+        # Find best core by aggregate affinity
+        best_core = None
+        best_affinity = 0.0
+
+        for core_idx, core in enumerate(cores):
+            # Sum affinity to all surfaces in this core
+            total_affinity = 0.0
+            edge_count = 0
+            for core_sid in core:
+                key = (surface_id, core_sid)
+                if key in edge_map:
+                    score, _ = edge_map[key]
+                    if score >= periphery_threshold:
+                        total_affinity += score
+                        edge_count += 1
+
+            # Require at least one edge above threshold
+            if edge_count > 0 and total_affinity > best_affinity:
+                best_affinity = total_affinity
+                best_core = core_idx
+
+        if best_core is not None:
+            cores[best_core].add(surface_id)
+            surface_to_core[surface_id] = best_core
+        else:
+            # No good core match - create singleton event
+            cores.append({surface_id})
+            surface_to_core[surface_id] = len(cores) - 1
+
+    # =================================================================
+    # PHASE 3: Create events from cores
+    # =================================================================
     events = {}
-    for i, group in enumerate(event_groups):
+    for i, core in enumerate(cores):
         event_id = f"E{i+1:03d}"
-        surfaces_in_event = [surfaces[sid] for sid in group]
+        surfaces_in_event = [surfaces[sid] for sid in core if sid in surfaces]
         event = _event_from_surfaces(event_id, surfaces_in_event)
         events[event_id] = event
 

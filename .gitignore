@@ -55,3 +55,16 @@ backend/test_eu/results/
 backend/test_eu/topology_*.json
 backend/test_eu/uee_state/
 backend/backend/
+
+# Claude Code local state
+.claude/
+
+# Product test artifacts
+product/node_modules/
+product/test-results/
+product/screenshots/
+
+# Local data exports
+backend/data/exports/
+backend/data/*.json
+backend/data/*.csv

@@ -25,6 +25,13 @@ from .aboutness import AboutnessScorer, compute_aboutness_edges, compute_events_
 from .meta import detect_tensions, TensionDetector, get_unresolved, count_by_type, resolve_meta_claim
 from .interpretation import interpret_all, interpret_surface, interpret_event
 
+# Views (explicit scale projections)
+from .views import (
+    ViewScale, ViewTrace, ViewResult,
+    IncidentViewParams, IncidentEventView, build_incident_events,
+    CaseViewParams, CaseView, build_case_clusters,
+)
+
 # Legacy components (may be deprecated)
 from .extractor import ClaimExtractor, ExtractedClaim
 from .comparator import ClaimComparator, Relation as ComparisonRelation
@@ -63,6 +70,17 @@ __all__ = [
     'AboutnessScorer',
     'compute_aboutness_edges',
     'compute_events_from_aboutness',
+
+    # Views (explicit scale projections)
+    'ViewScale',
+    'ViewTrace',
+    'ViewResult',
+    'IncidentViewParams',
+    'IncidentEventView',
+    'build_incident_events',
+    'CaseViewParams',
+    'CaseView',
+    'build_case_clusters',
 
     # Meta
     'detect_tensions',

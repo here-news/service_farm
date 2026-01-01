@@ -93,6 +93,14 @@ class Parameters:
     aboutness_min_signals: int = 2
     aboutness_threshold: float = 0.15
 
+    # Temporal gate for incident-level events
+    temporal_window_days: int = 7  # Surfaces must be within Δ days to link
+    temporal_unknown_penalty: float = 0.5  # Cap edge weight when time unknown
+
+    # Discriminative anchor requirement
+    require_discriminative_anchor: bool = True  # Require high-IDF shared anchor
+    discriminative_idf_threshold: float = 1.5  # Min IDF to be "discriminative"
+
     # Tension detection
     high_entropy_threshold: float = 0.6
 

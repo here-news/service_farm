@@ -1,19 +1,50 @@
 """
 Epistemic Kernel Core Components
 
-Clean, modular implementation of the epistemic kernel.
+DEPRECATED: This module now re-exports from backend/reee/.
+Please use `from reee import ...` instead.
 """
 
-from .extractor import ClaimExtractor, ExtractedClaim
-from .comparator import ClaimComparator, Relation as ComparisonRelation
-from .kernel import EpistemicKernel, Belief, Relation
+import warnings
+
+# Re-export from reee for backward compatibility
+from reee import (
+    # Core types
+    Claim, Surface, Event, Parameters, MetaClaim,
+    Relation, Association, MembershipLevel,
+    ParameterChange, AboutnessLink, EventSignature, SurfaceMembership,
+
+    # Engine
+    Engine, EmergenceEngine,
+
+    # Identity
+    IdentityLinker,
+
+    # Aboutness
+    AboutnessScorer, compute_aboutness_edges, compute_events_from_aboutness,
+
+    # Meta
+    detect_tensions, TensionDetector, get_unresolved, count_by_type, resolve_meta_claim,
+
+    # Interpretation
+    interpret_all, interpret_surface, interpret_event,
+
+    # Legacy
+    ClaimExtractor, ExtractedClaim,
+    ClaimComparator, ComparisonRelation,
+    EpistemicKernel, Belief,
+)
 
 __all__ = [
-    'ClaimExtractor',
-    'ExtractedClaim',
-    'ClaimComparator',
-    'ComparisonRelation',
-    'EpistemicKernel',
-    'Belief',
-    'Relation',
+    'Claim', 'Surface', 'Event', 'Parameters', 'MetaClaim',
+    'Relation', 'Association', 'MembershipLevel',
+    'ParameterChange', 'AboutnessLink', 'EventSignature', 'SurfaceMembership',
+    'Engine', 'EmergenceEngine',
+    'IdentityLinker',
+    'AboutnessScorer', 'compute_aboutness_edges', 'compute_events_from_aboutness',
+    'detect_tensions', 'TensionDetector', 'get_unresolved', 'count_by_type', 'resolve_meta_claim',
+    'interpret_all', 'interpret_surface', 'interpret_event',
+    'ClaimExtractor', 'ExtractedClaim',
+    'ClaimComparator', 'ComparisonRelation',
+    'EpistemicKernel', 'Belief',
 ]

@@ -81,7 +81,25 @@ function InquiryPage() {
       {/* Header */}
       <div className="text-center mb-8">
         <h1 className="text-3xl font-bold text-slate-800 mb-2">What's True?</h1>
-        <p className="text-slate-500">Collaborative fact-finding with epistemic rigor</p>
+        <p className="text-slate-500">Get answers to contested questions. Earn rewards for truth.</p>
+        {/* Quick stats */}
+        <div className="flex justify-center gap-6 mt-4 text-sm">
+          <div className="flex items-center gap-1.5 text-amber-600">
+            <span>💰</span>
+            <span className="font-semibold">${topBountiedInquiries.reduce((sum, i) => sum + i.stake, 0).toLocaleString()}</span>
+            <span className="text-slate-400">in bounties</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-green-600">
+            <span>✅</span>
+            <span className="font-semibold">{resolvedInquiries.length}</span>
+            <span className="text-slate-400">resolved</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-indigo-600">
+            <span>🔍</span>
+            <span className="font-semibold">{openInquiries.length}</span>
+            <span className="text-slate-400">open</span>
+          </div>
+        </div>
       </div>
 
 
@@ -175,7 +193,7 @@ function InquiryPage() {
                 className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white"
               >
                 <option value="stake">By Bounty</option>
-                <option value="entropy">By Uncertainty</option>
+                <option value="entropy">By Disagreement</option>
                 <option value="contributions">By Activity</option>
               </select>
             </div>

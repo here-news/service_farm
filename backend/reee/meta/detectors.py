@@ -43,6 +43,7 @@ class TensionDetector:
         - high_entropy_surface: Surface has high semantic dispersion
         - single_source_only: Claim has only one source
         - unresolved_conflict: CONFLICTS edge without resolution
+        - typed_value_conflict: Typed claims in same surface have different extracted_value
         """
         meta_claims = []
 
@@ -52,8 +53,11 @@ class TensionDetector:
         # Detect single-source claims
         meta_claims.extend(self._detect_single_source())
 
-        # Detect unresolved conflicts
+        # Detect unresolved conflicts (from edges)
         meta_claims.extend(self._detect_conflicts())
+
+        # Detect typed value conflicts within surfaces
+        meta_claims.extend(self._detect_typed_value_conflicts())
 
         return meta_claims
 
@@ -120,6 +124,56 @@ class TensionDetector:
                     params_version=self.params.version
                 )
                 meta_claims.append(mc)
+
+        return meta_claims
+
+    def _detect_typed_value_conflicts(self) -> List[MetaClaim]:
+        """
+        Detect surfaces where typed claims have conflicting extracted_value.
+
+        This catches conflicts that identity linking missed (e.g., when running
+        without LLM, or when values differ but texts are similar).
+        """
+        meta_claims = []
+
+        for surface in self.surfaces.values():
+            # Collect typed claims in this surface
+            typed_values = {}  # question_key -> {value -> [claim_ids]}
+            for claim_id in surface.claim_ids:
+                claim = self.claims.get(claim_id)
+                if not claim:
+                    continue
+
+                qkey = getattr(claim, 'question_key', None)
+                value = getattr(claim, 'extracted_value', None)
+
+                if qkey and value is not None:
+                    if qkey not in typed_values:
+                        typed_values[qkey] = {}
+                    if value not in typed_values[qkey]:
+                        typed_values[qkey][value] = []
+                    typed_values[qkey][value].append(claim_id)
+
+            # Check for conflicts (multiple distinct values for same question_key)
+            for qkey, value_map in typed_values.items():
+                if len(value_map) > 1:
+                    # Conflict detected!
+                    values = list(value_map.keys())
+                    mc = MetaClaim(
+                        type="typed_value_conflict",
+                        target_id=surface.id,
+                        target_type="surface",
+                        evidence={
+                            'question_key': qkey,
+                            'conflicting_values': values,
+                            'claims_by_value': {
+                                str(v): cids for v, cids in value_map.items()
+                            },
+                            'surface_sources': list(surface.sources),
+                        },
+                        params_version=self.params.version
+                    )
+                    meta_claims.append(mc)
 
         return meta_claims
 

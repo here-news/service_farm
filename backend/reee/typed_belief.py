@@ -514,8 +514,19 @@ class TypedBeliefState:
         """
         Update bounds based on observation kind and signals.
 
-        LOWER_BOUND observations ("at least X") always set hard bound.
-        POINT observations also set hard bound for monotone counts (deaths confirmed).
+        CRITICAL PRINCIPLE: Hard bounds require TEMPORAL EVIDENCE.
+
+        Without timestamps, we cannot distinguish:
+        - "at least 128" then "at least 160" (temporal supersession → hard bound 160)
+        - "at least 128" vs "at least 160" (disagreement → multi-modal posterior)
+
+        Therefore:
+        - LOWER_BOUND/POINT with timestamp AND later than previous → hard constraint
+        - LOWER_BOUND/POINT without timestamp → soft constraint (likelihood only)
+        - UPDATE language ("rose to", "hits") → soft constraint without timestamp
+
+        This ensures Jaynes-correct behavior: competing values get multi-modal
+        support until temporal ordering resolves the ambiguity.
         """
         # Get the relevant value
         if obs.kind == ObservationKind.LOWER_BOUND:
@@ -537,29 +548,25 @@ class TypedBeliefState:
         if val is None:
             return
 
-        # Always update soft bound with MAP/bound value
+        # Always update soft bound - used for display/diagnostics
         self._soft_lower_bound = max(self._soft_lower_bound, val)
 
-        # LOWER_BOUND observations are hard constraints by definition
-        if obs.kind == ObservationKind.LOWER_BOUND:
-            self._hard_lower_bound = max(self._hard_lower_bound, val)
-            return
+        # HARD BOUNDS REQUIRE TIMESTAMP EVIDENCE
+        # Without timestamps, all observations contribute via likelihood only
+        has_timestamp = obs.timestamp is not None
 
-        # For POINT observations in monotone count domains:
-        # A confirmed count is a hard floor (you can't have fewer deaths once confirmed)
-        if obs.kind == ObservationKind.POINT and isinstance(self.domain, CountDomain):
-            self._hard_lower_bound = max(self._hard_lower_bound, val)
-            return
+        if has_timestamp:
+            # Check if this is the latest observation
+            is_latest = all(
+                o.timestamp is None or obs.timestamp >= o.timestamp
+                for o in self.observations
+            )
+            if is_latest:
+                # Latest timestamped observation can set hard bound
+                self._hard_lower_bound = max(self._hard_lower_bound, val)
 
-        # For other domains: only update hard bound if explicitly marked as update
-        is_update = obs.signals.get("is_update", False)
-        if isinstance(self.domain, CountDomain):
-            threshold = self.domain.config.hard_bound_confidence_threshold
-        else:
-            threshold = 0.95
-
-        if is_update and obs.extraction_confidence >= threshold:
-            self._hard_lower_bound = max(self._hard_lower_bound, val)
+        # Without timestamp: NO hard bound, regardless of observation kind
+        # The observation still contributes via likelihood in compute_posterior()
 
     def compute_posterior(self) -> Dict[Any, float]:
         """Compute posterior P(X | observations)."""
