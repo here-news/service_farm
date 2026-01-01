@@ -65,6 +65,36 @@ def test_interpretation_import():
     assert interpret_all is not None
 
 
+def test_views_import():
+    """Test importing views submodule."""
+    from reee.views import (
+        # Incident view
+        IncidentViewParams,
+        IncidentEventView,
+        build_incident_events,
+        # Case view
+        CaseViewParams,
+        CaseView,
+        build_case_clusters,
+        # Hubness
+        AnchorHubness,
+        HubnessResult,
+        analyze_hubness,
+        compute_co_anchor_dispersion,
+        # Relations
+        RelationEdge,
+        RelationBackbone,
+        build_relation_backbone_from_incidents,
+        # Types
+        ViewScale,
+        ViewTrace,
+        ViewResult,
+    )
+    assert CaseView is not None
+    assert IncidentEventView is not None
+    assert analyze_hubness is not None
+
+
 def test_backward_compatibility():
     """Test backward compatibility via test_eu.core."""
     from test_eu.core import Engine as OldEngine, Claim as OldClaim
