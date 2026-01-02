@@ -230,7 +230,8 @@ class KnowledgeWorker:
                 # 4b. Create claims with entity links
                 claim_ids = await self._create_claims(
                     conn, page_id, page['url'],
-                    extraction, identification
+                    extraction, identification,
+                    reported_time=page.get('pub_time')
                 )
                 logger.info(f"💾 Created {len(claim_ids)} claims")
 
@@ -649,7 +650,8 @@ class KnowledgeWorker:
         page_id: str,
         url: str,
         extraction: ExtractionResult,
-        identification: IdentificationResult
+        identification: IdentificationResult,
+        reported_time: Optional[datetime] = None
     ) -> List[str]:
         """
         Create claims with entity links using UUIDs.
@@ -716,18 +718,33 @@ class KnowledgeWorker:
                 except (ValueError, TypeError):
                     pass
 
+            # Resolve who/where to entity IDs for anchor selection
+            who_entity_ids = []
+            where_entity_ids = []
+            for mention_id in claim_data.get('who', []):
+                eid = identification.get_entity_id(mention_id)
+                if eid:
+                    who_entity_ids.append(eid)
+            for mention_id in claim_data.get('where', []):
+                eid = identification.get_entity_id(mention_id)
+                if eid:
+                    where_entity_ids.append(eid)
+
             # Create claim
             claim = Claim(
                 id=generate_claim_id(),
                 page_id=page_id,
                 text=claim_data.get('text', ''),
                 event_time=event_time,
+                reported_time=reported_time,  # Fallback for temporal coverage
                 confidence=claim_data.get('confidence', 0.5),
                 modality=claim_data.get('modality', 'observation'),
                 metadata={
                     'deterministic_id': deterministic_id,
                     'who_mentions': claim_data.get('who', []),
                     'where_mentions': claim_data.get('where', []),
+                    'who_entity_ids': who_entity_ids,  # Resolved IDs for anchor selection
+                    'where_entity_ids': where_entity_ids,
                     'when': when,
                     'time_precision': time_precision,  # hour, day, month, year, approximate
                     'temporal_context': temporal_context,  # "Saturday afternoon", "shortly after 4 p.m."

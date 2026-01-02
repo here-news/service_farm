@@ -377,8 +377,8 @@ class SurfaceRepository:
         Returns:
             List of surface IDs (deduplicated, sorted by relevance)
         """
-        # Compute time window - handle string timestamps from Neo4j
-        claim_time = claim.event_time or claim.created_at or datetime.utcnow()
+        # Time fallback chain: event_time → reported_time → created_at
+        claim_time = claim.event_time or claim.reported_time or claim.created_at or datetime.utcnow()
         if isinstance(claim_time, str):
             from dateutil.parser import parse as parse_date
             claim_time = parse_date(claim_time)

@@ -57,6 +57,8 @@ class ClaimRepository:
         # Create Claim node in Neo4j
         # Store deterministic_id for deduplication on reprocessing
         deterministic_id = claim.metadata.get('deterministic_id') if claim.metadata else None
+        who_entity_ids = claim.metadata.get('who_entity_ids', []) if claim.metadata else []
+        where_entity_ids = claim.metadata.get('where_entity_ids', []) if claim.metadata else []
 
         await self.neo4j._execute_write("""
             MERGE (c:Claim {id: $claim_id})
@@ -64,19 +66,28 @@ class ClaimRepository:
                 c.text = $text,
                 c.deterministic_id = $deterministic_id,
                 c.event_time = $event_time,
+                c.reported_time = $reported_time,
                 c.confidence = $confidence,
                 c.modality = $modality,
+                c.who_entity_ids = $who_entity_ids,
+                c.where_entity_ids = $where_entity_ids,
                 c.created_at = datetime()
             ON MATCH SET
                 c.text = $text,
-                c.confidence = $confidence
+                c.confidence = $confidence,
+                c.reported_time = coalesce($reported_time, c.reported_time),
+                c.who_entity_ids = $who_entity_ids,
+                c.where_entity_ids = $where_entity_ids
         """, {
             'claim_id': str(claim.id),
             'deterministic_id': deterministic_id,
             'text': claim.text[:500],  # Truncate for graph storage
             'event_time': claim.event_time.isoformat() if claim.event_time else None,
+            'reported_time': claim.reported_time.isoformat() if claim.reported_time else None,
             'confidence': claim.confidence,
-            'modality': claim.modality
+            'modality': claim.modality,
+            'who_entity_ids': who_entity_ids,
+            'where_entity_ids': where_entity_ids,
         })
 
         # Create MENTIONS relationships to entities and increment mention_count
@@ -133,8 +144,11 @@ class ClaimRepository:
             MATCH (c:Claim {id: $claim_id})
             OPTIONAL MATCH (p:Page)-[:EMITS]->(c)
             RETURN c.id as id, c.text as text, c.event_time as event_time,
+                   c.reported_time as reported_time,
                    c.confidence as confidence, c.modality as modality,
-                   c.created_at as created_at, p.id as page_id
+                   c.created_at as created_at, p.id as page_id,
+                   c.who_entity_ids as who_entity_ids,
+                   c.where_entity_ids as where_entity_ids
         """, {'claim_id': claim_id})
 
         if not results:
@@ -147,9 +161,14 @@ class ClaimRepository:
             page_id=row['page_id'],
             text=row['text'],
             event_time=row['event_time'],
+            reported_time=row['reported_time'],
             confidence=row['confidence'] or 0.8,
             modality=row['modality'] or 'observation',
-            created_at=row['created_at']
+            created_at=row['created_at'],
+            metadata={
+                'who_entity_ids': row.get('who_entity_ids') or [],
+                'where_entity_ids': row.get('where_entity_ids') or [],
+            }
         )
 
     async def get_by_page(self, page_id: str) -> List[Claim]:
@@ -316,12 +335,13 @@ class ClaimRepository:
                 ON CONFLICT (claim_id) DO UPDATE SET embedding = $2
             """, claim_id, embedding)
 
-    async def get_embedding(self, claim_id: str) -> Optional[List[float]]:
+    async def get_embedding(self, claim_id: str, compute_if_missing: bool = True) -> Optional[List[float]]:
         """
-        Get claim embedding from PostgreSQL.
+        Get claim embedding from PostgreSQL, computing if missing.
 
         Args:
             claim_id: Claim ID (cl_xxxxxxxx format)
+            compute_if_missing: If True, generate embedding via OpenAI when not found
 
         Returns:
             Embedding vector or None
@@ -342,6 +362,46 @@ class ClaimRepository:
                     return list(result)
                 elif isinstance(result, str) and result.startswith('['):
                     return [float(x.strip()) for x in result[1:-1].split(',')]
+
+        # Compute if missing
+        if compute_if_missing:
+            return await self._compute_and_store_embedding(claim_id)
+        return None
+
+    async def _compute_and_store_embedding(self, claim_id: str) -> Optional[List[float]]:
+        """
+        Compute embedding for a claim using OpenAI and store it.
+
+        Args:
+            claim_id: Claim ID
+
+        Returns:
+            Embedding vector or None if claim not found
+        """
+        import os
+        from openai import AsyncOpenAI
+
+        # Get claim text
+        claim = await self.get_by_id(claim_id)
+        if not claim or not claim.text:
+            logger.warning(f"Cannot compute embedding: claim {claim_id} not found or has no text")
+            return None
+
+        try:
+            client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+            response = await client.embeddings.create(
+                model="text-embedding-3-small",
+                input=claim.text
+            )
+            embedding = response.data[0].embedding
+
+            # Store embedding
+            await self.store_embedding(claim_id, embedding)
+            logger.debug(f"✅ Computed and stored embedding for {claim_id}")
+            return embedding
+
+        except Exception as e:
+            logger.error(f"Failed to compute embedding for {claim_id}: {e}")
             return None
 
     # =========================================================================

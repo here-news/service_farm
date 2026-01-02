@@ -180,14 +180,17 @@ class WeaverWorker:
             logger.warning(f"⚠️ Claim {claim_id} not found")
             return None
 
-        # Load embedding
+        # Load embedding (computes on demand if missing)
         claim.embedding = await self.claim_repo.get_embedding(claim_id)
         if not claim.embedding:
-            logger.warning(f"⚠️ Claim {claim_id} has no embedding, skipping")
+            logger.warning(f"⚠️ Claim {claim_id} has no embedding after compute attempt, skipping")
             return None
 
         # Load entities
         claim = await self.claim_repo.hydrate_entities(claim)
+
+        # Look up publisher for source diversity (P1: source = publisher, not page)
+        publisher_id = await self._get_publisher_id(claim.page_id)
 
         # Extract anchor entities (high-IDF entities)
         claim_anchors = self._extract_anchors(claim)
@@ -218,7 +221,7 @@ class WeaverWorker:
         # 4. Link or create
         if best_surface and best_similarity >= self.SIMILARITY_THRESHOLD:
             # Link to existing surface
-            best_surface.add_claim(claim)
+            best_surface.add_claim(claim, publisher_id=publisher_id)
             await self._update_surface_centroid(best_surface, claim)
             await self.surface_repo.save(best_surface)
             self.surfaces_updated += 1
@@ -231,7 +234,7 @@ class WeaverWorker:
             )
         else:
             # Create new surface
-            new_surface = self._create_surface_from_claim(claim, claim_anchors)
+            new_surface = self._create_surface_from_claim(claim, claim_anchors, publisher_id)
             await self.surface_repo.save(new_surface)
             self.surfaces_created += 1
 
@@ -243,12 +246,42 @@ class WeaverWorker:
             )
 
     def _extract_anchors(self, claim: Claim) -> Set[str]:
-        """Extract anchor entities from claim."""
-        # For now, use all entities as potential anchors
-        # TODO: Filter by IDF (high-IDF = discriminative = anchor)
-        if claim.entities:
-            return {e.canonical_name for e in claim.entities}
-        return set()
+        """
+        Extract discriminative anchor entity IDs from claim.
+
+        Returns entity_ids (not names) for consistent matching.
+        Prefers 'who' entities and rare entities (high IDF).
+        """
+        if not claim.entities:
+            return set()
+
+        # Get role-based IDs if available (set by KnowledgeWorker)
+        who_ids = set()
+        if claim.metadata:
+            who_ids = set(claim.metadata.get('who_entity_ids', []))
+
+        anchors = set()
+        for entity in claim.entities:
+            entity_id = str(entity.id)
+
+            # Prefer 'who' entities (persons, organizations) - discriminative
+            if entity_id in who_ids:
+                anchors.add(entity_id)
+                continue
+
+            # Include rare entities (high IDF = low mention_count)
+            if entity.mention_count is not None and entity.mention_count < 10:
+                anchors.add(entity_id)
+                continue
+
+            # Exclude generic GPE/LOC if we have other entities
+            if entity.entity_type in ('GPE', 'LOC') and len(claim.entities) > 1:
+                continue
+
+            # Include other entities
+            anchors.add(entity_id)
+
+        return anchors
 
     async def _compute_similarity(
         self,
@@ -287,20 +320,34 @@ class WeaverWorker:
 
         return similarity
 
+    async def _get_publisher_id(self, page_id: str) -> Optional[str]:
+        """Look up publisher entity ID for a page."""
+        if not page_id:
+            return None
+        results = await self.neo4j._execute_read("""
+            MATCH (p:Page {id: $page_id})-[:PUBLISHED_BY]->(pub:Entity)
+            RETURN pub.id as publisher_id
+        """, {'page_id': page_id})
+        return results[0]['publisher_id'] if results else None
+
     def _create_surface_from_claim(
         self,
         claim: Claim,
-        anchors: Set[str]
+        anchors: Set[str],
+        publisher_id: Optional[str] = None
     ) -> Surface:
-        """Create a new surface from a single claim."""
-        # Use page_id as source identifier (tracks diversity of sources)
-        sources = {claim.page_id} if claim.page_id else set()
+        """
+        Create a new surface from a single claim.
 
-        # Parse event_time if string
-        event_time = claim.event_time
-        if isinstance(event_time, str):
-            from dateutil.parser import parse as parse_date
-            event_time = parse_date(event_time)
+        Time uses fallback chain: event_time → reported_time → created_at
+        """
+        # Use publisher_id as source (for true source diversity)
+        # Falls back to page_id if publisher not available
+        source = publisher_id or claim.page_id
+        sources = {source} if source else set()
+
+        # Time fallback chain (Principle 3)
+        claim_time = self._get_claim_time(claim)
 
         surface = Surface(
             id=generate_id('surface'),
@@ -308,13 +355,53 @@ class WeaverWorker:
             entities=set(claim.entity_ids) if claim.entity_ids else set(),
             anchor_entities=anchors,
             sources=sources,
-            time_start=event_time,
-            time_end=event_time,
+            time_start=claim_time,
+            time_end=claim_time,
             centroid=claim.embedding,
             created_at=datetime.utcnow(),
         )
         surface.compute_support()
         return surface
+
+    def _get_claim_time(self, claim: Claim) -> Optional[datetime]:
+        """
+        Get best available time for a claim.
+
+        Fallback chain: event_time → reported_time → created_at
+        """
+        from dateutil.parser import parse as parse_date
+
+        # Try event_time first (ground truth)
+        if claim.event_time:
+            if isinstance(claim.event_time, str):
+                try:
+                    return parse_date(claim.event_time)
+                except (ValueError, TypeError):
+                    pass
+            else:
+                return claim.event_time
+
+        # Fall back to reported_time (publication time)
+        if claim.reported_time:
+            if isinstance(claim.reported_time, str):
+                try:
+                    return parse_date(claim.reported_time)
+                except (ValueError, TypeError):
+                    pass
+            else:
+                return claim.reported_time
+
+        # Last resort: created_at
+        if claim.created_at:
+            if isinstance(claim.created_at, str):
+                try:
+                    return parse_date(claim.created_at)
+                except (ValueError, TypeError):
+                    pass
+            else:
+                return claim.created_at
+
+        return None
 
     async def _update_surface_centroid(
         self,

@@ -109,7 +109,7 @@ class Surface:
         self.support = claim_mass + diversity_mass
         return self.support
 
-    def add_claim(self, claim: 'Claim') -> None:
+    def add_claim(self, claim: 'Claim', publisher_id: Optional[str] = None) -> None:
         """Add a claim to this surface."""
         self.claim_ids.add(claim.id)
 
@@ -121,9 +121,11 @@ class Surface:
         if hasattr(claim, 'anchor_entities') and claim.anchor_entities:
             self.anchor_entities.update(claim.anchor_entities)
 
-        # Update sources (use page_id as source identifier)
-        if hasattr(claim, 'page_id') and claim.page_id:
-            self.sources.add(claim.page_id)
+        # Update sources (use publisher_id for true source diversity)
+        # Falls back to page_id if publisher not available
+        source = publisher_id or (claim.page_id if hasattr(claim, 'page_id') else None)
+        if source:
+            self.sources.add(source)
 
         # Update time bounds (handle string timestamps)
         from dateutil.parser import parse as parse_date
