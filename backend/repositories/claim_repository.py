@@ -12,6 +12,7 @@ The repository abstracts storage from consumers - they work with Claim domain mo
 ID format: cl_xxxxxxxx (11 chars)
 """
 import logging
+import os
 from typing import Optional, List
 import asyncpg
 from datetime import datetime
@@ -30,6 +31,16 @@ class ClaimRepository:
     Neo4j is the primary store for claims.
     PostgreSQL only used for embeddings (optional).
     """
+
+    # Circuit breaker for on-demand embedding computation
+    # Prevents runaway API costs during bulk operations
+    MAX_EMBEDDINGS_PER_RUN = int(os.getenv('MAX_EMBEDDINGS_PER_RUN', '500'))
+    _embeddings_computed = 0  # Class-level counter
+
+    @classmethod
+    def reset_embedding_counter(cls):
+        """Reset the embedding counter (call between batch runs)."""
+        cls._embeddings_computed = 0
 
     def __init__(self, db_pool: asyncpg.Pool, neo4j_service: Neo4jService):
         self.db_pool = db_pool
@@ -372,14 +383,24 @@ class ClaimRepository:
         """
         Compute embedding for a claim using OpenAI and store it.
 
+        Circuit breaker: limits embeddings computed per run to prevent
+        runaway API costs during bulk operations.
+
         Args:
             claim_id: Claim ID
 
         Returns:
-            Embedding vector or None if claim not found
+            Embedding vector or None if claim not found or circuit breaker tripped
         """
-        import os
         from openai import AsyncOpenAI
+
+        # Circuit breaker check
+        if ClaimRepository._embeddings_computed >= self.MAX_EMBEDDINGS_PER_RUN:
+            logger.warning(
+                f"Circuit breaker: skipping embedding for {claim_id} "
+                f"(limit {self.MAX_EMBEDDINGS_PER_RUN} reached)"
+            )
+            return None
 
         # Get claim text
         claim = await self.get_by_id(claim_id)
@@ -397,7 +418,8 @@ class ClaimRepository:
 
             # Store embedding
             await self.store_embedding(claim_id, embedding)
-            logger.debug(f"✅ Computed and stored embedding for {claim_id}")
+            ClaimRepository._embeddings_computed += 1
+            logger.debug(f"✅ Computed and stored embedding for {claim_id} ({ClaimRepository._embeddings_computed}/{self.MAX_EMBEDDINGS_PER_RUN})")
             return embedding
 
         except Exception as e:

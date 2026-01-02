@@ -127,12 +127,22 @@ class Surface:
         if source:
             self.sources.add(source)
 
-        # Update time bounds (handle string timestamps)
+        # Update time bounds using fallback chain: event_time → reported_time → created_at
         from dateutil.parser import parse as parse_date
 
-        event_time = claim.event_time
-        if isinstance(event_time, str):
-            event_time = parse_date(event_time)
+        # Time fallback chain (same as weaver/surface_repo)
+        claim_time = None
+        for time_attr in ('event_time', 'reported_time', 'created_at'):
+            t = getattr(claim, time_attr, None)
+            if t:
+                if isinstance(t, str):
+                    try:
+                        claim_time = parse_date(t)
+                    except (ValueError, TypeError):
+                        continue
+                else:
+                    claim_time = t
+                break
 
         # Also convert surface times if they're strings
         if isinstance(self.time_start, str):
@@ -140,11 +150,11 @@ class Surface:
         if isinstance(self.time_end, str):
             self.time_end = parse_date(self.time_end)
 
-        if event_time:
-            if self.time_start is None or event_time < self.time_start:
-                self.time_start = event_time
-            if self.time_end is None or event_time > self.time_end:
-                self.time_end = event_time
+        if claim_time:
+            if self.time_start is None or claim_time < self.time_start:
+                self.time_start = claim_time
+            if self.time_end is None or claim_time > self.time_end:
+                self.time_end = claim_time
 
         self.updated_at = datetime.utcnow()
 
