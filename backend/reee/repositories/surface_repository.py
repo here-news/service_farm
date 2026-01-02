@@ -1,5 +1,5 @@
 """
-Surface Repository - Neo4j storage for L2 Surfaces
+Surface Repository - Neo4j + PostgreSQL storage for L2 Surfaces
 
 Surfaces are derived from claims + parameters. They are materialized views,
 not source-of-truth. The repository handles:
@@ -7,12 +7,15 @@ not source-of-truth. The repository handles:
 - Versioning (params_version tracking)
 - Invalidation on parameter changes
 - Query patterns for inquiry emergence
+- Centroid loading from PostgreSQL for semantic coverage
 
 ID format: sf_xxxxxxxx (11 chars)
 """
 import logging
+import os
 from typing import Optional, List, Dict, Set, Tuple
-from datetime import datetime
+
+import asyncpg
 
 from ..types import Surface, Relation, Parameters
 from services.neo4j_service import Neo4jService
@@ -22,14 +25,74 @@ logger = logging.getLogger(__name__)
 
 class SurfaceRepository:
     """
-    Repository for Surface (L2) persistence in Neo4j.
+    Repository for Surface (L2) persistence in Neo4j + PostgreSQL.
 
     Surfaces are computed by IdentityLinker and persisted here.
     They are versioned by params_version and can be invalidated/recomputed.
+    Centroids are stored in PostgreSQL (content.surface_centroids).
     """
 
-    def __init__(self, neo4j_service: Neo4jService):
+    def __init__(self, neo4j_service: Neo4jService, db_pool: asyncpg.Pool = None):
         self.neo4j = neo4j_service
+        self.db_pool = db_pool  # Optional: for centroid loading
+
+    # =========================================================================
+    # CENTROID LOADING (PostgreSQL)
+    # =========================================================================
+
+    async def _load_centroid(self, surface_id: str) -> Optional[List[float]]:
+        """Load centroid for a single surface from PostgreSQL."""
+        if not self.db_pool:
+            return None
+
+        from pgvector.asyncpg import register_vector
+        async with self.db_pool.acquire() as conn:
+            await register_vector(conn)
+            result = await conn.fetchval('''
+                SELECT centroid FROM content.surface_centroids
+                WHERE surface_id = $1
+            ''', surface_id)
+
+            if result is not None:
+                if hasattr(result, 'tolist'):
+                    return result.tolist()
+                elif isinstance(result, (list, tuple)):
+                    return list(result)
+            return None
+
+    async def _load_centroids_batch(self, surface_ids: List[str]) -> Dict[str, List[float]]:
+        """Batch load centroids for multiple surfaces from PostgreSQL."""
+        if not self.db_pool or not surface_ids:
+            return {}
+
+        from pgvector.asyncpg import register_vector
+        async with self.db_pool.acquire() as conn:
+            await register_vector(conn)
+            rows = await conn.fetch('''
+                SELECT surface_id, centroid FROM content.surface_centroids
+                WHERE surface_id = ANY($1) AND centroid IS NOT NULL
+            ''', surface_ids)
+
+            centroids = {}
+            for row in rows:
+                centroid = row['centroid']
+                if hasattr(centroid, 'tolist'):
+                    centroids[row['surface_id']] = centroid.tolist()
+                elif isinstance(centroid, (list, tuple)):
+                    centroids[row['surface_id']] = list(centroid)
+            return centroids
+
+    async def hydrate_centroids(self, surfaces: List[Surface]) -> None:
+        """Hydrate centroids for a list of surfaces from PostgreSQL."""
+        if not surfaces:
+            return
+
+        surface_ids = [s.id for s in surfaces]
+        centroids = await self._load_centroids_batch(surface_ids)
+
+        for surface in surfaces:
+            if surface.id in centroids:
+                surface.centroid = centroids[surface.id]
 
     # =========================================================================
     # CREATE / UPDATE
@@ -258,7 +321,7 @@ class SurfaceRepository:
         row = results[0]
         s = row['s']
 
-        return Surface(
+        surface = Surface(
             id=s['id'],
             claim_ids=set(row['claim_ids']),
             entropy=s.get('entropy', 0.0),
@@ -269,6 +332,11 @@ class SurfaceRepository:
             canonical_title=s.get('canonical_title'),
             description=s.get('description'),
         )
+
+        # Load centroid from PostgreSQL if available
+        surface.centroid = await self._load_centroid(surface_id)
+
+        return surface
 
     async def get_by_event(
         self,
@@ -317,6 +385,9 @@ class SurfaceRepository:
                 sources=set(s.get('sources', [])),
                 canonical_title=s.get('canonical_title'),
             ))
+
+        # Hydrate centroids from PostgreSQL
+        await self.hydrate_centroids(surfaces)
 
         return surfaces
 
