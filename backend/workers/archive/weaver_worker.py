@@ -220,8 +220,8 @@ class WeaverWorker:
 
         # 4. Link or create
         if best_surface and best_similarity >= self.SIMILARITY_THRESHOLD:
-            # Link to existing surface
-            best_surface.add_claim(claim, publisher_id=publisher_id)
+            # Link to existing surface with similarity weight
+            best_surface.add_claim(claim, publisher_id=publisher_id, similarity=best_similarity)
             await self._update_surface_centroid(best_surface, claim)
             await self.surface_repo.save(best_surface)
             self.surfaces_updated += 1
@@ -352,6 +352,7 @@ class WeaverWorker:
         surface = Surface(
             id=generate_id('surface'),
             claim_ids={claim.id},
+            claim_similarities={claim.id: 1.0},  # First claim defines the surface
             entities=set(claim.entity_ids) if claim.entity_ids else set(),
             anchor_entities=anchors,
             sources=sources,
