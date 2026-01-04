@@ -1,0 +1,254 @@
+# Golden Trace: Typed Value Aggregation (Weighted Baseline)
+# ==========================================================
+#
+# Demonstrates how REEE aggregates conflicting typed observations
+# within the same L2 surface using confidence-weighted averaging.
+#
+# NOTE: This is NOT a Bayesian/Jaynes posterior. It's a simple
+# weighted mean aggregator that serves as a baseline. A true
+# Jaynes update would require:
+# - Temporal/update ordering (later reports supersede)
+# - Monotonicity constraints (death counts typically increase)
+# - Discrete distribution over plausible values
+# - Entropy tracking for belief state health
+#
+# Architecture:
+# - L2 Surface = same question_key (all claims share death_count)
+# - Weighted aggregation: weight = confidence * source_authority
+# - Conflict detection when values diverge significantly
+#
+# Scenario:
+# - Breaking news: Building collapse in City X
+# - Initial reports: "at least 5 dead"
+# - Update 1: "death toll rises to 12"
+# - Update 2: "officials confirm 15 fatalities"
+# - Conflicting source: "witness claims only 3 deaths"
+# - Final update: "total now 17"
+#
+# Expected behavior:
+# - All claims join same L2 surface (same question_key)
+# - Typed posterior updates with weighted evidence
+# - Low-confidence conflict noted but weighted down
+# - Relation chain: REFINES → SUPERSEDES → CONFLICTS → REFINES
+# - Final posterior converges toward high-authority sources
+
+meta:
+  name: weighted_aggregation_baseline
+  description: "Conflicting death counts aggregated via weighted mean (non-Jaynes baseline)"
+  version: "2.0"
+  layers_tested: [L2]
+  invariants:
+    - "all_observations_preserved"
+    - "low_weight_claims_minimal_impact"
+    - "conflict_detected_on_divergence"
+
+entities:
+  E001: { canonical: "City X", type: "location", role: "where" }
+  E002: { canonical: "Central Tower", type: "location", role: "where" }
+  E003: { canonical: "Emergency Services", type: "organization", role: "who" }
+  E004: { canonical: "Mayor Office", type: "organization", role: "who" }
+  E005: { canonical: "Anonymous Witness", type: "person", role: "who" }
+
+gists:
+  C001: "Building collapses in City X, at least 5 dead"
+  C002: "Death toll in City X collapse rises to 12"
+  C003: "Officials confirm 15 dead in Central Tower collapse"
+  C004: "Witness disputes death toll, claims only 3"
+  C005: "Rescue teams recover more bodies, total now 17"
+
+# Question key schema
+question_keys:
+  collapse_death_count:
+    type: integer
+    question: "How many people died in the collapse?"
+    referent: [E001, E002]  # City X, Central Tower
+    priors: { min: 0, max: 1000, expected: 10 }
+
+claims:
+  - id: C001
+    publisher: "breaking-news.com"
+    reported_time: "2024-12-10T08:00:00Z"
+    event_time: "2024-12-10T07:45:00Z"
+    anchor_entities: [E001, E002]
+    entities: [E001, E002, E003]
+    roles: { where: [E001, E002], who: [E003] }
+    question_key: collapse_death_count
+    typed_observation:
+      value: 5
+      modifier: "at_least"  # Indicates lower bound
+      confidence: 0.7
+      source_authority: 0.6  # Breaking news, less verified
+    gist_key: C001
+
+  - id: C002
+    publisher: "reuters.com"
+    reported_time: "2024-12-10T10:00:00Z"
+    event_time: "2024-12-10T09:30:00Z"
+    anchor_entities: [E001, E002]
+    entities: [E001, E002, E003]
+    roles: { where: [E001, E002], who: [E003] }
+    question_key: collapse_death_count
+    typed_observation:
+      value: 12
+      modifier: null
+      confidence: 0.85
+      source_authority: 0.9  # Wire service, high authority
+    gist_key: C002
+
+  - id: C003
+    publisher: "gov.cityx.org"
+    reported_time: "2024-12-10T14:00:00Z"
+    event_time: "2024-12-10T13:00:00Z"
+    anchor_entities: [E001, E002]
+    entities: [E001, E002, E003, E004]
+    roles: { where: [E001, E002], who: [E003, E004] }
+    question_key: collapse_death_count
+    typed_observation:
+      value: 15
+      modifier: "confirmed"
+      confidence: 0.95
+      source_authority: 0.95  # Official source
+    gist_key: C003
+
+  - id: C004
+    publisher: "social-media.com"
+    reported_time: "2024-12-10T15:00:00Z"
+    event_time: "2024-12-10T14:30:00Z"
+    anchor_entities: [E001, E002]
+    entities: [E001, E002, E005]
+    roles: { where: [E001, E002], who: [E005] }
+    question_key: collapse_death_count
+    typed_observation:
+      value: 3
+      modifier: null
+      confidence: 0.4
+      source_authority: 0.2  # Anonymous source, low authority
+    gist_key: C004
+
+  - id: C005
+    publisher: "reuters.com"
+    reported_time: "2024-12-10T18:00:00Z"
+    event_time: "2024-12-10T17:00:00Z"
+    anchor_entities: [E001, E002]
+    entities: [E001, E002, E003]
+    roles: { where: [E001, E002], who: [E003] }
+    question_key: collapse_death_count
+    typed_observation:
+      value: 17
+      modifier: null
+      confidence: 0.9
+      source_authority: 0.9
+    gist_key: C005
+
+expected_deltas:
+  - after_claim: C001
+    L2_surfaces:
+      S_collapse_death_count:
+        claims: [C001]
+        question_key: collapse_death_count
+    typed_state:
+      S_collapse_death_count:
+        collapse_death_count:
+          type: numeric
+          posterior_mean: 5.0
+          observations: 1
+    explanation:
+      L2_decision: { action: "new_surface", surface_id: S_collapse_death_count }
+      typed_update: "Initial observation: death_count >= 5"
+
+  - after_claim: C002
+    L2_surfaces:
+      S_collapse_death_count: { claims: [C001, C002] }
+    typed_state:
+      S_collapse_death_count:
+        collapse_death_count:
+          posterior_mean: 10.2  # Weighted toward higher-confidence source
+          observations: 2
+    explanation:
+      L2_decision: { action: "attach", surface_id: S_collapse_death_count }
+      typed_update: "REFINES: death_count updated 5→12 (higher confidence)"
+      relation: "REFINES"
+
+  - after_claim: C003
+    L2_surfaces:
+      S_collapse_death_count: { claims: [C001, C002, C003] }
+    typed_state:
+      S_collapse_death_count:
+        collapse_death_count:
+          posterior_mean: 13.5  # Converging toward official
+          observations: 3
+    explanation:
+      L2_decision: { action: "attach", surface_id: S_collapse_death_count }
+      typed_update: "SUPERSEDES: Official confirmation (15) dominates"
+      relation: "SUPERSEDES"
+
+  - after_claim: C004
+    L2_surfaces:
+      S_collapse_death_count: { claims: [C001, C002, C003, C004] }
+    typed_state:
+      S_collapse_death_count:
+        collapse_death_count:
+          posterior_mean: 13.2  # Barely moves - low confidence
+          observations: 4
+          conflict_detected: true
+    explanation:
+      L2_decision: { action: "attach", surface_id: S_collapse_death_count }
+      typed_update: "CONFLICTS: Low-authority claim (3) vs consensus (~14)"
+      relation: "CONFLICTS"
+      meta_claims:
+        - type: "typed_value_conflict"
+          conflicting_value: 3
+          consensus_value: 14
+          conflict_weight: 0.08  # Low due to low authority
+
+  - after_claim: C005
+    L2_surfaces:
+      S_collapse_death_count: { claims: [C001, C002, C003, C004, C005] }
+    typed_state:
+      S_collapse_death_count:
+        collapse_death_count:
+          posterior_mean: 15.5  # Converges toward 16-17
+          observations: 5
+    explanation:
+      L2_decision: { action: "attach", surface_id: S_collapse_death_count }
+      typed_update: "Posterior converges toward 16-17"
+      relation: "REFINES"
+
+assertions:
+  - type: "single_surface"
+    claims: [C001, C002, C003, C004, C005]
+    surface: S_collapse_death_count
+    reason: "All claims share same question_key"
+
+  - type: "observations_preserved"
+    surface: S_collapse_death_count
+    expected_count: 5
+    reason: "All observations stored, none discarded"
+
+  - type: "conflict_detected"
+    surface: S_collapse_death_count
+    reason: "Values diverge: min=3, max=17, range > 30% of mean"
+
+  - type: "low_weight_minimal_impact"
+    surface: S_collapse_death_count
+    claim: C004
+    weight: 0.08  # confidence * authority = 0.4 * 0.2
+    max_impact_epsilon: 0.5  # |posterior_before - posterior_after| < epsilon relative to total weight
+    reason: "C004 (weight=0.08) should shift posterior by less than 0.5 points"
+
+  - type: "weighted_mean_formula"
+    surface: S_collapse_death_count
+    formula: "sum(value * weight) / sum(weight)"
+    # (5*0.42 + 12*0.77 + 15*0.90 + 3*0.08 + 17*0.81) / (0.42+0.77+0.90+0.08+0.81)
+    # = (2.1 + 9.24 + 13.5 + 0.24 + 13.77) / 2.98 = 38.85 / 2.98 = 13.04
+    expected_mean: 13.04
+    tolerance: 0.1
+    reason: "Weighted mean matches formula exactly"
+
+  - type: "invariant"
+    name: "all_observations_preserved"
+    check: "posterior.values contains all 5 (value, weight, claim_id) tuples"
+
+  - type: "invariant"
+    name: "low_weight_claims_minimal_impact"
+    check: "Removing C004 changes mean by < 0.5 points"

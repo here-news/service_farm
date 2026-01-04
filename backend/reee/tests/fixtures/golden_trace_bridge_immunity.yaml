@@ -1,0 +1,285 @@
+# Golden Trace: Incident Bridge Immunity (L3 Membrane Test)
+# ==========================================================
+#
+# Tests that hub entities (John Lee, Hong Kong) shared between two
+# unrelated incidents do NOT cause L3 incident merging.
+#
+# Architecture (principled):
+# - L2 Surface = same referent + same question_key (identity/proposition)
+# - L3 Incident = membrane over surfaces (tight time/motif/context)
+# - L4 Case = membrane over incidents (looser time, relation backbone)
+#
+# Scenario:
+# - Incident A: Hong Kong fire in Tai Po
+#   - question_keys: fire_death_count, fire_status, fire_cause
+# - Incident B: Hong Kong housing policy by John Lee
+#   - question_keys: policy_announcement, policy_status
+# - C003 (John Lee visits fire victims) bridges both incidents
+#
+# Expected behavior:
+# - L2: Surfaces form by question_key (5 surfaces)
+# - L3: Two incidents form (fire vs policy)
+#
+# Bridge immunity mechanism (current test):
+# - Fire anchors: {Hong Kong, Tai Po}
+# - Policy anchors: {Hong Kong, John Lee}
+# - Shared anchors: {Hong Kong} (only 1, need 2+ for bridge check)
+# - Result: No bridge check needed, incidents stay separate naturally
+#
+# NOTE: This tests anchor non-overlap immunity. A companion-check
+# scenario would require both incidents to share 2+ anchors but
+# have disjoint companion entities (future trace).
+
+meta:
+  name: bridge_immunity
+  description: "Two incidents share hub entity but L3 should NOT merge"
+  version: "2.0"
+  layers_tested: [L2, L3]
+  invariants:
+    - "L2_surfaces_by_question_key"
+    - "L3_no_merge_on_disjoint_companions"
+    - "hub_entities_dont_bind_incident_cores"
+
+# Entity definitions (pre-resolved, deterministic IDs)
+entities:
+  E001: { canonical: "John Lee", type: "person", role: "who" }
+  E002: { canonical: "Hong Kong", type: "location", role: "where" }
+  E003: { canonical: "Tai Po", type: "location", role: "where" }
+  E004: { canonical: "Fire Services Department", type: "organization", role: "who" }
+  E005: { canonical: "Housing Authority", type: "organization", role: "who" }
+  E006: { canonical: "LegCo", type: "organization", role: "who" }
+  E007: { canonical: "Chief Executive Office", type: "organization", role: "who" }
+
+# Frozen gists (precomputed, no LLM calls during test)
+gists:
+  C001: "Tai Po high-rise fire kills 4"
+  C002: "Firefighters rescue residents from burning building"
+  C003: "John Lee visits fire victims in hospital"
+  C004: "John Lee announces new housing policy"
+  C005: "LegCo debates housing reforms proposed by John Lee"
+  C006: "Fire investigation finds electrical fault"
+
+# Question key schema (typed variables for L2)
+question_keys:
+  fire_death_count:
+    type: integer
+    question: "How many died in the fire?"
+    referent: [E002, E003]  # Hong Kong, Tai Po
+  fire_status:
+    type: enum
+    question: "What is the fire status?"
+    options: [active, contained, extinguished, under_investigation]
+    referent: [E002, E003]
+  fire_cause:
+    type: text
+    question: "What caused the fire?"
+    referent: [E002, E003]
+  policy_announcement:
+    type: text
+    question: "What policy was announced?"
+    referent: [E001, E002]  # John Lee, Hong Kong
+  policy_status:
+    type: enum
+    question: "What is the policy status?"
+    options: [proposed, debated, passed, rejected]
+    referent: [E001, E002]
+
+# Claim sequence (pre-extracted, deterministic)
+claims:
+  # === INCIDENT A: Fire in Tai Po ===
+  - id: C001
+    publisher: "scmp.com"
+    reported_time: "2024-12-10T08:00:00Z"
+    event_time: "2024-12-10T06:30:00Z"
+    anchor_entities: [E002, E003]  # Hong Kong, Tai Po
+    entities: [E002, E003, E004]   # + Fire Services
+    roles: { where: [E002, E003], who: [E004] }
+    question_key: fire_death_count
+    typed_observation: { value: 4, modifier: null, confidence: 0.9, source_authority: 0.8 }
+    gist_key: C001
+
+  - id: C002
+    publisher: "rthk.hk"
+    reported_time: "2024-12-10T08:30:00Z"
+    event_time: "2024-12-10T07:00:00Z"
+    anchor_entities: [E002, E003]
+    entities: [E002, E003, E004]
+    roles: { where: [E002, E003], who: [E004] }
+    question_key: fire_status
+    typed_observation: { value: "active", confidence: 0.95 }
+    gist_key: C002
+
+  - id: C003
+    publisher: "news.gov.hk"
+    reported_time: "2024-12-10T14:00:00Z"
+    event_time: "2024-12-10T12:00:00Z"
+    anchor_entities: [E001, E002, E003]  # John Lee visits → bridges
+    entities: [E001, E002, E003]
+    roles: { where: [E002, E003], who: [E001] }
+    question_key: fire_status  # Still about fire, not policy
+    typed_observation: { value: "under_investigation", confidence: 0.9 }
+    gist_key: C003
+
+  # === INCIDENT B: Housing Policy (different question_keys) ===
+  - id: C004
+    publisher: "news.gov.hk"
+    reported_time: "2024-12-10T10:00:00Z"
+    event_time: "2024-12-10T09:30:00Z"
+    anchor_entities: [E001, E002]  # John Lee, Hong Kong
+    entities: [E001, E002, E005, E007]  # + Housing Authority, CE Office
+    roles: { where: [E002], who: [E001, E005, E007] }
+    question_key: policy_announcement
+    typed_observation: null
+    gist_key: C004
+
+  - id: C005
+    publisher: "scmp.com"
+    reported_time: "2024-12-10T15:00:00Z"
+    event_time: "2024-12-10T14:00:00Z"
+    anchor_entities: [E001, E002]
+    entities: [E001, E002, E005, E006]  # + LegCo
+    roles: { where: [E002], who: [E001, E005, E006] }
+    question_key: policy_status
+    typed_observation: { value: "debated", confidence: 0.9 }
+    gist_key: C005
+
+  # === Back to INCIDENT A: Fire investigation ===
+  - id: C006
+    publisher: "hkfsd.gov.hk"
+    reported_time: "2024-12-11T10:00:00Z"
+    event_time: "2024-12-11T09:00:00Z"
+    anchor_entities: [E002, E003]
+    entities: [E002, E003, E004]
+    roles: { where: [E002, E003], who: [E004] }
+    question_key: fire_cause
+    typed_observation: { value: "electrical fault", confidence: 0.95 }
+    gist_key: C006
+
+# Expected state after each claim arrival
+expected_deltas:
+  - after_claim: C001
+    L2_surfaces:
+      S_fire_death_count:
+        claims: [C001]
+        question_key: fire_death_count
+        typed_state: { value: 4, observations: 1 }
+    L3_incidents: {}
+    explanation:
+      L2_decision: { action: "new_surface", surface_id: S_fire_death_count }
+      reason: "First claim with question_key=fire_death_count"
+
+  - after_claim: C002
+    L2_surfaces:
+      S_fire_death_count: { claims: [C001] }
+      S_fire_status:
+        claims: [C002]
+        question_key: fire_status
+        typed_state: { value: "active" }
+    L3_incidents:
+      I_fire:
+        surfaces: [S_fire_death_count, S_fire_status]
+        anchor_entities: [E002, E003]
+    explanation:
+      L2_decision: { action: "new_surface", surface_id: S_fire_status }
+      L3_decision: { action: "form_incident", incident_id: I_fire }
+      reason: "New question_key but same anchor motif → same incident"
+
+  - after_claim: C003
+    L2_surfaces:
+      S_fire_death_count: { claims: [C001] }
+      S_fire_status: { claims: [C002, C003] }  # C003 updates fire_status
+    L3_incidents:
+      I_fire:
+        surfaces: [S_fire_death_count, S_fire_status]
+    explanation:
+      L2_decision: { action: "attach", surface_id: S_fire_status }
+      L3_decision: { action: "attach_to_incident", incident_id: I_fire }
+      note: "John Lee enters but question_key=fire_status keeps it in fire incident"
+
+  - after_claim: C004
+    L2_surfaces:
+      S_fire_death_count: { claims: [C001] }
+      S_fire_status: { claims: [C002, C003] }
+      S_policy_announcement: { claims: [C004], question_key: policy_announcement }
+    L3_incidents:
+      I_fire: { surfaces: [S_fire_death_count, S_fire_status] }
+      I_policy: { surfaces: [S_policy_announcement] }
+    explanation:
+      L2_decision: { action: "new_surface", surface_id: S_policy_announcement }
+      L3_decision: { action: "new_incident", incident_id: I_policy }
+      bridge_check:
+        shared_entities: [E001, E002]  # John Lee, Hong Kong
+        fire_companions: [E003, E004]  # Tai Po, Fire Services
+        policy_companions: [E005, E007]  # Housing Authority, CE Office
+        overlap: 0.0
+        result: "blocked"
+      reason: "Different question_key + disjoint companions → separate incident"
+
+  - after_claim: C005
+    L2_surfaces:
+      S_fire_death_count: { claims: [C001] }
+      S_fire_status: { claims: [C002, C003] }
+      S_policy_announcement: { claims: [C004] }
+      S_policy_status: { claims: [C005], question_key: policy_status }
+    L3_incidents:
+      I_fire: { surfaces: [S_fire_death_count, S_fire_status] }
+      I_policy: { surfaces: [S_policy_announcement, S_policy_status] }
+    explanation:
+      L2_decision: { action: "new_surface", surface_id: S_policy_status }
+      L3_decision: { action: "attach_to_incident", incident_id: I_policy }
+      reason: "policy_status shares policy_* referent → same incident"
+
+  - after_claim: C006
+    L2_surfaces:
+      S_fire_death_count: { claims: [C001] }
+      S_fire_status: { claims: [C002, C003] }
+      S_fire_cause: { claims: [C006], question_key: fire_cause }
+      S_policy_announcement: { claims: [C004] }
+      S_policy_status: { claims: [C005] }
+    L3_incidents:
+      I_fire: { surfaces: [S_fire_death_count, S_fire_status, S_fire_cause] }
+      I_policy: { surfaces: [S_policy_announcement, S_policy_status] }
+    explanation:
+      L2_decision: { action: "new_surface", surface_id: S_fire_cause }
+      L3_decision: { action: "attach_to_incident", incident_id: I_fire }
+
+# Final assertions (regression checks)
+assertions:
+  # L2 Surface assertions
+  - type: "surface_partition_by_question_key"
+    expected:
+      fire_death_count: [C001]
+      fire_status: [C002, C003]
+      fire_cause: [C006]
+      policy_announcement: [C004]
+      policy_status: [C005]
+    reason: "L2 surfaces group by question_key"
+
+  # L3 Incident assertions
+  - type: "incident_partition"
+    expected:
+      I_fire: [C001, C002, C003, C006]
+      I_policy: [C004, C005]
+    reason: "L3 incidents group surfaces by referent motif"
+
+  - type: "no_incident_merge"
+    incidents: [I_fire, I_policy]
+    mechanism: "anchor_non_overlap"
+    fire_anchors: [E002, E003]   # Hong Kong, Tai Po
+    policy_anchors: [E001, E002]  # John Lee, Hong Kong
+    shared_count: 1  # Only Hong Kong shared, need 2+ for merge consideration
+    reason: "Incidents have different anchor motifs"
+
+  - type: "hub_entity_behavior"
+    entity: E002  # Hong Kong
+    appears_in: [I_fire, I_policy]
+    does_not_cause_merge: true
+    reason: "Single shared anchor insufficient for merge"
+
+  - type: "invariant"
+    name: "L2_surfaces_by_question_key"
+    check: "No surface contains claims with different question_keys"
+
+  - type: "invariant"
+    name: "L3_incidents_by_anchor_motif"
+    check: "Incidents with <2 shared anchors remain separate"

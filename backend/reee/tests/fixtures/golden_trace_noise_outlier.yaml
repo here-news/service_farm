@@ -1,0 +1,257 @@
+# Golden Trace: Adversarial Numeric Noise (Typed Posterior Robustness)
+#
+# Tests the typed belief system's ability to:
+# 1. Detect and flag outlier values
+# 2. Limit outlier impact on posterior (robust aggregation)
+# 3. Preserve outlier visibility for inspection
+# 4. Emit conflict meta-claims when divergence exceeds threshold
+#
+# Also tests:
+# - Copy noise: same claim from syndicated sources (should not inflate evidence)
+# - Time noise: missing timestamps (should emit blocker, not apply monotone)
+# - Extraction sparsity: claims with minimal entities (should emit underpowered)
+
+meta:
+  name: noise_outlier
+  version: "1.0"
+  description: "Adversarial numeric outlier + copy noise + time/sparsity noise"
+  layers_tested: [L2]
+  noise_types:
+    - adversarial_numeric
+    - copy_noise_syndication
+    - time_noise_missing
+    - extraction_sparsity
+  invariants:
+    - "outlier_impact_bounded"
+    - "conflict_detected_on_divergence"
+    - "copy_noise_not_inflated"
+    - "missing_time_emits_blocker"
+    - "sparse_extraction_emits_underpowered"
+
+entities:
+  E001:
+    canonical: "Tai Po Fire"
+    type: event
+  E002:
+    canonical: "Hong Kong"
+    type: location
+  E003:
+    canonical: "Fire Services Department"
+    type: organization
+  E004:
+    canonical: "SCMP"
+    type: publisher
+  E005:
+    canonical: "Daily Mail"
+    type: publisher
+    authority: 0.3
+    note: "Low authority source"
+
+claims:
+  # ============================================================
+  # CORE CLAIMS: Establish baseline death count consensus
+  # ============================================================
+
+  - id: C001
+    publisher: scmp.com
+    gist: "Tai Po fire kills 4 residents"
+    question_key: fire_death_count
+    anchor_entities: [E001, E002]
+    entities: [E001, E002, E003]
+    typed_observation:
+      value: 4
+      confidence: 0.9
+      source_authority: 0.85
+    event_time: "2024-11-26T03:00:00Z"
+
+  - id: C002
+    publisher: rthk.hk
+    gist: "Four confirmed dead in Tai Po high-rise blaze"
+    question_key: fire_death_count
+    anchor_entities: [E001, E002]
+    entities: [E001, E002, E003]
+    typed_observation:
+      value: 4
+      confidence: 0.95
+      source_authority: 0.9
+    event_time: "2024-11-26T04:00:00Z"
+
+  - id: C003
+    publisher: news.gov.hk
+    gist: "Official: 4 fatalities confirmed in Tai Po fire"
+    question_key: fire_death_count
+    anchor_entities: [E001, E002]
+    entities: [E001, E002, E003]
+    typed_observation:
+      value: 4
+      confidence: 0.98
+      source_authority: 0.95
+    event_time: "2024-11-26T06:00:00Z"
+
+  # ============================================================
+  # ADVERSARIAL OUTLIER: Low-authority source with extreme value
+  # ============================================================
+
+  - id: C004
+    publisher: dailymail.co.uk
+    gist: "HORROR: Dozens feared dead in Hong Kong inferno"
+    question_key: fire_death_count
+    anchor_entities: [E001, E002]
+    entities: [E001, E002]
+    typed_observation:
+      value: 47  # Extreme outlier!
+      confidence: 0.6
+      source_authority: 0.3  # Low authority
+    event_time: "2024-11-26T05:00:00Z"
+    noise_type: adversarial_numeric
+
+  # ============================================================
+  # COPY NOISE: Same claim syndicated across multiple pages
+  # Should NOT inflate evidence - count by unique publisher/content
+  # ============================================================
+
+  - id: C005
+    publisher: yahoo.com
+    gist: "Tai Po fire kills 4 residents"  # Same text as C001
+    question_key: fire_death_count
+    anchor_entities: [E001, E002]
+    entities: [E001, E002, E003]
+    typed_observation:
+      value: 4
+      confidence: 0.9
+      source_authority: 0.7
+    event_time: "2024-11-26T03:30:00Z"
+    syndicated_from: scmp.com  # Indicates this is syndicated content
+    noise_type: copy_noise
+
+  - id: C006
+    publisher: msn.com
+    gist: "Tai Po fire kills 4 residents"  # Same text again
+    question_key: fire_death_count
+    anchor_entities: [E001, E002]
+    entities: [E001, E002, E003]
+    typed_observation:
+      value: 4
+      confidence: 0.9
+      source_authority: 0.6
+    event_time: "2024-11-26T03:45:00Z"
+    syndicated_from: scmp.com
+    noise_type: copy_noise
+
+  # ============================================================
+  # TIME NOISE: Missing timestamp
+  # Should emit blocker, not apply monotone constraints
+  # ============================================================
+
+  - id: C007
+    publisher: unknown-blog.com
+    gist: "Fire in Hong Kong apartment building kills several"
+    question_key: fire_death_count
+    anchor_entities: [E001, E002]
+    entities: [E001, E002]
+    typed_observation:
+      value: 5
+      confidence: 0.5
+      source_authority: 0.2
+    event_time: null  # Missing timestamp!
+    noise_type: time_noise
+
+  # ============================================================
+  # EXTRACTION SPARSITY: Only 1 entity extracted
+  # Should emit underpowered warning
+  # ============================================================
+
+  - id: C008
+    publisher: twitter.com/random_user
+    gist: "OMG fire in HK!!"
+    question_key: fire_status
+    anchor_entities: [E002]  # Only 1 anchor
+    entities: [E002]  # Only 1 entity total
+    typed_observation:
+      value: "ongoing"
+      confidence: 0.3
+      source_authority: 0.1
+    event_time: "2024-11-26T02:30:00Z"
+    noise_type: extraction_sparsity
+
+expected:
+  L2_surface_count: 2  # fire_death_count + fire_status
+
+  # Posterior should be robust to outlier
+  typed_posteriors:
+    fire_death_count:
+      # Weighted mean heavily influenced by high-authority consensus
+      # Outlier (47) should have minimal impact due to low authority
+      expected_mean_range: [4.0, 6.0]  # Should be close to 4, not pulled to 47
+      outlier_value: 47
+      outlier_impact_max: 2.0  # Posterior shift from outlier < 2
+
+  # Copy noise should not inflate support
+  source_diversity:
+    fire_death_count:
+      raw_claim_count: 7  # C001-C007
+      unique_publisher_count: 6  # scmp, rthk, gov, dailymail, yahoo, msn, blog
+      unique_content_count: 4  # Only 4 unique texts (C005, C006 are copies)
+      effective_support: 4  # Should use unique content, not raw claims
+
+assertions:
+  # Outlier impact bounded
+  - type: "outlier_impact_bounded"
+    outlier_claim: C004
+    outlier_value: 47
+    consensus_value: 4
+    max_posterior_shift: 2.0
+    explanation: "Low-authority outlier should not shift posterior by more than 2"
+
+  # Conflict meta-claim emitted
+  - type: "meta_claim_emitted"
+    meta_claim_type: "typed_conflict"
+    surface: S_fire_death_count
+    trigger_claim: C004
+    reason_contains: "value divergence exceeds threshold"
+    evidence_should_include:
+      - "outlier: 47 (authority=0.3)"
+      - "consensus: 4 (n=3, mean_authority=0.9)"
+
+  # Outlier preserved in reported values
+  - type: "outlier_preserved"
+    surface: S_fire_death_count
+    outlier_value: 47
+    expected: "visible in reported_values list"
+
+  # Copy noise not inflated
+  - type: "copy_noise_not_inflated"
+    claims: [C001, C005, C006]
+    same_content: true
+    expected_effective_weight: 1  # Count as single observation
+    meta_claim_type: "syndication_detected"
+
+  # Time noise emits blocker
+  - type: "meta_claim_emitted"
+    meta_claim_type: "missing_time"
+    trigger_claim: C007
+    reason_contains: "timestamp unavailable"
+    consequence: "monotone constraints not applied"
+
+  # Extraction sparsity emits underpowered
+  - type: "meta_claim_emitted"
+    meta_claim_type: "context_underpowered"
+    trigger_claim: C008
+    reason_contains: "insufficient entities for context check"
+    entity_count: 1
+    minimum_required: 2
+
+# Diagnostic outputs
+diagnostics:
+  outlier_analysis:
+    values: [4, 4, 4, 47, 4, 4, 5]
+    weights: [0.765, 0.855, 0.931, 0.18, 0.63, 0.54, 0.1]  # confidence * authority
+    weighted_mean_without_outlier: 4.0
+    weighted_mean_with_outlier: "~5.2"  # Should be close to this
+    outlier_leverage: "low due to weight 0.18"
+
+  copy_detection:
+    method: "gist_similarity >= 0.95"
+    groups:
+      - [C001, C005, C006]  # Same gist
+    dedupe_strategy: "use highest authority from group"

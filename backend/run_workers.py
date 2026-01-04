@@ -10,7 +10,9 @@ Usage:
     python run_workers.py                    # Run all workers
     python run_workers.py --only api         # Just API server
     python run_workers.py --only extraction  # Just extraction workers
+    python run_workers.py --only viz         # Just weave visualization
     python run_workers.py --workers 2        # 2 of each worker type
+    python run_workers.py --no-viz           # Skip visualization server
 
 Workers:
     - api: FastAPI server (uvicorn)
@@ -18,6 +20,7 @@ Workers:
     - knowledge: Entity extraction + Wikidata linking (N instances)
     - weaver: Surface L2 identity clustering (replaces event worker)
     - inquiry: Inquiry resolution checker
+    - viz: Weave topology D3 visualization (port 8080)
 """
 
 import os
@@ -63,11 +66,14 @@ class WorkerManager:
         """Build worker configs based on args."""
         configs = []
 
+        # Check if we should skip API
+        skip_api = getattr(args, 'no_api', False)
+
         # API server
-        if args.only in (None, 'api', 'all'):
+        if not skip_api and args.only in (None, 'api', 'all'):
             configs.append(WorkerConfig(
                 name='api',
-                command=['uvicorn', 'main:app', '--host', '0.0.0.0', '--port', '7272', '--reload'],
+                command=['uvicorn', 'main:app', '--host', '0.0.0.0', '--port', '8000'],
                 instances=1,
                 restart_on_failure=True,
             ))
@@ -90,11 +96,11 @@ class WorkerManager:
                     env={'WORKER_NAME': f'knowledge-{i+1}'},
                 ))
 
-        # Weaver worker (Surface L2 clustering)
+        # Principled Weaver (L2/L3/L4 topology with poll mode)
         if args.only in (None, 'weaver', 'all'):
             configs.append(WorkerConfig(
                 name='weaver',
-                command=['python', 'run_weaver_worker.py'],
+                command=['python', '-m', 'workers.principled_weaver', '--poll'],
             ))
 
         # Inquiry resolver (new)
@@ -102,6 +108,14 @@ class WorkerManager:
             configs.append(WorkerConfig(
                 name='inquiry',
                 command=['python', 'run_inquiry_resolver.py'],
+            ))
+
+        # Weave visualization server (debug UI on port 8080)
+        if args.only in (None, 'viz', 'all') and not getattr(args, 'no_viz', False):
+            configs.append(WorkerConfig(
+                name='weave-viz',
+                command=['python', '-m', 'debug.weave_viz'],
+                restart_on_failure=True,
             ))
 
         return configs
@@ -222,16 +236,15 @@ class WorkerManager:
 
 def main():
     parser = argparse.ArgumentParser(description='Unified Worker Manager')
-    parser.add_argument('--only', choices=['api', 'extraction', 'knowledge', 'weaver', 'inquiry', 'all'],
+    parser.add_argument('--only', choices=['api', 'extraction', 'knowledge', 'weaver', 'inquiry', 'viz', 'all'],
                         help='Run only specific worker type')
     parser.add_argument('--workers', type=int, default=1,
                         help='Number of extraction/knowledge worker instances (default: 1)')
     parser.add_argument('--no-api', action='store_true',
-                        help='Skip API server')
+                        help='Skip API server (run workers only)')
+    parser.add_argument('--no-viz', action='store_true',
+                        help='Skip weave visualization server')
     args = parser.parse_args()
-
-    if args.no_api and args.only is None:
-        args.only = 'all'  # Will be filtered
 
     manager = WorkerManager()
     asyncio.run(manager.run(args))

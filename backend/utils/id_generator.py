@@ -34,13 +34,17 @@ PREFIXES = {
     'surface': 'sf',
     'view': 'vw',
     'proto_inquiry': 'pi',
+    'incident': 'in',
+    'case': 'ca',
+    'meta_claim': 'mc',
+    'meta': 'mt',
 }
 
 # Reverse mapping for validation
 PREFIX_TO_TYPE = {v: k for k, v in PREFIXES.items()}
 
 # Regex for validation
-ID_PATTERN = re.compile(r'^(pg|cl|en|ev|sr|cm|cs|th|sf|vw|pi)_[0-9a-z]{8}$')
+ID_PATTERN = re.compile(r'^(pg|cl|en|ev|sr|cm|cs|th|sf|vw|pi|in|ca|mc|mt)_[0-9a-z]{8}$')
 
 
 def _random_base36(length: int = 8) -> str:

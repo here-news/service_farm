@@ -1,0 +1,1367 @@
+"""
+Principled Weaver Worker - L2/L3 Architecture
+==============================================
+
+Implements the golden trace validated L2/L3 architecture:
+
+L2 Surface = Same question_key (typed proposition identity)
+  - "fire_death_count" → all claims about the death count
+  - "policy_status" → all claims about policy status
+  - Jaynes posterior operates per L2 surface-variable
+
+L3 Incident = Membrane over L2 surfaces
+  - Groups surfaces by anchor overlap + companion compatibility
+  - Bridge immunity: shared anchors with disjoint companions → NO MERGE
+  - Prevents hub entities (Hong Kong, Trump) from bridging unrelated incidents
+
+Key principles:
+- question_key is extracted from claim semantics (typed extraction)
+- Anchor entities define "what/where" of the claim
+- Companion entities define context (for bridge immunity check)
+- Meta-claims emitted for: missing_time, sparse_extraction, syndication, outliers
+
+Flow: KnowledgeWorker → queue:claims:pending → PrincipledWeaver → L2 Surfaces + L3 Incidents
+"""
+import asyncio
+import json
+import logging
+import math
+import os
+import sys
+from typing import Optional, List, Set, Dict, Tuple, Any
+from datetime import datetime, timedelta
+from dataclasses import dataclass, field, asdict
+from collections import defaultdict
+import numpy as np
+
+import asyncpg
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from services.job_queue import JobQueue
+from services.neo4j_service import Neo4jService
+from repositories.claim_repository import ClaimRepository
+from repositories.surface_repository import SurfaceRepository
+from models.domain.claim import Claim
+from models.domain.surface import Surface
+from utils.id_generator import generate_id
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# DATA STRUCTURES
+# =============================================================================
+
+@dataclass
+class MetaClaim:
+    """Meta-claim emitted during processing."""
+    type: str  # bridge_blocked, typed_conflict, missing_time, context_underpowered, syndication_detected
+    claim_id: str
+    surface_id: Optional[str] = None
+    incident_id: Optional[str] = None
+    reason: str = ""
+    evidence: Dict = field(default_factory=dict)
+    timestamp: datetime = field(default_factory=datetime.utcnow)
+
+
+@dataclass
+class TypedPosterior:
+    """Typed belief state for a surface."""
+    question_key: str
+    value_type: str  # "numeric" or "categorical"
+    posterior_mean: Optional[float] = None
+    current_value: Optional[Any] = None
+    observations: int = 0
+    values: List[Tuple[Any, float, str]] = field(default_factory=list)  # (value, weight, claim_id)
+    outliers: List[Dict] = field(default_factory=list)
+    conflict_detected: bool = False
+
+
+@dataclass
+class L3Incident:
+    """L3 Incident: membrane over L2 surfaces."""
+    id: str
+    surface_ids: Set[str] = field(default_factory=set)
+    anchor_entities: Set[str] = field(default_factory=set)
+    companion_entities: Set[str] = field(default_factory=set)
+    time_start: Optional[datetime] = None
+    time_end: Optional[datetime] = None
+    created_at: datetime = field(default_factory=datetime.utcnow)
+
+
+@dataclass
+class L4Case:
+    """
+    L4 Case: membrane over L3 incidents.
+
+    A case groups related incidents via:
+    - Relation backbone (causal chains, response-to, part-of)
+    - Looser time coupling (days/weeks instead of hours)
+    - Shared high-level entities (people, organizations involved)
+
+    Examples:
+    - "Hong Kong Fire Response" case containing:
+      - Fire incident (the fire itself)
+      - Rescue incident (fire services response)
+      - Political incident (CE's visit, policy response)
+    """
+    id: str
+    incident_ids: Set[str] = field(default_factory=set)
+    relation_backbone: List[Tuple[str, str, str]] = field(default_factory=list)  # (inc1, relation, inc2)
+    core_entities: Set[str] = field(default_factory=set)  # High-level shared entities
+    case_type: str = "unknown"  # disaster_response, political_scandal, ongoing_conflict, etc.
+    time_start: Optional[datetime] = None
+    time_end: Optional[datetime] = None
+    canonical_title: str = ""
+    created_at: datetime = field(default_factory=datetime.utcnow)
+
+
+@dataclass
+class LinkResult:
+    """Result of linking a claim to L2 surface, L3 incident, and L4 case."""
+    claim_id: str
+    surface_id: str
+    incident_id: str
+    case_id: Optional[str] = None
+    is_new_surface: bool = False
+    is_new_incident: bool = False
+    is_new_case: bool = False
+    question_key: str = ""
+    meta_claims: List[MetaClaim] = field(default_factory=list)
+
+
+# =============================================================================
+# QUESTION KEY EXTRACTION
+# =============================================================================
+
+class QuestionKeyExtractor:
+    """
+    Extracts question_key from claim semantics.
+
+    The question_key identifies the typed proposition:
+    - "fire_death_count" for claims about death toll
+    - "policy_status" for claims about policy state
+    - "person_location" for claims about where someone is
+
+    This is the L2 identity - claims with same question_key go to same surface.
+    """
+
+    # Patterns for common typed questions
+    DEATH_PATTERNS = ['kill', 'dead', 'death', 'fatality', 'fatalities', 'died', 'perish']
+    INJURY_PATTERNS = ['injur', 'wound', 'hurt', 'hospitali']
+    STATUS_PATTERNS = ['status', 'condition', 'state', 'ongoing', 'active', 'resolved']
+    POLICY_PATTERNS = ['announc', 'policy', 'legislation', 'bill', 'reform', 'law']
+    LOCATION_PATTERNS = ['located', 'found', 'spotted', 'seen at', 'arrived', 'visited']
+
+    def extract(self, claim: Claim) -> str:
+        """
+        Extract question_key from claim.
+
+        Returns a string like "fire_death_count" or "policy_announcement".
+        Falls back to entity-based key if no typed pattern matches.
+        """
+        text = (claim.text or "").lower()
+
+        # Check for typed patterns
+        if self._matches_any(text, self.DEATH_PATTERNS):
+            # Death count claim
+            event_type = self._infer_event_type(claim)
+            return f"{event_type}_death_count"
+
+        if self._matches_any(text, self.INJURY_PATTERNS):
+            event_type = self._infer_event_type(claim)
+            return f"{event_type}_injury_count"
+
+        if self._matches_any(text, self.STATUS_PATTERNS):
+            event_type = self._infer_event_type(claim)
+            return f"{event_type}_status"
+
+        if self._matches_any(text, self.POLICY_PATTERNS):
+            return "policy_announcement"
+
+        if self._matches_any(text, self.LOCATION_PATTERNS):
+            # Person location claim
+            person = self._find_person_entity(claim)
+            if person:
+                return f"{self._normalize_name(person)}_location"
+
+        # Fallback: use entity names as key
+        if claim.entities:
+            # Get anchor-like entities (PERSON or ORG types)
+            anchors = []
+            for entity in claim.entities:
+                if hasattr(entity, 'entity_type') and entity.entity_type in ('PERSON', 'ORG'):
+                    name = entity.canonical_name if hasattr(entity, 'canonical_name') else str(entity)
+                    anchors.append(name)
+            if anchors:
+                anchors = sorted(anchors)[:2]
+                return f"about_{'_'.join(self._normalize_name(a) for a in anchors)}"
+
+        # Last resort: generic
+        return "untyped_claim"
+
+    def _matches_any(self, text: str, patterns: List[str]) -> bool:
+        return any(p in text for p in patterns)
+
+    def _infer_event_type(self, claim: Claim) -> str:
+        """Infer event type from entities or text."""
+        text = (claim.text or "").lower()
+
+        if 'fire' in text or 'blaze' in text or 'burn' in text:
+            return "fire"
+        if 'flood' in text:
+            return "flood"
+        if 'earthquake' in text or 'quake' in text:
+            return "earthquake"
+        if 'storm' in text or 'typhoon' in text or 'hurricane' in text:
+            return "storm"
+        if 'crash' in text or 'accident' in text or 'collision' in text:
+            return "accident"
+
+        return "incident"
+
+    def _find_person_entity(self, claim: Claim) -> Optional[str]:
+        """Find a person entity in the claim."""
+        if not claim.entities:
+            return None
+        for entity in claim.entities:
+            if hasattr(entity, 'entity_type') and entity.entity_type == 'PERSON':
+                return entity.canonical_name if hasattr(entity, 'canonical_name') else str(entity)
+        return None
+
+    def _normalize_name(self, name: str) -> str:
+        """Normalize entity name for use in key."""
+        return name.lower().replace(' ', '_').replace('-', '_')[:30]
+
+
+# =============================================================================
+# PRINCIPLED WEAVER WORKER
+# =============================================================================
+
+class PrincipledWeaverWorker:
+    """
+    Weaver worker implementing L2/L3 architecture.
+
+    L2: Routes claims by question_key to surfaces
+    L3: Groups surfaces into incidents via anchor+companion check
+
+    Emits meta-claims for bridge immunity, conflicts, noise.
+    """
+
+    QUEUE_NAME = "claims:pending"
+    PROCESSED_QUEUE = "claims:processed"
+    FAILED_QUEUE = "claims:failed"
+
+    # L3 membrane parameters
+    MIN_SHARED_ANCHORS = 2  # Need 2+ shared anchors to consider merge
+    COMPANION_OVERLAP_THRESHOLD = 0.15  # Jaccard threshold for compatibility
+    TIME_WINDOW_DAYS = 14
+
+    # L4 case parameters
+    CASE_TIME_WINDOW_DAYS = 60  # Looser time coupling for cases
+    CASE_ENTITY_OVERLAP_THRESHOLD = 0.1  # Lower threshold - relation backbone matters more
+    RELATION_PATTERNS = [
+        'response_to', 'caused_by', 'part_of', 'followed_by',
+        'investigated_by', 'announced_after', 'related_to'
+    ]
+
+    # Outlier detection
+    OUTLIER_Z_THRESHOLD = 3.0
+
+    def __init__(
+        self,
+        db_pool: asyncpg.Pool,
+        neo4j_service: Neo4jService,
+        job_queue: JobQueue,
+        worker_id: int = 1
+    ):
+        self.db_pool = db_pool
+        self.neo4j = neo4j_service
+        self.job_queue = job_queue
+        self.worker_id = worker_id
+
+        # Repositories
+        self.claim_repo = ClaimRepository(db_pool, neo4j_service)
+        self.surface_repo = SurfaceRepository(db_pool, neo4j_service)
+
+        # Question key extractor
+        self.qk_extractor = QuestionKeyExtractor()
+
+        # L2 State: question_key → surface_id
+        self.question_key_to_surface: Dict[str, str] = {}
+
+        # L3 State: incidents
+        self.incidents: Dict[str, L3Incident] = {}
+        self.surface_to_incident: Dict[str, str] = {}
+
+        # L4 State: cases
+        self.cases: Dict[str, L4Case] = {}
+        self.incident_to_case: Dict[str, str] = {}
+
+        # Typed posteriors per surface
+        self.typed_posteriors: Dict[str, TypedPosterior] = {}
+
+        # Meta-claims buffer
+        self.pending_meta_claims: List[MetaClaim] = []
+
+        # Stats
+        self.claims_processed = 0
+        self.surfaces_created = 0
+        self.incidents_created = 0
+        self.cases_created = 0
+        self.meta_claims_emitted = 0
+
+        # Redis pub/sub for real-time viz (optional)
+        self.redis_client = None
+        self.viz_channel = "weaver:events"
+
+        self.running = False
+
+    async def initialize(self):
+        """Load existing L2/L3 state from database."""
+        logger.info("📥 Loading existing L2/L3 state...")
+
+        # Load existing surfaces and their question_keys
+        surfaces = await self._load_existing_surfaces()
+        for surface in surfaces:
+            qk = surface.metadata.get('question_key') if surface.metadata else None
+            if qk:
+                self.question_key_to_surface[qk] = surface.id
+
+        # Load existing incidents
+        incidents = await self._load_existing_incidents()
+        for inc in incidents:
+            self.incidents[inc.id] = inc
+            for sid in inc.surface_ids:
+                self.surface_to_incident[sid] = inc.id
+
+        logger.info(f"   Loaded {len(self.question_key_to_surface)} L2 surfaces, {len(self.incidents)} L3 incidents")
+
+    async def _load_existing_surfaces(self) -> List[Surface]:
+        """Load surfaces from Neo4j."""
+        results = await self.neo4j._execute_read("""
+            MATCH (s:Surface)
+            RETURN s.id as id, s.question_key as question_key,
+                   s.anchor_entities as anchors, s.entities as entities
+            LIMIT 10000
+        """)
+
+        surfaces = []
+        for row in results:
+            surface = Surface(
+                id=row['id'],
+                anchor_entities=set(row.get('anchors') or []),
+                entities=set(row.get('entities') or []),
+            )
+            surface.metadata = {'question_key': row.get('question_key')}
+            surfaces.append(surface)
+        return surfaces
+
+    async def _load_existing_incidents(self) -> List[L3Incident]:
+        """Load incidents from Neo4j."""
+        results = await self.neo4j._execute_read("""
+            MATCH (i:Incident)
+            OPTIONAL MATCH (i)-[:CONTAINS]->(s:Surface)
+            WITH i, collect(s.id) as surface_ids
+            RETURN i.id as id, i.anchor_entities as anchors,
+                   i.companion_entities as companions, surface_ids
+            LIMIT 5000
+        """)
+
+        incidents = []
+        for row in results:
+            inc = L3Incident(
+                id=row['id'],
+                surface_ids=set(row.get('surface_ids') or []),
+                anchor_entities=set(row.get('anchors') or []),
+                companion_entities=set(row.get('companions') or []),
+            )
+            incidents.append(inc)
+        return incidents
+
+    async def run(self, mode: str = 'queue'):
+        """
+        Main processing loop.
+
+        Args:
+            mode: 'queue' - listen to Redis queue (default)
+                  'poll' - continuously poll DB for unprocessed claims
+        """
+        self.running = True
+        await self.initialize()
+        logger.info(f"🧬 Principled Weaver Worker {self.worker_id} starting in {mode} mode...")
+
+        if mode == 'poll':
+            await self._run_poll_mode()
+        else:
+            await self._run_queue_mode()
+
+    async def _run_queue_mode(self):
+        """Process claims from Redis queue."""
+        while self.running:
+            try:
+                item = await self.job_queue.dequeue(self.QUEUE_NAME, timeout=5.0)
+                if item is None:
+                    continue
+
+                claim_id = self._parse_queue_item(item)
+                if not claim_id:
+                    continue
+
+                result = await self.process_claim(claim_id)
+                await self._handle_result(result, claim_id)
+
+            except Exception as e:
+                logger.error(f"❌ Error processing claim: {e}", exc_info=True)
+                if 'claim_id' in locals():
+                    await self.job_queue.enqueue(
+                        self.FAILED_QUEUE,
+                        json.dumps({"claim_id": claim_id, "error": str(e)})
+                    )
+
+    async def _run_poll_mode(self):
+        """
+        Continuously poll database for unprocessed claims.
+
+        This mode is more resilient than queue mode:
+        - No need for queue infrastructure
+        - Automatically catches up on missed claims
+        - Self-healing after restarts
+        """
+        batch_size = 50
+        poll_interval = 5.0  # seconds between polls when idle
+
+        while self.running:
+            try:
+                # Find claims not yet linked to surfaces
+                unprocessed = await self._find_unprocessed_claims(batch_size)
+
+                if not unprocessed:
+                    # No work, wait before next poll
+                    await asyncio.sleep(poll_interval)
+                    continue
+
+                logger.info(f"📥 Found {len(unprocessed)} unprocessed claims")
+
+                for claim_id in unprocessed:
+                    if not self.running:
+                        break
+
+                    try:
+                        result = await self.process_claim(claim_id)
+                        await self._handle_result(result, claim_id)
+                    except Exception as e:
+                        logger.error(f"❌ Error processing {claim_id}: {e}")
+                        await self._mark_claim_failed(claim_id, str(e))
+
+            except Exception as e:
+                logger.error(f"❌ Poll error: {e}", exc_info=True)
+                await asyncio.sleep(poll_interval)
+
+    async def _find_unprocessed_claims(self, limit: int = 50) -> List[str]:
+        """Find claims not yet processed into L2/L3 topology."""
+        results = await self.neo4j._execute_read("""
+            MATCH (c:Claim)
+            WHERE NOT (c)<-[:CONTAINS]-(:Surface)
+              AND coalesce(c.weaver_failed, false) = false
+            RETURN c.id as id
+            ORDER BY c.created_at ASC
+            LIMIT $limit
+        """, {'limit': limit})
+        return [r['id'] for r in results]
+
+    async def _mark_claim_failed(self, claim_id: str, error: str):
+        """Mark claim as failed to prevent retry loop."""
+        await self.neo4j._execute_write("""
+            MATCH (c:Claim {id: $id})
+            SET c.weaver_failed = true, c.weaver_error = $error
+        """, {'id': claim_id, 'error': error[:500]})
+
+    async def _handle_result(self, result: Optional[LinkResult], claim_id: str):
+        """Handle processing result."""
+        if result:
+            self.claims_processed += 1
+
+            # Emit to viz channel
+            await self._emit_viz_event(result)
+
+            if self.claims_processed % 100 == 0:
+                logger.info(
+                    f"📊 Progress: {self.claims_processed} claims, "
+                    f"{self.surfaces_created} L2 surfaces, "
+                    f"{self.incidents_created} L3 incidents, "
+                    f"{self.cases_created} L4 cases, "
+                    f"{self.meta_claims_emitted} meta-claims"
+                )
+
+    async def _emit_viz_event(self, result: LinkResult):
+        """
+        Emit event to Redis pub/sub for real-time visualization.
+
+        Events are short-lived - viz consumes them immediately.
+        Structure matches golden trace format for consistency.
+        """
+        if not self.redis_client:
+            return
+
+        try:
+            event = {
+                "type": "claim_processed",
+                "timestamp": datetime.utcnow().isoformat(),
+                "claim_id": result.claim_id,
+                "L2": {
+                    "surface_id": result.surface_id,
+                    "question_key": result.question_key,
+                    "is_new": result.is_new_surface,
+                },
+                "L3": {
+                    "incident_id": result.incident_id,
+                    "is_new": result.is_new_incident,
+                },
+                "L4": {
+                    "case_id": result.case_id,
+                    "is_new": result.is_new_case,
+                } if result.case_id else None,
+                "meta_claims": [
+                    {"type": mc.type, "reason": mc.reason[:100]}
+                    for mc in result.meta_claims
+                ],
+                "stats": {
+                    "claims_processed": self.claims_processed,
+                    "surfaces": self.surfaces_created,
+                    "incidents": self.incidents_created,
+                    "cases": self.cases_created,
+                }
+            }
+
+            await self.redis_client.publish(self.viz_channel, json.dumps(event))
+
+        except Exception as e:
+            # Don't fail processing if viz publish fails
+            pass
+
+    def _parse_queue_item(self, item: bytes) -> Optional[str]:
+        """Parse queue item to get claim ID."""
+        try:
+            data = json.loads(item)
+            if isinstance(data, dict):
+                return data.get('claim_id') or data.get('id')
+            elif isinstance(data, str):
+                return data
+        except json.JSONDecodeError:
+            return item.decode() if isinstance(item, bytes) else str(item)
+        return None
+
+    async def process_claim(self, claim_id: str) -> Optional[LinkResult]:
+        """
+        Process a single claim through L2/L3 architecture.
+
+        1. Load claim with entities
+        2. Extract question_key
+        3. Route to L2 surface (by question_key)
+        4. Route L2 surface to L3 incident (by anchor+companion)
+        5. Update typed posterior
+        6. Emit meta-claims for noise/conflicts
+        """
+        self.pending_meta_claims = []
+
+        # 1. Load claim
+        claim = await self.claim_repo.get_by_id(claim_id)
+        if not claim:
+            logger.warning(f"⚠️ Claim {claim_id} not found")
+            return None
+
+        claim = await self.claim_repo.hydrate_entities(claim)
+
+        # Get entities as strings
+        entities = self._get_entity_names(claim)
+        anchor_entities = self._extract_anchors(claim)
+
+        # Check for noise conditions
+        self._check_noise_conditions(claim, entities)
+
+        # 2. Extract question_key
+        question_key = self.qk_extractor.extract(claim)
+
+        # 3. L2: Route by question_key
+        if question_key in self.question_key_to_surface:
+            # Attach to existing surface
+            surface_id = self.question_key_to_surface[question_key]
+            is_new_surface = False
+
+            # Update surface
+            await self._update_surface(surface_id, claim, entities, anchor_entities)
+        else:
+            # Create new L2 surface
+            surface_id = await self._create_surface(claim, question_key, entities, anchor_entities)
+            self.question_key_to_surface[question_key] = surface_id
+            is_new_surface = True
+            self.surfaces_created += 1
+
+        # 4. L3: Route surface to incident
+        incident_id, is_new_incident = await self._route_to_incident(
+            surface_id, anchor_entities, entities - anchor_entities
+        )
+
+        if is_new_incident:
+            self.incidents_created += 1
+
+        # 5. L4: Route incident to case
+        case_id, is_new_case = await self._route_to_case(incident_id, claim)
+
+        if is_new_case:
+            self.cases_created += 1
+
+        # 6. Update typed posterior
+        typed_obs = self._extract_typed_observation(claim)
+        if typed_obs:
+            self._update_typed_posterior(surface_id, question_key, typed_obs, claim_id)
+
+        # 7. Persist meta-claims
+        for mc in self.pending_meta_claims:
+            await self._persist_meta_claim(mc)
+        self.meta_claims_emitted += len(self.pending_meta_claims)
+
+        return LinkResult(
+            claim_id=claim_id,
+            surface_id=surface_id,
+            incident_id=incident_id,
+            case_id=case_id,
+            is_new_surface=is_new_surface,
+            is_new_incident=is_new_incident,
+            is_new_case=is_new_case,
+            question_key=question_key,
+            meta_claims=self.pending_meta_claims.copy()
+        )
+
+    def _get_entity_names(self, claim: Claim) -> Set[str]:
+        """Get entity names as strings."""
+        if not claim.entities:
+            return set()
+        names = set()
+        for entity in claim.entities:
+            if hasattr(entity, 'canonical_name'):
+                names.add(entity.canonical_name)
+            elif hasattr(entity, 'name'):
+                names.add(entity.name)
+            else:
+                names.add(str(entity))
+        return names
+
+    def _extract_anchors(self, claim: Claim) -> Set[str]:
+        """
+        Extract anchor entities (high-IDF, non-hub).
+
+        Anchors define the core identity of the claim.
+        """
+        if not claim.entities:
+            return set()
+
+        anchors = set()
+        for entity in claim.entities:
+            name = entity.canonical_name if hasattr(entity, 'canonical_name') else str(entity)
+
+            # Prefer WHO entities (persons, organizations)
+            if hasattr(entity, 'entity_type') and entity.entity_type in ('PERSON', 'ORG'):
+                anchors.add(name)
+                continue
+
+            # Include rare entities (low mention count = high IDF)
+            if hasattr(entity, 'mention_count') and entity.mention_count is not None:
+                if entity.mention_count < 50:  # Rare entity
+                    anchors.add(name)
+                    continue
+
+            # Skip generic locations if we have other entities
+            if hasattr(entity, 'entity_type') and entity.entity_type in ('GPE', 'LOC'):
+                if len(claim.entities) > 1:
+                    continue
+
+            anchors.add(name)
+
+        return anchors
+
+    def _check_noise_conditions(self, claim: Claim, entities: Set[str]):
+        """Check for noise conditions and emit meta-claims."""
+        # Missing timestamp
+        if not claim.event_time and not claim.reported_time:
+            self.pending_meta_claims.append(MetaClaim(
+                type="missing_time",
+                claim_id=claim.id,
+                reason="Timestamp unavailable - monotone constraints not applied",
+                evidence={"consequence": "temporal_ordering_blocked"}
+            ))
+
+        # Extraction sparsity
+        if len(entities) < 2:
+            self.pending_meta_claims.append(MetaClaim(
+                type="context_underpowered",
+                claim_id=claim.id,
+                reason=f"Insufficient entities for context check ({len(entities)} < 2)",
+                evidence={"entity_count": len(entities), "minimum_required": 2}
+            ))
+
+        # Syndication detection (if metadata indicates)
+        if claim.metadata and claim.metadata.get('syndicated_from'):
+            self.pending_meta_claims.append(MetaClaim(
+                type="syndication_detected",
+                claim_id=claim.id,
+                reason=f"Syndicated from {claim.metadata['syndicated_from']}",
+                evidence={
+                    "original_publisher": claim.metadata['syndicated_from'],
+                    "republisher": claim.page_id
+                }
+            ))
+
+    async def _create_surface(
+        self,
+        claim: Claim,
+        question_key: str,
+        entities: Set[str],
+        anchor_entities: Set[str]
+    ) -> str:
+        """Create a new L2 surface."""
+        surface_id = generate_id('surface')
+
+        surface = Surface(
+            id=surface_id,
+            claim_ids={claim.id},
+            entities=entities,
+            anchor_entities=anchor_entities,
+            sources={claim.page_id} if claim.page_id else set(),
+        )
+
+        # Get embedding
+        embedding = await self.claim_repo.get_embedding(claim.id)
+        if embedding:
+            surface.centroid = embedding
+
+        # Time
+        claim_time = self._get_claim_time(claim)
+        if claim_time:
+            surface.time_start = claim_time
+            surface.time_end = claim_time
+
+        # Save
+        await self.surface_repo.save(surface)
+
+        # Also save question_key to Neo4j
+        await self.neo4j._execute_write("""
+            MATCH (s:Surface {id: $id})
+            SET s.question_key = $qk, s.anchor_entities = $anchors
+        """, {'id': surface_id, 'qk': question_key, 'anchors': list(anchor_entities)})
+
+        return surface_id
+
+    async def _update_surface(
+        self,
+        surface_id: str,
+        claim: Claim,
+        entities: Set[str],
+        anchor_entities: Set[str]
+    ):
+        """Update existing L2 surface with new claim."""
+        surface = await self.surface_repo.get_by_id(surface_id)
+        if not surface:
+            return
+
+        surface.claim_ids.add(claim.id)
+        surface.entities.update(entities)
+        surface.anchor_entities.update(anchor_entities)
+        if claim.page_id:
+            surface.sources.add(claim.page_id)
+
+        # Update time window
+        claim_time = self._get_claim_time(claim)
+        if claim_time:
+            # Ensure surface times are datetime (not strings from DB)
+            if surface.time_start and isinstance(surface.time_start, str):
+                from dateutil.parser import parse as parse_date
+                surface.time_start = parse_date(surface.time_start)
+            if surface.time_end and isinstance(surface.time_end, str):
+                from dateutil.parser import parse as parse_date
+                surface.time_end = parse_date(surface.time_end)
+
+            if surface.time_start is None or claim_time < surface.time_start:
+                surface.time_start = claim_time
+            if surface.time_end is None or claim_time > surface.time_end:
+                surface.time_end = claim_time
+
+        # Update centroid
+        embedding = await self.claim_repo.get_embedding(claim.id)
+        if embedding:
+            await self._update_centroid(surface, embedding)
+
+        await self.surface_repo.save(surface)
+
+    async def _update_centroid(self, surface: Surface, new_embedding: List[float]):
+        """Incremental centroid update."""
+        if surface.centroid:
+            n = len(surface.claim_ids)
+            old = np.array(surface.centroid)
+            new = np.array(new_embedding)
+            surface.centroid = ((old * (n - 1) + new) / n).tolist()
+        else:
+            surface.centroid = new_embedding
+
+    async def _route_to_incident(
+        self,
+        surface_id: str,
+        anchor_entities: Set[str],
+        companion_entities: Set[str]
+    ) -> Tuple[str, bool]:
+        """
+        Route L2 surface to L3 incident.
+
+        Checks anchor overlap + companion compatibility.
+        Emits bridge_blocked if shared anchors but disjoint companions.
+        """
+        # Check if surface already in an incident
+        if surface_id in self.surface_to_incident:
+            return self.surface_to_incident[surface_id], False
+
+        # Find candidate incidents (share anchors)
+        candidates = []
+        for inc_id, incident in self.incidents.items():
+            shared_anchors = anchor_entities & incident.anchor_entities
+
+            if len(shared_anchors) >= self.MIN_SHARED_ANCHORS:
+                # Check companion compatibility
+                if companion_entities and incident.companion_entities:
+                    intersection = companion_entities & incident.companion_entities
+                    union = companion_entities | incident.companion_entities
+                    overlap = len(intersection) / len(union) if union else 0.0
+
+                    if overlap >= self.COMPANION_OVERLAP_THRESHOLD:
+                        candidates.append((inc_id, overlap, shared_anchors))
+                    else:
+                        # Bridge blocked - emit meta-claim
+                        blocking_entity = list(shared_anchors)[0] if shared_anchors else None
+                        self.pending_meta_claims.append(MetaClaim(
+                            type="bridge_blocked",
+                            claim_id="",  # Surface-level
+                            surface_id=surface_id,
+                            incident_id=inc_id,
+                            reason=f"{blocking_entity} does not bind {surface_id}↔{inc_id} because companion contexts are incompatible",
+                            evidence={
+                                "blocking_entity": blocking_entity,
+                                "shared_anchors": list(shared_anchors),
+                                "surface_companions": list(companion_entities)[:5],
+                                "incident_companions": list(incident.companion_entities)[:5],
+                                "overlap": overlap,
+                                "threshold": self.COMPANION_OVERLAP_THRESHOLD
+                            }
+                        ))
+                else:
+                    # Not enough companions to check - allow if anchors match
+                    candidates.append((inc_id, 0.5, shared_anchors))
+
+        if candidates:
+            # Attach to best matching incident
+            candidates.sort(key=lambda x: -x[1])
+            best_inc_id, overlap, shared = candidates[0]
+            incident = self.incidents[best_inc_id]
+
+            incident.surface_ids.add(surface_id)
+            incident.anchor_entities.update(anchor_entities)
+            incident.companion_entities.update(companion_entities)
+            self.surface_to_incident[surface_id] = best_inc_id
+
+            # Persist incident update
+            await self._persist_incident(incident)
+
+            return best_inc_id, False
+        else:
+            # Create new incident
+            incident_id = generate_id('incident')
+            incident = L3Incident(
+                id=incident_id,
+                surface_ids={surface_id},
+                anchor_entities=anchor_entities.copy(),
+                companion_entities=companion_entities.copy(),
+            )
+
+            self.incidents[incident_id] = incident
+            self.surface_to_incident[surface_id] = incident_id
+
+            await self._persist_incident(incident)
+
+            return incident_id, True
+
+    async def _persist_incident(self, incident: L3Incident):
+        """Save incident to Neo4j."""
+        await self.neo4j._execute_write("""
+            MERGE (i:Incident {id: $id})
+            SET i.anchor_entities = $anchors,
+                i.companion_entities = $companions,
+                i.updated_at = datetime()
+            WITH i
+            UNWIND $surface_ids as sid
+            MATCH (s:Surface {id: sid})
+            MERGE (i)-[:CONTAINS]->(s)
+        """, {
+            'id': incident.id,
+            'anchors': list(incident.anchor_entities),
+            'companions': list(incident.companion_entities),
+            'surface_ids': list(incident.surface_ids)
+        })
+
+    async def _route_to_case(
+        self,
+        incident_id: str,
+        claim: Claim
+    ) -> Tuple[Optional[str], bool]:
+        """
+        Route L3 incident to L4 case.
+
+        L4 cases group incidents via:
+        - Relation backbone (causal chains, response patterns)
+        - Looser entity overlap (shared high-level entities)
+        - Broader time window (days/weeks)
+
+        Returns (case_id, is_new_case)
+        """
+        # Check if incident already in a case
+        if incident_id in self.incident_to_case:
+            return self.incident_to_case[incident_id], False
+
+        incident = self.incidents.get(incident_id)
+        if not incident:
+            return None, False
+
+        # Collect incident entities for matching
+        incident_entities = incident.anchor_entities | incident.companion_entities
+
+        # Find candidate cases
+        candidates = []
+        for case_id, case in self.cases.items():
+            # Get all entities from case's incidents
+            case_entities = set()
+            for inc_id in case.incident_ids:
+                inc = self.incidents.get(inc_id)
+                if inc:
+                    case_entities.update(inc.anchor_entities)
+                    case_entities.update(inc.companion_entities)
+
+            # Check entity overlap (looser threshold for cases)
+            if incident_entities and case_entities:
+                intersection = incident_entities & case_entities
+                union = incident_entities | case_entities
+                overlap = len(intersection) / len(union) if union else 0.0
+
+                if overlap >= self.CASE_ENTITY_OVERLAP_THRESHOLD:
+                    # Also check time proximity
+                    time_match = self._check_time_proximity(incident, case)
+                    if time_match:
+                        # Infer relation type
+                        relation = self._infer_incident_relation(incident, case)
+                        candidates.append((case_id, overlap, relation))
+
+        if candidates:
+            # Attach to best matching case
+            candidates.sort(key=lambda x: -x[1])
+            best_case_id, overlap, relation = candidates[0]
+            case = self.cases[best_case_id]
+
+            case.incident_ids.add(incident_id)
+            case.core_entities.update(incident.anchor_entities)
+
+            # Add relation to backbone if meaningful
+            if relation and relation != 'related_to':
+                # Get an existing incident to relate to
+                existing = next(iter(case.incident_ids - {incident_id}), None)
+                if existing:
+                    case.relation_backbone.append((existing, relation, incident_id))
+
+            self.incident_to_case[incident_id] = best_case_id
+
+            await self._persist_case(case)
+            return best_case_id, False
+        else:
+            # Create new case
+            case_id = generate_id('case')
+            case_type = self._infer_case_type(incident, claim)
+
+            case = L4Case(
+                id=case_id,
+                incident_ids={incident_id},
+                core_entities=incident.anchor_entities.copy(),
+                case_type=case_type,
+                canonical_title=self._generate_case_title(incident, claim),
+            )
+
+            self.cases[case_id] = case
+            self.incident_to_case[incident_id] = case_id
+
+            await self._persist_case(case)
+            return case_id, True
+
+    def _check_time_proximity(self, incident: L3Incident, case: L4Case) -> bool:
+        """Check if incident is within case time window."""
+        # For now, always return True - time bounds would be checked here
+        # TODO: Implement time proximity check when incident has time bounds
+        return True
+
+    def _infer_incident_relation(self, incident: L3Incident, case: L4Case) -> str:
+        """Infer relation type between incident and case."""
+        # Simple heuristics based on entity patterns
+        # TODO: Use LLM or pattern matching for better relation extraction
+
+        # Check for response patterns (official, government, services)
+        response_entities = {'government', 'police', 'fire services', 'hospital', 'official'}
+        incident_entities_lower = {e.lower() for e in incident.anchor_entities}
+
+        if incident_entities_lower & response_entities:
+            return 'response_to'
+
+        # Check for investigation patterns
+        if any('investigat' in e.lower() for e in incident.anchor_entities):
+            return 'investigated_by'
+
+        # Check for policy/announcement patterns
+        if any('polic' in e.lower() or 'announc' in e.lower() for e in incident.anchor_entities):
+            return 'announced_after'
+
+        return 'related_to'
+
+    def _infer_case_type(self, incident: L3Incident, claim: Claim) -> str:
+        """Infer case type from incident and claim."""
+        text = (claim.text or "").lower()
+
+        if 'fire' in text or 'blaze' in text:
+            return 'disaster_response'
+        if 'flood' in text or 'storm' in text or 'typhoon' in text:
+            return 'disaster_response'
+        if 'polic' in text or 'legislation' in text or 'reform' in text:
+            return 'policy_development'
+        if 'scandal' in text or 'corruption' in text or 'resign' in text:
+            return 'political_scandal'
+        if 'conflict' in text or 'war' in text or 'attack' in text:
+            return 'ongoing_conflict'
+        if 'election' in text or 'vote' in text or 'campaign' in text:
+            return 'election'
+
+        return 'general_story'
+
+    def _generate_case_title(self, incident: L3Incident, claim: Claim) -> str:
+        """Generate a canonical title for the case."""
+        # Use top anchor entities
+        anchors = sorted(incident.anchor_entities)[:2]
+        if anchors:
+            return f"{' + '.join(anchors)} Case"
+        return "Unnamed Case"
+
+    async def _persist_case(self, case: L4Case):
+        """Save case to Neo4j."""
+        await self.neo4j._execute_write("""
+            MERGE (c:Case {id: $id})
+            SET c.case_type = $case_type,
+                c.core_entities = $core_entities,
+                c.canonical_title = $title,
+                c.updated_at = datetime()
+            WITH c
+            UNWIND $incident_ids as iid
+            MATCH (i:Incident {id: iid})
+            MERGE (c)-[:CONTAINS]->(i)
+        """, {
+            'id': case.id,
+            'case_type': case.case_type,
+            'core_entities': list(case.core_entities),
+            'title': case.canonical_title,
+            'incident_ids': list(case.incident_ids)
+        })
+
+        # Persist relation backbone
+        for (inc1, relation, inc2) in case.relation_backbone:
+            await self.neo4j._execute_write("""
+                MATCH (i1:Incident {id: $inc1}), (i2:Incident {id: $inc2})
+                MERGE (i1)-[r:RELATES_TO {type: $relation}]->(i2)
+            """, {'inc1': inc1, 'inc2': inc2, 'relation': relation})
+
+    def _extract_typed_observation(self, claim: Claim) -> Optional[Dict]:
+        """Extract typed observation from claim if available."""
+        if not claim.metadata:
+            return None
+
+        # Check for extracted typed data
+        typed = claim.metadata.get('typed_observation')
+        if typed:
+            return typed
+
+        # Try to extract from text (simple patterns)
+        text = claim.text or ""
+
+        # Look for numbers
+        import re
+        numbers = re.findall(r'\b(\d+)\b', text)
+        if numbers:
+            # Use first significant number
+            for num in numbers:
+                n = int(num)
+                if 1 <= n <= 10000:  # Reasonable range
+                    return {
+                        'value': n,
+                        'confidence': 0.7,
+                        'source_authority': 0.5
+                    }
+
+        return None
+
+    def _update_typed_posterior(
+        self,
+        surface_id: str,
+        question_key: str,
+        typed_obs: Dict,
+        claim_id: str
+    ):
+        """Update typed posterior with new observation."""
+        value = typed_obs.get('value')
+        confidence = typed_obs.get('confidence', 0.5)
+        authority = typed_obs.get('source_authority', 0.5)
+        weight = confidence * authority
+
+        key = f"{surface_id}:{question_key}"
+        is_numeric = isinstance(value, (int, float))
+
+        if key not in self.typed_posteriors:
+            self.typed_posteriors[key] = TypedPosterior(
+                question_key=question_key,
+                value_type="numeric" if is_numeric else "categorical",
+                posterior_mean=float(value) if is_numeric else None,
+                current_value=value,
+                observations=1,
+                values=[(value, weight, claim_id)]
+            )
+        else:
+            posterior = self.typed_posteriors[key]
+
+            # Check for outlier
+            if posterior.value_type == "numeric" and is_numeric and len(posterior.values) >= 2:
+                existing_values = [v for v, _, _ in posterior.values]
+                mean = sum(existing_values) / len(existing_values)
+                std = max(1.0, (sum((v - mean) ** 2 for v in existing_values) / len(existing_values)) ** 0.5)
+                z_score = abs(value - mean) / std
+
+                if z_score > self.OUTLIER_Z_THRESHOLD:
+                    posterior.outliers.append({
+                        'value': value,
+                        'claim_id': claim_id,
+                        'z_score': z_score,
+                        'authority': authority
+                    })
+
+                    self.pending_meta_claims.append(MetaClaim(
+                        type="typed_conflict",
+                        claim_id=claim_id,
+                        surface_id=surface_id,
+                        reason=f"Outlier detected: {value} vs consensus {mean:.1f} (z={z_score:.1f})",
+                        evidence={
+                            'outlier_value': value,
+                            'consensus_mean': mean,
+                            'consensus_n': len(existing_values),
+                            'z_score': z_score,
+                            'authority': authority
+                        }
+                    ))
+
+            # Add observation
+            posterior.values.append((value, weight, claim_id))
+            posterior.observations += 1
+
+            if posterior.value_type == "numeric" and is_numeric:
+                # Weighted mean update
+                total_weight = sum(w for _, w, _ in posterior.values)
+                if total_weight > 0:
+                    posterior.posterior_mean = sum(v * w for v, w, _ in posterior.values) / total_weight
+
+                # Check for conflict
+                values = [v for v, _, _ in posterior.values]
+                if len(values) > 1:
+                    spread = max(values) - min(values)
+                    if spread > (posterior.posterior_mean or 1) * 0.3:
+                        posterior.conflict_detected = True
+
+    def _get_claim_time(self, claim: Claim) -> Optional[datetime]:
+        """Get best available time for claim."""
+        if claim.event_time:
+            if isinstance(claim.event_time, datetime):
+                return claim.event_time
+            try:
+                from dateutil.parser import parse
+                return parse(str(claim.event_time))
+            except:
+                pass
+
+        if claim.reported_time:
+            if isinstance(claim.reported_time, datetime):
+                return claim.reported_time
+            try:
+                from dateutil.parser import parse
+                return parse(str(claim.reported_time))
+            except:
+                pass
+
+        return None
+
+    async def _persist_meta_claim(self, mc: MetaClaim):
+        """Save meta-claim to database."""
+        await self.neo4j._execute_write("""
+            CREATE (m:MetaClaim {
+                id: $id,
+                type: $type,
+                claim_id: $claim_id,
+                surface_id: $surface_id,
+                incident_id: $incident_id,
+                reason: $reason,
+                evidence: $evidence,
+                created_at: datetime()
+            })
+        """, {
+            'id': generate_id('meta'),
+            'type': mc.type,
+            'claim_id': mc.claim_id,
+            'surface_id': mc.surface_id or '',
+            'incident_id': mc.incident_id or '',
+            'reason': mc.reason,
+            'evidence': json.dumps(mc.evidence)
+        })
+
+    async def stop(self):
+        """Stop worker gracefully."""
+        self.running = False
+        logger.info(f"🛑 Principled Weaver {self.worker_id} stopping...")
+        logger.info(
+            f"📊 Final: {self.claims_processed} claims, "
+            f"{self.surfaces_created} L2 surfaces, "
+            f"{self.incidents_created} L3 incidents, "
+            f"{self.meta_claims_emitted} meta-claims"
+        )
+
+
+# =============================================================================
+# BOOTSTRAP: Reprocess all claims
+# =============================================================================
+
+async def bootstrap_principled(
+    db_pool: asyncpg.Pool,
+    neo4j: Neo4jService,
+    job_queue: JobQueue,
+    batch_size: int = 100
+):
+    """
+    Bootstrap L2/L3 topology from scratch.
+
+    1. Clear existing surfaces and incidents
+    2. Queue all claims for reprocessing
+    """
+    logger.info("🚀 Starting principled L2/L3 bootstrap...")
+
+    # 1. Clear existing
+    logger.info("🧹 Clearing existing surfaces and incidents...")
+    await neo4j._execute_write("MATCH (s:Surface) DETACH DELETE s")
+    await neo4j._execute_write("MATCH (i:Incident) DETACH DELETE i")
+    await neo4j._execute_write("MATCH (m:MetaClaim) DETACH DELETE m")
+
+    async with db_pool.acquire() as conn:
+        await conn.execute("TRUNCATE content.surface_centroids")
+        await conn.execute("TRUNCATE content.claim_surfaces")
+
+    # 2. Count claims
+    result = await neo4j._execute_read("MATCH (c:Claim) RETURN count(c) as count")
+    total_claims = result[0]['count'] if result else 0
+    logger.info(f"📚 Found {total_claims} claims to process")
+
+    # 3. Queue claims
+    logger.info("📥 Queueing claims...")
+    offset = 0
+
+    while offset < total_claims:
+        claims = await neo4j._execute_read("""
+            MATCH (c:Claim)
+            RETURN c.id as id
+            ORDER BY c.created_at ASC
+            SKIP $offset LIMIT $limit
+        """, {'offset': offset, 'limit': batch_size})
+
+        for row in claims:
+            await job_queue.enqueue(
+                PrincipledWeaverWorker.QUEUE_NAME,
+                json.dumps({"claim_id": row['id']})
+            )
+
+        offset += batch_size
+        logger.info(f"   Queued {min(offset, total_claims)}/{total_claims}")
+
+    logger.info(f"✅ Queued {total_claims} claims for L2/L3 processing")
+
+
+# =============================================================================
+# MAIN
+# =============================================================================
+
+async def main():
+    """
+    Run the principled weaver worker.
+
+    Usage:
+        python principled_weaver.py              # Queue mode (default)
+        python principled_weaver.py --poll       # Poll mode (no queue needed)
+        python principled_weaver.py --bootstrap  # Bootstrap from scratch
+    """
+    import redis.asyncio as redis
+
+    db_pool = await asyncpg.create_pool(
+        host=os.getenv('POSTGRES_HOST', 'db'),
+        port=int(os.getenv('POSTGRES_PORT', 5432)),
+        database=os.getenv('POSTGRES_DB', 'phi_here'),
+        user=os.getenv('POSTGRES_USER', 'phi_user'),
+        password=os.getenv('POSTGRES_PASSWORD', 'phi_password_dev'),
+        min_size=2,
+        max_size=10
+    )
+
+    neo4j = Neo4jService(
+        uri=os.getenv('NEO4J_URI', 'bolt://neo4j:7687'),
+        user=os.getenv('NEO4J_USER', 'neo4j'),
+        password=os.getenv('NEO4J_PASSWORD', 'password')
+    )
+    await neo4j.connect()
+
+    redis_client = redis.from_url(os.getenv('REDIS_URL', 'redis://redis:6379'))
+    job_queue = JobQueue(redis_client)
+
+    # Check for bootstrap flag
+    if '--bootstrap' in sys.argv:
+        await bootstrap_principled(db_pool, neo4j, job_queue)
+        await db_pool.close()
+        await neo4j.close()
+        await redis_client.close()
+        return
+
+    # Determine mode
+    mode = 'poll' if '--poll' in sys.argv else 'queue'
+
+    # Run worker
+    worker_id = int(os.getenv('WORKER_ID', 1))
+    worker = PrincipledWeaverWorker(db_pool, neo4j, job_queue, worker_id)
+
+    # Enable real-time viz events
+    worker.redis_client = redis_client
+
+    try:
+        await worker.run(mode=mode)
+    except KeyboardInterrupt:
+        await worker.stop()
+    finally:
+        await db_pool.close()
+        await neo4j.close()
+        await redis_client.close()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

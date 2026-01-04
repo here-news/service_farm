@@ -1,0 +1,226 @@
+# Golden Trace: Companion Incompatibility (Bridge-Noise Keystone)
+#
+# Tests L3 membrane's ability to reject merges when:
+# - Two incidents share 2+ anchor entities (would normally trigger merge consideration)
+# - BUT their companion sets are disjoint (context incompatibility)
+#
+# This is the true "bridge immunity" test - not just anchor non-overlap,
+# but active rejection based on companion context.
+#
+# Scenario:
+# - Incident A: Hong Kong + John Lee in context of POLICY (companions: LegCo, Housing Authority)
+# - Incident B: Hong Kong + John Lee in context of FIRE RESPONSE (companions: Fire Services, Hospital)
+# - Both share 2 anchors but companions don't overlap → NO MERGE
+#
+# Additionally tests bridge-noise: a famous entity mentioned in passing
+# that shouldn't cause false merges.
+
+meta:
+  name: companion_incompatibility
+  version: "1.0"
+  description: "Two incidents share anchors but disjoint companions block L3 merge"
+  layers_tested: [L2, L3]
+  noise_types:
+    - companion_disjoint
+    - bridge_noise_incidental
+  invariants:
+    - "L3_no_merge_on_disjoint_companions"
+    - "bridge_blocked_meta_claim_emitted"
+    - "incidental_mention_no_core_merge"
+
+entities:
+  # Shared anchors (appear in both incidents)
+  E001:
+    canonical: "John Lee"
+    type: person
+    role: anchor
+  E002:
+    canonical: "Hong Kong"
+    type: location
+    role: anchor
+
+  # Policy incident companions
+  E003:
+    canonical: "LegCo"
+    type: organization
+    role: companion
+  E004:
+    canonical: "Housing Authority"
+    type: organization
+    role: companion
+  E005:
+    canonical: "Affordable Housing Bill"
+    type: policy
+    role: companion
+
+  # Fire response incident companions
+  E006:
+    canonical: "Fire Services Department"
+    type: organization
+    role: companion
+  E007:
+    canonical: "Queen Elizabeth Hospital"
+    type: organization
+    role: companion
+  E008:
+    canonical: "Tai Po District"
+    type: location
+    role: companion
+
+  # Bridge-noise entity (famous, mentioned incidentally)
+  E009:
+    canonical: "United Nations"
+    type: organization
+    role: noise
+    note: "Mentioned in passing, should not cause merge"
+
+claims:
+  # ============================================================
+  # INCIDENT A: Policy Announcement
+  # Anchors: John Lee, Hong Kong
+  # Companions: LegCo, Housing Authority, Affordable Housing Bill
+  # ============================================================
+
+  - id: C001
+    publisher: news.gov.hk
+    gist: "John Lee announces affordable housing policy in Hong Kong"
+    question_key: policy_announcement
+    anchor_entities: [E001, E002]  # John Lee, Hong Kong
+    entities: [E001, E002, E003, E004, E005]  # + LegCo, Housing Authority, Bill
+    typed_observation:
+      value: "announced"
+      confidence: 0.95
+
+  - id: C002
+    publisher: scmp.com
+    gist: "LegCo debates John Lee's housing reforms"
+    question_key: policy_status
+    anchor_entities: [E001, E002]
+    entities: [E001, E002, E003, E004]
+    typed_observation:
+      value: "debated"
+      confidence: 0.9
+
+  # ============================================================
+  # INCIDENT B: Fire Response Visit
+  # Anchors: John Lee, Hong Kong (SAME as Incident A!)
+  # Companions: Fire Services, Hospital, Tai Po (DISJOINT from A)
+  # ============================================================
+
+  - id: C003
+    publisher: rthk.hk
+    gist: "John Lee visits fire victims at Queen Elizabeth Hospital"
+    question_key: ce_hospital_visit
+    anchor_entities: [E001, E002]  # Same anchors as Incident A!
+    entities: [E001, E002, E006, E007, E008]  # But different companions
+    typed_observation:
+      value: "visited"
+      confidence: 0.95
+
+  - id: C004
+    publisher: news.gov.hk
+    gist: "Chief Executive thanks Fire Services for Tai Po rescue efforts"
+    question_key: ce_statement
+    anchor_entities: [E001, E002]
+    entities: [E001, E002, E006, E008]
+    typed_observation:
+      value: "thanked"
+      confidence: 0.9
+
+  # ============================================================
+  # BRIDGE-NOISE: Incidental mention of famous entity
+  # This claim mentions UN in passing but is about fire response
+  # Should NOT merge with any hypothetical UN-related incident
+  # Shares same anchors as fire response incident (John Lee, Hong Kong)
+  # ============================================================
+
+  - id: C005
+    publisher: scmp.com
+    gist: "Fire safety standards reviewed after John Lee's hospital visit; UN guidelines cited"
+    question_key: fire_standards_review
+    anchor_entities: [E001, E002]  # John Lee, Hong Kong (same as fire response)
+    entities: [E001, E002, E006, E008, E009]  # John Lee, HK, Fire Services, Tai Po, UN (incidental)
+    typed_observation:
+      value: "under_review"
+      confidence: 0.85
+    note: "UN is mentioned in passing - should not become anchor or cause merge"
+
+  # ============================================================
+  # Additional policy claim to strengthen Incident A
+  # ============================================================
+
+  - id: C006
+    publisher: hk01.com
+    gist: "Housing Authority releases implementation timeline for new policy"
+    question_key: policy_timeline
+    anchor_entities: [E001, E002]
+    entities: [E001, E002, E004, E005]
+    typed_observation:
+      value: "2025-Q2"
+      confidence: 0.8
+
+# Expected outcomes after processing all claims
+expected:
+  L2_surface_count: 6  # One per question_key
+  L3_incident_count: 2  # Policy incident + Fire response incident (NOT merged)
+
+  L3_incidents:
+    - id: policy_incident
+      anchor_entities: [E001, E002]  # John Lee, Hong Kong
+      surfaces: [S_policy_announcement, S_policy_status, S_policy_timeline]
+      companion_context: [E003, E004, E005]  # LegCo, Housing Authority, Bill
+
+    - id: fire_response_incident
+      anchor_entities: [E001, E002]  # Same anchors!
+      surfaces: [S_ce_hospital_visit, S_ce_statement, S_fire_standards_review]
+      companion_context: [E006, E007, E008]  # Fire Services, Hospital, Tai Po
+
+  # Key: despite sharing 2 anchors, companions are disjoint → no merge
+  merge_blocked:
+    reason: "companion_context_disjoint"
+    shared_anchors: [E001, E002]
+    incident_a_companions: [E003, E004, E005]
+    incident_b_companions: [E006, E007, E008]
+    overlap: 0
+
+assertions:
+  # Core invariant: no merge despite shared anchors
+  - type: "L3_no_merge"
+    condition: "shared_anchors >= 2 AND companion_overlap == 0"
+    expected: "separate_incidents"
+    actual_check: "L3_incident_count == 2"
+
+  # Meta-claim must be emitted explaining WHY merge was blocked
+  - type: "meta_claim_emitted"
+    meta_claim_type: "bridge_blocked"
+    entity: "John Lee"  # The shared anchor
+    reason_contains: "companion context incompatible"
+    evidence_should_include:
+      - "ctx(John Lee | policy) = {LegCo, Housing Authority}"
+      - "ctx(John Lee | fire_response) = {Fire Services, Hospital}"
+
+  # Bridge-noise: UN should not become an anchor
+  - type: "incidental_entity_not_anchor"
+    entity: E009  # United Nations
+    expected: "not in any anchor_entities set"
+
+  # Bridge-noise: UN mention should not cause any merge consideration
+  - type: "no_merge_consideration"
+    trigger_entity: E009
+    expected: "zero merge candidates evaluated"
+
+# Diagnostic outputs for debugging
+diagnostics:
+  companion_sets:
+    policy_incident:
+      formula: "companions(C001) ∪ companions(C002) ∪ companions(C006)"
+      expected: "{LegCo, Housing Authority, Affordable Housing Bill}"
+    fire_incident:
+      formula: "companions(C003) ∪ companions(C004) ∪ companions(C005)"
+      expected: "{Fire Services, Queen Elizabeth Hospital, Tai Po District}"
+
+  bridge_check:
+    shared_entity: "John Lee"
+    check_performed: "ctx(John Lee | policy) ∩ ctx(John Lee | fire_response)"
+    result: "∅ (empty set)"
+    decision: "BLOCK MERGE"
