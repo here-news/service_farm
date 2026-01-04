@@ -9,7 +9,6 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from endpoints import router as artifacts_router
 from endpoints_rogue import router as rogue_router
-from endpoints_events import router as events_router
 import httpx
 
 # Add backend to path for API imports
@@ -50,6 +49,52 @@ try:
     print("✅ Inquiry MVP loaded")
 except ImportError as e:
     print(f"⚠️  Inquiry not available: {e}")
+
+# Import surfaces router (L2 epistemic clusters)
+surfaces_router = None
+try:
+    from api import surfaces
+    surfaces_router = surfaces.router
+    print("✅ Surfaces API loaded")
+except ImportError as e:
+    print(f"⚠️  Surfaces not available: {e}")
+
+# Import user router (credits, transactions, profile)
+user_router = None
+try:
+    from api import user
+    user_router = user.router
+    print("✅ User API loaded")
+except ImportError as e:
+    print(f"⚠️  User API not available: {e}")
+
+# Import stories router (unified L3/L4 stories - NEW)
+stories_router = None
+try:
+    from api import stories
+    stories_router = stories.router
+    print("✅ Stories API loaded")
+except ImportError as e:
+    print(f"⚠️  Stories not available: {e}")
+
+# Import events router (L3 canonical events from surfaces) - DEPRECATED
+# Use /api/stories instead. This remains for backwards compatibility.
+events_router = None
+try:
+    from api import events
+    events_router = events.router
+    print("✅ Events API loaded (deprecated, use /api/stories)")
+except ImportError as e:
+    print(f"⚠️  Events not available: {e}")
+
+# Import entities router (canonical entities with narratives)
+entities_router = None
+try:
+    from api import entities
+    entities_router = entities.router
+    print("✅ Entities API loaded")
+except ImportError as e:
+    print(f"⚠️  Entities not available: {e}")
 
 # Try to import other feature routers
 feature_routers = []
@@ -98,7 +143,6 @@ app.add_middleware(
 # API endpoints - all under /api/*
 app.include_router(artifacts_router, prefix="/api", tags=["Artifacts"])
 app.include_router(rogue_router, prefix="/api", tags=["Rogue Extraction"])
-app.include_router(events_router, prefix="/api", tags=["Events"])
 
 # Coherence feed (standalone)
 if coherence_router:
@@ -115,6 +159,26 @@ if contributions_router:
 # Inquiry router (MVP)
 if inquiry_router:
     app.include_router(inquiry_router, prefix="/api", tags=["Inquiry"])
+
+# Surfaces router (L2 epistemic clusters)
+if surfaces_router:
+    app.include_router(surfaces_router, prefix="/api", tags=["Surfaces"])
+
+# User router (credits, transactions, profile)
+if user_router:
+    app.include_router(user_router, prefix="/api", tags=["User"])
+
+# Stories router (unified L3/L4 stories - NEW)
+if stories_router:
+    app.include_router(stories_router, tags=["Stories"])
+
+# Events router (deprecated, use /api/stories)
+if events_router:
+    app.include_router(events_router, tags=["Events (deprecated)"])
+
+# Entities router (canonical entities with narratives)
+if entities_router:
+    app.include_router(entities_router, tags=["Entities"])
 
 # Feature routers (if available)
 for router, prefix, tags in feature_routers:
@@ -231,6 +295,7 @@ async def serve_spa_app(full_path: str = ""):
 @app.get("/map", response_class=HTMLResponse)
 @app.get("/archive", response_class=HTMLResponse)
 @app.get("/inquiry", response_class=HTMLResponse)
+@app.get("/profile", response_class=HTMLResponse)
 async def serve_spa_direct():
     return await _serve_spa()
 

@@ -473,30 +473,38 @@ function TimelineSidebar({ events }: { events: TimelineEvent[] }) {
         <span className="text-xs text-slate-400">{events.length} events</span>
       </div>
       <div className="p-3">
-        <div className="relative pl-4">
-          <div className="absolute left-[5px] top-2 bottom-2 w-0.5 bg-gradient-to-b from-indigo-400 to-slate-200" />
-          <div className="space-y-3">
-            {displayEvents.map((evt) => (
-              <div key={evt.id} className="relative">
-                <div className="absolute -left-[9px] top-1 w-2 h-2 rounded-full bg-indigo-500 border-2 border-white" />
-                <div className="text-xs">
-                  <div className="text-slate-400">
-                    {new Date(evt.time).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                  </div>
-                  <div className="text-slate-700">{evt.text}</div>
-                  {evt.source && <div className="text-slate-400 italic">{evt.source}</div>}
-                </div>
-              </div>
-            ))}
+        {events.length === 0 ? (
+          <div className="text-xs text-slate-400 text-center py-2">
+            Timeline building...
           </div>
-        </div>
-        {events.length > 4 && (
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className="mt-3 text-xs text-indigo-600 hover:underline w-full text-center"
-          >
-            {expanded ? 'Show less' : `Show ${events.length - 4} more`}
-          </button>
+        ) : (
+          <>
+            <div className="relative pl-4">
+              <div className="absolute left-[5px] top-2 bottom-2 w-0.5 bg-gradient-to-b from-indigo-400 to-slate-200" />
+              <div className="space-y-3">
+                {displayEvents.map((evt) => (
+                  <div key={evt.id} className="relative">
+                    <div className="absolute -left-[9px] top-1 w-2 h-2 rounded-full bg-indigo-500 border-2 border-white" />
+                    <div className="text-xs">
+                      <div className="text-slate-400">
+                        {new Date(evt.time).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      </div>
+                      <div className="text-slate-700">{evt.text}</div>
+                      {evt.source && <div className="text-slate-400 italic">{evt.source}</div>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {events.length > 4 && (
+              <button
+                onClick={() => setExpanded(!expanded)}
+                className="mt-3 text-xs text-indigo-600 hover:underline w-full text-center"
+              >
+                {expanded ? 'Show less' : `Show ${events.length - 4} more`}
+              </button>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -512,7 +520,6 @@ function OpenInquiriesPanel({
   onInquiryClick: (id: string) => void
 }) {
   const allInquiries = sections.flatMap(s => s.inquiries)
-  if (allInquiries.length === 0) return null
 
   return (
     <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
@@ -523,26 +530,32 @@ function OpenInquiriesPanel({
         </span>
       </div>
       <div className="p-2 space-y-2">
-        {allInquiries.map(inq => (
-          <div
-            key={inq.id}
-            onClick={() => onInquiryClick(inq.id)}
-            className="p-2 rounded-lg bg-slate-50 hover:bg-slate-100 cursor-pointer transition text-xs"
-          >
-            <div className="flex items-start justify-between gap-2">
-              <span className="text-slate-700 line-clamp-2">{inq.question}</span>
-              <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium shrink-0 ${
-                inq.type === 'auto' ? 'bg-violet-100 text-violet-700' : 'bg-cyan-100 text-cyan-700'
-              }`}>
-                {inq.type === 'auto' ? 'AUTO' : 'USER'}
-              </span>
-            </div>
-            <div className="flex items-center gap-2 mt-1.5 text-slate-500">
-              <span>{Math.round(inq.confidence * 100)}% conf</span>
-              {inq.bounty > 0 && <span className="text-amber-600 font-medium">${inq.bounty}</span>}
-            </div>
+        {allInquiries.length === 0 ? (
+          <div className="text-xs text-slate-400 text-center py-2">
+            No open inquiries yet
           </div>
-        ))}
+        ) : (
+          allInquiries.map(inq => (
+            <div
+              key={inq.id}
+              onClick={() => onInquiryClick(inq.id)}
+              className="p-2 rounded-lg bg-slate-50 hover:bg-slate-100 cursor-pointer transition text-xs"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <span className="text-slate-700 line-clamp-2">{inq.question}</span>
+                <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium shrink-0 ${
+                  inq.type === 'auto' ? 'bg-violet-100 text-violet-700' : 'bg-cyan-100 text-cyan-700'
+                }`}>
+                  {inq.type === 'auto' ? 'AUTO' : 'USER'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 mt-1.5 text-slate-500">
+                <span>{Math.round(inq.confidence * 100)}% conf</span>
+                {inq.bounty > 0 && <span className="text-amber-600 font-medium">${inq.bounty}</span>}
+              </div>
+            </div>
+          ))
+        )}
       </div>
     </div>
   )
@@ -553,17 +566,119 @@ function OpenInquiriesPanel({
 // =============================================================================
 
 export default function EventInquiryPage() {
-  const { eventSlug } = useParams<{ eventSlug: string }>()
+  // Support both /story/:storyId and /event/:eventId routes
+  const { eventId, storyId } = useParams<{ eventId?: string; storyId?: string }>()
+  const id = storyId || eventId
   const navigate = useNavigate()
   const [event, setEvent] = useState<EventData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [claims, setClaims] = useState<any[]>([])
 
   useEffect(() => {
-    if (eventSlug === 'wang-fuk-court-fire') {
-      setEvent(WANG_FUK_EVENT)
+    const loadEvent = async () => {
+      setLoading(true)
+
+      // Use storyId (from /story/:storyId) or eventId (from /event/:eventId)
+      const targetId = id
+
+      // If it's a real ID (not a slug like 'wang-fuk-court-fire'), fetch from API
+      // Supported prefixes: ev_, ca_, ec_ (EntityCase), case_, in_ (incident)
+      const isRealId = targetId && (
+        targetId.startsWith('ev_') ||
+        targetId.startsWith('ca_') ||
+        targetId.startsWith('ec_') ||
+        targetId.startsWith('case_') ||
+        targetId.startsWith('in_')
+      )
+
+      if (isRealId) {
+        try {
+          // Use /api/stories endpoint (unified L3/L4)
+          const [storyRes, surfacesRes] = await Promise.all([
+            fetch(`/api/stories/${targetId}?include_surfaces=true`),
+            fetch(`/api/stories/${targetId}/surfaces?limit=20`)
+          ])
+
+          if (storyRes.ok) {
+            const data = await storyRes.json()
+            const surfacesData = surfacesRes.ok ? await surfacesRes.json() : { surfaces: [] }
+            setClaims([]) // Claims now via surfaces
+
+            // Transform API inquiries to InquiryRef format
+            const apiInquiries: InquiryRef[] = (data.inquiries || []).map((inq: any) => ({
+              id: inq.id,
+              question: inq.title,
+              type: 'auto' as const,
+              best_estimate: inq.schema_type === 'monotone_count' ? '?' : 'pending',
+              confidence: 0.5,
+              bounty: 0,
+              status: inq.status === 'open' ? 'open' as const : 'resolved' as const
+            }))
+
+            // Get surfaces from response
+            const surfaces = surfacesData.surfaces || data.surfaces || []
+
+            // Transform API response to EventData format
+            const transformed: EventData = {
+              id: data.id,
+              slug: data.id,
+              title: data.title || 'Untitled Story',
+              event_type: data.case_type === 'entity_storyline' ? 'Entity Story' : 'Developing Event',
+              location: data.primary_entity || 'Unknown',
+              coordinates: { lat: 22.3, lon: 114.2 }, // Default HK coords
+              date_start: data.time_start?.split('T')[0] || '',
+              date_end: data.time_end?.split('T')[0],
+              status: 'developing',
+              total_bounty: 0,
+              claim_count: data.claim_count || 0,
+              source_count: data.source_count || 0,
+              lead_paragraph: data.description || '',
+              body_sections: [
+                // Add inquiries section if we have any
+                ...(apiInquiries.length > 0 ? [{
+                  id: 'inquiries',
+                  title: 'Open Questions',
+                  paragraphs: ['The following questions about this story are still being investigated:'],
+                  inquiries: apiInquiries
+                }] : []),
+                // Then add surfaces as additional sections
+                ...surfaces.slice(0, 10).map((s: any, i: number) => ({
+                  id: s.id,
+                  title: i === 0 ? 'Coverage' : `Surface ${i + 1}`,
+                  paragraphs: s.sample_claims?.length > 0
+                    ? s.sample_claims
+                    : [`${s.sources?.length || 0} sources covering this aspect`],
+                  inquiries: [] as InquiryRef[]
+                }))
+              ],
+              key_figures: [
+                { label: 'Sources', value: String(data.source_count || 0) },
+                { label: 'Surfaces', value: String(data.surface_count || 0) },
+                ...(data.incident_count ? [{ label: 'Incidents', value: String(data.incident_count) }] : []),
+              ],
+              entities: (data.primary_entities || []).slice(0, 6).map((name: string) => ({
+                id: name,
+                name: name,
+                type: 'LOCATION' as const
+              })),
+              timeline: [], // Could populate from surfaces with time
+              sources: []
+            }
+            setEvent(transformed)
+          }
+        } catch (err) {
+          console.error('Failed to load story:', err)
+        }
+      } else if (targetId === 'wang-fuk-court-fire') {
+        // Demo data for slug-based access
+        setEvent(WANG_FUK_EVENT)
+      }
+
+      setLoading(false)
     }
-    setLoading(false)
-  }, [eventSlug])
+
+    loadEvent()
+  }, [id])
 
   const handleInquiryClick = (inquiryId: string) => {
     navigate(`/inquiry/${inquiryId}`)
@@ -591,16 +706,11 @@ export default function EventInquiryPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Minimal header */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-4 py-2 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link to="/inquiry" className="text-lg font-bold text-indigo-600">φ HERE</Link>
-            <span className="text-slate-300">|</span>
-            <span className="text-sm text-slate-500">Event</span>
-          </div>
-          {event.status !== 'resolved' && (
-            <span className={`px-2 py-0.5 rounded text-xs flex items-center gap-1 ${
+      <main className="max-w-6xl mx-auto px-4 py-6">
+        {/* Status badge */}
+        {event.status !== 'resolved' && (
+          <div className="mb-4">
+            <span className={`px-2 py-1 rounded text-xs inline-flex items-center gap-1 ${
               event.status === 'live' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
             }`}>
               <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${
@@ -608,11 +718,8 @@ export default function EventInquiryPage() {
               }`} />
               {event.status === 'live' ? 'Live' : 'Developing'}
             </span>
-          )}
-        </div>
-      </header>
-
-      <main className="max-w-6xl mx-auto px-4 py-6">
+          </div>
+        )}
         <div className="flex gap-6">
           {/* Main article content */}
           <article className="flex-1 min-w-0">

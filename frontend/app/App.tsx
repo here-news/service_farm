@@ -1,10 +1,8 @@
 import React from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import Layout from './components/layout/Layout'
-import StoryPage from './StoryPage'
-import EventPage from './EventPage'
+import TempHomePage from './TempHomePage'
 import EventInquiryPage from './EventInquiryPage'
-import EntityPage from './EntityPage'
 import EntityInquiryPage from './EntityInquiryPage'
 import PagePage from './PagePage'
 import ArchivePage from './ArchivePage'
@@ -12,29 +10,32 @@ import GraphPage from './GraphPage'
 import MapPage from './MapPage'
 import InquiryPage from './InquiryPage'
 import InquiryDetailPage from './InquiryDetailPage'
+import ProfilePage from './ProfilePage'
 
 function App() {
   return (
     <Router>
       <Routes>
-        {/* Home - YOLO dashboard */}
-        <Route path="/" element={<Layout><InquiryPage /></Layout>} />
+        {/* Home - Temp browse page */}
+        <Route path="/" element={<Layout><TempHomePage /></Layout>} />
 
         {/* Core inquiry routes */}
         <Route path="/inquiry" element={<Layout><InquiryPage /></Layout>} />
         <Route path="/inquiry/:inquiryId" element={<Layout><InquiryDetailPage /></Layout>} />
 
-        {/* Event pages */}
-        <Route path="/event/:eventSlug" element={<Layout><EventPage /></Layout>} />
-        <Route path="/event-inquiry/:eventSlug" element={<EventInquiryPage />} />
+        {/* Story pages - unified L3/L4 (incident/case) */}
+        <Route path="/story/:storyId" element={<Layout><EventInquiryPage /></Layout>} />
 
-        {/* Entity pages */}
-        <Route path="/entity/:entityId" element={<Layout><EntityPage /></Layout>} />
-        <Route path="/entity-inquiry/:entitySlug" element={<EntityInquiryPage />} />
+        {/* Event pages - legacy, redirects to story */}
+        <Route path="/event/:eventId" element={<Layout><EventInquiryPage /></Layout>} />
+
+        {/* Entity pages - people, places, orgs */}
+        <Route path="/entity/:entityId" element={<Layout><EntityInquiryPage /></Layout>} />
+
+        {/* User profile - credits, stakes, contributions */}
+        <Route path="/profile" element={<Layout><ProfilePage /></Layout>} />
 
         {/* Supporting pages */}
-        <Route path="/story/:storyId" element={<Layout><StoryPage /></Layout>} />
-        <Route path="/story/:storyId/:slug" element={<Layout><StoryPage /></Layout>} />
         <Route path="/page/:pageId" element={<Layout><PagePage /></Layout>} />
         <Route path="/archive" element={<Layout><ArchivePage /></Layout>} />
         <Route path="/graph" element={<Layout><GraphPage /></Layout>} />
