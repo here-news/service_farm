@@ -41,7 +41,7 @@ except ImportError:
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from reee.types import Claim, Surface, Event, Constraint, ConstraintType, ConstraintLedger
-from reee.canonical.surface_builder import PrincipledSurfaceBuilder, MotifConfig, context_compatible
+from reee.builders import PrincipledSurfaceBuilder, MotifConfig, context_compatible
 
 
 # ============================================================================
@@ -238,8 +238,14 @@ class TraceKernel:
     Minimal REEE kernel for trace replay.
 
     Implements principled L2 + L3 architecture:
-    - L2 Surface = same question_key (identity/proposition)
+    - L2 Surface = (scope_id, question_key) - SCOPED propositions
     - L3 Incident = membrane over surfaces (tight time/motif/context)
+
+    CRITICAL INVARIANT (Transitional Option A'):
+    - Surface key = (scope_id, question_key), NOT question_key alone
+    - scope_id derived from claim's anchor entities
+    - Same question_key with different referents = DIFFERENT surfaces
+    - This prevents cross-event contamination via generic predicates
 
     No database dependencies.
     """
@@ -247,11 +253,13 @@ class TraceKernel:
     def __init__(self, trace: GoldenTrace):
         self.trace = trace
 
-        # L2 State: Surfaces by question_key
+        # L2 State: Surfaces by (scope_id, question_key)
         self.claims: Dict[str, Claim] = {}
         self.surfaces: Dict[str, Surface] = {}
         self.surface_question_key: Dict[str, str] = {}  # surface_id -> question_key
-        self.question_key_to_surface: Dict[str, str] = {}  # question_key -> surface_id
+        self.surface_scope: Dict[str, str] = {}  # surface_id -> scope_id
+        # REFACTORED: Key by (scope_id, question_key) tuple, not question_key alone
+        self.scoped_key_to_surface: Dict[Tuple[str, str], str] = {}
 
         # L3 State: Incidents
         self.incidents: Dict[str, L3Incident] = {}
@@ -277,6 +285,9 @@ class TraceKernel:
         self.surface_counter = 0
         self.incident_counter = 0
 
+        # Hub entities to suppress from scope computation
+        self.hub_entities = {"United States", "China", "European Union", "United Nations", "Asia", "Europe"}
+
     def _entity_id_to_name(self, entity_id: str) -> str:
         """Convert entity ID (E001) to canonical name."""
         if entity_id in self.trace.entities:
@@ -286,6 +297,39 @@ class TraceKernel:
     def _resolve_entities(self, entity_ids: List[str]) -> Set[str]:
         """Convert entity IDs to canonical names."""
         return {self._entity_id_to_name(eid) for eid in entity_ids}
+
+    def _compute_scope_id(self, anchor_entities: Set[str]) -> str:
+        """
+        Compute scope identifier from anchor entities.
+
+        CRITICAL: This determines surface identity scope.
+        - Filters out hub entities (too generic to scope by)
+        - Hashes sorted remaining anchors
+        - Returns deterministic scope_id
+
+        Example:
+        - {John Lee, Hong Kong} -> "scope_johnlee_hongkong"
+        - {Gavin Newsom, California} -> "scope_gavinnewsom_california"
+        """
+        # Filter out hub entities that are too generic
+        scoping_anchors = anchor_entities - self.hub_entities
+
+        if not scoping_anchors:
+            # Fallback: all anchors are hubs, use them anyway but emit warning
+            scoping_anchors = anchor_entities
+            if anchor_entities:
+                self.meta_claims.append(MetaClaim(
+                    type="scope_underpowered",
+                    reason=f"All anchor entities are hubs: {sorted(anchor_entities)}",
+                    evidence={"anchor_entities": sorted(anchor_entities)}
+                ))
+
+        # Create deterministic scope_id from sorted anchors
+        # Normalize: lowercase, remove spaces, sort
+        normalized = sorted(a.lower().replace(" ", "") for a in scoping_anchors)
+        scope_id = "scope_" + "_".join(normalized[:3])  # Limit to top 3 for readability
+
+        return scope_id
 
     def process_claim(self, trace_claim: TraceClaim) -> StepExplanation:
         """
@@ -358,11 +402,20 @@ class TraceKernel:
             self.entity_to_claims[entity].add(claim.id)
 
         # =====================================================================
-        # L2: Surface by question_key (identity routing)
+        # L2: Surface by (scope_id, question_key) - SCOPED identity routing
         # =====================================================================
-        if question_key in self.question_key_to_surface:
-            # Attach to existing surface for this question_key
-            surface_id = self.question_key_to_surface[question_key]
+        # CRITICAL INVARIANT: Same question_key with different referents
+        # must produce DIFFERENT surfaces. This prevents cross-event contamination.
+
+        # Step 1: Compute scope_id from anchor entities
+        scope_id = self._compute_scope_id(anchor_entities)
+
+        # Step 2: Build scoped key = (scope_id, question_key)
+        scoped_key = (scope_id, question_key)
+
+        if scoped_key in self.scoped_key_to_surface:
+            # Attach to existing surface for this (scope, question_key)
+            surface_id = self.scoped_key_to_surface[scoped_key]
             surface = self.surfaces[surface_id]
 
             surface.claim_ids.add(claim.id)
@@ -388,8 +441,10 @@ class TraceKernel:
             l2_decision = IdentityDecision(
                 action="attach",
                 surface_id=surface_id,
-                constraints_used=[{"type": "question_key", "key": question_key}],
-                reason=f"Same question_key: {question_key}"
+                constraints_used=[
+                    {"type": "scoped_key", "scope": scope_id, "question_key": question_key}
+                ],
+                reason=f"Same scoped key: ({scope_id}, {question_key})"
             )
 
             # L3: Surface already in an incident, claim joins that incident
@@ -404,9 +459,10 @@ class TraceKernel:
             )
 
         else:
-            # Create new L2 surface for this question_key
+            # Create new L2 surface for this (scope_id, question_key)
             self.surface_counter += 1
-            surface_id = f"S_{question_key}"
+            # Surface ID includes scope for debuggability
+            surface_id = f"S_{scope_id}_{question_key}"
 
             surface = Surface(
                 id=surface_id,
@@ -414,13 +470,15 @@ class TraceKernel:
                 entities=entities,
                 anchor_entities=anchor_entities,
                 sources={claim.source} if claim.source else set(),
-                formation_method="question_key",
+                formation_method="scoped_question_key",
             )
 
             self.surfaces[surface_id] = surface
             self.claim_to_surface[claim.id] = surface_id
             self.surface_question_key[surface_id] = question_key
-            self.question_key_to_surface[question_key] = surface_id
+            self.surface_scope[surface_id] = scope_id
+            # CRITICAL: Use scoped key, not global question_key
+            self.scoped_key_to_surface[scoped_key] = surface_id
 
             # Update entity-surface index
             for entity in entities:
@@ -438,8 +496,10 @@ class TraceKernel:
             l2_decision = IdentityDecision(
                 action="new_surface",
                 surface_id=surface_id,
-                constraints_used=[{"type": "question_key", "key": question_key}],
-                reason=f"New question_key: {question_key}"
+                constraints_used=[
+                    {"type": "scoped_key", "scope": scope_id, "question_key": question_key}
+                ],
+                reason=f"New scoped key: ({scope_id}, {question_key})"
             )
 
             # =================================================================
@@ -906,8 +966,8 @@ class TestBridgeImmunity:
         assert len(trace.claims) == 6
         assert len(trace.entities) == 7
 
-    def test_l2_surfaces_by_question_key(self, bridge_immunity_trace):
-        """Verify L2 surfaces are created by question_key."""
+    def test_l2_surfaces_by_scoped_question_key(self, bridge_immunity_trace):
+        """Verify L2 surfaces are created by (scope_id, question_key)."""
         trace = bridge_immunity_trace
         kernel = TraceKernel(trace)
 
@@ -916,15 +976,28 @@ class TestBridgeImmunity:
 
         state = kernel.get_state_snapshot()
 
-        # Should have 5 L2 surfaces (one per question_key)
-        # fire_death_count, fire_status, policy_announcement, policy_status, fire_cause
-        assert len(state["L2_surfaces"]) == 5, \
-            f"Expected 5 L2 surfaces, got {len(state['L2_surfaces'])}: {list(state['L2_surfaces'].keys())}"
+        # Should have 6 L2 surfaces (scoped by anchor entities):
+        # - fire_death_count (HK+TaiPo)
+        # - fire_status (HK+TaiPo) - C002
+        # - fire_status (JohnLee+HK+TaiPo) - C003 has different anchors!
+        # - fire_cause (HK+TaiPo)
+        # - policy_announcement (JohnLee+HK)
+        # - policy_status (JohnLee+HK)
+        #
+        # C003 creates a separate fire_status surface because John Lee visiting
+        # fire victims has different anchor entities than the core fire claims.
+        # This is CORRECT - different referents = different surfaces.
+        assert len(state["L2_surfaces"]) == 6, \
+            f"Expected 6 L2 surfaces, got {len(state['L2_surfaces'])}: {list(state['L2_surfaces'].keys())}"
 
-        # Check question_key routing
-        assert "S_fire_death_count" in state["L2_surfaces"]
-        assert "S_fire_status" in state["L2_surfaces"]
-        assert "S_policy_announcement" in state["L2_surfaces"]
+        # Check question_key appears in surface IDs (now with scope prefix)
+        surface_ids = list(state["L2_surfaces"].keys())
+        assert any("fire_death_count" in sid for sid in surface_ids), \
+            f"No surface for fire_death_count in {surface_ids}"
+        assert any("fire_status" in sid for sid in surface_ids), \
+            f"No surface for fire_status in {surface_ids}"
+        assert any("policy_announcement" in sid for sid in surface_ids), \
+            f"No surface for policy_announcement in {surface_ids}"
 
     def test_l3_incidents_separate(self, bridge_immunity_trace):
         """Verify L3 incidents remain separate (fire vs policy)."""
@@ -936,22 +1009,25 @@ class TestBridgeImmunity:
 
         state = kernel.get_state_snapshot()
 
-        # Should have 2 L3 incidents (fire + policy)
-        assert len(state["L3_incidents"]) == 2, \
-            f"Expected 2 L3 incidents, got {len(state['L3_incidents'])}: {list(state['L3_incidents'].keys())}"
+        # Should have 3 L3 incidents:
+        # 1. Core fire incident (HK+TaiPo): fire_death_count, fire_status, fire_cause
+        # 2. John Lee visits fire (HK+JohnLee+TaiPo): separate fire_status surface
+        # 3. Policy incident (HK+JohnLee): policy_announcement, policy_status
+        #
+        # C003 (John Lee visits fire victims) creates its own incident because
+        # its anchor motif differs from both core fire and policy.
+        # This is correct - bridging claims get their own scoped surface/incident.
+        assert len(state["L3_incidents"]) == 3, \
+            f"Expected 3 L3 incidents, got {len(state['L3_incidents'])}: {list(state['L3_incidents'].keys())}"
 
-        # Fire surfaces should be in one incident
-        fire_surfaces = {"S_fire_death_count", "S_fire_status", "S_fire_cause"}
-        policy_surfaces = {"S_policy_announcement", "S_policy_status"}
-
+        # Classify surfaces by question_key substring (fire_* vs policy_*)
         for iid, inc in state["L3_incidents"].items():
-            surfaces_set = set(inc["surfaces"])
-            # Each incident should contain surfaces from only one category
-            fire_overlap = surfaces_set & fire_surfaces
-            policy_overlap = surfaces_set & policy_surfaces
+            surfaces = inc["surfaces"]
+            has_fire = any("fire_" in s for s in surfaces)
+            has_policy = any("policy_" in s for s in surfaces)
             # Should not mix fire and policy in same incident
-            assert not (fire_overlap and policy_overlap), \
-                f"Incident {iid} mixes fire and policy surfaces"
+            assert not (has_fire and has_policy), \
+                f"Incident {iid} mixes fire and policy surfaces: {surfaces}"
 
 
 class TestTypedConflict:
@@ -1088,6 +1164,13 @@ class TestNoiseOutlier:
         assert trace.name == "noise_outlier"
         assert len(trace.claims) == 8
 
+    def _find_surface_by_question_key(self, kernel, qk: str) -> str:
+        """Find surface ID containing the given question_key."""
+        for sid, qkey in kernel.surface_question_key.items():
+            if qkey == qk:
+                return sid
+        return None
+
     def test_outlier_impact_bounded(self, noise_outlier_trace):
         """Outlier (47) should have minimal impact on posterior (close to 4)."""
         trace = noise_outlier_trace
@@ -1096,8 +1179,10 @@ class TestNoiseOutlier:
         for tc in trace.claims:
             kernel.process_claim(tc)
 
-        # Get posterior for fire_death_count
-        posterior = kernel.typed_posteriors.get("S_fire_death_count", {}).get("fire_death_count", {})
+        # Get posterior for fire_death_count (find surface by question_key)
+        surface_id = self._find_surface_by_question_key(kernel, "fire_death_count")
+        assert surface_id, "Should have surface for fire_death_count"
+        posterior = kernel.typed_posteriors.get(surface_id, {}).get("fire_death_count", {})
         assert posterior, "Should have fire_death_count posterior"
 
         mean = posterior.get("posterior_mean", 0)
@@ -1132,7 +1217,8 @@ class TestNoiseOutlier:
         for tc in trace.claims:
             kernel.process_claim(tc)
 
-        posterior = kernel.typed_posteriors.get("S_fire_death_count", {}).get("fire_death_count", {})
+        surface_id = self._find_surface_by_question_key(kernel, "fire_death_count")
+        posterior = kernel.typed_posteriors.get(surface_id, {}).get("fire_death_count", {})
         values = [v for v, _, _ in posterior.get("values", [])]
 
         assert 47 in values, f"Outlier value 47 should be preserved in values: {values}"

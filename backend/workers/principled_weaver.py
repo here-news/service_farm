@@ -4,10 +4,11 @@ Principled Weaver Worker - L2/L3 Architecture
 
 Implements the golden trace validated L2/L3 architecture:
 
-L2 Surface = Same question_key (typed proposition identity)
-  - "fire_death_count" → all claims about the death count
-  - "policy_status" → all claims about policy status
-  - Jaynes posterior operates per L2 surface-variable
+L2 Surface = (scope_id, question_key) - SCOPED proposition identity
+  CRITICAL INVARIANT: Surface key = (scope_id, question_key), NOT question_key alone
+  - Same question_key with different referents = DIFFERENT surfaces
+  - Prevents cross-event contamination via generic predicates like "policy_announcement"
+  - scope_id derived from primary WHO + WHERE anchors (minus hub entities)
 
 L3 Incident = Membrane over L2 surfaces
   - Groups surfaces by anchor overlap + companion compatibility
@@ -16,6 +17,7 @@ L3 Incident = Membrane over L2 surfaces
 
 Key principles:
 - question_key is extracted from claim semantics (typed extraction)
+- scope_id is derived from claim's anchor entities (primary WHO + WHERE)
 - Anchor entities define "what/where" of the claim
 - Companion entities define context (for bridge immunity check)
 - Meta-claims emitted for: missing_time, sparse_extraction, syndication, outliers
@@ -45,6 +47,7 @@ from repositories.surface_repository import SurfaceRepository
 from models.domain.claim import Claim
 from models.domain.surface import Surface
 from utils.id_generator import generate_id
+import hashlib
 
 logging.basicConfig(
     level=logging.INFO,
@@ -84,13 +87,24 @@ class TypedPosterior:
 
 @dataclass
 class L3Incident:
-    """L3 Incident: membrane over L2 surfaces."""
+    """L3 Incident: membrane over L2 surfaces.
+
+    core_motifs: List of entity k-sets (k≥2) that justify this incident's formation.
+    Each motif is a dict with:
+      - entities: List[str] - the entity names in this motif
+      - support: int - how many surfaces contain this motif
+      - surface_ids: List[str] - which surfaces contributed
+
+    This is the L3→L4 contract: cases form via motif recurrence across incidents.
+    """
     id: str
     surface_ids: Set[str] = field(default_factory=set)
     anchor_entities: Set[str] = field(default_factory=set)
     companion_entities: Set[str] = field(default_factory=set)
+    core_motifs: List[Dict] = field(default_factory=list)  # L3→L4 contract
     time_start: Optional[datetime] = None
     time_end: Optional[datetime] = None
+    canonical_title: str = ""
     created_at: datetime = field(default_factory=datetime.utcnow)
 
 
@@ -202,8 +216,25 @@ class QuestionKeyExtractor:
                 anchors = sorted(anchors)[:2]
                 return f"about_{'_'.join(self._normalize_name(a) for a in anchors)}"
 
-        # Last resort: generic
-        return "untyped_claim"
+            # Has entities but no PERSON/ORG - use whatever entities we have
+            all_names = []
+            for entity in claim.entities:
+                name = entity.canonical_name if hasattr(entity, 'canonical_name') else str(entity)
+                all_names.append(name)
+            if all_names:
+                all_names = sorted(all_names)[:2]
+                return f"about_{'_'.join(self._normalize_name(a) for a in all_names)}"
+
+        # Entity-poor claim: use page scope if available
+        # This allows claims to inherit context from their source
+        if claim.page_id:
+            # Keep claim attached to its page scope
+            # The incident routing will use page-level entities
+            return f"page_scope_{claim.page_id}"
+
+        # Truly unscoped: keep as singleton with unique key
+        # Don't collapse all untyped claims into one surface
+        return f"unscoped_{claim.id}"
 
     def _matches_any(self, text: str, patterns: List[str]) -> bool:
         return any(p in text for p in patterns)
@@ -292,8 +323,15 @@ class PrincipledWeaverWorker:
         # Question key extractor
         self.qk_extractor = QuestionKeyExtractor()
 
-        # L2 State: question_key → surface_id
-        self.question_key_to_surface: Dict[str, str] = {}
+        # L2 State: (scope_id, question_key) → surface_id
+        # CRITICAL: Surface key = (scope_id, question_key), NOT question_key alone
+        # This prevents cross-event contamination via generic predicates
+        self.scoped_key_to_surface: Dict[Tuple[str, str], str] = {}
+        self.surfaces: Dict[str, Surface] = {}  # For motif computation
+
+        # Hub entities suppressed from scope computation (too generic)
+        self.hub_entities = {"United States", "China", "European Union", "United Nations",
+                            "Asia", "Europe", "North America", "South America", "Africa"}
 
         # L3 State: incidents
         self.incidents: Dict[str, L3Incident] = {}
@@ -323,15 +361,15 @@ class PrincipledWeaverWorker:
         self.running = False
 
     async def initialize(self):
-        """Load existing L2/L3 state from database."""
-        logger.info("📥 Loading existing L2/L3 state...")
+        """Load existing L2/L3/L4 state from database."""
+        logger.info("📥 Loading existing L2/L3/L4 state...")
 
-        # Load existing surfaces and their question_keys
+        # Load existing surfaces and their scoped keys
         surfaces = await self._load_existing_surfaces()
         for surface in surfaces:
-            qk = surface.metadata.get('question_key') if surface.metadata else None
-            if qk:
-                self.question_key_to_surface[qk] = surface.id
+            self.surfaces[surface.id] = surface  # For motif computation
+            if surface.question_key and surface.scope_id:
+                self.scoped_key_to_surface[(surface.scope_id, surface.question_key)] = surface.id
 
         # Load existing incidents
         incidents = await self._load_existing_incidents()
@@ -340,13 +378,20 @@ class PrincipledWeaverWorker:
             for sid in inc.surface_ids:
                 self.surface_to_incident[sid] = inc.id
 
-        logger.info(f"   Loaded {len(self.question_key_to_surface)} L2 surfaces, {len(self.incidents)} L3 incidents")
+        # Load existing cases (L4)
+        cases = await self._load_existing_cases()
+        for case in cases:
+            self.cases[case.id] = case
+            for inc_id in case.incident_ids:
+                self.incident_to_case[inc_id] = case.id
+
+        logger.info(f"   Loaded {len(self.scoped_key_to_surface)} L2 surfaces, {len(self.incidents)} L3 incidents, {len(self.cases)} L4 cases")
 
     async def _load_existing_surfaces(self) -> List[Surface]:
         """Load surfaces from Neo4j."""
         results = await self.neo4j._execute_read("""
             MATCH (s:Surface)
-            RETURN s.id as id, s.question_key as question_key,
+            RETURN s.id as id, s.question_key as question_key, s.scope_id as scope_id,
                    s.anchor_entities as anchors, s.entities as entities
             LIMIT 10000
         """)
@@ -357,8 +402,9 @@ class PrincipledWeaverWorker:
                 id=row['id'],
                 anchor_entities=set(row.get('anchors') or []),
                 entities=set(row.get('entities') or []),
+                question_key=row.get('question_key'),
+                scope_id=row.get('scope_id'),
             )
-            surface.metadata = {'question_key': row.get('question_key')}
             surfaces.append(surface)
         return surfaces
 
@@ -369,20 +415,59 @@ class PrincipledWeaverWorker:
             OPTIONAL MATCH (i)-[:CONTAINS]->(s:Surface)
             WITH i, collect(s.id) as surface_ids
             RETURN i.id as id, i.anchor_entities as anchors,
-                   i.companion_entities as companions, surface_ids
+                   i.companion_entities as companions,
+                   i.core_motifs as core_motifs,
+                   surface_ids
             LIMIT 5000
         """)
 
         incidents = []
         for row in results:
+            # Parse core_motifs from JSON strings
+            stored_motifs = row.get('core_motifs') or []
+            core_motifs = []
+            for m in stored_motifs:
+                if isinstance(m, str):
+                    try:
+                        core_motifs.append(json.loads(m))
+                    except:
+                        pass
+                elif isinstance(m, dict):
+                    core_motifs.append(m)
+
             inc = L3Incident(
                 id=row['id'],
                 surface_ids=set(row.get('surface_ids') or []),
                 anchor_entities=set(row.get('anchors') or []),
                 companion_entities=set(row.get('companions') or []),
+                core_motifs=core_motifs,
             )
             incidents.append(inc)
         return incidents
+
+    async def _load_existing_cases(self) -> List[L4Case]:
+        """Load cases from Neo4j."""
+        results = await self.neo4j._execute_read("""
+            MATCH (c:Case)
+            OPTIONAL MATCH (c)-[:CONTAINS]->(i:Incident)
+            WITH c, collect(i.id) as incident_ids
+            RETURN c.id as id, c.core_entities as core_entities,
+                   c.case_type as case_type, c.canonical_title as title,
+                   incident_ids
+            LIMIT 5000
+        """)
+
+        cases = []
+        for row in results:
+            case = L4Case(
+                id=row['id'],
+                incident_ids=set(row.get('incident_ids') or []),
+                core_entities=set(row.get('core_entities') or []),
+                case_type=row.get('case_type') or 'general_story',
+                canonical_title=row.get('title') or '',
+            )
+            cases.append(case)
+        return cases
 
     async def run(self, mode: str = 'queue'):
         """
@@ -492,11 +577,10 @@ class PrincipledWeaverWorker:
 
             if self.claims_processed % 100 == 0:
                 logger.info(
-                    f"📊 Progress: {self.claims_processed} claims, "
+                    f"📊 Progress: {self.claims_processed} claims → "
                     f"{self.surfaces_created} L2 surfaces, "
-                    f"{self.incidents_created} L3 incidents, "
-                    f"{self.cases_created} L4 cases, "
-                    f"{self.meta_claims_emitted} meta-claims"
+                    f"{self.incidents_created} L3 incidents "
+                    f"({self.meta_claims_emitted} meta-claims)"
                 )
 
     async def _emit_viz_event(self, result: LinkResult):
@@ -578,28 +662,34 @@ class PrincipledWeaverWorker:
 
         claim = await self.claim_repo.hydrate_entities(claim)
 
-        # Get entities as strings
+        # Get entities as strings - may be empty, that's ok
         entities = self._get_entity_names(claim)
         anchor_entities = self._extract_anchors(claim)
 
-        # Check for noise conditions
+        # Check for noise conditions (informational only)
         self._check_noise_conditions(claim, entities)
 
         # 2. Extract question_key
         question_key = self.qk_extractor.extract(claim)
 
-        # 3. L2: Route by question_key
-        if question_key in self.question_key_to_surface:
-            # Attach to existing surface
-            surface_id = self.question_key_to_surface[question_key]
+        # 3. Compute scope_id from anchor entities
+        scope_id = self._compute_scope_id(anchor_entities)
+
+        # 4. L2: Route by (scope_id, question_key) - SCOPED surface identity
+        # CRITICAL INVARIANT: Same question_key with different referents = DIFFERENT surfaces
+        scoped_key = (scope_id, question_key)
+
+        if scoped_key in self.scoped_key_to_surface:
+            # Attach to existing surface for this (scope, question_key)
+            surface_id = self.scoped_key_to_surface[scoped_key]
             is_new_surface = False
 
             # Update surface
             await self._update_surface(surface_id, claim, entities, anchor_entities)
         else:
-            # Create new L2 surface
-            surface_id = await self._create_surface(claim, question_key, entities, anchor_entities)
-            self.question_key_to_surface[question_key] = surface_id
+            # Create new L2 surface for this (scope_id, question_key)
+            surface_id = await self._create_surface(claim, question_key, entities, anchor_entities, scope_id)
+            self.scoped_key_to_surface[scoped_key] = surface_id
             is_new_surface = True
             self.surfaces_created += 1
 
@@ -611,11 +701,11 @@ class PrincipledWeaverWorker:
         if is_new_incident:
             self.incidents_created += 1
 
-        # 5. L4: Route incident to case
-        case_id, is_new_case = await self._route_to_case(incident_id, claim)
-
-        if is_new_case:
-            self.cases_created += 1
+        # 5. L4: Cases are NOT created in streaming
+        # Cases emerge from batch analysis by CaseCanonicalizer worker
+        # which clusters incidents using case-scale evidence
+        case_id = None
+        is_new_case = False
 
         # 6. Update typed posterior
         typed_obs = self._extract_typed_observation(claim)
@@ -686,6 +776,46 @@ class PrincipledWeaverWorker:
 
         return anchors
 
+    def _compute_scope_id(self, anchor_entities: Set[str]) -> str:
+        """
+        Compute scope identifier from anchor entities.
+
+        CRITICAL: This determines surface identity scope.
+        - Filters out hub entities (too generic to scope by)
+        - Uses primary WHO + WHERE anchors (not all)
+        - Returns deterministic scope_id
+
+        Using primary anchors (top 2 by name) provides scope drift tolerance -
+        same incident with one extra non-hub anchor still maps to same scope.
+
+        Example:
+        - {John Lee, Hong Kong} -> "scope_hongkong_johnlee"
+        - {Gavin Newsom, California} -> "scope_california_gavinnewsom"
+        """
+        # Filter out hub entities that are too generic
+        scoping_anchors = anchor_entities - self.hub_entities
+
+        if not scoping_anchors:
+            # Fallback: all anchors are hubs, use them anyway
+            scoping_anchors = anchor_entities
+            if anchor_entities:
+                self.pending_meta_claims.append(MetaClaim(
+                    type="scope_underpowered",
+                    reason=f"All anchor entities are hubs: {sorted(anchor_entities)}",
+                    evidence={"anchor_entities": sorted(anchor_entities)}
+                ))
+
+        # Create deterministic scope_id from sorted primary anchors
+        # Normalize: lowercase, remove spaces, use top 2 for stability
+        normalized = sorted(a.lower().replace(" ", "").replace("'", "") for a in scoping_anchors)
+        primary = normalized[:2]  # Top 2 for scope drift tolerance
+
+        if not primary:
+            return "scope_unscoped"
+
+        scope_id = "scope_" + "_".join(primary)
+        return scope_id
+
     def _check_noise_conditions(self, claim: Claim, entities: Set[str]):
         """Check for noise conditions and emit meta-claims."""
         # Missing timestamp
@@ -697,13 +827,18 @@ class PrincipledWeaverWorker:
                 evidence={"consequence": "temporal_ordering_blocked"}
             ))
 
-        # Extraction sparsity
+        # Extraction sparsity - informational, not a rejection
+        # Entity-poor claims are still processed via page scope or typed patterns
         if len(entities) < 2:
             self.pending_meta_claims.append(MetaClaim(
-                type="context_underpowered",
+                type="extraction_sparse",
                 claim_id=claim.id,
-                reason=f"Insufficient entities for context check ({len(entities)} < 2)",
-                evidence={"entity_count": len(entities), "minimum_required": 2}
+                reason=f"Low entity count ({len(entities)}) - using alternate constraint channels",
+                evidence={
+                    "entity_count": len(entities),
+                    "has_page_scope": claim.page_id is not None,
+                    "constraint_channel": "page_scope" if claim.page_id else "singleton"
+                }
             ))
 
         # Syndication detection (if metadata indicates)
@@ -723,9 +858,10 @@ class PrincipledWeaverWorker:
         claim: Claim,
         question_key: str,
         entities: Set[str],
-        anchor_entities: Set[str]
+        anchor_entities: Set[str],
+        scope_id: str
     ) -> str:
-        """Create a new L2 surface."""
+        """Create a new L2 surface with scoped identity."""
         surface_id = generate_id('surface')
 
         surface = Surface(
@@ -734,6 +870,8 @@ class PrincipledWeaverWorker:
             entities=entities,
             anchor_entities=anchor_entities,
             sources={claim.page_id} if claim.page_id else set(),
+            question_key=question_key,
+            scope_id=scope_id,
         )
 
         # Get embedding
@@ -750,11 +888,14 @@ class PrincipledWeaverWorker:
         # Save
         await self.surface_repo.save(surface)
 
-        # Also save question_key to Neo4j
+        # Also save scoped identity to Neo4j
         await self.neo4j._execute_write("""
             MATCH (s:Surface {id: $id})
-            SET s.question_key = $qk, s.anchor_entities = $anchors
-        """, {'id': surface_id, 'qk': question_key, 'anchors': list(anchor_entities)})
+            SET s.question_key = $qk, s.scope_id = $scope, s.anchor_entities = $anchors
+        """, {'id': surface_id, 'qk': question_key, 'scope': scope_id, 'anchors': list(anchor_entities)})
+
+        # Store in local cache for motif computation
+        self.surfaces[surface_id] = surface
 
         return surface_id
 
@@ -893,12 +1034,101 @@ class PrincipledWeaverWorker:
 
             return incident_id, True
 
+    def _compute_incident_signature(self, incident: L3Incident) -> str:
+        """Compute stable scope signature for incident (L3).
+
+        The signature is deterministic based on:
+        - Scale: "incident"
+        - Sorted anchor entities (top 10)
+        - Time bin: week (YYYY-Www)
+
+        This ensures the same incident gets the same signature across rebuilds.
+        """
+        sorted_anchors = sorted(incident.anchor_entities)[:10]
+        time_bin = "unknown"
+        if incident.time_start:
+            time_bin = f"{incident.time_start.year}-W{incident.time_start.isocalendar()[1]:02d}"
+
+        sig_parts = ["incident", ",".join(sorted_anchors), time_bin]
+        sig_string = "|".join(sig_parts)
+        sig_hash = hashlib.sha256(sig_string.encode()).hexdigest()[:12]
+        return f"story_{sig_hash}"
+
+    def _compute_incident_motifs(self, incident: L3Incident) -> List[Dict]:
+        """Compute core motifs for incident from its surfaces.
+
+        A core motif is an entity k-set (k≥2) that appears in multiple surfaces
+        within this incident. These are the patterns that justify L4 case formation.
+
+        Returns list of motifs, each with:
+        - entities: List[str] - sorted entity names
+        - support: int - number of surfaces containing this motif
+        - surface_ids: List[str] - which surfaces contributed
+        """
+        from itertools import combinations
+
+        if len(incident.surface_ids) < 2:
+            # Single surface - use anchor entities as fallback motif
+            if len(incident.anchor_entities) >= 2:
+                return [{
+                    "entities": sorted(incident.anchor_entities)[:5],
+                    "support": 1,
+                    "surface_ids": list(incident.surface_ids),
+                }]
+            return []
+
+        # Collect entity sets per surface
+        surface_entity_sets: Dict[str, Set[str]] = {}
+        for sid in incident.surface_ids:
+            surface = self.surfaces.get(sid)
+            if surface:
+                surface_entity_sets[sid] = surface.anchor_entities
+
+        # Find k-sets (k≥2) that appear in multiple surfaces
+        motif_support: Dict[frozenset, List[str]] = defaultdict(list)
+
+        for sid, entities in surface_entity_sets.items():
+            # Generate all 2-sets and 3-sets from this surface's entities
+            for k in [2, 3]:
+                if len(entities) >= k:
+                    for combo in combinations(sorted(entities), k):
+                        motif_key = frozenset(combo)
+                        motif_support[motif_key].append(sid)
+
+        # Keep motifs with support ≥ 2 (appear in multiple surfaces)
+        core_motifs = []
+        for motif_key, supporting_surfaces in motif_support.items():
+            if len(supporting_surfaces) >= 2:
+                core_motifs.append({
+                    "entities": sorted(motif_key),
+                    "support": len(supporting_surfaces),
+                    "surface_ids": supporting_surfaces,
+                })
+
+        # Sort by support (descending), then by size (ascending for smaller motifs)
+        core_motifs.sort(key=lambda m: (-m["support"], len(m["entities"])))
+
+        # Keep top 10 motifs
+        return core_motifs[:10]
+
     async def _persist_incident(self, incident: L3Incident):
-        """Save incident to Neo4j."""
+        """Save incident to Neo4j with :Story label, scope_signature, and core_motifs."""
+        scope_sig = self._compute_incident_signature(incident)
+
+        # Compute core motifs from surfaces (L3→L4 contract)
+        incident.core_motifs = self._compute_incident_motifs(incident)
+
+        # Serialize motifs for Neo4j (as JSON strings since Neo4j doesn't support nested objects)
+        motifs_json = [json.dumps(m) for m in incident.core_motifs]
+
         await self.neo4j._execute_write("""
             MERGE (i:Incident {id: $id})
-            SET i.anchor_entities = $anchors,
+            SET i:Story,
+                i.scale = 'incident',
+                i.scope_signature = $scope_sig,
+                i.anchor_entities = $anchors,
                 i.companion_entities = $companions,
+                i.core_motifs = $core_motifs,
                 i.updated_at = datetime()
             WITH i
             UNWIND $surface_ids as sid
@@ -906,8 +1136,10 @@ class PrincipledWeaverWorker:
             MERGE (i)-[:CONTAINS]->(s)
         """, {
             'id': incident.id,
+            'scope_sig': scope_sig,
             'anchors': list(incident.anchor_entities),
             'companions': list(incident.companion_entities),
+            'core_motifs': motifs_json,
             'surface_ids': list(incident.surface_ids)
         })
 
@@ -949,10 +1181,12 @@ class PrincipledWeaverWorker:
                     case_entities.update(inc.companion_entities)
 
             # Check entity overlap (looser threshold for cases)
+            # Use intersection-over-minimum instead of Jaccard to handle
+            # asymmetric entity sets (e.g., incident with 5 entities vs case with 50)
             if incident_entities and case_entities:
                 intersection = incident_entities & case_entities
-                union = incident_entities | case_entities
-                overlap = len(intersection) / len(union) if union else 0.0
+                min_size = min(len(incident_entities), len(case_entities))
+                overlap = len(intersection) / min_size if min_size else 0.0
 
                 if overlap >= self.CASE_ENTITY_OVERLAP_THRESHOLD:
                     # Also check time proximity
@@ -1048,21 +1282,96 @@ class PrincipledWeaverWorker:
 
         return 'general_story'
 
-    def _generate_case_title(self, incident: L3Incident, claim: Claim) -> str:
-        """Generate a canonical title for the case."""
-        # Use top anchor entities
+    def _generate_event_title(self, incident: L3Incident, claim: Claim, question_key: str) -> str:
+        """Generate a canonical title for the event."""
+        # Use anchor entities + event type from question_key
         anchors = sorted(incident.anchor_entities)[:2]
+
+        # Extract event type from question_key (e.g., "fire_death_count" -> "Fire")
+        event_type = ""
+        if "_" in question_key:
+            parts = question_key.split("_")
+            if parts[0] in ("fire", "flood", "earthquake", "storm", "accident", "incident"):
+                event_type = parts[0].title()
+
+        if anchors and event_type:
+            return f"{event_type}: {', '.join(anchors)}"
+        elif anchors:
+            return f"{', '.join(anchors)}"
+        elif event_type:
+            return f"{event_type} Event"
+        return "Untitled Event"
+
+    def _generate_case_title(self, incident: L3Incident, claim: Claim) -> str:
+        """Generate a canonical title for the case.
+
+        Prioritizes PERSON entities, then ORG, then others.
+        Uses claim text to find most relevant entities.
+        """
+        # If we have claim entities with types, use those
+        if claim.entities:
+            persons = []
+            orgs = []
+            others = []
+
+            for entity in claim.entities:
+                etype = getattr(entity, 'entity_type', None)
+                name = getattr(entity, 'canonical_name', None) or str(entity)
+                if etype == 'PERSON':
+                    persons.append(name)
+                elif etype == 'ORG':
+                    orgs.append(name)
+                else:
+                    others.append(name)
+
+            # Prioritize: persons first, then orgs
+            candidates = persons[:2] or orgs[:2] or others[:2]
+            if candidates:
+                return f"{' + '.join(candidates)} Case"
+
+        # Fallback: use incident anchors (but limit to reasonable names)
+        # Filter out very long entity names (likely locations/organizations)
+        anchors = [a for a in incident.anchor_entities if len(a) < 40]
+        anchors = sorted(anchors)[:2]
         if anchors:
             return f"{' + '.join(anchors)} Case"
+
         return "Unnamed Case"
 
+    def _compute_case_signature(self, case: L4Case) -> str:
+        """Compute stable scope signature for case (L4).
+
+        The signature is deterministic based on:
+        - Scale: "case"
+        - Sorted core entities (top 10)
+        - Time bin: month (YYYY-MM)
+
+        This ensures the same case gets the same signature across rebuilds.
+        """
+        sorted_entities = sorted(case.core_entities)[:10]
+        time_bin = "unknown"
+        if case.time_start:
+            time_bin = f"{case.time_start.year}-{case.time_start.month:02d}"
+
+        sig_parts = ["case", ",".join(sorted_entities), time_bin]
+        sig_string = "|".join(sig_parts)
+        sig_hash = hashlib.sha256(sig_string.encode()).hexdigest()[:12]
+        return f"story_{sig_hash}"
+
     async def _persist_case(self, case: L4Case):
-        """Save case to Neo4j."""
+        """Save case to Neo4j with :Story label and scope_signature."""
+        scope_sig = self._compute_case_signature(case)
+
         await self.neo4j._execute_write("""
             MERGE (c:Case {id: $id})
-            SET c.case_type = $case_type,
+            SET c:Event,
+                c:Story,
+                c.scale = 'case',
+                c.scope_signature = $scope_sig,
+                c.case_type = $case_type,
                 c.core_entities = $core_entities,
                 c.canonical_title = $title,
+                c.title = $title,
                 c.updated_at = datetime()
             WITH c
             UNWIND $incident_ids as iid
@@ -1070,6 +1379,7 @@ class PrincipledWeaverWorker:
             MERGE (c)-[:CONTAINS]->(i)
         """, {
             'id': case.id,
+            'scope_sig': scope_sig,
             'case_type': case.case_type,
             'core_entities': list(case.core_entities),
             'title': case.canonical_title,
@@ -1251,21 +1561,36 @@ async def bootstrap_principled(
     db_pool: asyncpg.Pool,
     neo4j: Neo4jService,
     job_queue: JobQueue,
-    batch_size: int = 100
+    batch_size: int = 100,
+    include_cases: bool = True
 ):
     """
-    Bootstrap L2/L3 topology from scratch.
+    Bootstrap L2/L3/L4 topology from scratch.
 
-    1. Clear existing surfaces and incidents
-    2. Queue all claims for reprocessing
+    This is the HEALING MECHANISM for contaminated topology:
+    - Clears all surfaces (L2), incidents (L3), and optionally cases (L4)
+    - Reprocesses all claims with corrected scoped surface keying
+    - Cases are rebuilt by the canonical_worker after L3 is stable
+
+    Use when:
+    - Scoped surface invariant was violated (cross-event contamination)
+    - Surface keying logic changed (e.g., from global to scoped)
+    - Major extraction or question_key logic changes
+
+    Args:
+        include_cases: If True, also clear L4 Cases (default True for full heal)
     """
-    logger.info("🚀 Starting principled L2/L3 bootstrap...")
+    logger.info("🚀 Starting principled L2/L3 bootstrap (HEALING MODE)...")
 
     # 1. Clear existing
     logger.info("🧹 Clearing existing surfaces and incidents...")
     await neo4j._execute_write("MATCH (s:Surface) DETACH DELETE s")
     await neo4j._execute_write("MATCH (i:Incident) DETACH DELETE i")
     await neo4j._execute_write("MATCH (m:MetaClaim) DETACH DELETE m")
+
+    if include_cases:
+        logger.info("🧹 Also clearing L4 Cases (will be rebuilt by canonical_worker)...")
+        await neo4j._execute_write("MATCH (c:Case) DETACH DELETE c")
 
     async with db_pool.acquire() as conn:
         await conn.execute("TRUNCATE content.surface_centroids")

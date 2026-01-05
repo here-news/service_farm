@@ -12,7 +12,7 @@ Key properties:
 """
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional, List, Set, TYPE_CHECKING
+from typing import Optional, List, Set, Dict, TYPE_CHECKING
 import math
 
 from utils.id_generator import generate_id, validate_id, is_uuid, uuid_to_short_id
@@ -35,6 +35,10 @@ class Surface:
     # Claim membership (unique claim IDs)
     claim_ids: Set[str] = field(default_factory=set)
 
+    # Claim-to-surface similarity scores (from weaver)
+    # Maps claim_id -> similarity score (0-1)
+    claim_similarities: Dict[str, float] = field(default_factory=dict)
+
     # Entity signals
     entities: Set[str] = field(default_factory=set)  # All entities mentioned
     anchor_entities: Set[str] = field(default_factory=set)  # Discriminative anchors
@@ -55,6 +59,10 @@ class Surface:
 
     # Params version (for reproducibility)
     params_version: int = 1
+
+    # Scoped surface identity (L2 invariant: key = (scope_id, question_key))
+    question_key: Optional[str] = None  # Semantic predicate category
+    scope_id: Optional[str] = None  # Derived from anchor entities
 
     # Timestamps
     created_at: Optional[datetime] = None
@@ -109,9 +117,15 @@ class Surface:
         self.support = claim_mass + diversity_mass
         return self.support
 
-    def add_claim(self, claim: 'Claim', publisher_id: Optional[str] = None) -> None:
-        """Add a claim to this surface."""
+    def add_claim(
+        self,
+        claim: 'Claim',
+        publisher_id: Optional[str] = None,
+        similarity: float = 1.0
+    ) -> None:
+        """Add a claim to this surface with similarity score."""
         self.claim_ids.add(claim.id)
+        self.claim_similarities[claim.id] = similarity
 
         # Update entities
         if hasattr(claim, 'entity_ids'):
@@ -161,6 +175,7 @@ class Surface:
     def merge_from(self, other: 'Surface') -> None:
         """Merge another surface into this one."""
         self.claim_ids.update(other.claim_ids)
+        self.claim_similarities.update(other.claim_similarities)
         self.entities.update(other.entities)
         self.anchor_entities.update(other.anchor_entities)
         self.sources.update(other.sources)

@@ -1,0 +1,233 @@
+# Golden Trace: Scoped Surface Invariant
+# ========================================
+#
+# This trace demonstrates the CRITICAL invariant that L2 surfaces must be
+# scoped by referent, not just by predicate (question_key).
+#
+# THE BUG THIS CATCHES:
+# If L2 surface key = question_key alone (global predicate bucket), then
+# unrelated incidents can share surfaces via generic question_keys like
+# "policy_announcement" or "death_count", causing cross-event contamination.
+#
+# THE INVARIANT:
+# L2 surface key = (scope_signature, question_key)
+# where scope_signature is derived from the incident/referent context.
+#
+# SCENARIO:
+# Two completely unrelated incidents both produce question_key="policy_announcement":
+#   1. Hong Kong: John Lee announces new security policy
+#   2. California: Gavin Newsom announces wildfire response policy
+#
+# Both share one generic anchor "policy_announcement" as question_key.
+# Both mention a generic location in passing (e.g., "United States" or "Asia").
+#
+# EXPECTED:
+# - They must NOT share the same L2 surface.
+# - The system must either:
+#   a) Create separate scoped surfaces, OR
+#   b) Emit question_key_unscoped meta-claim explaining why scope is underpowered.
+#
+# FAILURE MODE THIS PREVENTS:
+# Without proper scoping, both claims join a global "policy_announcement" surface,
+# which then gets attached to whichever incident claims it first. The other
+# incident inherits the surface, creating false cross-event links.
+
+meta:
+  name: scoped_surface_invariant
+  description: "Two unrelated incidents with same question_key must have separate L2 surfaces"
+  version: "1.0"
+  layers_tested: [L2, L3]
+  invariants:
+    - "separate_scopes_separate_surfaces"
+    - "no_cross_event_surface_sharing"
+    - "question_key_alone_insufficient"
+
+entities:
+  # Hong Kong incident entities
+  HK001: { canonical: "John Lee", type: "person", role: "who" }
+  HK002: { canonical: "Hong Kong", type: "location", role: "where" }
+  HK003: { canonical: "Hong Kong Security Bureau", type: "organization", role: "who" }
+
+  # California incident entities
+  CA001: { canonical: "Gavin Newsom", type: "person", role: "who" }
+  CA002: { canonical: "California", type: "location", role: "where" }
+  CA003: { canonical: "Cal Fire", type: "organization", role: "who" }
+
+  # Shared generic entity (hub-like, should not cause merge)
+  GENERIC: { canonical: "United States", type: "location", role: "where" }
+
+gists:
+  HK_C1: "Hong Kong Chief Executive John Lee announces new national security enforcement policy"
+  HK_C2: "Security Bureau confirms implementation timeline for Lee's policy"
+  CA_C1: "Governor Newsom announces emergency wildfire response policy for California"
+  CA_C2: "Cal Fire confirms deployment under Newsom's new policy"
+
+# The problematic question_key - same predicate, different referents
+question_keys:
+  policy_announcement:
+    type: categorical
+    question: "What policy was announced?"
+    # NOTE: This question_key alone is NOT sufficient for L2 identity.
+    # It needs to be scoped by the incident referent.
+
+claims:
+  # Hong Kong incident claims
+  - id: HK_C1
+    publisher: "scmp.com"
+    reported_time: "2024-12-10T08:00:00Z"
+    event_time: "2024-12-10T07:30:00Z"
+    anchor_entities: [HK001, HK002]  # John Lee, Hong Kong
+    entities: [HK001, HK002, HK003, GENERIC]  # Includes "United States" in passing
+    roles: { who: [HK001, HK003], where: [HK002] }
+    question_key: policy_announcement
+    typed_observation:
+      value: "national_security_enforcement"
+      confidence: 0.9
+    gist_key: HK_C1
+
+  - id: HK_C2
+    publisher: "rthk.hk"
+    reported_time: "2024-12-10T10:00:00Z"
+    event_time: "2024-12-10T09:00:00Z"
+    anchor_entities: [HK001, HK002, HK003]
+    entities: [HK001, HK002, HK003]
+    roles: { who: [HK001, HK003], where: [HK002] }
+    question_key: policy_announcement
+    typed_observation:
+      value: "national_security_enforcement"
+      confidence: 0.85
+    gist_key: HK_C2
+
+  # California incident claims (same question_key, completely different referent)
+  - id: CA_C1
+    publisher: "latimes.com"
+    reported_time: "2024-12-10T08:30:00Z"
+    event_time: "2024-12-10T08:00:00Z"
+    anchor_entities: [CA001, CA002]  # Gavin Newsom, California
+    entities: [CA001, CA002, CA003, GENERIC]  # Also mentions "United States"
+    roles: { who: [CA001, CA003], where: [CA002] }
+    question_key: policy_announcement
+    typed_observation:
+      value: "wildfire_emergency_response"
+      confidence: 0.9
+    gist_key: CA_C1
+
+  - id: CA_C2
+    publisher: "sfchronicle.com"
+    reported_time: "2024-12-10T11:00:00Z"
+    event_time: "2024-12-10T10:00:00Z"
+    anchor_entities: [CA001, CA002, CA003]
+    entities: [CA001, CA002, CA003]
+    roles: { who: [CA001, CA003], where: [CA002] }
+    question_key: policy_announcement
+    typed_observation:
+      value: "wildfire_emergency_response"
+      confidence: 0.85
+    gist_key: CA_C2
+
+expected_deltas:
+  - after_claim: HK_C1
+    L2_surfaces:
+      S_HK_policy:
+        claims: [HK_C1]
+        question_key: policy_announcement
+        scope_signature: "hk_john_lee_policy"  # Scoped by referent
+    L3_incidents:
+      I_HK:
+        surfaces: [S_HK_policy]
+        anchor_entities: [HK001, HK002]
+    explanation:
+      L2_decision: { action: "new_surface", surface_id: S_HK_policy }
+      L3_decision: { action: "new_incident", incident_id: I_HK }
+      scope_derivation: "Scope from anchor motif: John Lee + Hong Kong"
+
+  - after_claim: HK_C2
+    L2_surfaces:
+      S_HK_policy:
+        claims: [HK_C1, HK_C2]
+    L3_incidents:
+      I_HK:
+        surfaces: [S_HK_policy]
+    explanation:
+      L2_decision: { action: "attach", surface_id: S_HK_policy }
+      L3_decision: { action: "attach", incident_id: I_HK }
+      reason: "Same scope (John Lee + Hong Kong) and same question_key"
+
+  - after_claim: CA_C1
+    L2_surfaces:
+      S_HK_policy:
+        claims: [HK_C1, HK_C2]  # UNCHANGED - CA claims must NOT join this
+      S_CA_policy:
+        claims: [CA_C1]
+        question_key: policy_announcement  # Same question_key...
+        scope_signature: "ca_newsom_policy"  # ...but DIFFERENT scope
+    L3_incidents:
+      I_HK:
+        surfaces: [S_HK_policy]  # UNCHANGED
+      I_CA:
+        surfaces: [S_CA_policy]
+        anchor_entities: [CA001, CA002]
+    explanation:
+      L2_decision: { action: "new_surface", surface_id: S_CA_policy }
+      L3_decision: { action: "new_incident", incident_id: I_CA }
+      reason: "Different scope (Newsom + California) despite same question_key"
+      critical_check: "CA_C1 must NOT join S_HK_policy even though question_key matches"
+
+  - after_claim: CA_C2
+    L2_surfaces:
+      S_HK_policy:
+        claims: [HK_C1, HK_C2]
+      S_CA_policy:
+        claims: [CA_C1, CA_C2]
+    L3_incidents:
+      I_HK:
+        surfaces: [S_HK_policy]
+      I_CA:
+        surfaces: [S_CA_policy]
+    explanation:
+      L2_decision: { action: "attach", surface_id: S_CA_policy }
+      L3_decision: { action: "attach", incident_id: I_CA }
+
+assertions:
+  # THE CRITICAL INVARIANT
+  - type: "separate_surfaces"
+    claims_a: [HK_C1, HK_C2]
+    claims_b: [CA_C1, CA_C2]
+    reason: "Despite sharing question_key='policy_announcement', these claims have different referents and MUST be in separate surfaces"
+
+  - type: "no_cross_incident_surface"
+    incident_a: I_HK
+    incident_b: I_CA
+    shared_surfaces: []  # Must be empty
+    reason: "Incidents with disjoint anchor motifs must not share surfaces"
+
+  - type: "question_key_alone_insufficient"
+    question_key: policy_announcement
+    expected_surface_count: 2  # Not 1!
+    reason: "Same question_key should produce multiple surfaces if scopes differ"
+
+  # Verify the shared generic entity doesn't cause merge
+  - type: "hub_entity_suppressed"
+    entity: GENERIC  # "United States"
+    claims_mentioning: [HK_C1, CA_C1]
+    shared_surface: null  # Must NOT cause surface merge
+    reason: "Generic hub entity should not bridge unrelated incidents"
+
+  # Meta-claim if scope is underpowered
+  - type: "meta_claim_on_unscoped"
+    if_fails: "separate_surfaces"
+    expected_meta_claim: "question_key_unscoped"
+    reason: "If scoping fails, system must emit diagnostic meta-claim"
+
+  # Invariant checks
+  - type: "invariant"
+    name: "separate_scopes_separate_surfaces"
+    check: "count(surfaces with question_key='policy_announcement') >= 2"
+
+  - type: "invariant"
+    name: "no_cross_event_surface_sharing"
+    check: "intersection(I_HK.surfaces, I_CA.surfaces) == empty"
+
+  - type: "invariant"
+    name: "question_key_alone_insufficient"
+    check: "L2_surface_key != question_key (must include scope)"
