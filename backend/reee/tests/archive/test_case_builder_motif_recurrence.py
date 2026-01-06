@@ -303,11 +303,11 @@ class TestMotifProfileExtraction:
         assert frozenset(["Do Kwon", "Terraform Labs"]) in profile2.motifs
 
     def test_anchor_pair_motifs_extracted_even_without_justification(self):
-        """Incident without justification should still extract anchor pair motifs.
+        """Incident without justification should not fabricate motifs.
 
-        L4 strategy: anchor pairs ARE valid motifs at L4 scale.
-        Cross-incident recurrence of same pair = case binding.
-        L3 core_motifs are additive, not required.
+        L4 CaseCores are built from constrained motifs (incident.justification.core_motifs),
+        not raw anchor pairs. Without a motif profile, the incident is underpowered
+        for CaseCore merges and should rely on EntityCase/Topic views instead.
         """
         builder = PrincipledCaseBuilder()
 
@@ -328,20 +328,10 @@ class TestMotifProfileExtraction:
         assert "I_NO_JUST" in result.motif_profiles
 
         profile = result.motif_profiles["I_NO_JUST"]
-        # 3 anchors → 3 pairs: C(3,2) = 3
-        assert len(profile.motifs) == 3, "Should have 3 anchor pair motifs"
-
-        # Verify pairs are correct
-        expected_pairs = {
-            frozenset(["Entity1", "Entity2"]),
-            frozenset(["Entity1", "Entity3"]),
-            frozenset(["Entity2", "Entity3"]),
-        }
-        actual_pairs = set(profile.motifs)
-        assert actual_pairs == expected_pairs, "Should have all anchor pairs"
+        assert len(profile.motifs) == 0, "No justification.core_motifs → no constrained motifs"
 
         # Stats should count incidents WITH motifs (anchor pairs count)
-        assert result.stats["incidents_with_motifs"] >= 1
+        assert result.stats["incidents_with_motifs"] == 0
 
 
 # ============================================================================

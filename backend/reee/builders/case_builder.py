@@ -1,6 +1,19 @@
 """
-Principled Case Builder
-=======================
+Principled Case Builder [DEPRECATED]
+=====================================
+
+!!! DEPRECATED !!!
+This module has been replaced by story_builder.py (StoryBuilder).
+It is kept only for EntityCase type compatibility.
+
+The PrincipledCaseBuilder class is no longer used in production.
+See story_builder.py for the new spine-based approach.
+
+Migration date: 2026-01-05
+
+---
+
+Old documentation (for reference):
 
 Builds Cases (L4) from Incidents (L3) using kernel-native evidence.
 
@@ -156,11 +169,14 @@ class PrincipledCaseBuilder:
     def __init__(
         self,
         min_motif_size: int = 2,  # Minimum entities in a motif to count
-        hub_fraction_threshold: float = 0.3,  # Entity in >30% of incidents = hub
+        hub_fraction_threshold: float = 0.05,  # Entity in >5% of incidents = hub
         hub_min_incidents: int = 3,  # Need ≥3 incidents to compute hubness
         time_window_days: int = 90,  # Case-scale time window (3 months)
         min_incidents_for_case: int = 2,  # Minimum incidents to form a CaseCore
         min_incidents_for_entity_case: int = 5,  # Minimum for EntityCase (lens)
+        location_event_time_window_days: int = -1,  # DISABLED: -1 means no temporal_anchor binding. Value 0 = same-day.
+        location_specificity_min_words: int = 2,  # Min words for "specific" location
+        min_cross_incident_motif_support: int = 2,  # Motif must appear in ≥2 incidents for shared_motif constraint
     ):
         self.min_motif_size = min_motif_size
         self.hub_fraction_threshold = hub_fraction_threshold
@@ -168,12 +184,19 @@ class PrincipledCaseBuilder:
         self.time_window_days = time_window_days
         self.min_incidents_for_case = min_incidents_for_case
         self.min_incidents_for_entity_case = min_incidents_for_entity_case
+        self.location_event_time_window_days = location_event_time_window_days
+        self.location_specificity_min_words = location_specificity_min_words
+        self.min_cross_incident_motif_support = min_cross_incident_motif_support
         self.ledger = ConstraintLedger()
+
+        # Entity type info (populated by build_from_incidents)
+        self._entity_types: Dict[str, str] = {}
 
     def build_from_incidents(
         self,
         incidents: Dict[str, Event],
         surfaces: Dict[str, Surface] = None,
+        entity_types: Dict[str, str] = None,
     ) -> CaseBuilderResult:
         """
         Build cases from incidents using motif-based clustering.
@@ -188,11 +211,13 @@ class PrincipledCaseBuilder:
         Args:
             incidents: Dict of incident_id → Event (from L3)
             surfaces: Optional surface dict for additional metadata
+            entity_types: Optional dict of entity_id → entity_type (e.g., "LOCATION")
 
         Returns:
             CaseBuilderResult with cases, profiles, hubness, and ledger
         """
         self.ledger = ConstraintLedger()
+        self._entity_types = entity_types or {}
 
         # Step 1: Extract motif profiles from incidents
         profiles = self._extract_motif_profiles(incidents)
@@ -278,18 +303,19 @@ class PrincipledCaseBuilder:
             motifs = []
             motif_support = {}
 
-            # Strategy: Generate k=2 motifs from anchor entities
-            # These are candidate motifs; cross-incident support computed later
-            anchors = list(incident.anchor_entities)
+            # PRINCIPLED FIX: L4 should NOT build motifs from raw anchor pairs!
+            # That silently changes meaning from "recurs across surfaces" to "any pair co-mentioned once".
+            # L4 should ONLY use motifs that are themselves constrained (incident core_motifs with
+            # internal support >= 2 surfaces). Arbitrary anchor pairs = percolation.
+            #
+            # Old buggy code (causes mega-cases via percolation):
+            #   anchors = list(incident.anchor_entities)
+            #   if len(anchors) >= 2:
+            #       for pair in combinations(sorted(anchors), 2):
+            #           motif = frozenset(pair)
+            #           motifs.append(motif)
 
-            if len(anchors) >= 2:
-                from itertools import combinations
-                for pair in combinations(sorted(anchors), 2):
-                    motif = frozenset(pair)
-                    motifs.append(motif)
-                    motif_support[motif] = 1  # L4 support computed in index
-
-            # Also include L3 core_motifs if available (additive, not replacement)
+            # Use ONLY L3 core_motifs (constrained by within-incident recurrence)
             if incident.justification and incident.justification.core_motifs:
                 for motif_entry in incident.justification.core_motifs:
                     entities = motif_entry.get("entities", [])
@@ -314,13 +340,12 @@ class PrincipledCaseBuilder:
             # Log profile
             self.ledger.add(Constraint(
                 constraint_type=ConstraintType.STRUCTURAL,
-                assertion=f"Incident {incident_id} has {len(motifs)} candidate motifs from {len(anchors)} anchors",
+                assertion=f"Incident {incident_id} has {len(motifs)} L3 core_motifs",
                 evidence={
                     "incident_id": incident_id,
-                    "anchor_count": len(anchors),
                     "motif_count": len(motifs),
                     "sample_motifs": [list(m) for m in motifs[:3]],
-                    "source": "anchor_pairs",
+                    "source": "L3_core_motifs",  # Principled: only L3-constrained motifs
                 },
                 provenance="motif_profile_extraction"
             ), scope=incident_id)
@@ -565,8 +590,9 @@ class PrincipledCaseBuilder:
 
                 # Only emit shared_motif constraint if:
                 # 1. Has non-hub entities
-                # 2. Has cross-incident support ≥ 2 (by definition, since both incidents have it)
-                if non_hub_entities and cross_incident_support >= 2:
+                # 2. Has cross-incident support ≥ min_cross_incident_motif_support
+                #    (this is L4 recurrence across incidents, not L3 internal support)
+                if non_hub_entities and cross_incident_support >= self.min_cross_incident_motif_support:
                     constraints.append(Constraint(
                         constraint_type=ConstraintType.STRUCTURAL,
                         assertion=f"Shared supported motif {set(motif)} (L4 support={cross_incident_support})",
@@ -650,27 +676,67 @@ class PrincipledCaseBuilder:
                 ))
                 self.ledger.add(constraints[-1], scope=pair_key)
 
+        # === CONSTRAINT 5: Temporal Anchor Binding ===
+        # Shared non-hub anchor + tight time window = likely same event
+        # This is entity-type agnostic (treats locations, persons, orgs equally)
+        #
+        # The insight: When incidents share ANY non-hub anchor AND occur within
+        # a short time window, they're likely about the same unfolding event,
+        # even if they don't share the same k=2 motif.
+        #
+        # This handles the HK fire case where:
+        # - Incident A: ["Wang Fuk Court", "Tai Po"]
+        # - Incident B: ["Wang Fuk Court", "fire service"]
+        # They share "Wang Fuk Court" (k=1) but not a k=2 motif. With tight
+        # temporal binding, this single shared anchor becomes core-eligible.
+        temporal_anchor_bindings = set()
+        if shared_anchors and time1_start and time2_start:
+            delta = abs((time1_start - time2_start).days)
+            if delta <= self.location_event_time_window_days:
+                # Tight time window - shared anchors become strong evidence
+                for anchor in shared_anchors:
+                    temporal_anchor_bindings.add(anchor)
+                    constraints.append(Constraint(
+                        constraint_type=ConstraintType.STRUCTURAL,  # Same type as motifs
+                        assertion=f"Temporal anchor binding: '{anchor}' + {delta}d window",
+                        evidence={
+                            "anchor": anchor,
+                            "delta_days": delta,
+                            "time_threshold_days": self.location_event_time_window_days,
+                            "time1": time1_start.isoformat() if time1_start else None,
+                            "time2": time2_start.isoformat() if time2_start else None,
+                        },
+                        provenance="temporal_anchor"
+                    ))
+                    self.ledger.add(constraints[-1], scope=pair_key)
+
         # === NO EVIDENCE ===
         if not constraints:
             return None
 
-        # === L4 ANTI-PERCOLATION RULE: Core requires shared_supported_motif ===
+        # === L4 ANTI-PERCOLATION RULE: Core requires strong evidence ===
         #
         # The key insight: motif_chain edges percolate via high-context-entropy
         # bridge entities (e.g., "Bondi Beach", "Trump") even when those entities
         # aren't above the simple frequency-based hub threshold.
         #
         # Solution: Chain-only edges are PERIPHERY, never core.
-        # Core eligibility requires shared_supported_motif (exact motif recurrence).
+        # Core eligibility requires either:
+        #   1. shared_supported_motif (exact motif recurrence), OR
+        #   2. temporal_anchor (shared non-hub anchor + tight time window)
         #
         # This stops the mega-case percolation while preserving legitimate merges.
 
         non_semantic = [c for c in constraints if c.constraint_type != ConstraintType.SEMANTIC]
 
-        # Only shared_motif counts for core eligibility (not chain)
+        # Constraints that qualify for core eligibility
         shared_motif_constraints = [
             c for c in constraints
             if c.provenance == "shared_motif"
+        ]
+        temporal_anchor_constraints = [
+            c for c in constraints
+            if c.provenance == "temporal_anchor"
         ]
         chain_constraints = [
             c for c in constraints
@@ -678,29 +744,38 @@ class PrincipledCaseBuilder:
         ]
 
         has_shared_motif = len(shared_motif_constraints) >= 1
-        has_chain_only = len(chain_constraints) >= 1 and not has_shared_motif
+        has_temporal_anchor = len(temporal_anchor_constraints) >= 1
+        has_chain_only = len(chain_constraints) >= 1 and not has_shared_motif and not has_temporal_anchor
 
-        # Core eligibility: ≥2 constraints AND ≥1 shared_motif constraint
+        # Core eligibility: ≥2 constraints AND ≥1 (shared_motif OR temporal_anchor)
         # Chain-only edges are explicitly periphery (attachment only)
+        has_core_evidence = has_shared_motif or has_temporal_anchor
         is_core = (
             len(constraints) >= 2 and
             len(non_semantic) >= 1 and
-            has_shared_motif  # NOT has_motif_evidence - chains don't qualify
+            has_core_evidence
         )
 
         if is_core:
-            reason = f"CORE: {len(constraints)} constraints ({len(shared_motif_constraints)} shared_motif)"
+            core_types = []
+            if has_shared_motif:
+                core_types.append(f"{len(shared_motif_constraints)} shared_motif")
+            if has_temporal_anchor:
+                core_types.append(f"{len(temporal_anchor_constraints)} temporal_anchor")
+            reason = f"CORE: {len(constraints)} constraints ({', '.join(core_types)})"
         elif has_chain_only:
             reason = f"PERIPHERY: chain-only evidence (chains cannot form cores)"
-        elif has_shared_motif:
-            reason = f"PERIPHERY: has shared_motif but < 2 total constraints"
+        elif has_shared_motif or has_temporal_anchor:
+            reason = f"PERIPHERY: has core evidence but < 2 total constraints"
         else:
-            reason = f"PERIPHERY: anchor-only (no motif evidence)"
+            reason = f"PERIPHERY: anchor-only (no motif/temporal evidence)"
 
         # Generate explanation
         parts = []
         if shared_motifs:
             parts.append(f"shared motifs: {[list(m)[:3] for m in shared_motifs[:3]]}")
+        if temporal_anchor_bindings:
+            parts.append(f"temporal anchor binding: {temporal_anchor_bindings}")
         if motif_chains:
             parts.append(f"motif chains: {len(motif_chains)}")
         if shared_anchors:

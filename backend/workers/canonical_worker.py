@@ -40,9 +40,9 @@ from reee.types import Surface, Event
 from reee.builders import (
     PrincipledSurfaceBuilder,
     PrincipledEventBuilder,
-    PrincipledCaseBuilder,
     MotifConfig,
 )
+from reee.builders.story_builder import StoryBuilder, StoryBuilderResult
 from workers.claim_loader import load_claims_with_embeddings
 from models.domain.case import Case as DomainCase
 from repositories.case_repository import CaseRepository
@@ -774,14 +774,15 @@ Respond with just the narrative text, no JSON."""
 
     async def _build_cases_from_incidents(self) -> List[CanonicalCase]:
         """
-        Build L4 Cases by clustering L3 Incidents using PrincipledCaseBuilder.
+        Build L4 Cases by clustering L3 Incidents using StoryBuilder.
 
-        A Case emerges only when:
-        1. At least 2 incidents share motif recurrence (same k-set in core_motifs)
-        2. Hub entities (>30% participation) are suppressed from core formation
-        3. Motif chains provide weaker binding evidence
+        StoryBuilder uses spine + mode + membrane approach:
+        - Spine: focal entity (non-hub) that defines the story
+        - Mode: temporal clustering to separate same-spine stories
+        - Membrane: single gate for core vs periphery membership
 
-        This uses the principled constraint-ledger approach, not ad-hoc anchor counting.
+        This handles star-shaped patterns where k=2 motif recurrence fails
+        (rotating companions, no pair recurs, but narrative coheres via spine).
         """
         # Flag incomplete cases (presentation-only - DO NOT delete structural nodes)
         await self._flag_incomplete_cases()
@@ -793,40 +794,48 @@ Respond with just the narrative text, no JSON."""
         if len(incidents) < 2:
             return []
 
-        # Use PrincipledCaseBuilder for motif-based case formation
-        # Note: hub_fraction_threshold=0.05 means entities in >5% of incidents are hubs
-        # This prevents percolation via common entities like "Hong Kong", "Trump", etc.
-        case_builder = PrincipledCaseBuilder(
-            min_motif_size=2,
-            hub_fraction_threshold=0.05,  # 5% of incidents = hub
+        # Load entity types (legacy - temporal anchor binding is now entity-agnostic)
+        entity_types = await self._load_entity_types()
+        logger.info(f"  Loaded {len(entity_types)} entity types")
+
+        # Use StoryBuilder for spine-based story formation (replaces PrincipledCaseBuilder)
+        # StoryBuilder uses spine + mode + membrane approach which handles star-shaped patterns
+        # where k=2 motif recurrence fails (rotating companions, no pair recurs)
+        story_builder = StoryBuilder(
+            hub_fraction_threshold=0.20,  # Entity in >20% of incidents = hub
             hub_min_incidents=5,  # Need at least 5 incidents to compute hubness
-            time_window_days=90,
-            min_incidents_for_case=2,
+            min_incidents_for_story=3,  # Minimum incidents to form a story
+            mode_gap_days=30,  # Gap to separate temporal modes
         )
 
-        result = case_builder.build_from_incidents(incidents)
+        result = story_builder.build_from_incidents(incidents)
         logger.info(
-            f"  PrincipledCaseBuilder: {result.stats['cases_formed']} CaseCores, "
-            f"{result.stats.get('entity_cases_formed', 0)} EntityCases, "
-            f"{result.stats['core_edges']} core edges, "
+            f"  StoryBuilder: {result.stats['stories_formed']} stories, "
+            f"{result.stats['spine_candidates']} spine candidates, "
             f"{result.stats['hub_entities']} hub entities suppressed"
         )
 
-        # Convert builder cases to CanonicalCase objects
+        # Convert stories to CanonicalCase objects
         cases: List[CanonicalCase] = []
         incident_contexts = await self._load_incidents_for_case_formation()
 
-        # 1. CaseCores (motif-recurrence based, partition-like)
-        for case_id, builder_case in result.cases.items():
-            case = await self._create_case_from_builder_result(
-                builder_case, incidents, incident_contexts, result
-            )
-            if case:
-                cases.append(case)
+        # Stories (spine-based, unified model replacing CaseCores + EntityCases)
+        for story_id, story in result.stories.items():
+            # Convert CompleteStory to EntityCase for compatibility
+            entity_case = story.to_entity_case()
 
-        # 2. EntityCases (star-shaped storylines, lens-like)
-        # These capture focal entities with rotating companions (Jimmy Lai pattern)
-        for entity, entity_case in result.entity_cases.items():
+            # Enrich entity_case with companion entities from incident_contexts
+            companion_counts: Dict[str, int] = {}
+            for iid in story.core_a_ids | story.core_b_ids:
+                ctx = incident_contexts.get(iid)
+                if ctx:
+                    for anchor in ctx.anchor_entities:
+                        if anchor != story.spine:
+                            companion_counts[anchor] = companion_counts.get(anchor, 0) + 1
+            entity_case.companion_entities = dict(
+                sorted(companion_counts.items(), key=lambda x: -x[1])[:20]
+            )
+
             case = await self._create_case_from_entity_case(
                 entity_case, incidents, incident_contexts
             )
@@ -874,7 +883,7 @@ Respond with just the narrative text, no JSON."""
         return incidents
 
     async def _load_incidents_as_events(self) -> Dict[str, Event]:
-        """Load L3 Incidents as Event objects with justifications for PrincipledCaseBuilder.
+        """Load L3 Incidents as Event objects with anchor_entities for StoryBuilder.
 
         The builder needs Event objects with:
         - id
@@ -886,12 +895,17 @@ Respond with just the narrative text, no JSON."""
         rows = await self.neo4j._execute_read('''
             MATCH (i:Incident)
             OPTIONAL MATCH (i)-[:CONTAINS]->(s:Surface)
-            WITH i, collect(DISTINCT s.id) as surface_ids
+            WITH i,
+                 collect(DISTINCT s.id) as surface_ids,
+                 collect(s.time_start) as time_starts,
+                 collect(s.time_end) as time_ends
             RETURN i.id as id,
                    i.anchor_entities as anchors,
                    i.companion_entities as companions,
                    i.core_motifs as core_motifs,
-                   surface_ids
+                   surface_ids,
+                   [t IN time_starts WHERE t IS NOT NULL] as time_starts,
+                   [t IN time_ends WHERE t IS NOT NULL] as time_ends
         ''')
 
         events = {}
@@ -923,24 +937,60 @@ Respond with just the narrative text, no JSON."""
                     canonical_handle=f"Incident {row['id']}",
                 )
 
+            # Derive time bounds from surfaces
+            time_starts = row.get('time_starts') or []
+            time_ends = row.get('time_ends') or []
+
+            # Parse datetime strings
+            parsed_starts = []
+            parsed_ends = []
+            for t in time_starts:
+                parsed = self._parse_time(t)
+                if parsed:
+                    parsed_starts.append(parsed)
+            for t in time_ends:
+                parsed = self._parse_time(t)
+                if parsed:
+                    parsed_ends.append(parsed)
+
+            time_start = min(parsed_starts) if parsed_starts else None
+            time_end = max(parsed_ends) if parsed_ends else None
+
             events[row['id']] = Event(
                 id=row['id'],
                 surface_ids=set(row.get('surface_ids') or []),
                 anchor_entities=anchor_entities,
                 entities=anchor_entities | set(row.get('companions') or []),
                 justification=justification,
+                time_window=(time_start, time_end),
             )
 
         return events
 
-    async def _create_case_from_builder_result(
+    async def _load_entity_types(self) -> Dict[str, str]:
+        """Load entity types for location-event binding.
+
+        Returns a dict mapping entity canonical_name → entity_type
+        for use in the StoryBuilder.
+        """
+        rows = await self.neo4j._execute_read('''
+            MATCH (e:Entity)
+            WHERE e.entity_type IS NOT NULL
+            RETURN e.canonical_name as name, e.entity_type as type
+        ''')
+
+        return {row['name']: row['type'] for row in rows if row.get('name')}
+
+    # DEPRECATED: This method is no longer used after migration to StoryBuilder
+    # Keeping for reference until case_builder.py is fully removed
+    async def _create_case_from_builder_result_DEPRECATED(
         self,
         builder_case,
         incidents: Dict[str, Event],
         incident_contexts: Dict[str, IncidentContext],
         builder_result,
     ) -> Optional[CanonicalCase]:
-        """Create a CanonicalCase from PrincipledCaseBuilder result."""
+        """DEPRECATED: Was used with PrincipledCaseBuilder CaseCores."""
         incident_ids = builder_case.incident_ids
 
         # Gather aggregate stats
@@ -1037,7 +1087,7 @@ Respond with just the narrative text, no JSON."""
         - Companion entities rotate (no pair recurs)
         - k=2 motif recurrence fails but narrative coheres
 
-        Uses case_type="entity_storyline" to differentiate from CaseCores.
+        Uses case_type="entity_storyline" to differentiate from other case types.
         """
         from reee.builders.case_builder import EntityCase
 

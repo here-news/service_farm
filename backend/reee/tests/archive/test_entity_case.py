@@ -175,7 +175,8 @@ class TestEntityCaseFormation:
 
     def test_star_shaped_creates_entity_case(self, star_shaped_storyline):
         """Jimmy Lai should get EntityCase even without k=2 recurrence."""
-        builder = PrincipledCaseBuilder(min_incidents_for_entity_case=5)
+        # Use higher hub threshold to focus on EntityCase formation, not hub detection
+        builder = PrincipledCaseBuilder(min_incidents_for_entity_case=5, hub_fraction_threshold=0.3)
 
         result = builder.build_from_incidents(star_shaped_storyline)
 
@@ -192,7 +193,8 @@ class TestEntityCaseFormation:
 
     def test_entity_case_companions(self, star_shaped_storyline):
         """EntityCase should track companion entities."""
-        builder = PrincipledCaseBuilder(min_incidents_for_entity_case=5)
+        # Use higher hub threshold to focus on EntityCase formation, not hub detection
+        builder = PrincipledCaseBuilder(min_incidents_for_entity_case=5, hub_fraction_threshold=0.3)
 
         result = builder.build_from_incidents(star_shaped_storyline)
 
@@ -211,7 +213,8 @@ class TestEntityCaseFormation:
 
     def test_entity_case_membership_weights(self, star_shaped_storyline):
         """EntityCase should have core membership for all incidents."""
-        builder = PrincipledCaseBuilder(min_incidents_for_entity_case=5)
+        # Use higher hub threshold to focus on EntityCase formation, not hub detection
+        builder = PrincipledCaseBuilder(min_incidents_for_entity_case=5, hub_fraction_threshold=0.3)
 
         result = builder.build_from_incidents(star_shaped_storyline)
 
@@ -284,7 +287,8 @@ class TestOverlappingEntityCases:
 
     def test_incident_in_multiple_entity_cases(self, overlapping_entity_cases):
         """SHARED incident should appear in both Jimmy Lai and Chris Patten cases."""
-        builder = PrincipledCaseBuilder(min_incidents_for_entity_case=5)
+        # Use higher hub threshold to focus on overlapping EntityCases, not hub detection
+        builder = PrincipledCaseBuilder(min_incidents_for_entity_case=5, hub_fraction_threshold=0.3)
 
         result = builder.build_from_incidents(overlapping_entity_cases)
 
@@ -301,7 +305,8 @@ class TestOverlappingEntityCases:
 
     def test_entity_cases_are_lens_like(self, overlapping_entity_cases):
         """EntityCases should allow overlapping incident membership."""
-        builder = PrincipledCaseBuilder(min_incidents_for_entity_case=5)
+        # Use higher hub threshold to focus on overlapping EntityCases, not hub detection
+        builder = PrincipledCaseBuilder(min_incidents_for_entity_case=5, hub_fraction_threshold=0.3)
 
         result = builder.build_from_incidents(overlapping_entity_cases)
 
@@ -332,7 +337,8 @@ class TestEntityCaseStats:
 
     def test_stats_include_entity_cases(self, star_shaped_storyline):
         """Stats should track EntityCase formation."""
-        builder = PrincipledCaseBuilder(min_incidents_for_entity_case=5)
+        # Use higher hub threshold to focus on EntityCase stats, not hub detection
+        builder = PrincipledCaseBuilder(min_incidents_for_entity_case=5, hub_fraction_threshold=0.3)
 
         result = builder.build_from_incidents(star_shaped_storyline)
 
