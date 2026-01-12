@@ -1,32 +1,31 @@
 version: '3.8'
 
-# Service Farm - Unified Single Container
-# ========================================
-# All workers run as processes inside one container.
-# Database infrastructure managed by ../infra repo.
+# Service Farm - Split Containers
+# ================================
+# API and Workers run in separate containers.
+# Database infrastructure managed by ../infra repo (remote server).
 #
 # Usage:
-#   docker-compose up -d                    # Start all workers (default)
-#   docker-compose logs -f app              # Follow all logs
+#   docker-compose up -d                    # Start both app and workers
+#   docker-compose up -d app                # Start app only (API + frontend)
+#   docker-compose up -d workers            # Start workers only
+#   docker-compose logs -f app              # Follow app logs
+#   docker-compose logs -f workers          # Follow worker logs
 #
-# Dev mode (API only with hot reload):
-#   docker-compose run --rm app uvicorn main:app --host 0.0.0.0 --port 7272 --reload
+# Dev mode (API with hot reload):
+#   docker-compose up app                   # App with mounted source
 #
-# Run specific workers:
-#   docker-compose exec app python run_workers.py --only api
-#   docker-compose exec app python run_workers.py --only extraction
-#   docker-compose exec app python run_workers.py --only knowledge
-#   docker-compose exec app python run_workers.py --only event
-#   docker-compose exec app python run_workers.py --only inquiry
+# Scale workers:
+#   docker-compose up -d --scale workers=2  # Run 2 worker containers
 #
-# Workers included:
-#   - api: FastAPI server (uvicorn on port 7272)
-#   - extraction: Page content extraction
-#   - knowledge: Entity extraction + Wikidata linking
-#   - event: Neo4j event weaving (creates Surfaces)
-#   - inquiry: Inquiry resolution checker (consumes Surfaces)
+# Containers:
+#   - app: FastAPI server (uvicorn on port 7272) + static frontend
+#   - workers: extraction, knowledge, weaver, inquiry workers
 
 services:
+  # ═══════════════════════════════════════════════════════════════
+  # APP Container - FastAPI + Static Frontend
+  # ═══════════════════════════════════════════════════════════════
   app:
     build:
       context: .
@@ -34,10 +33,32 @@ services:
     container_name: herenews-app
     network_mode: host
     env_file: .env
-    # Note: env_file loads all vars from .env
-    # No 'environment:' section needed - it would override with host shell values
     volumes:
       - ./backend:/app
       - ./frontend/prototypes:/app/prototypes
-    # Run all workers (API + extraction + knowledge + event + inquiry)
-    command: python run_workers.py --workers 1
+    command: uvicorn main:app --host 0.0.0.0 --port 7272
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7272/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ═══════════════════════════════════════════════════════════════
+  # Workers Container - Background Processing
+  # ═══════════════════════════════════════════════════════════════
+  workers:
+    build:
+      context: .
+      dockerfile: Dockerfile.app
+    container_name: herenews-workers
+    network_mode: host
+    env_file: .env
+    volumes:
+      - ./backend:/app
+    # Run all workers except API
+    command: python run_workers.py --no-api --workers 1
+    restart: unless-stopped
+    depends_on:
+      - app
+
