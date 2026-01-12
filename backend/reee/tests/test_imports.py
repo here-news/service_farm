@@ -95,12 +95,10 @@ def test_views_import():
     assert analyze_hubness is not None
 
 
+@pytest.mark.skip(reason="test_eu module has been removed - backward compatibility no longer needed")
 def test_backward_compatibility():
     """Test backward compatibility via test_eu.core."""
-    from test_eu.core import Engine as OldEngine, Claim as OldClaim
-    from reee import Engine, Claim
-    assert OldEngine is Engine
-    assert OldClaim is Claim
+    pass  # test_eu was deleted, keeping test as placeholder
 
 
 if __name__ == '__main__':

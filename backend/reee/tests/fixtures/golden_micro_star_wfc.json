@@ -1,0 +1,211 @@
+{
+  "corpus_id": "golden_star_wfc",
+  "description": "Star story archetype: WFC as spine with rotating companions. Tests that spine-based story formation works where k=2 motif recurrence fails.",
+  "archetype": "star_story",
+  "expected": {
+    "story_count": 1,
+    "spine": "World Food Council",
+    "core_a_count": 5,
+    "core_b_count": 0,
+    "core_leak_rate": 0.0,
+    "invariants": ["no_semantic_only_core", "no_hub_story_definition", "scoped_surface_isolation"]
+  },
+  "entities": [
+    {"id": "ent_wfc", "name": "World Food Council", "type": "organization", "role": "spine"},
+    {"id": "ent_hunger", "name": "Global Hunger Initiative", "type": "organization", "role": "companion_1"},
+    {"id": "ent_un", "name": "United Nations", "type": "organization", "role": "companion_2"},
+    {"id": "ent_asia", "name": "Southeast Asia", "type": "location", "role": "companion_3"},
+    {"id": "ent_africa", "name": "East Africa", "type": "location", "role": "companion_4"},
+    {"id": "ent_who", "name": "World Health Organization", "type": "organization", "role": "companion_5"}
+  ],
+  "claims": [
+    {
+      "id": "claim_001",
+      "text": "World Food Council announces new hunger relief program",
+      "publisher": "reuters",
+      "reported_time": "2024-01-15T10:00:00Z",
+      "event_time": "2024-01-15T09:00:00Z",
+      "question_key": "policy_announcement",
+      "anchor_entities": ["World Food Council"]
+    },
+    {
+      "id": "claim_002",
+      "text": "WFC partners with Global Hunger Initiative for food distribution",
+      "publisher": "ap",
+      "reported_time": "2024-01-15T11:00:00Z",
+      "event_time": "2024-01-15T10:30:00Z",
+      "question_key": "partnership",
+      "anchor_entities": ["World Food Council", "Global Hunger Initiative"]
+    },
+    {
+      "id": "claim_003",
+      "text": "Global Hunger Initiative confirms WFC collaboration details",
+      "publisher": "guardian",
+      "reported_time": "2024-01-15T14:00:00Z",
+      "event_time": "2024-01-15T13:00:00Z",
+      "question_key": "partnership",
+      "anchor_entities": ["World Food Council", "Global Hunger Initiative"]
+    },
+    {
+      "id": "claim_004",
+      "text": "World Food Council receives United Nations backing for expansion",
+      "publisher": "bbc",
+      "reported_time": "2024-01-17T08:00:00Z",
+      "event_time": "2024-01-17T07:00:00Z",
+      "question_key": "endorsement",
+      "anchor_entities": ["World Food Council", "United Nations"]
+    },
+    {
+      "id": "claim_005",
+      "text": "UN representative praises WFC initiative at press conference",
+      "publisher": "nyt",
+      "reported_time": "2024-01-17T12:00:00Z",
+      "event_time": "2024-01-17T11:00:00Z",
+      "question_key": "endorsement",
+      "anchor_entities": ["World Food Council", "United Nations"]
+    },
+    {
+      "id": "claim_006",
+      "text": "WFC program targets Southeast Asia region first",
+      "publisher": "reuters",
+      "reported_time": "2024-01-19T14:00:00Z",
+      "event_time": "2024-01-19T12:00:00Z",
+      "question_key": "target_region",
+      "anchor_entities": ["World Food Council", "Southeast Asia"]
+    },
+    {
+      "id": "claim_007",
+      "text": "Southeast Asia nations welcome WFC food program",
+      "publisher": "scmp",
+      "reported_time": "2024-01-19T18:00:00Z",
+      "event_time": "2024-01-19T17:00:00Z",
+      "question_key": "regional_response",
+      "anchor_entities": ["World Food Council", "Southeast Asia"]
+    },
+    {
+      "id": "claim_008",
+      "text": "World Food Council expands to East Africa",
+      "publisher": "reuters",
+      "reported_time": "2024-01-21T09:00:00Z",
+      "event_time": "2024-01-21T08:00:00Z",
+      "question_key": "expansion",
+      "anchor_entities": ["World Food Council", "East Africa"]
+    },
+    {
+      "id": "claim_009",
+      "text": "East Africa leaders meet with WFC representatives",
+      "publisher": "bbc",
+      "reported_time": "2024-01-21T15:00:00Z",
+      "event_time": "2024-01-21T14:00:00Z",
+      "question_key": "diplomatic_meeting",
+      "anchor_entities": ["World Food Council", "East Africa"]
+    },
+    {
+      "id": "claim_010",
+      "text": "WFC partners with World Health Organization on nutrition standards",
+      "publisher": "who_press",
+      "reported_time": "2024-01-23T10:00:00Z",
+      "event_time": "2024-01-23T09:00:00Z",
+      "question_key": "partnership",
+      "anchor_entities": ["World Food Council", "World Health Organization"]
+    },
+    {
+      "id": "claim_011",
+      "text": "WHO endorses WFC nutrition guidelines",
+      "publisher": "lancet",
+      "reported_time": "2024-01-23T14:00:00Z",
+      "event_time": "2024-01-23T13:00:00Z",
+      "question_key": "endorsement",
+      "anchor_entities": ["World Food Council", "World Health Organization"]
+    },
+    {
+      "id": "claim_012",
+      "text": "World Food Council budget set at 500 million dollars",
+      "publisher": "ft",
+      "reported_time": "2024-01-25T10:00:00Z",
+      "event_time": "2024-01-25T09:00:00Z",
+      "question_key": "budget",
+      "anchor_entities": ["World Food Council"]
+    },
+    {
+      "id": "claim_013",
+      "text": "WFC sets January 2025 launch date for full program",
+      "publisher": "reuters",
+      "reported_time": "2024-01-25T15:00:00Z",
+      "event_time": "2024-01-25T14:00:00Z",
+      "question_key": "timeline",
+      "anchor_entities": ["World Food Council"]
+    },
+    {
+      "id": "claim_014",
+      "text": "World Food Council program expected to reach 50 million people",
+      "publisher": "ap",
+      "reported_time": "2024-01-26T09:00:00Z",
+      "event_time": "2024-01-26T08:00:00Z",
+      "question_key": "impact_estimate",
+      "anchor_entities": ["World Food Council"]
+    },
+    {
+      "id": "claim_015",
+      "text": "WFC announces recruitment of 10000 field workers",
+      "publisher": "guardian",
+      "reported_time": "2024-01-26T14:00:00Z",
+      "event_time": "2024-01-26T13:00:00Z",
+      "question_key": "staffing",
+      "anchor_entities": ["World Food Council"]
+    }
+  ],
+  "incidents": [
+    {
+      "id": "inc_wfc_ghi",
+      "description": "WFC + Global Hunger Initiative partnership",
+      "anchor_entities": ["World Food Council", "Global Hunger Initiative"],
+      "companion_entities": [],
+      "time_start": "2024-01-15T09:00:00Z",
+      "time_end": "2024-01-15T14:00:00Z",
+      "claim_ids": ["claim_001", "claim_002", "claim_003"]
+    },
+    {
+      "id": "inc_wfc_un",
+      "description": "WFC + UN endorsement",
+      "anchor_entities": ["World Food Council", "United Nations"],
+      "companion_entities": [],
+      "time_start": "2024-01-17T07:00:00Z",
+      "time_end": "2024-01-17T12:00:00Z",
+      "claim_ids": ["claim_004", "claim_005"]
+    },
+    {
+      "id": "inc_wfc_asia",
+      "description": "WFC + Southeast Asia regional launch",
+      "anchor_entities": ["World Food Council", "Southeast Asia"],
+      "companion_entities": [],
+      "time_start": "2024-01-19T12:00:00Z",
+      "time_end": "2024-01-19T18:00:00Z",
+      "claim_ids": ["claim_006", "claim_007"]
+    },
+    {
+      "id": "inc_wfc_africa",
+      "description": "WFC + East Africa expansion",
+      "anchor_entities": ["World Food Council", "East Africa"],
+      "companion_entities": [],
+      "time_start": "2024-01-21T08:00:00Z",
+      "time_end": "2024-01-21T15:00:00Z",
+      "claim_ids": ["claim_008", "claim_009"]
+    },
+    {
+      "id": "inc_wfc_who",
+      "description": "WFC + WHO partnership",
+      "anchor_entities": ["World Food Council", "World Health Organization"],
+      "companion_entities": [],
+      "time_start": "2024-01-23T09:00:00Z",
+      "time_end": "2024-01-23T14:00:00Z",
+      "claim_ids": ["claim_010", "claim_011"]
+    }
+  ],
+  "notes": {
+    "star_pattern": "WFC appears in ALL incidents as anchor. Each companion appears in exactly ONE incident with WFC.",
+    "k2_failure": "No pair (other than WFC+X) recurs. k=2 motif recurrence would miss this story entirely.",
+    "spine_success": "Spine-based approach correctly identifies WFC as story spine with 5 Core-A incidents.",
+    "no_core_b": "No Core-B expected because no structural witnesses exist between non-WFC entities."
+  }
+}

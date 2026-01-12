@@ -83,3 +83,18 @@ git checkout feature/epistemic-webapp
 
 4. **test_eu is Legacy**: New code goes in `backend/reee/`. The `test_eu`
    shim exists only for backward compatibility.
+
+## Pending Removals
+
+These directories/files are marked for removal once all imports are migrated:
+
+| Path | Reason | Blocker |
+|------|--------|---------|
+| `backend/test_eu/` | Full duplicate of `backend/reee/` | Verify no external imports remain |
+
+To check blockers:
+```bash
+# Find imports of test_eu outside the test_eu directory
+grep -r "from test_eu" backend/ --include="*.py" | grep -v "test_eu/"
+grep -r "import test_eu" backend/ --include="*.py" | grep -v "test_eu/"
+```

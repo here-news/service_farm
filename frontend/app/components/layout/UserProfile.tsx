@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
-import { User } from '../../types/chat'
+import { Link } from 'react-router-dom'
+import { User } from '../../types/user'
 
 interface UserProfileProps {
   user: User
@@ -56,26 +57,27 @@ function UserProfile({ user }: UserProfileProps) {
 
           {/* Menu Items */}
           <div className="py-1">
-            <button
-              onClick={() => {
-                setIsOpen(false)
-                // Navigate to profile (placeholder)
-                console.log('Navigate to profile')
-              }}
-              className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition"
+            <Link
+              to="/profile"
+              onClick={() => setIsOpen(false)}
+              className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition"
             >
-              Profile Settings
-            </button>
-            <button
-              onClick={() => {
-                setIsOpen(false)
-                // Navigate to credits (placeholder)
-                console.log('Navigate to credits')
-              }}
-              className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition"
+              My Profile
+            </Link>
+            <Link
+              to="/profile?tab=stakes"
+              onClick={() => setIsOpen(false)}
+              className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition"
             >
-              Manage Credits
-            </button>
+              My Stakes
+            </Link>
+            <Link
+              to="/profile?tab=contributions"
+              onClick={() => setIsOpen(false)}
+              className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 transition"
+            >
+              My Contributions
+            </Link>
           </div>
 
           <div className="border-t border-slate-200 py-1">

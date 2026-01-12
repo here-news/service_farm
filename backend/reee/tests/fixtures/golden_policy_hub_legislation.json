@@ -1,0 +1,214 @@
+{
+  "corpus_id": "golden_hub_legislation",
+  "description": "Policy-centric hub story: Major legislation as hub entity connecting diverse stakeholder reactions. Tests POLICY entity as high-DF hub with controlled contamination.",
+  "archetype": "policy_hub",
+  "expected": {
+    "story_count": 1,
+    "spine": "Digital Markets Act",
+    "core_a_count": 5,
+    "core_b_count": 2,
+    "core_leak_rate": 0.0,
+    "invariants": ["policy_hub_not_noise", "stakeholder_isolation", "no_semantic_only_core"]
+  },
+  "entities": [
+    {"id": "ent_dma", "name": "Digital Markets Act", "type": "policy", "role": "spine"},
+    {"id": "ent_eu", "name": "European Commission", "type": "organization", "role": "regulator"},
+    {"id": "ent_apple", "name": "Apple Inc", "type": "organization", "role": "regulated_1"},
+    {"id": "ent_google", "name": "Google", "type": "organization", "role": "regulated_2"},
+    {"id": "ent_meta", "name": "Meta", "type": "organization", "role": "regulated_3"},
+    {"id": "ent_vestager", "name": "Margrethe Vestager", "type": "person", "role": "actor"},
+    {"id": "ent_consumer_group", "name": "European Consumer Organisation", "type": "organization", "role": "stakeholder"}
+  ],
+  "claims": [
+    {
+      "id": "claim_dma01",
+      "text": "European Commission formally adopts Digital Markets Act enforcement rules",
+      "publisher": "ft",
+      "reported_time": "2024-03-01T09:00:00Z",
+      "event_time": "2024-03-01T08:00:00Z",
+      "question_key": "adoption",
+      "anchor_entities": ["Digital Markets Act", "European Commission"]
+    },
+    {
+      "id": "claim_dma02",
+      "text": "Vestager announces DMA compliance deadline for tech giants",
+      "publisher": "reuters",
+      "reported_time": "2024-03-01T14:00:00Z",
+      "event_time": "2024-03-01T13:00:00Z",
+      "question_key": "adoption",
+      "anchor_entities": ["Digital Markets Act", "Margrethe Vestager"]
+    },
+    {
+      "id": "claim_dma03",
+      "text": "Apple announces App Store changes to comply with Digital Markets Act",
+      "publisher": "wsj",
+      "reported_time": "2024-03-10T10:00:00Z",
+      "event_time": "2024-03-10T09:00:00Z",
+      "question_key": "compliance_apple",
+      "anchor_entities": ["Digital Markets Act", "Apple Inc"]
+    },
+    {
+      "id": "claim_dma04",
+      "text": "Apple reduces App Store fees under DMA requirements",
+      "publisher": "techcrunch",
+      "reported_time": "2024-03-10T15:00:00Z",
+      "event_time": "2024-03-10T14:00:00Z",
+      "question_key": "compliance_apple",
+      "anchor_entities": ["Digital Markets Act", "Apple Inc"]
+    },
+    {
+      "id": "claim_dma05",
+      "text": "Google Search modifications announced for DMA compliance",
+      "publisher": "verge",
+      "reported_time": "2024-03-15T08:00:00Z",
+      "event_time": "2024-03-15T07:00:00Z",
+      "question_key": "compliance_google",
+      "anchor_entities": ["Digital Markets Act", "Google"]
+    },
+    {
+      "id": "claim_dma06",
+      "text": "Google unveils new data portability tools under Digital Markets Act",
+      "publisher": "wired",
+      "reported_time": "2024-03-15T12:00:00Z",
+      "event_time": "2024-03-15T11:00:00Z",
+      "question_key": "compliance_google",
+      "anchor_entities": ["Digital Markets Act", "Google"]
+    },
+    {
+      "id": "claim_dma07",
+      "text": "Meta opens WhatsApp interoperability under DMA mandate",
+      "publisher": "nyt",
+      "reported_time": "2024-03-20T09:00:00Z",
+      "event_time": "2024-03-20T08:00:00Z",
+      "question_key": "compliance_meta",
+      "anchor_entities": ["Digital Markets Act", "Meta"]
+    },
+    {
+      "id": "claim_dma08",
+      "text": "Meta releases DMA compliance report for messaging services",
+      "publisher": "bloomberg",
+      "reported_time": "2024-03-20T16:00:00Z",
+      "event_time": "2024-03-20T15:00:00Z",
+      "question_key": "compliance_meta",
+      "anchor_entities": ["Digital Markets Act", "Meta"]
+    },
+    {
+      "id": "claim_dma09",
+      "text": "European Consumer Organisation praises DMA impact on competition",
+      "publisher": "guardian",
+      "reported_time": "2024-03-25T10:00:00Z",
+      "event_time": "2024-03-25T09:00:00Z",
+      "question_key": "stakeholder_reaction",
+      "anchor_entities": ["Digital Markets Act", "European Consumer Organisation"]
+    },
+    {
+      "id": "claim_dma10",
+      "text": "Consumer group publishes DMA implementation assessment",
+      "publisher": "politico_eu",
+      "reported_time": "2024-03-25T17:00:00Z",
+      "event_time": "2024-03-25T16:00:00Z",
+      "question_key": "stakeholder_reaction",
+      "anchor_entities": ["Digital Markets Act", "European Consumer Organisation"]
+    },
+    {
+      "id": "claim_dma11",
+      "text": "Commission opens first DMA non-compliance investigation",
+      "publisher": "ft",
+      "reported_time": "2024-04-01T11:00:00Z",
+      "event_time": "2024-04-01T10:00:00Z",
+      "question_key": "enforcement",
+      "anchor_entities": ["Digital Markets Act", "European Commission"]
+    },
+    {
+      "id": "claim_dma12",
+      "text": "Vestager warns of fines for DMA violations",
+      "publisher": "reuters",
+      "reported_time": "2024-04-01T18:00:00Z",
+      "event_time": "2024-04-01T17:00:00Z",
+      "question_key": "enforcement",
+      "anchor_entities": ["Digital Markets Act", "Margrethe Vestager"]
+    }
+  ],
+  "incidents": [
+    {
+      "id": "inc_dma_adoption",
+      "description": "DMA formal adoption",
+      "anchor_entities": ["Digital Markets Act", "European Commission"],
+      "companion_entities": ["Margrethe Vestager"],
+      "time_start": "2024-03-01T08:00:00Z",
+      "time_end": "2024-03-01T14:00:00Z",
+      "claim_ids": ["claim_dma01", "claim_dma02"]
+    },
+    {
+      "id": "inc_dma_apple",
+      "description": "Apple DMA compliance",
+      "anchor_entities": ["Digital Markets Act", "Apple Inc"],
+      "companion_entities": [],
+      "time_start": "2024-03-10T09:00:00Z",
+      "time_end": "2024-03-10T15:00:00Z",
+      "claim_ids": ["claim_dma03", "claim_dma04"]
+    },
+    {
+      "id": "inc_dma_google",
+      "description": "Google DMA compliance",
+      "anchor_entities": ["Digital Markets Act", "Google"],
+      "companion_entities": [],
+      "time_start": "2024-03-15T07:00:00Z",
+      "time_end": "2024-03-15T12:00:00Z",
+      "claim_ids": ["claim_dma05", "claim_dma06"]
+    },
+    {
+      "id": "inc_dma_meta",
+      "description": "Meta DMA compliance",
+      "anchor_entities": ["Digital Markets Act", "Meta"],
+      "companion_entities": [],
+      "time_start": "2024-03-20T08:00:00Z",
+      "time_end": "2024-03-20T16:00:00Z",
+      "claim_ids": ["claim_dma07", "claim_dma08"]
+    },
+    {
+      "id": "inc_dma_consumers",
+      "description": "Consumer organization reaction",
+      "anchor_entities": ["Digital Markets Act", "European Consumer Organisation"],
+      "companion_entities": [],
+      "time_start": "2024-03-25T09:00:00Z",
+      "time_end": "2024-03-25T17:00:00Z",
+      "claim_ids": ["claim_dma09", "claim_dma10"]
+    },
+    {
+      "id": "inc_dma_enforcement",
+      "description": "DMA enforcement action",
+      "anchor_entities": ["Digital Markets Act", "European Commission"],
+      "companion_entities": ["Margrethe Vestager"],
+      "time_start": "2024-04-01T10:00:00Z",
+      "time_end": "2024-04-01T18:00:00Z",
+      "claim_ids": ["claim_dma11", "claim_dma12"]
+    }
+  ],
+  "distractors": [
+    {
+      "id": "inc_apple_unrelated",
+      "description": "Apple product launch (no DMA relation)",
+      "anchor_entities": ["Apple Inc"],
+      "companion_entities": ["Vision Pro"],
+      "time_start": "2024-02-15T10:00:00Z",
+      "time_end": "2024-02-15T14:00:00Z",
+      "notes": "Apple appears without DMA - should NOT merge with DMA story"
+    },
+    {
+      "id": "inc_google_unrelated",
+      "description": "Google AI announcement (no DMA relation)",
+      "anchor_entities": ["Google"],
+      "companion_entities": ["Gemini"],
+      "time_start": "2024-02-20T09:00:00Z",
+      "time_end": "2024-02-20T15:00:00Z",
+      "notes": "Google appears without DMA - should NOT merge with DMA story"
+    }
+  ],
+  "notes": {
+    "policy_hub_pattern": "DMA is high-frequency entity appearing in ALL incidents. Tech companies (Apple, Google, Meta) each appear with DMA ONCE.",
+    "df_test": "Tests that policy entities with high DF are correctly identified as story hub rather than noise.",
+    "stakeholder_isolation": "Each tech company's DMA compliance is a separate incident. They should NOT merge just because all involve DMA.",
+    "distractor_immunity": "Unrelated Apple/Google stories should NOT contaminate the DMA story despite shared entities."
+  }
+}

@@ -1,0 +1,196 @@
+{
+  "_meta": {
+    "description": "Wang Fuk Court Fire replay snapshot for membrane validation",
+    "frozen_at": "2025-11-28T00:00:00Z",
+    "vocabulary_version": "2025-01-05",
+    "postmortem_reference": "WFC leak postmortem: 37% membrane leak",
+    "expected_outcome": {
+      "story_spine": "Wang Fuk Court",
+      "core_incidents": 10,
+      "core_leak_rate": 0.0,
+      "rejected_count": 2,
+      "periphery_count": 3
+    }
+  },
+
+  "hub_entities": ["Hong Kong", "John Lee Ka-chiu"],
+
+  "incidents": {
+    "wfc_001": {
+      "anchor_entities": ["Wang Fuk Court", "Fire Services Department"],
+      "time_start": "2025-11-26T02:30:00Z",
+      "time_end": "2025-11-26T04:00:00Z",
+      "surface_ids": ["surf_wfc_001"],
+      "expected_membership": "core",
+      "expected_reason": "anchor"
+    },
+    "wfc_002": {
+      "anchor_entities": ["Wang Fuk Court", "Chris Tang"],
+      "time_start": "2025-11-26T08:00:00Z",
+      "time_end": "2025-11-26T10:00:00Z",
+      "surface_ids": ["surf_wfc_002"],
+      "expected_membership": "core",
+      "expected_reason": "anchor"
+    },
+    "wfc_003": {
+      "anchor_entities": ["Wang Fuk Court", "Housing Authority"],
+      "time_start": "2025-11-26T12:00:00Z",
+      "time_end": "2025-11-26T14:00:00Z",
+      "surface_ids": ["surf_wfc_003"],
+      "expected_membership": "core",
+      "expected_reason": "anchor"
+    },
+    "wfc_004": {
+      "anchor_entities": ["Wang Fuk Court", "Victims Family"],
+      "time_start": "2025-11-26T16:00:00Z",
+      "time_end": "2025-11-26T18:00:00Z",
+      "surface_ids": ["surf_wfc_004"],
+      "expected_membership": "core",
+      "expected_reason": "anchor"
+    },
+    "wfc_005": {
+      "anchor_entities": ["Wang Fuk Court", "BBC"],
+      "time_start": "2025-11-26T20:00:00Z",
+      "time_end": "2025-11-26T22:00:00Z",
+      "surface_ids": ["surf_wfc_005"],
+      "expected_membership": "core",
+      "expected_reason": "anchor"
+    },
+    "wfc_006": {
+      "anchor_entities": ["Wang Fuk Court", "Investigation Team"],
+      "time_start": "2025-11-27T08:00:00Z",
+      "time_end": "2025-11-27T10:00:00Z",
+      "surface_ids": ["surf_wfc_006"],
+      "expected_membership": "core",
+      "expected_reason": "anchor"
+    },
+    "wfc_007": {
+      "anchor_entities": ["Wang Fuk Court", "Carrie Lam"],
+      "time_start": "2025-11-27T12:00:00Z",
+      "time_end": "2025-11-27T14:00:00Z",
+      "surface_ids": ["surf_wfc_007"],
+      "expected_membership": "core",
+      "expected_reason": "anchor"
+    },
+    "wfc_008": {
+      "anchor_entities": ["Wang Fuk Court", "Hospital Authority"],
+      "time_start": "2025-11-27T16:00:00Z",
+      "time_end": "2025-11-27T18:00:00Z",
+      "surface_ids": ["surf_wfc_008"],
+      "expected_membership": "core",
+      "expected_reason": "anchor"
+    },
+    "wfc_009": {
+      "anchor_entities": ["Wang Fuk Court", "Residents Association"],
+      "time_start": "2025-11-27T20:00:00Z",
+      "time_end": "2025-11-27T22:00:00Z",
+      "surface_ids": ["surf_wfc_009"],
+      "expected_membership": "core",
+      "expected_reason": "anchor"
+    },
+    "wfc_010": {
+      "anchor_entities": ["Wang Fuk Court", "SCMP"],
+      "time_start": "2025-11-28T08:00:00Z",
+      "time_end": "2025-11-28T10:00:00Z",
+      "surface_ids": ["surf_wfc_010"],
+      "expected_membership": "core",
+      "expected_reason": "anchor"
+    },
+
+    "leak_001": {
+      "_note": "LEAK CANDIDATE: Tai Po + Chris Tang - same geo, same time, no WFC anchor",
+      "anchor_entities": ["Tai Po District", "Chris Tang"],
+      "time_start": "2025-11-26T09:00:00Z",
+      "time_end": "2025-11-26T11:00:00Z",
+      "surface_ids": ["surf_leak_001"],
+      "expected_membership": "periphery",
+      "expected_reason": "no structural witnesses",
+      "constraints": [
+        {"id": "c_leak_001_time", "kind": "time", "source_entity": ""}
+      ]
+    },
+    "leak_002": {
+      "_note": "LEAK CANDIDATE: Government response to fire - no WFC anchor, but geo witness",
+      "anchor_entities": ["Hong Kong Government", "Chris Tang"],
+      "time_start": "2025-11-26T14:00:00Z",
+      "time_end": "2025-11-26T16:00:00Z",
+      "surface_ids": ["surf_leak_002"],
+      "expected_membership": "periphery",
+      "expected_reason": "only 1 witness(es), need ≥2 with non-time",
+      "constraints": [
+        {"id": "c_leak_002_time", "kind": "time", "source_entity": ""},
+        {"id": "c_leak_002_geo", "kind": "geo", "source_entity": "New Territories"}
+      ]
+    },
+    "leak_003": {
+      "_note": "LEAK CANDIDATE: Fire safety regulations - thematic, but no direct WFC link",
+      "anchor_entities": ["Fire Services Department", "Buildings Department"],
+      "time_start": "2025-11-27T10:00:00Z",
+      "time_end": "2025-11-27T12:00:00Z",
+      "surface_ids": ["surf_leak_003"],
+      "expected_membership": "periphery",
+      "expected_reason": "no structural witnesses",
+      "constraints": []
+    },
+
+    "reject_001": {
+      "_note": "REJECT: Hub-only anchors (Hong Kong + John Lee)",
+      "anchor_entities": ["Hong Kong", "John Lee Ka-chiu"],
+      "time_start": "2025-11-26T10:00:00Z",
+      "time_end": "2025-11-26T12:00:00Z",
+      "surface_ids": ["surf_reject_001"],
+      "expected_membership": "reject",
+      "expected_reason": "incident has only hub anchors",
+      "constraints": []
+    },
+    "reject_002": {
+      "_note": "REJECT: Unrelated topic, hub-only",
+      "anchor_entities": ["Hong Kong", "Jimmy Lai"],
+      "time_start": "2025-11-26T15:00:00Z",
+      "time_end": "2025-11-26T17:00:00Z",
+      "surface_ids": ["surf_reject_002"],
+      "expected_membership": "reject",
+      "expected_reason": "incident has only hub anchors",
+      "constraints": []
+    }
+  },
+
+  "surfaces": {
+    "surf_wfc_001": {"question_key": "fire_death_count"},
+    "surf_wfc_002": {"question_key": "fire_response"},
+    "surf_wfc_003": {"question_key": "building_condition"},
+    "surf_wfc_004": {"question_key": "victim_identity"},
+    "surf_wfc_005": {"question_key": "fire_coverage"},
+    "surf_wfc_006": {"question_key": "investigation_status"},
+    "surf_wfc_007": {"question_key": "government_response"},
+    "surf_wfc_008": {"question_key": "injury_count"},
+    "surf_wfc_009": {"question_key": "evacuation_status"},
+    "surf_wfc_010": {"question_key": "fire_cause"},
+    "surf_leak_001": {"question_key": "official_statement"},
+    "surf_leak_002": {"question_key": "government_response"},
+    "surf_leak_003": {"question_key": "policy_review"},
+    "surf_reject_001": {"question_key": "general_news"},
+    "surf_reject_002": {"question_key": "trial_coverage"}
+  },
+
+  "witness_ledger": {
+    "_note": "Frozen witness inputs - what was available at extraction time",
+    "geo_entities": {
+      "Wang Fuk Court": {"district": "Tai Po", "region": "New Territories"},
+      "Tai Po District": {"district": "Tai Po", "region": "New Territories"}
+    },
+    "event_types": {
+      "wfc_001": "fire_incident",
+      "wfc_002": "official_response",
+      "wfc_003": "building_inspection",
+      "leak_001": "official_statement",
+      "leak_002": "policy_announcement"
+    }
+  },
+
+  "unrelated_background": {
+    "_note": "Background incidents to dilute hub threshold - 36 incidents keeps WFC at 10/51 = 19.6% < 20%",
+    "count": 36,
+    "pattern": "Each has unique pair {Entity_A_N, Entity_B_N}, no overlap with WFC story"
+  }
+}

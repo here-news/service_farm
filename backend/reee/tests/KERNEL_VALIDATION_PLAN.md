@@ -1,351 +1,365 @@
-# Kernel Validation Environment Plan
+# Kernel Validation Environment - Build Plan
 
-## Goals
+## What "Perfect" Means
 
-1. **Deterministic testing** - Same inputs → same topology + same decisions
-2. **Invariant-based assertions** - Not brittle exact snapshots
-3. **Local Neo4j** - Full graph testing without production dependency
-4. **Replay capability** - Record once, replay forever
-5. **Explanation audit** - Every decision has traceable reasoning
+**Perfect ≠ one huge golden graph**
 
-## Architecture Overview
+Perfect = stable invariants + deterministic replay + explainable diffs
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    Kernel Validation Environment                 │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐       │
-│  │ Golden Micro │    │ Golden Macro │    │   Replay     │       │
-│  │   Traces     │    │   Corpus     │    │  Snapshots   │       │
-│  │  (YAML/JSON) │    │ (~1000 claims)│    │ (real slices)│       │
-│  └──────┬───────┘    └──────┬───────┘    └──────┬───────┘       │
-│         │                   │                   │                │
-│         └───────────────────┼───────────────────┘                │
-│                             ▼                                    │
-│                   ┌──────────────────┐                          │
-│                   │   Test Neo4j     │                          │
-│                   │   (Containerized)│                          │
-│                   └────────┬─────────┘                          │
-│                            │                                     │
-│         ┌──────────────────┼──────────────────┐                 │
-│         ▼                  ▼                  ▼                  │
-│  ┌─────────────┐   ┌─────────────┐   ┌─────────────┐           │
-│  │   L2/L3/L4  │   │  Membrane   │   │ Retrieval   │           │
-│  │   Builders  │   │  Decisions  │   │ Completeness│           │
-│  └─────────────┘   └─────────────┘   └─────────────┘           │
-│         │                  │                  │                  │
-│         └──────────────────┼──────────────────┘                 │
-│                            ▼                                     │
-│                   ┌──────────────────┐                          │
-│                   │   Invariant      │                          │
-│                   │   Assertions     │                          │
-│                   └──────────────────┘                          │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
+Concretely:
+- Deterministic IDs (hash-based)
+- Deterministic ordering (explicit ORDER BY everywhere)
+- Tests assert invariants + scenario-local memberships, not full topology snapshots
+- Any failure prints: (a) which invariant broke, (b) minimal counterexample, (c) which constraints caused it
+
+---
+
+## Milestone 1: Test Neo4j Substrate
+**Goal:** Single pytest that boots Neo4j, loads fixture, runs kernel, tears down.
+
+### Acceptance Criteria
+- [ ] `docker-compose.test.yml` starts Neo4j on port 7688
+- [ ] `TestNeo4jManager.connect()` succeeds
+- [ ] `TestNeo4jManager.load_fixture()` loads 10 claims in deterministic order
+- [ ] `TestNeo4jManager.snapshot()` returns ordered dict
+- [ ] `TestNeo4jManager.clear_all()` leaves zero nodes
+- [ ] Full cycle completes in < 30 seconds
+
+### Stop/Go Gate
+```bash
+pytest backend/reee/tests/integration/test_neo4j_lifecycle.py -v
+# Must pass: test_connect, test_load_fixture, test_snapshot, test_clear
 ```
 
-## Phase 1: Local Neo4j Test Infrastructure
+### Deliverables
+- `docker-compose.test.yml` (working)
+- `reee/tests/db/test_neo4j.py` (tested)
+- `reee/tests/integration/test_neo4j_lifecycle.py`
+- Tiny fixture: `fixtures/micro_10_claims.json`
 
-### 1.1 Docker Compose for Test Neo4j
+---
 
-```yaml
-# docker-compose.test.yml
-services:
-  neo4j-test:
-    image: neo4j:5.15-community
-    ports:
-      - "7688:7687"  # Different port from production
-      - "7475:7474"
-    environment:
-      NEO4J_AUTH: neo4j/test_password
-      NEO4J_PLUGINS: '["apoc"]'
-    volumes:
-      - neo4j-test-data:/data
-    tmpfs:
-      - /logs  # Ephemeral logs for speed
+## Milestone 2: Star Story Archetype (WFC Pattern)
+**Goal:** Prove pipeline with the case that broke motif recurrence.
 
-volumes:
-  neo4j-test-data:
+### Why This Archetype
+- Spine + rotating companions
+- No recurring pairs (k=2 fails)
+- Tests membrane Core-A/Core-B logic
+- Has leaked candidates to test periphery/blocked
+
+### Acceptance Criteria
+- [ ] `golden_micro_star_wfc.yaml` with 20-30 claims
+- [ ] StoryBuilder produces exactly 1 story for WFC spine
+- [ ] Core-A = incidents where WFC is anchor
+- [ ] Core-B = 0 (no structural witnesses without ledger)
+- [ ] Periphery candidates tracked with blocked reasons
+- [ ] `core_leak_rate == 0.0`
+- [ ] All invariants pass:
+  - `no_semantic_only_core`
+  - `no_hub_story_definition`
+  - `scoped_surface_isolation`
+
+### Stop/Go Gate
+```bash
+pytest backend/reee/tests/integration/test_star_story_archetype.py -v
+# Must pass: test_wfc_forms_one_story, test_core_leak_zero, test_invariants_hold
 ```
 
-### 1.2 Test Database Manager
+### Deliverables
+- `fixtures/golden_micro_star_wfc.yaml`
+- `reee/tests/integration/test_star_story_archetype.py`
+- Invariant assertions wired to real kernel output
+
+---
+
+## Milestone 3: Retrieval Completeness Test
+**Goal:** Prove on-demand context loading doesn't miss true members.
+
+### Why This Matters
+- Neo4j stores full graph
+- Kernel loads bounded context (time window + top-k)
+- Must not miss true core members
+- Must emit `insufficient_context` if budget too small
+
+### Acceptance Criteria
+- [ ] Test with retrieval budget: `top_k=20, time_window=7d`
+- [ ] Candidate pool includes all true WFC core members
+- [ ] If budget too small, kernel emits meta-claim not wrong merge
+- [ ] Recall metric computed and asserted
+
+### Stop/Go Gate
+```bash
+pytest backend/reee/tests/integration/test_retrieval_completeness.py -v
+# Must pass: test_full_recall_within_budget, test_insufficient_context_emits_metaclaim
+```
+
+### Deliverables
+- `reee/tests/integration/test_retrieval_completeness.py`
+- Context budget simulation in test harness
+
+---
+
+## Milestone 4: Adversary Archetypes (Hub + Scope Pollution)
+**Goal:** Lock anti-percolation under pressure.
+
+### Adversary 1: Hub Entity
+- "Hong Kong" / "United States" appears in 30%+ of incidents
+- Must NOT define stories
+- Must NOT create core merges between unrelated incidents
+
+### Adversary 2: Scope Pollution
+- Same `question_key=policy_announcement` in two unrelated scopes
+- Must produce SEPARATE surfaces
+- `(scope_id, question_key)` invariant holds
+
+### Acceptance Criteria
+- [ ] Hub entity in 30%+ incidents → 0 stories defined by hub
+- [ ] Scope pollution → surfaces isolated by scope
+- [ ] No mega-case formation (max case size < 50)
+- [ ] Invariants:
+  - `no_hub_story_definition`
+  - `scoped_surface_isolation`
+  - `max_case_size_below(50)`
+
+### Stop/Go Gate
+```bash
+pytest backend/reee/tests/integration/test_adversary_archetypes.py -v
+# Must pass: test_hub_cannot_define_story, test_scope_isolation, test_no_megacase
+```
+
+### Deliverables
+- `fixtures/golden_adversary_hub.yaml`
+- `fixtures/golden_adversary_scope.yaml`
+- `reee/tests/integration/test_adversary_archetypes.py`
+
+---
+
+## Milestone 5: Macro Corpus Generator (~1000 claims)
+**Goal:** Systematic coverage of all 8 archetypes.
+
+### Prerequisites
+- Milestones 1-4 complete and green
+- Test harness proven stable
+
+### 8 Archetypes
+| # | Archetype | Claims | Key Invariants |
+|---|-----------|--------|----------------|
+| 1 | Star Story (WFC) | 150 | core_leak=0, 1 story per spine |
+| 2 | Dyad Story (Do Kwon + Terraform) | 80 | multi-spine promotion, PMI>2 |
+| 3 | Hub Adversary | 200 | hub never defines story |
+| 4 | Homonym Adversary | 60 | disambiguation, no merge |
+| 5 | Scope Pollution | 100 | surface isolation |
+| 6 | Time Missingness (50%) | 120 | conservative blocking |
+| 7 | Typed Conflicts | 90 | Jaynes posterior, conflicts flagged |
+| 8 | Related Storyline | 100 | RELATED_STORY link, not member |
+
+### Acceptance Criteria
+- [ ] `golden_corpus_generator.py` with `seed=42`
+- [ ] `corpus_manifest.yaml` with:
+  - Scenarios + expected invariants
+  - Named anchors/stories with expected memberships
+  - Quantitative envelopes (ranges, not exact values)
+- [ ] All 8 archetypes pass their invariants
+- [ ] Aggregate quantitative report:
+  - `stories_range: [40, 80]`
+  - `periphery_rate: [0.05, 0.25]`
+  - `witness_scarcity: < 0.40`
+  - `max_case_size: < 50`
+
+### Stop/Go Gate
+```bash
+pytest backend/reee/tests/integration/test_macro_corpus.py -v
+# Must pass: test_all_archetypes_invariants, test_quantitative_bounds
+```
+
+### Deliverables
+- `golden_macro/corpus_generator.py`
+- `golden_macro/corpus_manifest.yaml`
+- `golden_macro/corpus.json` (generated, gitignored)
+- `reee/tests/integration/test_macro_corpus.py`
+
+---
+
+## Milestone 6: Replay Snapshots
+**Goal:** Freeze real-world slices for regression testing.
+
+### What Gets Recorded
+- Kernel INPUTS: incidents, anchors, time windows, constraints
+- NOT raw pages or HTML
+
+### Use Cases
+- "WFC leak" snapshot - ensure fix doesn't regress
+- "Jimmy Lai trial" snapshot - multi-mode story
+- "Hong Kong policy" snapshot - hub pressure
+
+### Acceptance Criteria
+- [ ] `record_snapshot(kernel_inputs)` → JSON file
+- [ ] `replay_snapshot(path)` → same topology
+- [ ] Diff tool shows: which decisions changed, why
+- [ ] CI runs replay tests on every PR
+
+### Stop/Go Gate
+```bash
+pytest backend/reee/tests/integration/test_replay_snapshots.py -v
+# Must pass: test_wfc_replay_deterministic, test_diff_explains_changes
+```
+
+### Deliverables
+- `reee/tests/replay/recorder.py`
+- `reee/tests/replay/replayer.py`
+- `fixtures/replay_wfc_snapshot.json` (already exists, wire it up)
+- `reee/tests/integration/test_replay_snapshots.py`
+
+---
+
+## Deterministic ID Scheme
+
+Use in test generator first, align production later.
 
 ```python
-# reee/tests/db/test_neo4j.py
-class TestNeo4jManager:
-    """Manages test Neo4j lifecycle."""
-
-    async def setup_fresh(self):
-        """Clear and initialize test database."""
-        await self.clear_all()
-        await self.create_indexes()
-
-    async def load_fixture(self, fixture_path: str):
-        """Load deterministic fixture into Neo4j."""
-        # Load claims, surfaces, incidents in deterministic order
-        # Use hash-based IDs for stability
-
-    async def snapshot(self) -> dict:
-        """Export current state for comparison."""
-        # Returns ordered dict of all nodes/relationships
+# Stable, content-based IDs
+claim_id    = sha1(corpus_id + idx + text)[:12]
+entity_id   = sha1(canonical_name)[:12]
+scope_id    = sha1(sorted(nonhub_anchors))[:12]
+surface_id  = sha1(scope_id + question_key)[:12]
+incident_id = sha1(sorted(surface_ids) + mode_bin)[:12]
+story_id    = sha1(focal_set + mode_id)[:12]
 ```
 
-## Phase 2: Golden Corpus Design
+---
 
-### 2.1 Story Archetypes (8 patterns)
+## Timeline Estimate
 
-| Archetype | Description | Claims | Expected Invariants |
-|-----------|-------------|--------|---------------------|
-| **Star Story** | Spine + rotating companions (WFC pattern) | 150 | 1 story, multiple modes, facet gaps emitted |
-| **Dyad Story** | Two-spine interaction (Do Kwon + Terraform) | 80 | Multi-spine promotion succeeds, PMI > 2.0 |
-| **Hub Adversary** | Ubiquitous entities (Hong Kong, USA) | 200 | Never define stories, only lenses/periphery |
-| **Homonym Adversary** | Same name, different entities | 60 | Disambiguation, no accidental merge |
-| **Scope Pollution** | Same question_key across incidents | 100 | Scoped surfaces never shared |
-| **Time Missingness** | 50% claims missing timestamps | 120 | Conservative blocking, blockers emitted |
-| **Typed Conflicts** | Numeric conflicts with supersession | 90 | Jaynes posterior evolves, conflicts flagged |
-| **Related Storyline** | Adjacent but not member | 100 | RELATED_STORY link, not membership |
+| Milestone | Days | Cumulative |
+|-----------|------|------------|
+| 1. Neo4j Substrate | 1 | 1 |
+| 2. Star Story | 1 | 2 |
+| 3. Retrieval Completeness | 0.5-1 | 3 |
+| 4. Adversary Archetypes | 1 | 4 |
+| 5. Macro Generator | 2-3 | 6-7 |
+| 6. Replay Snapshots | 1-2 | 7-9 |
 
-**Total: ~900 claims + 100 edge cases = ~1000 claims**
+**Total: ~7-9 days for complete kernel validation environment**
 
-### 2.2 Fixture Schema
+---
 
-```yaml
-# golden_macro/corpus_manifest.yaml
-corpus:
-  version: "1.0"
-  seed: 42  # For reproducible generation
+## Current Status
 
-archetypes:
-  - name: star_story_wfc
-    template: star_story
-    params:
-      spine: "Wang Fuk Court"
-      companion_pool: ["Fire Services", "John Lee", "Chris Tang", ...]
-      facets: [fire_death_count, fire_injury_count, fire_cause, ...]
-      time_modes: 2
-      claims_per_mode: 75
+- [x] Plan document created
+- [x] **Milestone 1: Test Neo4j Substrate** ✓ (5 tests pass, 12.17s)
+- [x] **Milestone 2: Star Story Archetype** ✓ (10 tests pass, 0.14s)
+- [x] **Milestone 3: Retrieval Completeness** ✓ (7 tests pass, 0.11s)
+- [x] **Milestone 4: Adversary Archetypes** ✓ (13 tests pass, 0.08s)
+- [x] **Milestone 5: Macro Corpus Generator** ✓ (17 tests pass, 1.94s)
+- [x] **Milestone 6: Replay Snapshots** ✓ (16 tests pass, 0.20s)
 
-    expected:
-      stories: 1
-      modes: 2
-      core_incidents_range: [20, 40]
-      periphery_incidents_range: [0, 10]
-      facet_gaps: [fire_status]  # Expected missing
+**ALL MILESTONES COMPLETE** - Total: 68 tests across 6 test modules
 
-  - name: hub_adversary_hk
-    template: hub_adversary
-    params:
-      hub_entity: "Hong Kong"
-      appearance_fraction: 0.35  # 35% of all incidents
+---
 
-    expected:
-      stories_defined_by_hub: 0  # Must be zero!
-      hub_blocked_count_min: 50
+## Post-Milestone: Persistent Topology Validation
 
-invariants:
-  safety:
-    - no_semantic_only_core
-    - no_chain_percolation
-    - core_leak_rate_zero
-    - scoped_surface_isolation
+### Neo4j Persistence + Topology Semantics Test
+- `scripts/load_corpus_to_neo4j.py` - Load macro corpus for persistent inspection
+- `test_topology_semantics.py` - 19 tests validating graph structure
 
-  quantitative:
-    - stories_range: [15, 30]
-    - periphery_rate_range: [0.05, 0.20]
-    - witness_scarcity_max: 0.40
+### How to Use
+
+```bash
+# Load corpus into test Neo4j (persists data)
+docker exec herenews-app python /app/reee/tests/scripts/load_corpus_to_neo4j.py
+
+# Run topology semantics tests (requires loaded data)
+docker exec herenews-app python -m pytest /app/reee/tests/integration/test_topology_semantics.py -v
+
+# Query test Neo4j directly
+docker exec herenews-neo4j-test cypher-shell -u neo4j -p test_password "MATCH (st:Story) RETURN st.spine, st.core_a_count ORDER BY st.core_a_count DESC"
 ```
 
-### 2.3 Invariant Assertion Framework
+### Test Categories
 
-```python
-# reee/tests/invariants/kernel_invariants.py
+| Category | Tests | Description |
+|----------|-------|-------------|
+| Structural Invariants | 4 | Every story has spine, incidents have anchors, etc. |
+| Archetype Behavior | 5 | Star story, dyad, hub detection, scope isolation |
+| Story Quality | 4 | No mega-cases, leak rates, coverage |
+| Graph Connectivity | 3 | Entity-incident, claim-surface paths |
+| Archetype Statistics | 2 | All 8 archetypes present with counts |
+| Summary | 1 | Print topology overview |
 
-class KernelInvariants:
-    """Invariants that must always hold."""
+**Total: 87 tests** (68 base + 19 topology semantics)
 
-    @staticmethod
-    def no_semantic_only_core(stories: List[CompleteStory]) -> bool:
-        """Core membership requires structural witness."""
-        for story in stories:
-            for inc_id in story.core_b_ids:
-                decision = story.membrane_decisions.get(inc_id)
-                if decision and not decision.witnesses:
-                    return False
-        return True
+---
 
-    @staticmethod
-    def no_hub_story_definition(stories: List[CompleteStory],
-                                 hub_entities: Set[str]) -> bool:
-        """Hub entities cannot define stories."""
-        for story in stories:
-            if story.spine in hub_entities:
-                return False
-        return True
+## Phase 2: Real Kernel Validation with Decision Traces
 
-    @staticmethod
-    def scoped_surface_isolation(surfaces: Dict[str, Surface]) -> bool:
-        """Same (scope_id, question_key) never shared across scopes."""
-        seen = {}
-        for surf in surfaces.values():
-            key = (surf.scope_id, surf.question_key)
-            if key in seen and seen[key] != surf.id:
-                return False
-            seen[key] = surf.id
-        return True
+### Acceptance Checkpoint
+After running kernel_validator.py, you can answer "why is incident X in story Y?" by following stored MEMBERSHIP_DECISION edges in Neo4j - not by re-running code.
+
+### Isolated Test Infrastructure
+Uses `docker-compose.test.yml` with isolated test-runner container that ONLY has test Neo4j credentials. Production databases cannot be contaminated.
+
+### How to Use (Isolated)
+
+```bash
+# Start isolated test environment
+docker-compose -f docker-compose.test.yml up -d
+
+# Load corpus and run kernel with decision traces
+docker exec herenews-test-runner python -m reee.tests.scripts.load_corpus_to_neo4j
+docker exec herenews-test-runner python -m reee.tests.scripts.kernel_validator
+
+# Run hard invariant tests (MUST ALWAYS PASS)
+docker exec herenews-test-runner python -m pytest reee/tests/integration/test_hard_invariants.py -v
+
+# Run soft envelope tests (warnings only)
+docker exec herenews-test-runner python -m pytest reee/tests/integration/test_soft_envelopes.py -v
+
+# Run retrieval completeness tests
+docker exec herenews-test-runner python -m pytest reee/tests/integration/test_retrieval_completeness.py::TestNeo4jRetrievalCompleteness -v
+
+# Query decision traces directly
+docker exec herenews-neo4j-test cypher-shell -u neo4j -p test_password "
+MATCH (i:Incident)-[d:MEMBERSHIP_DECISION]->(st:Story)
+RETURN i.id, st.spine, d.membership, d.core_reason, d.blocked_reason
+LIMIT 5
+"
 ```
 
-## Phase 3: Test Structure
+### Decision Trace Schema
+Per candidate:
+- `candidate_id`, `target_id` (story)
+- `membership`: CORE_A, CORE_B, PERIPHERY, REJECT
+- `core_reason`: ANCHOR, WARRANT, null
+- `witnesses`: [constraint_ids]
+- `blocked_reason`: string or null
+- `timestamp`, `kernel_version`, `params_hash`
 
-### 3.1 Directory Layout
+### Test Categories
 
-```
-reee/tests/
-├── golden_micro/           # Hand-authored traces (existing)
-│   ├── bridge_immunity.yaml
-│   ├── typed_conflict.yaml
-│   └── companion_incompatibility.yaml
-│
-├── golden_macro/           # Generated corpus
-│   ├── corpus_manifest.yaml
-│   ├── generator.py        # Deterministic generator
-│   ├── archetypes/
-│   │   ├── star_story.py
-│   │   ├── dyad_story.py
-│   │   ├── hub_adversary.py
-│   │   └── ...
-│   └── expected/
-│       ├── wfc_story.yaml  # Named scenario expectations
-│       └── ...
-│
-├── replay_snapshots/       # Frozen real-world slices
-│   ├── wfc_fire_2025.json
-│   └── jimmy_lai_trial.json
-│
-├── db/                     # Neo4j test infrastructure
-│   ├── test_neo4j.py
-│   ├── fixtures/
-│   │   └── full_corpus.cypher
-│   └── conftest.py         # pytest fixtures
-│
-├── invariants/             # Invariant assertion library
-│   ├── kernel_invariants.py
-│   ├── scenario_invariants.py
-│   └── quantitative_bounds.py
-│
-└── integration/            # Full-stack tests with Neo4j
-    ├── test_full_weave.py
-    ├── test_retrieval_completeness.py
-    └── test_explanation_audit.py
-```
+| Category | Tests | Description |
+|----------|-------|-------------|
+| **Hard Invariants** | 15 | MUST ALWAYS PASS - kernel safety guarantees |
+| Scoped Surface Isolation | 2 | (scope_id, question_key) uniquely identifies surface |
+| Semantic-Only Cannot Core | 2 | CORE requires structural link, not just semantic |
+| Chain-Only Cannot Merge | 1 | Single witness chain insufficient for CORE_B |
+| Core Leak Rate | 2 | Leak rate correctly computed and bounded |
+| Blocked Reasons Visible | 3 | All non-core candidates have blocked_reason |
+| Hub Cannot Define Story | 1 | Hub entities don't become story spines |
+| Decision Trace Complete | 3 | All traces have version, timestamp, params_hash |
+| Summary | 1 | Print invariant summary |
+| **Soft Envelopes** | 6 | Warnings only - parameter tuning indicators |
+| Story Count Range | 1 | 20-80 stories expected |
+| Max Core Size | 1 | No core larger than 30 |
+| Hub Count | 1 | 1-10 hubs expected |
+| Periphery Rate | 1 | 5-40% periphery expected |
+| Witness Scarcity | 1 | <50% CORE_B without witnesses |
+| Summary | 1 | Print envelope summary |
+| **Retrieval Completeness** | 5 | Bounded retrieval doesn't miss core members |
+| Entity Retrieval | 2 | CORE_A retrievable via spine entity |
+| Budget Sufficiency | 1 | Top-k covers all cores |
+| Graph Connectivity | 1 | All incidents reachable from entities |
+| Context Gap Detection | 1 | PERIPHERY has blocked_reason |
 
-### 3.2 Pytest Integration
-
-```python
-# reee/tests/db/conftest.py
-
-@pytest.fixture(scope="session")
-async def test_neo4j():
-    """Session-scoped test Neo4j connection."""
-    manager = TestNeo4jManager(
-        uri="bolt://localhost:7688",
-        user="neo4j",
-        password="test_password"
-    )
-    await manager.connect()
-    yield manager
-    await manager.close()
-
-@pytest.fixture
-async def fresh_db(test_neo4j):
-    """Per-test fresh database."""
-    await test_neo4j.setup_fresh()
-    yield test_neo4j
-
-@pytest.fixture
-async def corpus_db(test_neo4j):
-    """Database loaded with golden corpus."""
-    await test_neo4j.setup_fresh()
-    await test_neo4j.load_fixture("golden_macro/corpus.json")
-    yield test_neo4j
-```
-
-## Phase 4: Explanation Audit
-
-### 4.1 Deterministic Explanations
-
-```python
-# Explanation tokens (no LLM, deterministic)
-EXPLANATION_TOKENS = {
-    "CORE_A": "spine '{spine}' is anchor in incident",
-    "CORE_B": "2+ structural witnesses: {witnesses}",
-    "CORE_B_BLOCKED": "insufficient witnesses: {reason}",
-    "PERIPHERY": "semantic-only, no structural binding",
-    "REJECT_HUB": "only hub anchors shared: {hubs}",
-    "REJECT_UNRELATED": "no focal overlap",
-}
-
-def explain_decision(decision: MembershipDecision) -> str:
-    """Generate deterministic explanation."""
-    token = ...  # Select based on decision
-    return EXPLANATION_TOKENS[token].format(**decision.__dict__)
-```
-
-### 4.2 Audit Trail Assertions
-
-```python
-def test_every_decision_has_explanation(corpus_db, stories):
-    """Every membership decision must have traceable reasoning."""
-    for story in stories:
-        for inc_id, decision in story.membrane_decisions.items():
-            assert decision.membership is not None
-            if decision.membership == Membership.CORE:
-                assert decision.core_reason is not None
-            if decision.membership == Membership.PERIPHERY:
-                assert decision.blocked_reason is not None
-```
-
-## Phase 5: Implementation Steps
-
-### Step 1: Neo4j Test Infrastructure (Day 1)
-- [ ] Create `docker-compose.test.yml`
-- [ ] Implement `TestNeo4jManager`
-- [ ] Add pytest fixtures for Neo4j lifecycle
-- [ ] Verify container startup/teardown
-
-### Step 2: Corpus Generator (Day 2-3)
-- [ ] Define archetype templates
-- [ ] Implement deterministic claim generator
-- [ ] Generate ~1000 claims with seed=42
-- [ ] Create corpus manifest with expected invariants
-
-### Step 3: Invariant Framework (Day 3-4)
-- [ ] Implement `KernelInvariants` class
-- [ ] Add scenario-specific invariant assertions
-- [ ] Add quantitative bounds checking
-- [ ] Wire into pytest
-
-### Step 4: Full Integration Tests (Day 4-5)
-- [ ] `test_full_weave.py` - End-to-end kernel execution
-- [ ] `test_retrieval_completeness.py` - No missed candidates
-- [ ] `test_explanation_audit.py` - All decisions explained
-
-### Step 5: CI Integration (Day 5)
-- [ ] Add Neo4j service to CI workflow
-- [ ] Run kernel validation on PR
-- [ ] Cache corpus for speed
-
-## Success Criteria
-
-1. **Determinism**: Running tests 10x produces identical results
-2. **Invariant coverage**: All 8 archetypes have passing invariant tests
-3. **No brittleness**: Kernel changes don't require golden output rewrites (unless intentional)
-4. **Explanability**: 100% of decisions have audit trail
-5. **Speed**: Full corpus test completes in < 60 seconds
-
-## Notes
-
-- **No LLM in tests**: All explanations are template-based
-- **Stable IDs**: All IDs derived from content hash, not insertion order
-- **Ordered queries**: All Neo4j queries use explicit ORDER BY
-- **Seed everything**: Random choices use fixed seed for reproducibility
+**Total: 113 tests** (68 base + 19 topology + 26 decision traces)

@@ -138,12 +138,12 @@ class TestMetaClaim:
     def test_meta_claim_creation(self):
         """Test creating a meta-claim."""
         mc = MetaClaim(
-            type='high_entropy_surface',
+            type='high_entropy_value',
             target_id='S001',
             target_type='surface',
             evidence={'entropy': 0.9}
         )
-        assert mc.type == 'high_entropy_surface'
+        assert mc.type == 'high_entropy_value'
         assert mc.target_id == 'S001'
         assert mc.resolved is False
 

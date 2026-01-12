@@ -155,7 +155,8 @@ MetaClaimType = Literal[
     "high_stakes_low_evidence",  # → verification bounty
     "unresolved_conflict",        # → adjudication task
     "single_source_only",         # → corroboration request
-    "high_entropy_surface",       # → investigation prompt
+    "high_entropy_value",         # → investigation prompt (weak constraint)
+    "typed_value_conflict",       # → value conflict resolution (incompatible constraint)
     "bridge_node_detected",       # → potential split candidate
     "stale_event",                # → decay candidate
 ]
@@ -176,7 +177,7 @@ class MetaClaim:
     They are NEVER injected back as world-claims.
     """
     id: str = field(default_factory=lambda: f"mc_{uuid.uuid4().hex[:8]}")
-    type: MetaClaimType = "high_entropy_surface"
+    type: MetaClaimType = "high_entropy_value"
     target_id: str = ""           # node/surface/event ID
     target_type: str = "surface"  # "claim", "surface", "event"
 
@@ -1623,18 +1624,11 @@ class EmergenceEngine:
             for e in s.entities:
                 entity_df[e] += 1
 
-        # Hub locations that should always be penalized
-        HUB_ENTITIES = {
-            'Hong Kong', 'China', 'United States', 'US', 'UK',
-            'United Kingdom', 'Beijing', 'Taiwan', 'Europe'
-        }
-
+        # Hub detection is purely dispersion-based (domain-agnostic)
         entity_idf = {}
         for e, df in entity_df.items():
-            if e in HUB_ENTITIES:
-                entity_idf[e] = 0.0  # Hub penalty: zero weight for known hubs
-            elif df > hub_max_df:
-                entity_idf[e] = 0.0  # Hub penalty: zero weight for frequent entities
+            if df > hub_max_df:
+                entity_idf[e] = 0.0  # Dispersion-based hub penalty
             else:
                 entity_idf[e] = math.log(1 + n_surfaces / df)
 
@@ -2107,19 +2101,18 @@ class EmergenceEngine:
         - New L0 claims (verification, corroboration)
         - Task generation (bounties, investigations)
 
-        Tension types detected:
-        - high_entropy_surface: Surface has high semantic dispersion
-        - single_source_only: Claim has only one source
-        - unresolved_conflict: CONFLICTS edge without resolution
-        - bridge_node_detected: Single anchor connecting dense parts
+        Constraint-state types detected (see REEE1.md Section 5):
+        - Incompatible: typed_value_conflict, unresolved_conflict
+        - Weak: high_entropy_value (H(X|E,S) > threshold), single_source_only
+        - Structural: bridge_node_detected
         """
         new_meta_claims = []
 
-        # Detect high-entropy surfaces
+        # Detect high-entropy surfaces (weak constraint state)
         for surface in self.surfaces.values():
             if surface.entropy > self.params.high_entropy_threshold:
                 mc = MetaClaim(
-                    type="high_entropy_surface",
+                    type="high_entropy_value",
                     target_id=surface.id,
                     target_type="surface",
                     evidence={

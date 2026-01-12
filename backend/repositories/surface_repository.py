@@ -85,14 +85,20 @@ class SurfaceRepository:
             'params_version': surface.params_version,
         })
 
-        # Neo4j: CONTAINS edges (batch for efficiency)
+        # Neo4j: CONTAINS edges with similarity weights
         if surface.claim_ids:
+            # Build list of {claim_id, similarity} for UNWIND
+            claim_data = [
+                {'cid': cid, 'sim': surface.claim_similarities.get(cid, 1.0)}
+                for cid in surface.claim_ids
+            ]
             await self.neo4j._execute_write("""
                 MATCH (s:Surface {id: $sid})
-                UNWIND $claim_ids as cid
-                MATCH (c:Claim {id: cid})
-                MERGE (s)-[:CONTAINS]->(c)
-            """, {'sid': surface.id, 'claim_ids': list(surface.claim_ids)})
+                UNWIND $claims as cd
+                MATCH (c:Claim {id: cd.cid})
+                MERGE (s)-[r:CONTAINS]->(c)
+                SET r.similarity = cd.sim
+            """, {'sid': surface.id, 'claims': claim_data})
 
         # PostgreSQL: Centroid for similarity search
         if surface.centroid:
@@ -195,6 +201,144 @@ class SurfaceRepository:
         # Load centroid from PostgreSQL
         surface.centroid = await self._get_centroid(surface_id)
 
+        return surface
+
+    async def get_with_claims(self, surface_id: str) -> Optional[Surface]:
+        """
+        Retrieve surface with hydrated claims and similarity weights.
+
+        Args:
+            surface_id: Surface ID (sf_xxxxxxxx format)
+
+        Returns:
+            Surface model with claims populated, or None
+        """
+        results = await self.neo4j._execute_read("""
+            MATCH (s:Surface {id: $id})
+            OPTIONAL MATCH (s)-[r:CONTAINS]->(c:Claim)
+            OPTIONAL MATCH (p:Page)-[:EMITS]->(c)
+            WITH s, c, p, r
+            ORDER BY c.created_at
+            WITH s, collect({
+                id: c.id,
+                text: c.text,
+                event_time: c.event_time,
+                reported_time: c.reported_time,
+                confidence: c.confidence,
+                modality: c.modality,
+                page_id: p.id,
+                source: p.domain,
+                created_at: c.created_at,
+                similarity: r.similarity
+            }) as claims_data
+            RETURN s.id as id,
+                   s.entities as entities,
+                   s.anchor_entities as anchors,
+                   s.sources as sources,
+                   s.support as support,
+                   s.time_start as time_start,
+                   s.time_end as time_end,
+                   s.params_version as params_version,
+                   s.created_at as created_at,
+                   s.updated_at as updated_at,
+                   claims_data
+        """, {'id': surface_id})
+
+        if not results:
+            return None
+
+        row = results[0]
+
+        # Build Claim objects from data
+        from models.domain.claim import Claim
+        claims = []
+        claim_ids = set()
+        claim_similarities = {}
+
+        for cd in row['claims_data']:
+            if cd.get('id'):  # Skip nulls from OPTIONAL MATCH
+                cid = cd['id']
+                claim_ids.add(cid)
+                claim_similarities[cid] = cd.get('similarity') or 1.0
+                claims.append(Claim(
+                    id=cid,
+                    text=cd.get('text', ''),
+                    page_id=cd.get('page_id'),
+                    event_time=cd.get('event_time'),
+                    reported_time=cd.get('reported_time'),
+                    confidence=cd.get('confidence') or 0.8,
+                    modality=cd.get('modality') or 'observation',
+                    created_at=cd.get('created_at'),
+                ))
+
+        surface = Surface(
+            id=row['id'],
+            claim_ids=claim_ids,
+            claim_similarities=claim_similarities,
+            entities=set(row['entities'] or []),
+            anchor_entities=set(row['anchors'] or []),
+            sources=set(row['sources'] or []),
+            support=row['support'] or 0.0,
+            time_start=row['time_start'],
+            time_end=row['time_end'],
+            params_version=row['params_version'] or 1,
+            created_at=row['created_at'],
+            updated_at=row['updated_at'],
+            claims=claims,  # Hydrated!
+        )
+
+        # Load centroid from PostgreSQL
+        surface.centroid = await self._get_centroid(surface_id)
+
+        return surface
+
+    async def hydrate_claims(self, surface: Surface) -> Surface:
+        """
+        Fetch and attach claims to an existing surface with similarity weights.
+
+        Args:
+            surface: Surface to hydrate
+
+        Returns:
+            Surface with claims and claim_similarities populated
+        """
+        if surface.claims is not None:
+            return surface  # Already hydrated
+
+        results = await self.neo4j._execute_read("""
+            MATCH (s:Surface {id: $id})-[r:CONTAINS]->(c:Claim)
+            OPTIONAL MATCH (p:Page)-[:EMITS]->(c)
+            RETURN c.id as id,
+                   c.text as text,
+                   c.event_time as event_time,
+                   c.reported_time as reported_time,
+                   c.confidence as confidence,
+                   c.modality as modality,
+                   p.id as page_id,
+                   p.domain as source,
+                   c.created_at as created_at,
+                   r.similarity as similarity
+            ORDER BY c.created_at
+        """, {'id': surface.id})
+
+        from models.domain.claim import Claim
+        surface.claims = []
+
+        for row in results:
+            cid = row['id']
+            surface.claim_similarities[cid] = row.get('similarity') or 1.0
+            surface.claims.append(Claim(
+                id=cid,
+                text=row.get('text', ''),
+                page_id=row.get('page_id'),
+                event_time=row.get('event_time'),
+                reported_time=row.get('reported_time'),
+                confidence=row.get('confidence') or 0.8,
+                modality=row.get('modality') or 'observation',
+                created_at=row.get('created_at'),
+            ))
+
+        logger.debug(f"✅ Hydrated {len(surface.claims)} claims for surface {surface.id}")
         return surface
 
     async def _get_centroid(self, surface_id: str) -> Optional[List[float]]:

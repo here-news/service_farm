@@ -47,7 +47,7 @@ TENSION_TO_TASK_TYPE = {
     "typed_value_conflict": "unresolved_conflict",
     "unresolved_conflict": "unresolved_conflict",
     "single_source_only": "single_source_only",
-    "high_entropy_surface": "high_entropy",
+    "high_entropy_value": "high_entropy",
     "needs_primary_source": "need_primary_source",
 }
 

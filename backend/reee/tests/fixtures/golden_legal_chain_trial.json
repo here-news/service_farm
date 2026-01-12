@@ -1,0 +1,193 @@
+{
+  "corpus_id": "golden_chain_trial",
+  "description": "Legal-centric chain story: Court case evolving through sequential phases. Tests temporal chain formation with legal entities.",
+  "archetype": "legal_chain",
+  "expected": {
+    "story_count": 1,
+    "spine": "Morrison Securities Trial",
+    "core_a_count": 5,
+    "core_b_count": 1,
+    "core_leak_rate": 0.0,
+    "invariants": ["temporal_coherence", "no_semantic_only_core", "update_chain_integrity"]
+  },
+  "entities": [
+    {"id": "ent_trial", "name": "Morrison Securities Trial", "type": "legal_proceeding", "role": "spine"},
+    {"id": "ent_morrison", "name": "James Morrison", "type": "person", "role": "defendant"},
+    {"id": "ent_prosecutor", "name": "District Attorney Williams", "type": "person", "role": "actor"},
+    {"id": "ent_court", "name": "Manhattan Federal Court", "type": "location", "role": "place"},
+    {"id": "ent_sec", "name": "Securities and Exchange Commission", "type": "organization", "role": "actor"},
+    {"id": "ent_victims", "name": "Investor Coalition", "type": "organization", "role": "companion"}
+  ],
+  "claims": [
+    {
+      "id": "claim_l01",
+      "text": "James Morrison indicted on securities fraud charges in Manhattan Federal Court",
+      "publisher": "wsj",
+      "reported_time": "2024-03-01T09:00:00Z",
+      "event_time": "2024-03-01T08:00:00Z",
+      "question_key": "indictment",
+      "anchor_entities": ["Morrison Securities Trial", "James Morrison", "Manhattan Federal Court"]
+    },
+    {
+      "id": "claim_l02",
+      "text": "District Attorney Williams announces Morrison securities fraud case",
+      "publisher": "nyt",
+      "reported_time": "2024-03-01T14:00:00Z",
+      "event_time": "2024-03-01T13:00:00Z",
+      "question_key": "indictment",
+      "anchor_entities": ["Morrison Securities Trial", "District Attorney Williams"]
+    },
+    {
+      "id": "claim_l03",
+      "text": "Morrison pleads not guilty in Manhattan Federal Court hearing",
+      "publisher": "reuters",
+      "reported_time": "2024-03-15T10:00:00Z",
+      "event_time": "2024-03-15T09:00:00Z",
+      "question_key": "plea",
+      "anchor_entities": ["Morrison Securities Trial", "James Morrison", "Manhattan Federal Court"]
+    },
+    {
+      "id": "claim_l04",
+      "text": "Morrison defense team challenges evidence in pretrial motion",
+      "publisher": "law360",
+      "reported_time": "2024-03-15T16:00:00Z",
+      "event_time": "2024-03-15T15:00:00Z",
+      "question_key": "plea",
+      "anchor_entities": ["Morrison Securities Trial", "James Morrison"]
+    },
+    {
+      "id": "claim_l05",
+      "text": "SEC files additional charges in Morrison securities case",
+      "publisher": "wsj",
+      "reported_time": "2024-04-01T08:00:00Z",
+      "event_time": "2024-04-01T07:00:00Z",
+      "question_key": "charges_expanded",
+      "anchor_entities": ["Morrison Securities Trial", "Securities and Exchange Commission"]
+    },
+    {
+      "id": "claim_l06",
+      "text": "SEC evidence reveals 50 million dollar scheme in Morrison trial",
+      "publisher": "bloomberg",
+      "reported_time": "2024-04-01T12:00:00Z",
+      "event_time": "2024-04-01T11:00:00Z",
+      "question_key": "evidence",
+      "anchor_entities": ["Morrison Securities Trial", "Securities and Exchange Commission"]
+    },
+    {
+      "id": "claim_l07",
+      "text": "Morrison trial begins with opening statements in Manhattan",
+      "publisher": "nyt",
+      "reported_time": "2024-05-01T09:00:00Z",
+      "event_time": "2024-05-01T08:00:00Z",
+      "question_key": "trial_start",
+      "anchor_entities": ["Morrison Securities Trial", "Manhattan Federal Court"]
+    },
+    {
+      "id": "claim_l08",
+      "text": "Williams outlines prosecution case against Morrison",
+      "publisher": "cnn",
+      "reported_time": "2024-05-01T14:00:00Z",
+      "event_time": "2024-05-01T13:00:00Z",
+      "question_key": "trial_start",
+      "anchor_entities": ["Morrison Securities Trial", "District Attorney Williams"]
+    },
+    {
+      "id": "claim_l09",
+      "text": "Investor Coalition testifies to losses in Morrison fraud scheme",
+      "publisher": "reuters",
+      "reported_time": "2024-05-15T10:00:00Z",
+      "event_time": "2024-05-15T09:00:00Z",
+      "question_key": "testimony",
+      "anchor_entities": ["Morrison Securities Trial", "Investor Coalition"]
+    },
+    {
+      "id": "claim_l10",
+      "text": "Coalition members describe devastating financial impact at trial",
+      "publisher": "wapo",
+      "reported_time": "2024-05-15T17:00:00Z",
+      "event_time": "2024-05-15T16:00:00Z",
+      "question_key": "testimony",
+      "anchor_entities": ["Morrison Securities Trial", "Investor Coalition"]
+    },
+    {
+      "id": "claim_l11",
+      "text": "Morrison found guilty on all counts in Manhattan verdict",
+      "publisher": "wsj",
+      "reported_time": "2024-06-01T15:00:00Z",
+      "event_time": "2024-06-01T14:00:00Z",
+      "question_key": "verdict",
+      "anchor_entities": ["Morrison Securities Trial", "James Morrison", "Manhattan Federal Court"]
+    },
+    {
+      "id": "claim_l12",
+      "text": "Williams praises jury in Morrison conviction statement",
+      "publisher": "ap",
+      "reported_time": "2024-06-01T18:00:00Z",
+      "event_time": "2024-06-01T17:00:00Z",
+      "question_key": "verdict",
+      "anchor_entities": ["Morrison Securities Trial", "District Attorney Williams"]
+    }
+  ],
+  "incidents": [
+    {
+      "id": "inc_trial_indictment",
+      "description": "Morrison indictment phase",
+      "anchor_entities": ["Morrison Securities Trial", "James Morrison"],
+      "companion_entities": ["Manhattan Federal Court", "District Attorney Williams"],
+      "time_start": "2024-03-01T08:00:00Z",
+      "time_end": "2024-03-01T14:00:00Z",
+      "claim_ids": ["claim_l01", "claim_l02"]
+    },
+    {
+      "id": "inc_trial_plea",
+      "description": "Morrison plea hearing",
+      "anchor_entities": ["Morrison Securities Trial", "James Morrison"],
+      "companion_entities": ["Manhattan Federal Court"],
+      "time_start": "2024-03-15T09:00:00Z",
+      "time_end": "2024-03-15T16:00:00Z",
+      "claim_ids": ["claim_l03", "claim_l04"]
+    },
+    {
+      "id": "inc_trial_sec",
+      "description": "SEC additional charges filing",
+      "anchor_entities": ["Morrison Securities Trial", "Securities and Exchange Commission"],
+      "companion_entities": [],
+      "time_start": "2024-04-01T07:00:00Z",
+      "time_end": "2024-04-01T12:00:00Z",
+      "claim_ids": ["claim_l05", "claim_l06"]
+    },
+    {
+      "id": "inc_trial_start",
+      "description": "Trial opening phase",
+      "anchor_entities": ["Morrison Securities Trial"],
+      "companion_entities": ["Manhattan Federal Court", "District Attorney Williams"],
+      "time_start": "2024-05-01T08:00:00Z",
+      "time_end": "2024-05-01T14:00:00Z",
+      "claim_ids": ["claim_l07", "claim_l08"]
+    },
+    {
+      "id": "inc_trial_testimony",
+      "description": "Victim testimony phase",
+      "anchor_entities": ["Morrison Securities Trial", "Investor Coalition"],
+      "companion_entities": [],
+      "time_start": "2024-05-15T09:00:00Z",
+      "time_end": "2024-05-15T17:00:00Z",
+      "claim_ids": ["claim_l09", "claim_l10"]
+    },
+    {
+      "id": "inc_trial_verdict",
+      "description": "Verdict announcement",
+      "anchor_entities": ["Morrison Securities Trial", "James Morrison"],
+      "companion_entities": ["Manhattan Federal Court", "District Attorney Williams"],
+      "time_start": "2024-06-01T14:00:00Z",
+      "time_end": "2024-06-01T18:00:00Z",
+      "claim_ids": ["claim_l11", "claim_l12"]
+    }
+  ],
+  "notes": {
+    "chain_pattern": "Legal proceeding evolves through temporal phases: indictment → plea → charges → trial → testimony → verdict.",
+    "temporal_test": "Tests that UPDATE_TO edges correctly chain sequential phases of a legal proceeding.",
+    "multi_actor": "Multiple actors (defendant, prosecutor, regulator, victims) appear in different phases.",
+    "location_reuse": "Manhattan Federal Court appears in multiple phases as PLACE, should not cause conflation."
+  }
+}

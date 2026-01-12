@@ -218,49 +218,69 @@ class CompleteStory:
     periphery_candidates: Set[str] = field(default_factory=set)  # Incidents considered but only periphery
     candidate_pool_size: int = 0  # Total incidents considered (for stats)
 
+    def to_lens(self) -> "EntityLens":
+        """
+        Convert CompleteStory to EntityLens (stable, immutable navigation view).
+
+        Returns an EntityLens containing only CORE incidents (Core-A + Core-B).
+        Periphery incidents are NOT included to prevent mega-lens formation.
+
+        The lens is immutable - callers should build their own derived structures
+        if they need to add data (e.g., companion entities from incident_contexts).
+
+        Usage:
+            lens = story.to_lens()
+            # Build companions externally:
+            companions = compute_companions(lens.incident_ids, incident_contexts)
+            lens_with_companions = EntityLens.create(
+                entity=lens.entity,
+                incident_ids=lens.incident_ids,
+                companion_counts=companions,
+            )
+        """
+        from ..types import EntityLens
+
+        # CORE ONLY: Exclude periphery to prevent mega-lenses
+        core_ids = self.core_a_ids | self.core_b_ids
+
+        return EntityLens.create(
+            entity=self.spine,
+            incident_ids=core_ids,
+            companion_counts=None,  # Caller enriches via incident_contexts
+        )
+
     def to_entity_case(self) -> "EntityCase":
         """
-        Convert CompleteStory to EntityCase for API compatibility.
+        DEPRECATED: Use to_lens() instead.
 
-        This enables migration from PrincipledCaseBuilder to StoryBuilder
-        without changing downstream consumers that expect EntityCase format.
-
-        NOTE: Only includes CORE incidents (Core-A + Core-B).
-        Periphery incidents are NOT included to prevent mega-case formation.
-        Periphery incidents lack structural binding and would create hub-like behavior.
+        This method exists for backward compatibility during migration.
+        It will be removed once all consumers migrate to EntityLens.
         """
-        from .case_builder import EntityCase, MembershipLevel as CaseMembershipLevel
+        import warnings
+        warnings.warn(
+            "to_entity_case() is deprecated, use to_lens() instead",
+            DeprecationWarning,
+            stacklevel=2
+        )
+
+        from .case_builder import EntityCase
 
         # CORE ONLY: Exclude periphery to prevent mega-cases
         core_ids = self.core_a_ids | self.core_b_ids
 
-        # Extract companion entities (all non-spine anchors in core incidents)
-        companion_entities: Dict[str, int] = {}
-        sample_headlines: List[str] = []
-
-        # Note: We don't have direct access to incidents here, but canonical_worker
-        # will handle this via incident_contexts. For now, companions are inferred.
-        # The caller (canonical_worker) will enrich this via incident_contexts.
-
-        # Map membership weights to case_builder format (core only)
-        membership_weights = {}
-        for inc_id, level in self.membership_weights.items():
-            if inc_id in core_ids:  # Only include core
-                membership_weights[inc_id] = level
-
         return EntityCase(
             entity=self.spine,
             entity_case_id=self.story_id,
-            incident_ids=core_ids,  # CORE ONLY
+            incident_ids=core_ids,
             core_incident_ids=core_ids,
-            periphery_incident_ids=set(),  # Empty - periphery excluded
+            periphery_incident_ids=set(),
             total_incidents=len(core_ids),
             time_start=self.time_start,
             time_end=self.time_end,
-            companion_entities=companion_entities,  # Enriched by caller
-            sample_headlines=sample_headlines,  # Enriched by caller
-            membership_weights=membership_weights,
-            is_hub=False,  # Stories are built from non-hub spines
+            companion_entities={},  # Enriched by caller
+            sample_headlines=[],
+            membership_weights={},
+            is_hub=False,
             explanation=self.explanation,
         )
 

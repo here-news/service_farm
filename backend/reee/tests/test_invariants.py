@@ -418,8 +418,8 @@ class TestInvariant6_MetaClaimsObservations:
         # Check types
         for mc in meta_claims:
             assert mc.type in ["high_stakes_low_evidence", "unresolved_conflict",
-                              "single_source_only", "high_entropy_surface",
-                              "bridge_node_detected", "stale_event"]
+                              "single_source_only", "high_entropy_value",
+                              "bridge_node_detected", "stale_event", "typed_value_conflict"]
 
     @pytest.mark.asyncio
     async def test_meta_claims_have_evidence(self, sample_claims):

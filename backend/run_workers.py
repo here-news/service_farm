@@ -110,6 +110,13 @@ class WorkerManager:
                 command=['python', 'run_inquiry_resolver.py'],
             ))
 
+        # Canonical worker (L4 cases from L3 incidents)
+        if args.only in (None, 'canonical', 'all'):
+            configs.append(WorkerConfig(
+                name='canonical',
+                command=['python', '-m', 'workers.canonical_worker'],
+            ))
+
         # Weave visualization server (debug UI on port 8080)
         if args.only in (None, 'viz', 'all') and not getattr(args, 'no_viz', False):
             configs.append(WorkerConfig(
@@ -236,7 +243,7 @@ class WorkerManager:
 
 def main():
     parser = argparse.ArgumentParser(description='Unified Worker Manager')
-    parser.add_argument('--only', choices=['api', 'extraction', 'knowledge', 'weaver', 'inquiry', 'viz', 'all'],
+    parser.add_argument('--only', choices=['api', 'extraction', 'knowledge', 'weaver', 'inquiry', 'canonical', 'viz', 'all'],
                         help='Run only specific worker type')
     parser.add_argument('--workers', type=int, default=1,
                         help='Number of extraction/knowledge worker instances (default: 1)')

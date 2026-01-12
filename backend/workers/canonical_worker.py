@@ -36,7 +36,7 @@ import asyncpg
 from openai import AsyncOpenAI
 
 from services.neo4j_service import Neo4jService
-from reee.types import Surface, Event
+from reee.types import Surface, Event, EntityLens
 from reee.builders import (
     PrincipledSurfaceBuilder,
     PrincipledEventBuilder,
@@ -171,9 +171,21 @@ class CanonicalWorker:
         self.entities_count = 0
         self.cases_count = 0
 
-    async def start(self):
-        """Start the canonical worker loop."""
-        logger.info(f"🏗️  CanonicalWorker started (rebuild every {self.rebuild_interval}s)")
+    async def start(self, mode: str = "rebuild"):
+        """Start the canonical worker.
+
+        Modes:
+        - "rebuild": Periodic full rebuild (legacy)
+        - "enrich": Queue-based enrichment (new - listens to weaver:enrichment)
+        """
+        if mode == "enrich":
+            await self._start_enrichment_mode()
+        else:
+            await self._start_rebuild_mode()
+
+    async def _start_rebuild_mode(self):
+        """Legacy periodic rebuild mode."""
+        logger.info(f"🏗️  CanonicalWorker started in REBUILD mode (every {self.rebuild_interval}s)")
 
         while True:
             try:
@@ -190,6 +202,93 @@ class CanonicalWorker:
                 logger.error(f"❌ Canonical rebuild failed: {e}", exc_info=True)
 
             await asyncio.sleep(self.rebuild_interval)
+
+    async def _start_enrichment_mode(self):
+        """Subscribe to weaver:events channel for enrichment (shared with viz)."""
+        import redis.asyncio as aioredis
+        import json
+
+        redis_url = os.getenv('REDIS_URL', 'redis://redis:6379')
+        redis_client = aioredis.from_url(redis_url)
+        pubsub = redis_client.pubsub()
+
+        # Subscribe to same channel as viz
+        await pubsub.subscribe("weaver:events")
+        logger.info("🎯 CanonicalWorker started in ENRICHMENT mode (subscribed to weaver:events)")
+
+        async for message in pubsub.listen():
+            try:
+                if message['type'] != 'message':
+                    continue
+
+                event = json.loads(message['data'])
+                event_type = event.get("type", "unknown")
+
+                # Only process case events
+                if event_type in ("case_formed", "case_updated"):
+                    case_id = event.get("case_id")
+                    logger.info(f"📥 Case event: {event_type} for {case_id}")
+                    await self.enrich_case(event)
+
+            except Exception as e:
+                logger.error(f"❌ Enrichment error: {e}", exc_info=True)
+
+    async def enrich_case(self, job: dict):
+        """Enrich a case with LLM-generated title and description.
+
+        Called when weaver emits a case_formed or case_updated event.
+        """
+        case_id = job.get("case_id")
+        kernel_sig = job.get("kernel_signature")
+        incident_ids = job.get("incident_ids", [])
+        core_entities = job.get("core_entities", [])
+
+        if not case_id or not incident_ids:
+            logger.warning(f"Invalid enrichment job: missing case_id or incident_ids")
+            return
+
+        # Load sample claims from incidents for narrative generation
+        sample_claims = await self._load_sample_claims_for_case(incident_ids)
+
+        # Generate title and description
+        if self.use_llm and sample_claims:
+            title, description = await self._generate_case_narrative(
+                sample_claims=sample_claims[:10],
+                primary_entities=core_entities[:5],
+                incident_count=len(incident_ids),
+                source_count=len(sample_claims),  # Approximate
+            )
+        else:
+            title = f"{core_entities[0]} Story" if core_entities else "Developing Story"
+            description = f"Coverage across {len(incident_ids)} related developments."
+
+        # Update case in Neo4j
+        await self.neo4j._execute_write("""
+            MATCH (c:Case {kernel_signature: $sig})
+            SET c.title = $title,
+                c.description = $description,
+                c.enriched_at = datetime()
+        """, {
+            'sig': kernel_sig,
+            'title': title,
+            'description': description,
+        })
+
+        logger.info(f"✅ Enriched case {kernel_sig}: {title[:50]}...")
+
+    async def _load_sample_claims_for_case(self, incident_ids: List[str]) -> List[str]:
+        """Load sample claim texts for a case's incidents."""
+        if not incident_ids:
+            return []
+
+        rows = await self.neo4j._execute_read("""
+            UNWIND $incident_ids as iid
+            MATCH (i:Incident {id: iid})-[:CONTAINS]->(s:Surface)-[:CONTAINS]->(c:Claim)
+            RETURN c.text as text
+            LIMIT 20
+        """, {'incident_ids': incident_ids})
+
+        return [r['text'] for r in rows if r.get('text')]
 
     async def rebuild_canonical_layer(self):
         """Full rebuild of canonical events and entities."""
@@ -224,11 +323,14 @@ class CanonicalWorker:
         await self._persist_entities(entities)
         self.entities_count = len(entities)
 
-        # 6. Build L4 Cases from L3 Incidents
-        cases = await self._build_cases_from_incidents()
-        await self._persist_cases(cases)
-        self.cases_count = len(cases)
-        logger.info(f"  Built {len(cases)} L4 cases")
+        # 6. L4 Cases - now handled by weaver's CaseBuilder
+        # Legacy rebuild mode: just count existing cases, don't rebuild
+        case_count = await self.neo4j._execute_read("""
+            MATCH (c:Case)
+            RETURN count(c) as cnt
+        """)
+        self.cases_count = case_count[0]['cnt'] if case_count else 0
+        logger.info(f"  L4 cases (from weaver): {self.cases_count}")
 
     async def _load_surfaces(self) -> Dict[str, Surface]:
         """Load all surfaces from Neo4j."""
@@ -821,10 +923,10 @@ Respond with just the narrative text, no JSON."""
 
         # Stories (spine-based, unified model replacing CaseCores + EntityCases)
         for story_id, story in result.stories.items():
-            # Convert CompleteStory to EntityCase for compatibility
-            entity_case = story.to_entity_case()
+            # Convert CompleteStory to EntityLens (immutable navigation view)
+            base_lens = story.to_lens()
 
-            # Enrich entity_case with companion entities from incident_contexts
+            # Build companion counts externally (lens is immutable)
             companion_counts: Dict[str, int] = {}
             for iid in story.core_a_ids | story.core_b_ids:
                 ctx = incident_contexts.get(iid)
@@ -832,12 +934,16 @@ Respond with just the narrative text, no JSON."""
                     for anchor in ctx.anchor_entities:
                         if anchor != story.spine:
                             companion_counts[anchor] = companion_counts.get(anchor, 0) + 1
-            entity_case.companion_entities = dict(
-                sorted(companion_counts.items(), key=lambda x: -x[1])[:20]
+
+            # Create enriched lens with companions (immutable)
+            lens = EntityLens.create(
+                entity=base_lens.entity,
+                incident_ids=base_lens.incident_ids,
+                companion_counts=dict(sorted(companion_counts.items(), key=lambda x: -x[1])[:20]),
             )
 
-            case = await self._create_case_from_entity_case(
-                entity_case, incidents, incident_contexts
+            case = await self._create_case_from_lens(
+                lens, incidents, incident_contexts
             )
             if case:
                 cases.append(case)
@@ -1074,25 +1180,28 @@ Respond with just the narrative text, no JSON."""
             source_count=total_sources,
         )
 
-    async def _create_case_from_entity_case(
+    async def _create_case_from_lens(
         self,
-        entity_case,
+        lens: "EntityLens",
         incidents: Dict[str, Event],
         incident_contexts: Dict[str, IncidentContext],
     ) -> Optional[CanonicalCase]:
-        """Create a CanonicalCase from EntityCase (star-shaped storyline).
+        """Create a CanonicalCase from EntityLens (immutable navigation view).
 
-        EntityCases represent focal entity storylines where:
+        EntityLens represents focal entity storylines where:
         - One entity appears across many incidents
         - Companion entities rotate (no pair recurs)
-        - k=2 motif recurrence fails but narrative coheres
+        - k=2 motif recurrence fails but narrative coheres via spine
 
         Uses case_type="entity_storyline" to differentiate from other case types.
-        """
-        from reee.builders.case_builder import EntityCase
 
-        incident_ids = entity_case.incident_ids
-        focal_entity = entity_case.entity
+        Args:
+            lens: Immutable EntityLens from story.to_lens() with companions enriched
+            incidents: Dict of incident_id → Event
+            incident_contexts: Dict of incident_id → IncidentContext for aggregation
+        """
+        incident_ids = lens.incident_ids  # frozenset
+        focal_entity = lens.entity
 
         # Gather aggregate stats
         total_surfaces = 0
@@ -1107,18 +1216,19 @@ Respond with just the narrative text, no JSON."""
                 sample_claims.extend(ctx.sample_claims[:2])
 
         # Primary entities: focal entity first, then top companions
+        companion_entities = lens.companion_entities  # Dict view from immutable tuple
         primary_entities = [focal_entity]
-        for companion, count in list(entity_case.companion_entities.items())[:4]:
+        for companion, count in list(companion_entities.items())[:4]:
             if companion not in primary_entities:
                 primary_entities.append(companion)
 
-        # Use entity_case_id (stable hash of entity name)
-        case_id = entity_case.entity_case_id
+        # Use lens_id (stable hash of entity name)
+        case_id = lens.lens_id
 
-        # Binding evidence for EntityCase
+        # Binding evidence for lens
         binding_evidence = [
             f"Focal entity: {focal_entity} ({len(incident_ids)} incidents)",
-            f"Top companions: {', '.join(list(entity_case.companion_entities.keys())[:5])}",
+            f"Top companions: {', '.join(list(companion_entities.keys())[:5])}",
         ]
 
         # Generate title and description
@@ -1407,8 +1517,12 @@ Respond in JSON format:
             # Compute stable scope signature for case
             scope_sig = self._compute_case_signature(case)
 
+            # L4 AUTHORITY: Canonical worker updates PRESENTATION fields ONLY
+            # CONTAINS relationships are owned by the weaver (structural authority)
+            # This ensures: "canonical worker can delete and rerun without changing
+            # any case membership—only presentation changes"
             await self.neo4j._execute_write('''
-                MERGE (c:Case {id: $id})
+                MATCH (c:Case {id: $id})
                 SET c:Event,
                     c:Story,
                     c.scale = 'case',
@@ -1421,16 +1535,9 @@ Respond in JSON format:
                     c.binding_evidence = $binding_evidence,
                     c.surface_count = $surface_count,
                     c.source_count = $source_count,
-                    c.updated_at = datetime()
-                WITH c
-                // Clear old incident links
-                OPTIONAL MATCH (c)-[r:CONTAINS]->(:Incident)
-                DELETE r
-                WITH c
-                // Create new incident links
-                UNWIND $incident_ids as iid
-                MATCH (i:Incident {id: iid})
-                MERGE (c)-[:CONTAINS]->(i)
+                    c.presentation_updated_at = datetime(),
+                    c.presentation_updated_by = 'canonical_worker'
+                // NOTE: DO NOT touch CONTAINS relationships - weaver owns structure
             ''', {
                 'id': case.id,
                 'scope_sig': scope_sig,
@@ -1441,7 +1548,6 @@ Respond in JSON format:
                 'binding_evidence': case.binding_evidence,
                 'surface_count': case.surface_count,
                 'source_count': case.source_count,
-                'incident_ids': list(case.incident_ids),
             })
 
 

@@ -77,8 +77,8 @@ class TestTensionDetector:
         assert len(single_source) >= 1
         assert any(mc.target_id == 'S001' for mc in single_source)
 
-    def test_detect_high_entropy(self, sample_claims, sample_surfaces):
-        """Test detection of high-entropy surfaces."""
+    def test_detect_high_dispersion(self, sample_claims, sample_surfaces):
+        """Test detection of high-dispersion surfaces (geometric, not Jaynes)."""
         params = Parameters(high_entropy_threshold=0.5)
         detector = TensionDetector(
             claims=sample_claims,
@@ -88,9 +88,15 @@ class TestTensionDetector:
         )
         meta_claims = detector.detect_all()
 
-        high_entropy = [mc for mc in meta_claims if mc.type == 'high_entropy_surface']
-        assert len(high_entropy) >= 1
-        assert any(mc.target_id == 'S002' for mc in high_entropy)
+        # Should emit high_dispersion_surface (geometric), not high_entropy_value
+        high_dispersion = [mc for mc in meta_claims if mc.type == 'high_dispersion_surface']
+        assert len(high_dispersion) >= 1
+        assert any(mc.target_id == 'S002' for mc in high_dispersion)
+
+        # Verify evidence uses 'dispersion' not 'entropy'
+        for mc in high_dispersion:
+            assert 'dispersion' in mc.evidence
+            assert 'meaning' in mc.evidence
 
     def test_detect_conflicts(self, sample_claims, sample_surfaces):
         """Test detection of conflicts."""
@@ -196,8 +202,8 @@ class TestMetaClaimEvidence:
             assert 'source' in mc.evidence
             assert 'claim_count' in mc.evidence
 
-    def test_high_entropy_evidence(self, sample_claims, sample_surfaces):
-        """Test evidence in high-entropy meta-claims."""
+    def test_high_dispersion_evidence(self, sample_claims, sample_surfaces):
+        """Test evidence in high-dispersion meta-claims (geometric, not Jaynes)."""
         params = Parameters(high_entropy_threshold=0.5)
         meta_claims = detect_tensions(
             claims=sample_claims,
@@ -206,10 +212,11 @@ class TestMetaClaimEvidence:
             params=params
         )
 
-        high_entropy = [mc for mc in meta_claims if mc.type == 'high_entropy_surface']
-        for mc in high_entropy:
-            assert 'entropy' in mc.evidence
+        high_dispersion = [mc for mc in meta_claims if mc.type == 'high_dispersion_surface']
+        for mc in high_dispersion:
+            assert 'dispersion' in mc.evidence  # Renamed from 'entropy'
             assert 'threshold' in mc.evidence
+            assert 'meaning' in mc.evidence  # Explains what this measures
 
     def test_conflict_evidence(self, sample_claims, sample_surfaces):
         """Test evidence in conflict meta-claims."""
@@ -226,6 +233,118 @@ class TestMetaClaimEvidence:
             assert 'claim_1' in mc.evidence
             assert 'claim_2' in mc.evidence
             assert 'confidence' in mc.evidence
+
+
+class TestSemanticInvariants:
+    """
+    Invariant tests for semantic correctness.
+
+    These tests ensure the naming/semantics don't drift:
+    - high_entropy_value = Jaynes H(X|E,S), REQUIRES typed coverage > 0
+    - high_dispersion_surface = geometric D(surface), does NOT require typed coverage
+    """
+
+    def test_high_entropy_value_never_emitted_without_typed_coverage(self):
+        """
+        INVARIANT: high_entropy_value must never be emitted when typed_coverage_zero.
+
+        This prevents semantic drift where geometric dispersion gets confused
+        with Jaynes entropy over typed variables.
+        """
+        # Create surfaces with high entropy (geometric dispersion)
+        surfaces = {
+            'S001': Surface(
+                id='S001',
+                claim_ids=['c1', 'c2'],
+                sources={'bbc.com'},
+                entities={'test'},
+                entropy=0.9  # High dispersion
+            ),
+        }
+
+        # NO claims with typed constraints (question_key + extracted_value)
+        claims_without_typing = {
+            'c1': Claim(id='c1', text='Some text', source='bbc.com'),
+            'c2': Claim(id='c2', text='More text', source='bbc.com'),
+        }
+
+        detector = TensionDetector(
+            claims=claims_without_typing,
+            surfaces=surfaces,
+            edges=[],
+            params=Parameters(high_entropy_threshold=0.5)
+        )
+
+        meta_claims = detector.detect_all()
+
+        # INVARIANT: high_entropy_value must NOT appear
+        high_entropy = [mc for mc in meta_claims if mc.type == 'high_entropy_value']
+        assert len(high_entropy) == 0, (
+            "INVARIANT VIOLATION: high_entropy_value emitted when typed coverage is zero. "
+            "high_entropy_value is for Jaynes H(X|E,S), not geometric dispersion."
+        )
+
+        # high_dispersion_surface SHOULD appear (geometric is independent of typing)
+        high_dispersion = [mc for mc in meta_claims if mc.type == 'high_dispersion_surface']
+        assert len(high_dispersion) >= 1, (
+            "high_dispersion_surface should be emitted for geometric dispersion"
+        )
+
+    def test_typed_dependent_metaclaims_gated_by_coverage(self):
+        """
+        Typed-dependent meta-claims (high_entropy_value, typed_value_conflict,
+        coverage_gap) must only be emitted when typed coverage > 0.
+        """
+        surfaces = {
+            'S001': Surface(id='S001', claim_ids=['c1'], sources={'bbc.com'}),
+        }
+
+        # Claims WITHOUT typed constraints
+        untyped_claims = {
+            'c1': Claim(id='c1', text='Text', source='bbc.com'),
+        }
+
+        detector = TensionDetector(
+            claims=untyped_claims,
+            surfaces=surfaces,
+            edges=[],
+            params=Parameters()
+        )
+
+        meta_claims = detector.detect_all()
+
+        # None of these should appear without typed coverage
+        typed_dependent_types = {'high_entropy_value', 'typed_value_conflict', 'coverage_gap'}
+        for mc in meta_claims:
+            assert mc.type not in typed_dependent_types, (
+                f"INVARIANT VIOLATION: {mc.type} emitted without typed coverage. "
+                f"These meta-claims require claims with question_key + extracted_value."
+            )
+
+    def test_dispersion_vs_entropy_naming(self):
+        """
+        Verify naming convention:
+        - high_dispersion_surface uses 'dispersion' in evidence (geometric)
+        - high_entropy_value uses 'entropy' in evidence (Jaynes)
+        """
+        surfaces = {
+            'S001': Surface(id='S001', claim_ids=['c1'], sources={'bbc.com'}, entropy=0.9),
+        }
+
+        detector = TensionDetector(
+            claims={},
+            surfaces=surfaces,
+            edges=[],
+            params=Parameters(high_entropy_threshold=0.5)
+        )
+
+        meta_claims = detector.detect_all()
+        high_dispersion = [mc for mc in meta_claims if mc.type == 'high_dispersion_surface']
+
+        for mc in high_dispersion:
+            # Must use 'dispersion' not 'entropy' to prevent confusion
+            assert 'dispersion' in mc.evidence, "high_dispersion_surface should use 'dispersion' key"
+            assert 'entropy' not in mc.evidence, "high_dispersion_surface should NOT use 'entropy' key"
 
 
 if __name__ == '__main__':

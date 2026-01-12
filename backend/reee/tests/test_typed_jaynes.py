@@ -10,13 +10,14 @@ Jaynes laws tested:
 2. Conflict increases entropy
 3. Noise model affects influence (higher δ = weaker evidence)
 4. Monotone constraint (soft vs hard bounds)
-5. Update signals with high confidence raise hard bound
+5. Hard bounds require timestamp evidence (latest observation sets bound)
 6. Log scores for calibration
 
 These tests validate inference behavior, not worldly assumptions.
 """
 
 import pytest
+from datetime import datetime, timedelta
 from reee.typed_belief import (
     TypedBeliefState, CountDomain, CategoricalDomain, CountDomainConfig,
     Observation, UniformNoise, CalibratedNoise,
@@ -33,7 +34,8 @@ def obs(
     confidence: float = 0.9,
     source: str = "test.com",
     is_update: bool = False,
-    extraction_confidence: float = 1.0
+    extraction_confidence: float = 1.0,
+    timestamp: datetime = None,
 ) -> Observation:
     """Create a count observation with peaked distribution."""
     dist = {value: confidence}
@@ -46,6 +48,7 @@ def obs(
         source=source,
         extraction_confidence=extraction_confidence,
         signals={"is_update": is_update} if is_update else {},
+        timestamp=timestamp,
     )
 
 
@@ -192,26 +195,29 @@ class TestJaynesLaw4_MonotoneConstraint:
         state.add_observation(obs(10))
         assert state._soft_lower_bound == 10
 
-    def test_hard_bound_only_with_high_confidence_update(self):
-        """Hard bound only raised with is_update=True AND high confidence."""
+    def test_hard_bound_only_with_timestamp(self):
+        """Hard bound only raised with timestamp evidence."""
         state = count_belief()
+        base_time = datetime(2025, 1, 1)
 
-        # Regular observation doesn't raise hard bound
-        state.add_observation(obs(5, is_update=False, extraction_confidence=1.0))
+        # Observation without timestamp doesn't raise hard bound
+        state.add_observation(obs(5))
         assert state._hard_lower_bound == 0
 
-        # Update with low confidence doesn't raise hard bound
-        state.add_observation(obs(10, is_update=True, extraction_confidence=0.5))
+        # Another observation without timestamp - still no hard bound
+        state.add_observation(obs(10))
         assert state._hard_lower_bound == 0
 
-        # Update with high confidence raises hard bound
-        state.add_observation(obs(15, is_update=True, extraction_confidence=0.98))
+        # Observation WITH timestamp raises hard bound
+        state.add_observation(obs(15, timestamp=base_time))
         assert state._hard_lower_bound == 15
 
     def test_hard_bound_excludes_lower_values(self):
         """Values below hard bound have zero probability."""
         state = count_belief()
-        state.add_observation(obs(10, is_update=True, extraction_confidence=0.99))
+        base_time = datetime(2025, 1, 1)
+        # Timestamped observation sets hard bound
+        state.add_observation(obs(10, timestamp=base_time))
 
         posterior = state.compute_posterior()
         for x in range(10):
@@ -352,21 +358,19 @@ class TestConfiguration:
     def test_non_monotone_domain(self):
         """Monotone constraint can be disabled."""
         state = count_belief(monotone=False)
+        base_time = datetime(2025, 1, 1)
 
-        # Even with "update", no hard bound
-        state.add_observation(obs(10, is_update=True, extraction_confidence=0.99))
+        # Even with timestamp, non-monotone domain doesn't set hard bound
+        state.add_observation(obs(10, timestamp=base_time))
         assert state._hard_lower_bound == 0
 
-    def test_configurable_hard_bound_threshold(self):
-        """Hard bound threshold is configurable."""
-        config = CountDomainConfig(
-            max_count=100,
-            hard_bound_confidence_threshold=0.5  # Lower threshold
-        )
-        state = TypedBeliefState(domain=CountDomain(config))
+    def test_timestamp_required_for_hard_bound(self):
+        """Hard bound requires timestamp evidence."""
+        state = count_belief()
+        base_time = datetime(2025, 1, 1)
 
-        # Now even 0.6 confidence should raise hard bound
-        state.add_observation(obs(10, is_update=True, extraction_confidence=0.6))
+        # Timestamp sets hard bound
+        state.add_observation(obs(10, timestamp=base_time))
         assert state._hard_lower_bound == 10
 
 

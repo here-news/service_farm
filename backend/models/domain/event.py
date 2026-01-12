@@ -1,6 +1,24 @@
 """
 Event domain model
+
+DEPRECATED: This model conflated L3 (Incident) and L4 (Case) concepts.
+
+Use instead:
+- models/domain/incident.py: Incident - L3 tight membrane over surfaces
+- models/domain/case.py: Case - L4 loose membrane over incidents
+- models/domain/story.py: Story - Unified API-facing object (scale: incident|case)
+
+This file is kept for backwards compatibility with existing code that
+imports Event. New code should use the Story-based model.
+
+See: ARCHITECTURE.md for the L2/L3/L4 layer definitions.
 """
+import warnings
+warnings.warn(
+    "models.domain.event.Event is deprecated. Use models.domain.story.Story instead.",
+    DeprecationWarning,
+    stacklevel=2
+)
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional, List, Set, TYPE_CHECKING

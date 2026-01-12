@@ -35,15 +35,25 @@ from .story_builder import (
     StoryFacet,
 )
 
-# Case builder (L4) - DEPRECATED: kept for EntityCase type only
-from .case_builder import (
-    PrincipledCaseBuilder,  # DEPRECATED
-    CaseBuilderResult,  # DEPRECATED
-    MotifProfile,  # DEPRECATED
-    L4Hubness,  # DEPRECATED
-    CaseEdge,  # DEPRECATED
-    EntityCase,  # Still used for API compatibility
-)
+# Case builder (L4) - DEPRECATED: lazy-loaded to avoid warning noise
+# Only users who actually access these symbols will see deprecation warnings.
+_DEPRECATED_CASE_BUILDER = {
+    'PrincipledCaseBuilder',
+    'CaseBuilderResult',
+    'MotifProfile',
+    'L4Hubness',
+    'CaseEdge',
+    'EntityCase',
+}
+
+
+def __getattr__(name: str):
+    """Lazy import for deprecated case_builder symbols."""
+    if name in _DEPRECATED_CASE_BUILDER:
+        from . import case_builder
+        return getattr(case_builder, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 __all__ = [
     # Surface builder (L2)

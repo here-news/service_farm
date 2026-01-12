@@ -679,7 +679,7 @@ function EntityInquiryCard({
 // =============================================================================
 
 export default function EntityInquiryPage() {
-  const { entitySlug } = useParams<{ entitySlug: string }>()
+  const { entityId } = useParams<{ entityId: string }>()
   const navigate = useNavigate()
   const [entity, setEntity] = useState<EntityData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -687,11 +687,66 @@ export default function EntityInquiryPage() {
   const [filter, setFilter] = useState<'all' | 'open' | 'resolved'>('all')
 
   useEffect(() => {
-    if (entitySlug && ENTITIES[entitySlug]) {
-      setEntity(ENTITIES[entitySlug])
+    const loadEntity = async () => {
+      setLoading(true)
+
+      // If it's an en_ ID, fetch from API
+      if (entityId?.startsWith('en_')) {
+        try {
+          const response = await fetch(`/api/entities/${entityId}`)
+          if (response.ok) {
+            const data = await response.json()
+
+            // Build properties from API data
+            const properties: Array<{ label: string; value: string }> = []
+            if (data.wikidata_description) {
+              properties.push({ label: 'Description', value: data.wikidata_description })
+            }
+            if (data.aliases && data.aliases.length > 0) {
+              properties.push({ label: 'Also known as', value: data.aliases.join(', ') })
+            }
+            if (data.claim_count) {
+              properties.push({ label: 'Claims', value: String(data.claim_count) })
+            }
+            if (data.source_count) {
+              properties.push({ label: 'Sources', value: String(data.source_count) })
+            }
+            if (data.last_active) {
+              properties.push({ label: 'Last active', value: new Date(data.last_active).toLocaleDateString() })
+            }
+
+            // Transform API response to EntityData format
+            const transformed: EntityData = {
+              id: data.id,
+              name: data.canonical_name || 'Unknown Entity',
+              type: data.entity_type || 'PERSON',
+              wikidata_qid: data.wikidata_qid,
+              description: data.profile_summary || data.narrative || '',
+              image_url: data.image_url,
+              properties: properties,
+              inquiries: [],
+              related_entities: (data.related_events || []).map((evId: string) => ({
+                id: evId,
+                name: evId,
+                type: 'EVENT',
+                relation: 'involved in'
+              }))
+            }
+            setEntity(transformed)
+          }
+        } catch (err) {
+          console.error('Failed to load entity:', err)
+        }
+      } else if (entityId && ENTITIES[entityId]) {
+        // Demo data for slug-based access
+        setEntity(ENTITIES[entityId])
+      }
+
+      setLoading(false)
     }
-    setLoading(false)
-  }, [entitySlug])
+
+    loadEntity()
+  }, [entityId])
 
   if (loading) {
     return (
@@ -721,17 +776,6 @@ export default function EntityInquiryPage() {
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-      <header className="bg-white border-b border-slate-200">
-        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link to="/inquiry" className="text-xl font-bold text-indigo-600">φ HERE</Link>
-            <span className="text-slate-300">|</span>
-            <span className="text-sm text-slate-500">Entity</span>
-          </div>
-        </div>
-      </header>
-
       <main className="max-w-5xl mx-auto px-4 py-6">
         <div className="flex gap-6">
           {/* Main content */}
@@ -854,7 +898,7 @@ export default function EntityInquiryPage() {
                 {entity.related_entities.map(rel => (
                   <Link
                     key={rel.id}
-                    to={`/entity-inquiry/${rel.id}`}
+                    to={rel.id.startsWith('ev_') ? `/event/${rel.id}` : `/entity/${rel.id}`}
                     className="flex items-center justify-between p-2 rounded-lg hover:bg-slate-50 transition"
                   >
                     <div>

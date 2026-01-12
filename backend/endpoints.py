@@ -480,9 +480,9 @@ async def get_claims(page_id: str):
     return {"claims": claims}
 
 
-@router.get("/entities")
-async def get_entities(page_id: str):
-    """Get all entities mentioned in a page"""
+@router.get("/page-entities")
+async def get_page_entities(page_id: str):
+    """Get all entities mentioned in a page (legacy - use /api/entities for canonical entities)"""
     page_repo, _ = await init_services()
 
     # Use repository to get entities

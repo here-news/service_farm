@@ -33,6 +33,7 @@ if [[ "$SKIP_TESTS" == "false" ]]; then
     echo ""
     echo "=== Running REEE Kernel Tests ==="
     # Note: paths are relative to /app since ./backend is mounted to /app
+    # Run core kernel tests (excluding integration/db tests)
     if docker exec herenews-workers python -m pytest \
         reee/tests/test_canonical_stability.py \
         reee/tests/test_surface_identity.py \
@@ -42,10 +43,11 @@ if [[ "$SKIP_TESTS" == "false" ]]; then
         reee/tests/test_sparse_entity_claims.py \
         reee/tests/test_semantic_antitrap.py \
         reee/tests/test_public_api.py \
-        reee/tests/test_case_builder_motif_recurrence.py \
-        reee/tests/test_case_builder_hub_suppression.py \
-        reee/tests/test_case_builder_chain.py \
-        reee/tests/test_entity_case.py \
+        reee/tests/test_story_builder.py \
+        reee/tests/test_membrane.py \
+        reee/tests/test_kernel_isolation.py \
+        reee/tests/test_no_deprecated_imports.py \
+        reee/tests/test_no_structure_from_deprecated.py \
         -v --tb=short; then
         echo ""
         echo "✓ All kernel tests passed!"

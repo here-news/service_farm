@@ -1,0 +1,82 @@
+{
+  "corpus_id": "golden_adversary_scope",
+  "description": "Scope pollution adversary: Same question_key in different scopes must produce separate surfaces.",
+  "archetype": "scope_pollution",
+  "expected": {
+    "question_key": "policy_announcement",
+    "distinct_scopes": 2,
+    "surfaces_per_scope": 1,
+    "total_surfaces": 2,
+    "invariants": ["scoped_surface_isolation"]
+  },
+  "entities": [
+    {"id": "ent_wfc", "name": "World Food Council", "type": "organization", "role": "anchor_1"},
+    {"id": "ent_who", "name": "World Health Organization", "type": "organization", "role": "anchor_2"},
+    {"id": "ent_un", "name": "United Nations", "type": "organization", "role": "companion"}
+  ],
+  "claims": [
+    {
+      "id": "claim_wfc_policy_1",
+      "text": "World Food Council announces new food security policy",
+      "publisher": "reuters",
+      "reported_time": "2024-01-15T10:00:00Z",
+      "event_time": "2024-01-15T09:00:00Z",
+      "question_key": "policy_announcement",
+      "anchor_entities": ["World Food Council"],
+      "scope_id": "scope_wfc_policy"
+    },
+    {
+      "id": "claim_wfc_policy_2",
+      "text": "WFC policy details released",
+      "publisher": "ap",
+      "reported_time": "2024-01-15T12:00:00Z",
+      "event_time": "2024-01-15T11:00:00Z",
+      "question_key": "policy_announcement",
+      "anchor_entities": ["World Food Council"],
+      "scope_id": "scope_wfc_policy"
+    },
+    {
+      "id": "claim_who_policy_1",
+      "text": "World Health Organization announces pandemic preparedness policy",
+      "publisher": "bbc",
+      "reported_time": "2024-01-16T10:00:00Z",
+      "event_time": "2024-01-16T09:00:00Z",
+      "question_key": "policy_announcement",
+      "anchor_entities": ["World Health Organization"],
+      "scope_id": "scope_who_policy"
+    },
+    {
+      "id": "claim_who_policy_2",
+      "text": "WHO policy framework unveiled",
+      "publisher": "guardian",
+      "reported_time": "2024-01-16T14:00:00Z",
+      "event_time": "2024-01-16T13:00:00Z",
+      "question_key": "policy_announcement",
+      "anchor_entities": ["World Health Organization"],
+      "scope_id": "scope_who_policy"
+    }
+  ],
+  "incidents": [
+    {
+      "id": "inc_wfc_policy",
+      "description": "WFC policy announcement",
+      "anchor_entities": ["World Food Council"],
+      "companion_entities": [],
+      "time_start": "2024-01-15T09:00:00Z",
+      "time_end": "2024-01-15T14:00:00Z"
+    },
+    {
+      "id": "inc_who_policy",
+      "description": "WHO policy announcement",
+      "anchor_entities": ["World Health Organization"],
+      "companion_entities": [],
+      "time_start": "2024-01-16T09:00:00Z",
+      "time_end": "2024-01-16T16:00:00Z"
+    }
+  ],
+  "notes": {
+    "scope_pollution_test": "Both incidents use question_key='policy_announcement' but different scopes.",
+    "expected_behavior": "Two separate surfaces: surf_wfc_policy and surf_who_policy",
+    "failure_mode": "If scopes are ignored, claims would merge into one surface, conflating WFC and WHO policies."
+  }
+}

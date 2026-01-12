@@ -1,7 +1,11 @@
 """
 Weave Topology Visualization Server
 
-A standalone FastAPI server for visualizing surface → event weaving.
+A standalone FastAPI server for visualizing the REEE L2/L3/L4 topology:
+- L2 Surfaces: claim clusters by question_key
+- L3 Incidents: surfaces grouped by anchor entity motif
+- L4 Cases: incidents grouped by recurrence (CaseCore) or entity (EntityCase)
+
 Runs inside the workers container on port 8080.
 
 Supports TWO modes:
@@ -22,6 +26,7 @@ Usage:
 
 Endpoints:
     GET /                    - D3 visualization page (live mode)
+    GET /live                - Real-time weaver events via SSE
     GET /trace               - Golden trace replay page
     GET /api/snapshot        - JSON snapshot of current topology
     GET /api/surface/{id}    - Surface details with claims
@@ -50,7 +55,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import asyncpg
 from services.neo4j_service import Neo4jService
 from repositories.surface_repository import SurfaceRepository
-from repositories.event_repository import EventRepository
+from repositories.story_repository import StoryRepository
 from models.domain.surface import Surface
 
 logging.basicConfig(level=logging.INFO)
@@ -305,22 +310,48 @@ async def get_topology_snapshot(
     meta['counts']['surfaces'] = len(surfaces)
 
     # ============================================================
-    # 2. Load events from Neo4j
+    # 2. Load stories from Neo4j (Cases = L4, Incidents = L3)
     # ============================================================
-    event_results = await neo4j._execute_read("""
-        MATCH (e:Event)
-        OPTIONAL MATCH (e)-[:CONTAINS]->(s:Surface)
-        WITH e, count(s) as surface_count, collect(s.id) as member_ids
-        RETURN e.id as id,
-               e.canonical_name as title,
-               e.event_start as time_start,
-               e.event_end as time_end,
-               e.coherence as coherence,
-               surface_count,
-               member_ids
-        ORDER BY surface_count DESC
+    # Query Cases and Incidents separately to ensure both are included
+    case_results = await neo4j._execute_read("""
+        MATCH (c:Case)
+        OPTIONAL MATCH (c)-[:CONTAINS]->(i:Incident)
+        WITH c, count(i) as incident_count, collect(i.id) as member_ids
+        RETURN c.id as id,
+               COALESCE(c.title, c.canonical_title) as title,
+               COALESCE(c.primary_entities, c.anchor_entities) as anchors,
+               c.time_start as time_start,
+               c.time_end as time_end,
+               c.coherence as coherence,
+               coalesce(c.source_count, 0) as source_count,
+               incident_count as child_count,
+               member_ids,
+               labels(c) as node_labels,
+               c.case_type as case_type
+        ORDER BY c.source_count DESC
         LIMIT $limit
-    """, {'limit': limit})
+    """, {'limit': limit // 2 or 10})  # Reserve half for cases
+
+    incident_results = await neo4j._execute_read("""
+        MATCH (i:Incident)
+        OPTIONAL MATCH (i)-[:CONTAINS]->(s:Surface)
+        WITH i, count(s) as surface_count, collect(s.id) as member_ids
+        RETURN i.id as id,
+               COALESCE(i.title, i.canonical_title) as title,
+               COALESCE(i.primary_entities, i.anchor_entities) as anchors,
+               i.time_start as time_start,
+               i.time_end as time_end,
+               i.coherence as coherence,
+               coalesce(i.source_count, 0) as source_count,
+               surface_count as child_count,
+               member_ids,
+               labels(i) as node_labels,
+               null as case_type
+        ORDER BY i.source_count DESC
+        LIMIT $limit
+    """, {'limit': limit // 2 or 10})  # Reserve half for incidents
+
+    event_results = case_results + incident_results
 
     event_ids = set()
     for r in event_results:
@@ -344,50 +375,96 @@ async def get_topology_snapshot(
                 sum(p[1] for p in member_projs) / len(member_projs)
             )
 
+        # Build title: use explicit title, then first 2 anchors, then ID
+        title = r['title']
+        if not title:
+            anchors = r['anchors'] or []
+            if anchors:
+                title = ' + '.join(anchors[:2])
+            else:
+                title = r['id'][-8:]  # Last 8 chars of ID
+
+        # Determine kind from labels
+        labels = r.get('node_labels') or []
+        if 'Case' in labels:
+            kind = 'case'
+        elif 'Incident' in labels:
+            kind = 'incident'
+        else:
+            kind = 'event'
+
         node = {
             'id': r['id'],
-            'kind': 'event',
-            'title': r['title'] or 'Untitled',
-            'surface_count': r['surface_count'] or 0,
+            'kind': kind,
+            'title': title,
+            'anchors': r['anchors'] or [],
+            'child_count': r.get('child_count') or 0,  # incidents for case, surfaces for incident
+            'source_count': r.get('source_count') or 0,
             'coherence': round(r['coherence'] or 0, 2),
             'time_start': safe_isoformat(r['time_start']),
             'time_end': safe_isoformat(r['time_end']),
             'x': event_proj[0],
             'y': event_proj[1],
             'member_ids': r['member_ids'] or [],
+            'case_type': r.get('case_type'),  # developing or entity_storyline
         }
         nodes.append(node)
 
-    meta['counts']['events'] = len(event_ids)
+    meta['counts']['stories'] = len(event_ids)
+    meta['counts']['cases'] = len([n for n in nodes if n.get('kind') == 'case'])
+    meta['counts']['incidents'] = len([n for n in nodes if n.get('kind') == 'incident'])
 
     # ============================================================
     # 3. Get membership edges with evidence
     # ============================================================
     if event_ids:
-        membership_results = await neo4j._execute_read("""
-            MATCH (e:Event)-[r:CONTAINS]->(s:Surface)
-            WHERE e.id IN $event_ids
-            RETURN e.id as event_id, s.id as surface_id,
+        # Get edges from Incidents to Surfaces (L3 -> L2)
+        incident_surface_results = await neo4j._execute_read("""
+            MATCH (i:Incident)-[r:CONTAINS]->(s:Surface)
+            WHERE i.id IN $story_ids
+            RETURN i.id as source_id, s.id as target_id,
                    r.level as level, r.weight as weight,
                    r.signals_met as signals_met,
-                   r.time_delta_days as time_delta
-        """, {'event_ids': list(event_ids)})
+                   r.time_delta_days as time_delta,
+                   'L3_L2' as edge_type
+        """, {'story_ids': list(event_ids)})
 
-        for r in membership_results:
+        for r in incident_surface_results:
             links.append({
-                'source': r['event_id'],
-                'target': r['surface_id'],
+                'source': r['source_id'],
+                'target': r['target_id'],
                 'kind': 'membership',
+                'edge_type': 'L3_L2',
                 'level': r['level'] or 'core',
                 'weight': float(r['weight'] or 1.0),
-                # Edge evidence
                 'evidence': {
                     'signals_met': r['signals_met'] or 0,
                     'time_delta_days': r['time_delta'],
                 }
             })
 
+        # Get edges from Cases to Incidents (L4 -> L3)
+        case_incident_results = await neo4j._execute_read("""
+            MATCH (c:Case)-[r:CONTAINS]->(i:Incident)
+            WHERE c.id IN $story_ids
+            RETURN c.id as source_id, i.id as target_id,
+                   'L4_L3' as edge_type
+        """, {'story_ids': list(event_ids)})
+
+        for r in case_incident_results:
+            links.append({
+                'source': r['source_id'],
+                'target': r['target_id'],
+                'kind': 'membership',
+                'edge_type': 'L4_L3',
+                'level': 'case',
+                'weight': 1.0,
+                'evidence': {}
+            })
+
     meta['counts']['membership_edges'] = len([l for l in links if l['kind'] == 'membership'])
+    meta['counts']['L3_L2_edges'] = len([l for l in links if l.get('edge_type') == 'L3_L2'])
+    meta['counts']['L4_L3_edges'] = len([l for l in links if l.get('edge_type') == 'L4_L3'])
 
     # ============================================================
     # 4. Get aboutness edges with evidence
@@ -1321,7 +1398,7 @@ async def trace_page():
             font-size: 0.8em;
             margin-bottom: 10px;
         }
-        .surface-item, .incident-item {
+        .surface-item, .incident-item, .case-item {
             background: #0f0f1a;
             border: 1px solid #2a2a4e;
             border-radius: 4px;
@@ -1331,6 +1408,7 @@ async def trace_page():
         }
         .surface-item { border-left: 3px solid #4a9eff; }
         .incident-item { border-left: 3px solid #ff9e4a; }
+        .case-item { border-left: 3px solid #9e4aff; }
         .item-id { font-weight: bold; margin-bottom: 5px; }
         .item-claims { color: #888; font-size: 0.9em; }
         .item-anchors { color: #666; font-size: 0.85em; margin-top: 4px; }
@@ -1420,13 +1498,14 @@ async def trace_page():
 
     <!-- Force Graph -->
     <div class="panel" style="margin-bottom: 20px;">
-        <h3>L2/L3 Topology Graph</h3>
+        <h3>L2/L3/L4 Topology Graph</h3>
         <div id="graph-container">
             <svg id="graph-svg"></svg>
             <div class="legend">
                 <div class="legend-item"><div class="legend-dot" style="background:#4a9eff"></div> L2 Surface</div>
                 <div class="legend-item"><div class="legend-dot" style="background:#ff9e4a"></div> Claim</div>
                 <div class="legend-item"><div class="legend-rect" style="border-color:#4aff9e"></div> L3 Incident</div>
+                <div class="legend-item"><div class="legend-rect" style="border-color:#9e4aff"></div> L4 Case</div>
             </div>
         </div>
     </div>
@@ -1451,6 +1530,11 @@ async def trace_page():
             </div>
 
             <div class="layer-section">
+                <h4>L4 Cases (by recurrence/entity)</h4>
+                <div id="l4-cases"></div>
+            </div>
+
+            <div class="layer-section">
                 <h4>Typed Belief States</h4>
                 <div id="typed-states"></div>
             </div>
@@ -1470,6 +1554,7 @@ async def trace_page():
         const claimStream = document.getElementById('claim-stream');
         const l2Surfaces = document.getElementById('l2-surfaces');
         const l3Incidents = document.getElementById('l3-incidents');
+        const l4Cases = document.getElementById('l4-cases');
         const typedStates = document.getElementById('typed-states');
 
         let eventSource = null;
@@ -1754,6 +1839,7 @@ async def trace_page():
             claimStream.innerHTML = '';
             l2Surfaces.innerHTML = '<div style="color:#666">No surfaces yet</div>';
             l3Incidents.innerHTML = '<div style="color:#666">No incidents yet</div>';
+            l4Cases.innerHTML = '<div style="color:#666">No cases yet</div>';
             typedStates.innerHTML = '<div style="color:#666">No typed values yet</div>';
             progress.style.width = '0%';
             stepCounter.textContent = '';
@@ -1920,6 +2006,20 @@ async def trace_page():
                         <div class="item-id">${iid}</div>
                         <div class="item-claims">surfaces: ${(inc.surfaces || []).join(', ')}</div>
                         <div class="item-anchors">anchors: ${(inc.anchor_entities || []).join(', ')}</div>
+                    </div>
+                `).join('');
+            }
+
+            // L4 Cases
+            const cases = state.L4_cases || {};
+            if (Object.keys(cases).length === 0) {
+                l4Cases.innerHTML = '<div style="color:#666">No cases yet</div>';
+            } else {
+                l4Cases.innerHTML = Object.entries(cases).map(([cid, c]) => `
+                    <div class="case-item">
+                        <div class="item-id">${cid}</div>
+                        <div class="item-claims">incidents: ${(c.incidents || []).join(', ')}</div>
+                        <div class="item-anchors">type: ${c.case_type || 'developing'}</div>
                     </div>
                 `).join('');
             }

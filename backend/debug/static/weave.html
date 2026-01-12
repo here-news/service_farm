@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>REEE Live Topology</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Monaco', 'Menlo', monospace;
+            background: #0a0a12;
+            color: #e2e8f0;
+            overflow: hidden;
+        }
+
+        /* Minimal Header */
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 40px;
+            background: rgba(15, 23, 42, 0.9);
+            backdrop-filter: blur(8px);
+            border-bottom: 1px solid #1e293b;
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            gap: 16px;
+            z-index: 100;
+        }
+        .header h1 {
+            font-size: 13px;
+            font-weight: 600;
+            color: #4ade80;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .live-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ef4444;
+            animation: pulse-dot 2s infinite;
+        }
+        .live-dot.connected { background: #4ade80; }
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .header .stats {
+            display: flex;
+            gap: 16px;
+            font-size: 11px;
+            color: #64748b;
+        }
+        .header .stat-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .header .stat-value {
+            color: #e2e8f0;
+            font-weight: 600;
+        }
+        .header .thread-status {
+            margin-left: auto;
+            display: flex;
+            gap: 12px;
+            font-size: 10px;
+        }
+        .thread-badge {
+            padding: 3px 8px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .thread-badge.live { background: rgba(74, 222, 128, 0.2); color: #4ade80; }
+        .thread-badge.db { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
+        .thread-badge .spinner {
+            width: 8px;
+            height: 8px;
+            border: 1px solid currentColor;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Full-screen Graph */
+        #graph {
+            position: fixed;
+            top: 40px;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: radial-gradient(ellipse at center, #0f172a 0%, #0a0a12 100%);
+        }
+        #graph svg { width: 100%; height: 100%; }
+
+        /* Toast notifications */
+        .toast-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            flex-direction: column-reverse;
+            gap: 8px;
+            z-index: 200;
+            max-height: 50vh;
+            overflow: hidden;
+            pointer-events: none;
+        }
+        .toast {
+            background: rgba(30, 41, 59, 0.95);
+            backdrop-filter: blur(8px);
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-size: 11px;
+            max-width: 320px;
+            animation: slideIn 0.3s ease-out;
+            pointer-events: auto;
+        }
+        .toast.surface { border-left: 3px solid #3b82f6; }
+        .toast.incident { border-left: 3px solid #f59e0b; }
+        .toast.case { border-left: 3px solid #8b5cf6; }
+        .toast.meta { border-left: 3px solid #ef4444; }
+        @keyframes slideIn {
+            from { transform: translateX(100px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes fadeOut {
+            to { transform: translateX(100px); opacity: 0; }
+        }
+        .toast-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+        .toast-type {
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 9px;
+            letter-spacing: 0.5px;
+        }
+        .toast.surface .toast-type { color: #3b82f6; }
+        .toast.incident .toast-type { color: #f59e0b; }
+        .toast.case .toast-type { color: #8b5cf6; }
+        .toast.meta .toast-type { color: #ef4444; }
+        .toast-time { color: #64748b; font-size: 9px; }
+        .toast-content { color: #94a3b8; }
+        .toast-id { color: #e2e8f0; font-family: monospace; }
+
+        /* Detail panel (click to show) */
+        .detail-panel {
+            position: fixed;
+            top: 50px;
+            right: 16px;
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(8px);
+            border: 1px solid #1e293b;
+            border-radius: 8px;
+            padding: 12px;
+            width: 300px;
+            max-height: calc(100vh - 80px);
+            overflow-y: auto;
+            z-index: 100;
+            display: none;
+        }
+        .detail-panel.visible { display: block; }
+        .detail-panel h3 {
+            font-size: 12px;
+            margin-bottom: 8px;
+            color: #f1f5f9;
+        }
+        .detail-panel .close-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: none;
+            border: none;
+            color: #64748b;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .detail-section {
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #1e293b;
+        }
+        .detail-section:last-child { border-bottom: none; }
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 3px;
+            font-size: 10px;
+        }
+        .detail-row .label { color: #64748b; }
+        .detail-row .value { color: #e2e8f0; }
+
+        /* Loading - inline in header */
+        .loading {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            color: #64748b;
+            font-size: 11px;
+        }
+        .loading.visible {
+            display: flex;
+        }
+        .loading-spinner {
+            width: 14px;
+            height: 14px;
+            border: 2px solid #1e293b;
+            border-top-color: #3b82f6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        /* Mini legend */
+        .mini-legend {
+            position: fixed;
+            bottom: 16px;
+            left: 16px;
+            display: flex;
+            gap: 12px;
+            font-size: 9px;
+            color: #64748b;
+            z-index: 100;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .legend-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+        .legend-rect {
+            width: 10px;
+            height: 6px;
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1>
+            <div class="live-dot" id="live-dot"></div>
+            REEE Topology
+        </h1>
+        <div class="stats">
+            <div class="stat-item">
+                <span>Surfaces:</span>
+                <span class="stat-value" id="stat-surfaces">0</span>
+            </div>
+            <div class="stat-item">
+                <span>Incidents:</span>
+                <span class="stat-value" id="stat-incidents">0</span>
+            </div>
+            <div class="stat-item">
+                <span>Cases:</span>
+                <span class="stat-value" id="stat-cases">0</span>
+            </div>
+        </div>
+        <div class="loading" id="loading">
+            <div class="loading-spinner"></div>
+            <span>Loading topology...</span>
+        </div>
+        <div class="thread-status">
+            <div class="thread-badge live" id="thread-live">
+                <div class="spinner"></div>
+                <span>Live</span>
+            </div>
+            <div class="thread-badge db" id="thread-db">
+                <div class="spinner"></div>
+                <span>DB</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Stats overlay removed - using header stats only -->
+
+    <div class="detail-panel" id="detail-panel">
+        <button class="close-btn" onclick="hideDetail()">&times;</button>
+        <div id="detail-content"></div>
+    </div>
+
+    <div id="graph"></div>
+
+    <div class="toast-container" id="toast-container"></div>
+
+    <div class="mini-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:#3b82f6"></div> L2 Surface</div>
+        <div class="legend-item"><div class="legend-rect" style="background:#f59e0b"></div> L3 Incident</div>
+        <div class="legend-item"><div class="legend-rect" style="background:#8b5cf6"></div> L4 Case</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#4ade80"></div> New (live)</div>
+    </div>
+
+    <script>
+        // =============================================================
+        // STATE - Dual thread architecture
+        // =============================================================
+
+        // Graph state
+        let simulation = null;
+        let svg = null;
+        let g = null;
+
+        // Node/link maps - unified from both threads
+        const nodeMap = new Map();  // id -> node object
+        const linkMap = new Map();  // "source-target" -> link object
+        const incidentToSurfaces = new Map();  // incident_id -> Set of surface_ids
+
+        // Stats counters
+        const stats = {
+            db: { surfaces: 0, incidents: 0, cases: 0, claims: 0 },
+            live: { surfaces: 0, incidents: 0, cases: 0, claims: 0 }
+        };
+
+        // =============================================================
+        // INITIALIZATION
+        // =============================================================
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initGraph();
+
+            // Start both threads
+            startDbThread();
+            startLiveThread();
+        });
+
+        function initGraph() {
+            const container = document.getElementById('graph');
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+
+            svg = d3.select('#graph')
+                .append('svg')
+                .attr('width', width)
+                .attr('height', height);
+
+            // Zoom
+            const zoom = d3.zoom()
+                .scaleExtent([0.1, 4])
+                .on('zoom', (e) => g.attr('transform', e.transform));
+            svg.call(zoom);
+
+            g = svg.append('g');
+
+            // Force simulation
+            simulation = d3.forceSimulation([])
+                .force('link', d3.forceLink([]).id(d => d.id).distance(80))
+                .force('charge', d3.forceManyBody().strength(-150))
+                .force('center', d3.forceCenter(width / 2, height / 2))
+                .force('collision', d3.forceCollide().radius(25))
+                .on('tick', ticked);
+        }
+
+        // =============================================================
+        // DB THREAD - Slower, loads existing topology
+        // =============================================================
+
+        async function startDbThread() {
+            const badge = document.getElementById('thread-db');
+
+            try {
+                // Initial load
+                await loadDbSnapshot();
+
+                // Remove spinner, show done
+                badge.innerHTML = '<span>✓ DB</span>';
+
+                // Periodic refresh (every 30s)
+                setInterval(async () => {
+                    badge.innerHTML = '<div class="spinner"></div><span>DB</span>';
+                    await loadDbSnapshot();
+                    badge.innerHTML = '<span>✓ DB</span>';
+                }, 30000);
+
+            } catch (err) {
+                badge.innerHTML = '<span>✗ DB</span>';
+                badge.style.background = 'rgba(239, 68, 68, 0.2)';
+                badge.style.color = '#ef4444';
+                console.error('DB thread error:', err);
+            }
+        }
+
+        async function loadDbSnapshot() {
+            document.getElementById('loading').classList.add('visible');
+
+            try {
+                const response = await fetch('/api/snapshot?limit=200&dispersion=false');
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                const data = await response.json();
+
+                if (data.error) throw new Error(data.error);
+                if (!data.nodes) throw new Error('No nodes in response');
+
+                // Update DB stats
+                stats.db.surfaces = data.meta.counts?.surfaces || 0;
+                stats.db.incidents = data.meta.counts?.events || 0;  // Events in snapshot are incidents
+
+                // Merge nodes from DB
+                const container = document.getElementById('graph');
+                const width = container.clientWidth;
+                const height = container.clientHeight;
+                const padding = 60;
+
+                for (const n of data.nodes) {
+                    if (!nodeMap.has(n.id)) {
+                        // Map API kind to node type
+                        let type = n.kind;
+                        if (type !== 'surface' && type !== 'incident' && type !== 'case') {
+                            type = 'incident';  // fallback for legacy 'event'
+                        }
+
+                        // Build label based on type
+                        let label = n.title || n.id.slice(-8);
+                        if (type === 'case') {
+                            label = 'L4: ' + (n.title || n.anchors?.[0] || n.id.slice(-6));
+                        } else if (type === 'incident') {
+                            label = 'L3: ' + (n.title || n.anchors?.[0] || n.id.slice(-6));
+                        }
+
+                        const node = {
+                            id: n.id,
+                            type: type,
+                            label: label.slice(0, 20),
+                            claimCount: n.claim_count || 1,
+                            anchors: n.anchors || [],
+                            caseType: n.case_type || null,  // developing or entity_storyline
+                            isNew: false,
+                            isLive: false,
+                            // Position from projection or random
+                            x: n.x !== undefined ? padding + n.x * (width - 2*padding) : width/2 + (Math.random()-0.5)*200,
+                            y: n.y !== undefined ? padding + n.y * (height - 2*padding) : height/2 + (Math.random()-0.5)*200,
+                        };
+                        nodeMap.set(n.id, node);
+                    }
+                }
+
+                // Merge links
+                for (const l of data.links) {
+                    const sourceId = l.source.id || l.source;
+                    const targetId = l.target.id || l.target;
+                    const key = `${sourceId}-${targetId}`;
+
+                    if (!linkMap.has(key) && nodeMap.has(sourceId) && nodeMap.has(targetId)) {
+                        linkMap.set(key, {
+                            source: sourceId,
+                            target: targetId,
+                            kind: l.kind || 'membership',
+                            edge_type: l.edge_type || null  // L3_L2 or L4_L3
+                        });
+                    }
+                }
+
+                updateGraph();
+                updateHeaderStats();
+                console.log(`DB loaded: ${nodeMap.size} nodes, ${linkMap.size} links`);
+
+            } catch (innerErr) {
+                console.error('Error processing DB data:', innerErr);
+                throw innerErr;
+            } finally {
+                document.getElementById('loading').classList.remove('visible');
+            }
+        }
+
+        // =============================================================
+        // LIVE THREAD - Fast, real-time from Redis pub/sub
+        // =============================================================
+
+        function startLiveThread() {
+            const badge = document.getElementById('thread-live');
+            const liveDot = document.getElementById('live-dot');
+
+            const es = new EventSource('/api/live/stream');
+
+            es.onopen = () => {
+                badge.innerHTML = '<span>● Live</span>';
+                liveDot.classList.add('connected');
+            };
+
+            es.onerror = () => {
+                badge.innerHTML = '<span>✗ Live</span>';
+                badge.style.background = 'rgba(239, 68, 68, 0.2)';
+                badge.style.color = '#ef4444';
+                liveDot.classList.remove('connected');
+
+                // Reconnect after 3s
+                setTimeout(() => {
+                    badge.innerHTML = '<div class="spinner"></div><span>Live</span>';
+                    badge.style.background = '';
+                    badge.style.color = '';
+                }, 3000);
+            };
+
+            es.onmessage = (e) => {
+                const data = JSON.parse(e.data);
+
+                if (data.type === 'connected') return;
+
+                if (data.type === 'claim_processed') {
+                    processLiveEvent(data);
+                }
+            };
+        }
+
+        function processLiveEvent(data) {
+            const container = document.getElementById('graph');
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+
+            // Update live stats
+            if (data.stats) {
+                stats.live.claims = data.stats.claims_processed || 0;
+                stats.live.surfaces = data.stats.surfaces || 0;
+                stats.live.incidents = data.stats.incidents || 0;
+                stats.live.cases = data.stats.cases || 0;
+
+                // Stats updated in header via updateHeaderStats()
+            }
+
+            // Add surface node if new
+            if (data.L2 && data.L2.surface_id) {
+                const surfaceId = data.L2.surface_id;
+                const isNewSurface = data.L2.is_new;
+
+                if (!nodeMap.has(surfaceId)) {
+                    const node = {
+                        id: surfaceId,
+                        type: 'surface',
+                        label: (data.L2.question_key || surfaceId).slice(0, 20),
+                        claimCount: 1,
+                        isNew: true,
+                        isLive: true,
+                        x: width/2 + (Math.random()-0.5)*300,
+                        y: height/2 + (Math.random()-0.5)*300,
+                    };
+                    nodeMap.set(surfaceId, node);
+
+                    // Toast for new surface
+                    if (isNewSurface) {
+                        showToast('surface', 'New L2 Surface', data.L2.question_key || surfaceId);
+                    }
+                } else {
+                    // Update claim count
+                    const node = nodeMap.get(surfaceId);
+                    node.claimCount = (node.claimCount || 0) + 1;
+                }
+            }
+
+            // Add incident node if new
+            if (data.L3 && data.L3.incident_id) {
+                const incidentId = data.L3.incident_id;
+                const surfaceId = data.L2?.surface_id;
+                const isNewIncident = data.L3.is_new;
+
+                if (!nodeMap.has(incidentId)) {
+                    const node = {
+                        id: incidentId,
+                        type: 'incident',
+                        label: 'L3:' + incidentId.slice(-6),
+                        isNew: true,
+                        isLive: true,
+                        x: width/2 + (Math.random()-0.5)*200,
+                        y: height/2 + (Math.random()-0.5)*200,
+                    };
+                    nodeMap.set(incidentId, node);
+                    incidentToSurfaces.set(incidentId, new Set());
+
+                    if (isNewIncident) {
+                        showToast('incident', 'New L3 Incident', incidentId);
+                    }
+                }
+
+                // Link surface to incident
+                if (surfaceId && nodeMap.has(surfaceId)) {
+                    const surfaceSet = incidentToSurfaces.get(incidentId) || new Set();
+                    if (!surfaceSet.has(surfaceId)) {
+                        surfaceSet.add(surfaceId);
+                        incidentToSurfaces.set(incidentId, surfaceSet);
+
+                        const key = `${incidentId}-${surfaceId}`;
+                        if (!linkMap.has(key)) {
+                            linkMap.set(key, {
+                                source: incidentId,
+                                target: surfaceId,
+                                kind: 'membership'
+                            });
+                        }
+                    }
+                }
+            }
+
+            // Add case if new
+            if (data.L4 && data.L4.case_id && data.L4.is_new) {
+                showToast('case', 'New L4 Case', data.L4.case_id);
+            }
+
+            // Show meta-claims
+            if (data.meta_claims && data.meta_claims.length > 0) {
+                for (const mc of data.meta_claims) {
+                    if (mc.type !== 'extraction_sparse') {  // Don't spam with sparse warnings
+                        showToast('meta', mc.type, mc.reason);
+                    }
+                }
+            }
+
+            // Clear isNew flag after animation
+            setTimeout(() => {
+                for (const node of nodeMap.values()) {
+                    node.isNew = false;
+                }
+                updateGraph();
+            }, 3000);
+
+            updateGraph();
+            updateHeaderStats();
+        }
+
+        // =============================================================
+        // GRAPH RENDERING
+        // =============================================================
+
+        function updateGraph() {
+            const nodes = Array.from(nodeMap.values());
+            const links = Array.from(linkMap.values());
+
+            // Update simulation
+            simulation.nodes(nodes);
+            simulation.force('link').links(links);
+            simulation.alpha(0.3).restart();
+
+            // Links
+            const linkSel = g.selectAll('line.link')
+                .data(links, d => `${d.source.id || d.source}-${d.target.id || d.target}`);
+
+            linkSel.exit().remove();
+
+            linkSel.enter().append('line')
+                .attr('class', 'link')
+                .attr('stroke', d => d.edge_type === 'L4_L3' ? '#8b5cf6' : '#334155')
+                .attr('stroke-width', d => d.edge_type === 'L4_L3' ? 2 : 1.5)
+                .attr('stroke-opacity', 0.6)
+                .attr('stroke-dasharray', d => d.edge_type === 'L4_L3' ? '5,3' : null);
+
+            // Nodes
+            const nodeSel = g.selectAll('g.node')
+                .data(nodes, d => d.id);
+
+            nodeSel.exit().remove();
+
+            const nodeEnter = nodeSel.enter().append('g')
+                .attr('class', 'node')
+                .style('cursor', 'pointer')
+                .on('click', (e, d) => showNodeDetail(d))
+                .call(d3.drag()
+                    .on('start', dragstarted)
+                    .on('drag', dragged)
+                    .on('end', dragended));
+
+            // Surface circles
+            nodeEnter.filter(d => d.type === 'surface')
+                .append('circle')
+                .attr('r', d => 8 + Math.sqrt(d.claimCount || 1) * 2)
+                .attr('fill', d => d.isLive ? '#4ade80' : '#3b82f6')
+                .attr('stroke', d => d.isNew ? '#4ade80' : '#1e40af')
+                .attr('stroke-width', d => d.isNew ? 3 : 2);
+
+            // Incident rectangles (orange)
+            nodeEnter.filter(d => d.type === 'incident')
+                .append('rect')
+                .attr('width', 24)
+                .attr('height', 16)
+                .attr('x', -12)
+                .attr('y', -8)
+                .attr('rx', 3)
+                .attr('fill', '#f59e0b')
+                .attr('stroke', d => d.isNew ? '#4ade80' : '#b45309')
+                .attr('stroke-width', d => d.isNew ? 3 : 2);
+
+            // Case rectangles (purple, larger)
+            nodeEnter.filter(d => d.type === 'case')
+                .append('rect')
+                .attr('width', 32)
+                .attr('height', 20)
+                .attr('x', -16)
+                .attr('y', -10)
+                .attr('rx', 4)
+                .attr('fill', '#8b5cf6')
+                .attr('stroke', d => d.isNew ? '#4ade80' : '#6d28d9')
+                .attr('stroke-width', d => d.isNew ? 3 : 2);
+
+            // Labels
+            nodeEnter.append('text')
+                .attr('text-anchor', 'middle')
+                .attr('dy', d => d.type === 'surface' ? 25 : 0)
+                .attr('fill', '#94a3b8')
+                .attr('font-size', '9px')
+                .text(d => d.label.slice(0, 15));
+
+            // Update existing nodes
+            nodeSel.select('circle')
+                .attr('r', d => 8 + Math.sqrt(d.claimCount || 1) * 2)
+                .attr('fill', d => d.isLive ? '#4ade80' : '#3b82f6')
+                .attr('stroke', d => d.isNew ? '#4ade80' : '#1e40af')
+                .attr('stroke-width', d => d.isNew ? 3 : 2);
+
+            nodeSel.filter(d => d.type === 'incident').select('rect')
+                .attr('stroke', d => d.isNew ? '#4ade80' : '#b45309')
+                .attr('stroke-width', d => d.isNew ? 3 : 2);
+
+            nodeSel.filter(d => d.type === 'case').select('rect')
+                .attr('stroke', d => d.isNew ? '#4ade80' : '#6d28d9')
+                .attr('stroke-width', d => d.isNew ? 3 : 2);
+        }
+
+        function ticked() {
+            g.selectAll('line.link')
+                .attr('x1', d => d.source.x)
+                .attr('y1', d => d.source.y)
+                .attr('x2', d => d.target.x)
+                .attr('y2', d => d.target.y);
+
+            g.selectAll('g.node')
+                .attr('transform', d => `translate(${d.x},${d.y})`);
+        }
+
+        function dragstarted(event, d) {
+            if (!event.active) simulation.alphaTarget(0.3).restart();
+            d.fx = d.x;
+            d.fy = d.y;
+        }
+
+        function dragged(event, d) {
+            d.fx = event.x;
+            d.fy = event.y;
+        }
+
+        function dragended(event, d) {
+            if (!event.active) simulation.alphaTarget(0);
+            d.fx = null;
+            d.fy = null;
+        }
+
+        // =============================================================
+        // UI HELPERS
+        // =============================================================
+
+        function updateHeaderStats() {
+            // Count actual nodes in graph
+            let surfaces = 0, incidents = 0, cases = 0;
+            for (const node of nodeMap.values()) {
+                if (node.type === 'surface') surfaces++;
+                else if (node.type === 'incident') incidents++;
+                else if (node.type === 'case') cases++;
+            }
+            document.getElementById('stat-surfaces').textContent = surfaces;
+            document.getElementById('stat-incidents').textContent = incidents;
+            document.getElementById('stat-cases').textContent = cases;
+        }
+
+        function showToast(type, title, content) {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `
+                <div class="toast-header">
+                    <span class="toast-type">${title}</span>
+                    <span class="toast-time">${new Date().toLocaleTimeString()}</span>
+                </div>
+                <div class="toast-content">
+                    <span class="toast-id">${(content || '').slice(0, 60)}</span>
+                </div>
+            `;
+            container.appendChild(toast);
+
+            // Auto-remove after 5s
+            setTimeout(() => {
+                toast.style.animation = 'fadeOut 0.3s ease-out forwards';
+                setTimeout(() => toast.remove(), 300);
+            }, 5000);
+
+            // Keep max 8 toasts
+            while (container.children.length > 8) {
+                container.removeChild(container.firstChild);
+            }
+        }
+
+        async function showNodeDetail(d) {
+            const panel = document.getElementById('detail-panel');
+            const content = document.getElementById('detail-content');
+
+            if (d.type === 'surface') {
+                try {
+                    const res = await fetch(`/api/surface/${d.id}`);
+                    const detail = await res.json();
+
+                    content.innerHTML = `
+                        <h3>L2 Surface</h3>
+                        <div class="detail-section">
+                            <div class="detail-row"><span class="label">ID</span><span class="value">${d.id}</span></div>
+                            <div class="detail-row"><span class="label">Claims</span><span class="value">${detail.claim_count || d.claimCount}</span></div>
+                            <div class="detail-row"><span class="label">Sources</span><span class="value">${detail.source_count || '-'}</span></div>
+                            <div class="detail-row"><span class="label">Support</span><span class="value">${detail.support?.toFixed(2) || '-'}</span></div>
+                        </div>
+                        <div class="detail-section">
+                            <h3>Anchors</h3>
+                            <div style="font-size: 10px; color: #64748b;">${(detail.anchors || []).join(', ') || 'None'}</div>
+                        </div>
+                    `;
+                } catch (e) {
+                    content.innerHTML = `<h3>Surface ${d.id}</h3><p style="color:#ef4444">Error: ${e.message}</p>`;
+                }
+            } else if (d.type === 'incident') {
+                content.innerHTML = `
+                    <h3>L3 Incident</h3>
+                    <div class="detail-section">
+                        <div class="detail-row"><span class="label">ID</span><span class="value">${d.id}</span></div>
+                        <div class="detail-row"><span class="label">Surfaces</span><span class="value">${incidentToSurfaces.get(d.id)?.size || 0}</span></div>
+                        <div class="detail-row"><span class="label">Live</span><span class="value">${d.isLive ? 'Yes' : 'No'}</span></div>
+                    </div>
+                    <div class="detail-section">
+                        <h3>Anchors</h3>
+                        <div style="font-size: 10px; color: #64748b;">${(d.anchors || []).join(', ') || 'None'}</div>
+                    </div>
+                `;
+            } else if (d.type === 'case') {
+                // Count incidents linked to this case
+                let incidentCount = 0;
+                for (const [key, link] of linkMap) {
+                    if (link.source === d.id || link.source?.id === d.id) {
+                        incidentCount++;
+                    }
+                }
+                content.innerHTML = `
+                    <h3 style="color: #8b5cf6;">L4 Case</h3>
+                    <div class="detail-section">
+                        <div class="detail-row"><span class="label">ID</span><span class="value">${d.id}</span></div>
+                        <div class="detail-row"><span class="label">Incidents</span><span class="value">${incidentCount}</span></div>
+                        <div class="detail-row"><span class="label">Case Type</span><span class="value">${d.caseType || 'developing'}</span></div>
+                        <div class="detail-row"><span class="label">Live</span><span class="value">${d.isLive ? 'Yes' : 'No'}</span></div>
+                    </div>
+                    <div class="detail-section">
+                        <h3>Primary Entities</h3>
+                        <div style="font-size: 10px; color: #64748b;">${(d.anchors || []).join(', ') || 'None'}</div>
+                    </div>
+                `;
+            }
+
+            panel.classList.add('visible');
+        }
+
+        function hideDetail() {
+            document.getElementById('detail-panel').classList.remove('visible');
+        }
+
+        // Handle resize
+        window.addEventListener('resize', () => {
+            const container = document.getElementById('graph');
+            svg.attr('width', container.clientWidth).attr('height', container.clientHeight);
+            simulation.force('center', d3.forceCenter(container.clientWidth / 2, container.clientHeight / 2));
+            simulation.alpha(0.3).restart();
+        });
+    </script>
+</body>
+</html>

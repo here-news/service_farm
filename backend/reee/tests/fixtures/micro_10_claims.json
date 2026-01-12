@@ -1,0 +1,108 @@
+{
+  "corpus_id": "micro_wfc_10",
+  "description": "Minimal 10-claim fixture for neo4j lifecycle testing. Star pattern: WFC as hub anchor across 3 incidents.",
+  "entities": [
+    {"id": "ent_wfc", "name": "World Food Council", "type": "organization", "role": "anchor"},
+    {"id": "ent_hunger", "name": "Global Hunger Initiative", "type": "organization", "role": "companion"},
+    {"id": "ent_un", "name": "United Nations", "type": "organization", "role": "companion"},
+    {"id": "ent_asia", "name": "Southeast Asia", "type": "location", "role": "companion"}
+  ],
+  "claims": [
+    {
+      "id": "claim_001",
+      "text": "World Food Council announces new hunger relief program",
+      "publisher": "reuters",
+      "reported_time": "2024-01-15T10:00:00Z",
+      "event_time": "2024-01-15T09:00:00Z",
+      "question_key": "policy_announcement",
+      "anchor_entities": ["World Food Council"]
+    },
+    {
+      "id": "claim_002",
+      "text": "WFC partners with Global Hunger Initiative for food distribution",
+      "publisher": "ap",
+      "reported_time": "2024-01-15T11:00:00Z",
+      "event_time": "2024-01-15T10:30:00Z",
+      "question_key": "partnership",
+      "anchor_entities": ["World Food Council", "Global Hunger Initiative"]
+    },
+    {
+      "id": "claim_003",
+      "text": "World Food Council receives UN backing for expansion",
+      "publisher": "bbc",
+      "reported_time": "2024-01-16T08:00:00Z",
+      "event_time": "2024-01-16T07:00:00Z",
+      "question_key": "endorsement",
+      "anchor_entities": ["World Food Council", "United Nations"]
+    },
+    {
+      "id": "claim_004",
+      "text": "WFC program targets Southeast Asia region first",
+      "publisher": "reuters",
+      "reported_time": "2024-01-16T14:00:00Z",
+      "event_time": "2024-01-16T12:00:00Z",
+      "question_key": "target_region",
+      "anchor_entities": ["World Food Council", "Southeast Asia"]
+    },
+    {
+      "id": "claim_005",
+      "text": "Global Hunger Initiative confirms WFC collaboration details",
+      "publisher": "guardian",
+      "reported_time": "2024-01-17T09:00:00Z",
+      "event_time": "2024-01-17T08:00:00Z",
+      "question_key": "partnership",
+      "anchor_entities": ["World Food Council", "Global Hunger Initiative"]
+    },
+    {
+      "id": "claim_006",
+      "text": "World Food Council budget set at 500 million dollars",
+      "publisher": "ft",
+      "reported_time": "2024-01-17T15:00:00Z",
+      "event_time": "2024-01-17T14:00:00Z",
+      "question_key": "budget",
+      "anchor_entities": ["World Food Council"]
+    },
+    {
+      "id": "claim_007",
+      "text": "UN representative praises WFC initiative",
+      "publisher": "nyt",
+      "reported_time": "2024-01-18T10:00:00Z",
+      "event_time": "2024-01-18T09:00:00Z",
+      "question_key": "endorsement",
+      "anchor_entities": ["World Food Council", "United Nations"]
+    },
+    {
+      "id": "claim_008",
+      "text": "Southeast Asia nations welcome WFC food program",
+      "publisher": "scmp",
+      "reported_time": "2024-01-18T12:00:00Z",
+      "event_time": "2024-01-18T11:00:00Z",
+      "question_key": "regional_response",
+      "anchor_entities": ["World Food Council", "Southeast Asia"]
+    },
+    {
+      "id": "claim_009",
+      "text": "World Food Council sets January 2025 launch date",
+      "publisher": "reuters",
+      "reported_time": "2024-01-19T08:00:00Z",
+      "event_time": "2024-01-19T07:00:00Z",
+      "question_key": "timeline",
+      "anchor_entities": ["World Food Council"]
+    },
+    {
+      "id": "claim_010",
+      "text": "WFC program expected to reach 50 million people",
+      "publisher": "ap",
+      "reported_time": "2024-01-19T14:00:00Z",
+      "event_time": "2024-01-19T13:00:00Z",
+      "question_key": "impact_estimate",
+      "anchor_entities": ["World Food Council"]
+    }
+  ],
+  "expected_invariants": {
+    "claim_count": 10,
+    "entity_count": 4,
+    "hub_entity": null,
+    "spine_entity": "World Food Council"
+  }
+}

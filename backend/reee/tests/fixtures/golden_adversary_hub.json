@@ -1,0 +1,107 @@
+{
+  "corpus_id": "golden_adversary_hub",
+  "description": "Hub adversary archetype: Hong Kong appears in 30%+ of incidents but must NOT define stories.",
+  "archetype": "hub_adversary",
+  "expected": {
+    "hub_entity": "Hong Kong",
+    "hub_fraction": 0.8,
+    "stories_defined_by_hub": 0,
+    "valid_spines": ["World Food Council", "Jimmy Lai"],
+    "invariants": ["no_hub_story_definition", "max_case_size_below_50"]
+  },
+  "entities": [
+    {"id": "ent_hk", "name": "Hong Kong", "type": "location", "role": "hub"},
+    {"id": "ent_wfc", "name": "World Food Council", "type": "organization", "role": "spine"},
+    {"id": "ent_jimmy", "name": "Jimmy Lai", "type": "person", "role": "spine"},
+    {"id": "ent_un", "name": "United Nations", "type": "organization", "role": "companion"},
+    {"id": "ent_trial", "name": "High Court", "type": "organization", "role": "companion"},
+    {"id": "ent_apple", "name": "Apple Daily", "type": "organization", "role": "companion"}
+  ],
+  "incidents": [
+    {
+      "id": "inc_wfc_hk_1",
+      "description": "WFC announces Hong Kong regional office",
+      "anchor_entities": ["World Food Council", "Hong Kong"],
+      "companion_entities": [],
+      "time_start": "2024-01-15T09:00:00Z",
+      "time_end": "2024-01-15T12:00:00Z"
+    },
+    {
+      "id": "inc_wfc_hk_2",
+      "description": "WFC Hong Kong charity event",
+      "anchor_entities": ["World Food Council", "Hong Kong"],
+      "companion_entities": [],
+      "time_start": "2024-01-17T09:00:00Z",
+      "time_end": "2024-01-17T12:00:00Z"
+    },
+    {
+      "id": "inc_wfc_un",
+      "description": "WFC + UN partnership (not in HK)",
+      "anchor_entities": ["World Food Council", "United Nations"],
+      "companion_entities": [],
+      "time_start": "2024-01-19T09:00:00Z",
+      "time_end": "2024-01-19T12:00:00Z"
+    },
+    {
+      "id": "inc_jimmy_hk_1",
+      "description": "Jimmy Lai trial in Hong Kong",
+      "anchor_entities": ["Jimmy Lai", "Hong Kong", "High Court"],
+      "companion_entities": [],
+      "time_start": "2024-01-20T09:00:00Z",
+      "time_end": "2024-01-20T18:00:00Z"
+    },
+    {
+      "id": "inc_jimmy_hk_2",
+      "description": "Jimmy Lai verdict announced in Hong Kong",
+      "anchor_entities": ["Jimmy Lai", "Hong Kong"],
+      "companion_entities": [],
+      "time_start": "2024-01-22T09:00:00Z",
+      "time_end": "2024-01-22T12:00:00Z"
+    },
+    {
+      "id": "inc_jimmy_apple",
+      "description": "Jimmy Lai + Apple Daily legacy",
+      "anchor_entities": ["Jimmy Lai", "Apple Daily"],
+      "companion_entities": [],
+      "time_start": "2024-01-23T09:00:00Z",
+      "time_end": "2024-01-23T12:00:00Z"
+    },
+    {
+      "id": "inc_hk_only_1",
+      "description": "Hong Kong general policy announcement",
+      "anchor_entities": ["Hong Kong"],
+      "companion_entities": [],
+      "time_start": "2024-01-24T09:00:00Z",
+      "time_end": "2024-01-24T12:00:00Z"
+    },
+    {
+      "id": "inc_hk_only_2",
+      "description": "Hong Kong economic report",
+      "anchor_entities": ["Hong Kong"],
+      "companion_entities": [],
+      "time_start": "2024-01-25T09:00:00Z",
+      "time_end": "2024-01-25T12:00:00Z"
+    },
+    {
+      "id": "inc_hk_un",
+      "description": "Hong Kong + UN human rights discussion",
+      "anchor_entities": ["Hong Kong", "United Nations"],
+      "companion_entities": [],
+      "time_start": "2024-01-26T09:00:00Z",
+      "time_end": "2024-01-26T12:00:00Z"
+    },
+    {
+      "id": "inc_hk_court",
+      "description": "Hong Kong High Court general ruling",
+      "anchor_entities": ["Hong Kong", "High Court"],
+      "companion_entities": [],
+      "time_start": "2024-01-27T09:00:00Z",
+      "time_end": "2024-01-27T12:00:00Z"
+    }
+  ],
+  "notes": {
+    "hub_pattern": "Hong Kong appears in 6/10 incidents (60%). With hub_fraction_threshold=0.20, HK is a hub.",
+    "expected_stories": "WFC story (3 incidents), Jimmy Lai story (3 incidents). HK should NOT define its own story.",
+    "anti_percolation": "HK should not merge WFC story with Jimmy Lai story despite appearing in both."
+  }
+}

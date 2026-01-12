@@ -437,6 +437,15 @@ class InquirySeeder:
         for mc in meta_claims:
             if mc.target_type == "surface":
                 mc_by_surface.setdefault(mc.target_id, []).append(mc)
+            elif mc.target_type == "claim_pair":
+                # Handle unresolved_conflict meta-claims (target_id format: "c1:c2")
+                parts = mc.target_id.split(":")
+                if len(parts) == 2:
+                    c1, c2 = parts
+                    # Find surfaces containing these claims
+                    for surface_id, surface in surfaces.items():
+                        if c1 in surface.claim_ids or c2 in surface.claim_ids:
+                            mc_by_surface.setdefault(surface_id, []).append(mc)
 
         # Attempt to seed from each surface with tensions
         for surface_id, surface_mcs in mc_by_surface.items():
@@ -591,7 +600,7 @@ class InquirySeeder:
             return ProtoInquiryType.CONFLICT_RESOLUTION
         if "single_source_only" in mc_types:
             return ProtoInquiryType.CORROBORATION
-        if "high_entropy_surface" in mc_types:
+        if "high_entropy_value" in mc_types:
             return ProtoInquiryType.VALUE_RESOLUTION
 
         return ProtoInquiryType.VALUE_RESOLUTION
