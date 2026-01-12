@@ -1,6 +1,7 @@
 import React from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import Layout from './components/layout/Layout'
+import LandingPage from './LandingPage'
 import TempHomePage from './TempHomePage'
 import EventInquiryPage from './EventInquiryPage'
 import EntityInquiryPage from './EntityInquiryPage'
@@ -16,8 +17,11 @@ function App() {
   return (
     <Router>
       <Routes>
-        {/* Home - Temp browse page */}
-        <Route path="/" element={<Layout><TempHomePage /></Layout>} />
+        {/* Landing page - full screen visualization */}
+        <Route path="/" element={<LandingPage />} />
+
+        {/* Browse page - data listing */}
+        <Route path="/browse" element={<Layout><TempHomePage /></Layout>} />
 
         {/* Core inquiry routes */}
         <Route path="/inquiry" element={<Layout><InquiryPage /></Layout>} />
